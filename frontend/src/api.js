@@ -1,0 +1,118 @@
+const TOKEN_KEY = "cccd_token";
+const USER_KEY = "cccd_user";
+
+export const auth = {
+  getToken: () => localStorage.getItem(TOKEN_KEY),
+  getUser: () => localStorage.getItem(USER_KEY),
+  save: (token, username) => {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, username);
+  },
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  },
+};
+
+let onAuthExpired = null;
+export const setOnAuthExpired = (fn) => { onAuthExpired = fn; };
+
+async function request(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  const token = auth.getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  let res;
+  try {
+    res = await fetch(path, { ...opts, headers });
+  } catch (netErr) {
+    throw new Error("Không kết nối được máy chủ (" + netErr.message + ")");
+  }
+  if (res.status === 401) {
+    auth.clear();
+    if (onAuthExpired) onAuthExpired();
+    throw new Error("Phiên đăng nhập đã hết hạn");
+  }
+  const ct = res.headers.get("content-type") || "";
+  const data = ct.includes("application/json") ? await res.json() : await res.text();
+  if (!res.ok) {
+    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy chủ");
+    throw new Error(msg);
+  }
+  return data;
+}
+
+async function downloadFile(path, defaultName) {
+  const token = auth.getToken();
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error("Tải file thất bại (" + res.status + ")");
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition") || "";
+  const m = /filename="?([^"]+)"?/.exec(cd);
+  const filename = m ? m[1] : defaultName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export const api = {
+  request,
+
+  login: async (username, password) => {
+    const form = new URLSearchParams();
+    form.set("username", username);
+    form.set("password", password);
+    let res;
+    try {
+      res = await fetch("/api/auth/login", {
+        method: "POST",
+        body: form,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+    } catch (netErr) {
+      throw new Error("Không kết nối được máy chủ (" + netErr.message + ")");
+    }
+    let data;
+    try { data = await res.json(); } catch { throw new Error("Máy chủ trả về không hợp lệ"); }
+    if (!res.ok) throw new Error(data.detail || `Đăng nhập thất bại (${res.status})`);
+    if (!data.access_token) throw new Error("Máy chủ không trả về token");
+    auth.save(data.access_token, data.username);
+    return data;
+  },
+  me: () => request("/api/auth/me"),
+  health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
+
+  stats: () => request("/api/stats"),
+
+  listCells: () => request("/api/cells"),
+  createCell: (body) => request("/api/cells", { method: "POST", body: JSON.stringify(body) }),
+  updateCell: (id, body) => request(`/api/cells/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteCell: (id) => request(`/api/cells/${id}`, { method: "DELETE" }),
+
+  getDetainee: (id) => request(`/api/detainees/${id}`),
+  createDetainee: (body) => request("/api/detainees", { method: "POST", body: JSON.stringify(body) }),
+  updateDetainee: (id, body) => request(`/api/detainees/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteDetainee: (id) => request(`/api/detainees/${id}`, { method: "DELETE" }),
+  checkDuplicate: (body) => request("/api/detainees/check-duplicate", { method: "POST", body: JSON.stringify(body) }),
+
+  uploadPhoto: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return request("/api/upload/photo", { method: "POST", body: fd });
+  },
+
+  mockReadCCCD: () => request("/api/mock/cccd-read"),
+
+  importXlsx: async (formData) => request("/api/detainees/import/xlsx", { method: "POST", body: formData }),
+  downloadExport: () => downloadFile("/api/detainees/export/xlsx", "can_pham.xlsx"),
+  downloadTemplate: () => downloadFile("/api/detainees/template/xlsx", "mau_import.xlsx"),
+
+  listLogs: () => request("/api/logs"),
+};

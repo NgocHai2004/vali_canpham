@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(apt list *)",
+      "Bash(apt-cache search *)",
+      "Bash(sudo -n true)",
+      "Bash(curl -sSf \"http://localhost:5173/src/Login.jsx\" -o /tmp/login-served.js)",
+      "Read(//tmp/**)",
+      "mcp__graphiti__get_status",
+      "mcp__graphiti__add_memory"
+    ]
+  },
+  "enabledPlugins": {}
+}
