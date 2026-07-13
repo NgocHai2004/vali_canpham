@@ -1,16 +1,20 @@
 const TOKEN_KEY = "cccd_token";
 const USER_KEY = "cccd_user";
+const ROLE_KEY = "cccd_role";
 
 export const auth = {
   getToken: () => localStorage.getItem(TOKEN_KEY),
   getUser: () => localStorage.getItem(USER_KEY),
-  save: (token, username) => {
+  getRole: () => localStorage.getItem(ROLE_KEY) || "user",
+  save: (token, username, role = "user") => {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, username);
+    localStorage.setItem(ROLE_KEY, role);
   },
   clear: () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(ROLE_KEY);
   },
 };
 
@@ -83,7 +87,7 @@ export const api = {
     try { data = await res.json(); } catch { throw new Error("Máy chủ trả về không hợp lệ"); }
     if (!res.ok) throw new Error(data.detail || `Đăng nhập thất bại (${res.status})`);
     if (!data.access_token) throw new Error("Máy chủ không trả về token");
-    auth.save(data.access_token, data.username);
+    auth.save(data.access_token, data.username, data.role || "user");
     return data;
   },
   me: () => request("/api/auth/me"),
@@ -97,6 +101,7 @@ export const api = {
   deleteCell: (id) => request(`/api/cells/${id}`, { method: "DELETE" }),
 
   getDetainee: (id) => request(`/api/detainees/${id}`),
+  getDetaineeByCode: (code) => request(`/api/detainees/by-code/${encodeURIComponent(code)}`),
   createDetainee: (body) => request("/api/detainees", { method: "POST", body: JSON.stringify(body) }),
   updateDetainee: (id, body) => request(`/api/detainees/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDetainee: (id) => request(`/api/detainees/${id}`, { method: "DELETE" }),
@@ -114,5 +119,15 @@ export const api = {
   downloadExport: () => downloadFile("/api/detainees/export/xlsx", "can_pham.xlsx"),
   downloadTemplate: () => downloadFile("/api/detainees/template/xlsx", "mau_import.xlsx"),
 
-  listLogs: () => request("/api/logs"),
+  listLogs: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, v); });
+    const s = qs.toString();
+    return request(`/api/logs${s ? `?${s}` : ""}`);
+  },
+
+  listUsers: () => request("/api/users"),
+  createUser: (body) => request("/api/users", { method: "POST", body: JSON.stringify(body) }),
+  updateUser: (id, body) => request(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteUser: (id) => request(`/api/users/${id}`, { method: "DELETE" }),
 };

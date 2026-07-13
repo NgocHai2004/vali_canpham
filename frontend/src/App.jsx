@@ -13,6 +13,8 @@ export default function App() {
     });
   }, []);
 
+  const [role, setRole] = useState(auth.getRole ? auth.getRole() : "admin");
+
   useEffect(() => {
     if (!auth.getToken()) {
       setChecking(false);
@@ -24,6 +26,7 @@ export default function App() {
       .then((data) => {
         if (cancelled) return;
         setUser(data.username);
+        setRole(data.role || "user");
         setChecking(false);
       })
       .catch(() => {
@@ -37,10 +40,11 @@ export default function App() {
     };
   }, []);
 
-  const handleLogin = (username) => setUser(username);
+  const handleLogin = (username, r = "user") => { setUser(username); setRole(r); };
   const handleLogout = () => {
     auth.clear();
     setUser(null);
+    setRole("user");
   };
 
   if (checking) {
@@ -61,5 +65,5 @@ export default function App() {
   }
 
   if (!user) return <Login onLogin={handleLogin} />;
-  return <Dashboard username={user} onLogout={handleLogout} />;
+  return <Dashboard username={user} role={role} onLogout={handleLogout} />;
 }

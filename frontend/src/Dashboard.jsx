@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import DetaineeForm from "./DetaineeForm";
+import DataCapturePage from "./DataCapturePage";
 
 const Icon = {
   dashboard: (
@@ -15,6 +16,18 @@ const Icon = {
   ),
   file: (
     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></svg>
+  ),
+  folder: (
+    <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+  ),
+  cloudUpload: (
+    <svg viewBox="0 0 24 24"><path d="M17 18a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.34 8.05 4.5 4.5 0 0 0 7 18" /><path d="m8 14 4-4 4 4M12 10v9" /></svg>
+  ),
+  sync: (
+    <svg viewBox="0 0 24 24"><path d="M20 6v5h-5M4 18v-5h5" /><path d="M6.1 9A7 7 0 0 1 18 6l2 5M4 13l2 5a7 7 0 0 0 11.9-3" /></svg>
+  ),
+  search: (
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
   ),
   log: (
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
@@ -45,27 +58,42 @@ const Icon = {
   ),
 };
 
-const NAV = [
+const NAV_BASE = [
   { key: "dashboard", label: "Tổng quan", icon: Icon.dashboard },
-  { key: "detainees", label: "Danh sách can phạm", icon: Icon.users },
-  { key: "cells", label: "Buồng giam", icon: Icon.building },
-  { key: "import", label: "Nhập / Xuất Excel", icon: Icon.file },
-  { key: "logs", label: "Nhật ký hệ thống", icon: Icon.log },
+  { key: "import", label: "Thu nhận dữ liệu", icon: Icon.cloudUpload },
+  { key: "detainees", label: "Hồ sơ can phạm", icon: Icon.folder },
+  { key: "cells", label: "Đồng bộ dữ liệu", icon: Icon.sync },
+  { key: "search", label: "Tra cứu", icon: Icon.search },
+  { key: "logs", label: "Báo cáo", icon: Icon.chart },
 ];
+const NAV_ADMIN = [{ key: "users", label: "Quản lý tài khoản", icon: Icon.users }];
 
-export default function Dashboard({ username = "admin", onLogout }) {
+export default function Dashboard({ username = "admin", role = "user", onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [dbOk, setDbOk] = useState(true);
+  const [editingDetainee, setEditingDetainee] = useState(null);
+  const isAdmin = role === "admin";
+  const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN] : NAV_BASE;
 
   useEffect(() => {
     api.health().then((r) => setDbOk(Boolean(r.ok))).catch(() => setDbOk(false));
   }, []);
 
+  const goPage = (key) => {
+    if (key !== "import") setEditingDetainee(null);
+    setPage(key);
+  };
+
+  const editDetainee = (detainee) => {
+    setEditingDetainee(detainee);
+    setPage("import");
+  };
+
   return (
     <>
       <style>{styles}</style>
       <div className="app">
-        <Header username={username} dbOk={dbOk} onLogout={onLogout} />
+        <Header username={username} dbOk={dbOk} onLogout={onLogout} isAdmin={isAdmin} />
 
         <aside className="sidebar">
           <div className="sidebar-title">CHỨC NĂNG</div>
@@ -75,7 +103,7 @@ export default function Dashboard({ username = "admin", onLogout }) {
               <button
                 key={item.key}
                 className={`nav-item ${page === item.key ? "active" : ""}`}
-                onClick={() => setPage(item.key)}
+                onClick={() => goPage(item.key)}
               >
                 <span className="nav-icon">{item.icon}</span>
                 <span>{item.label}</span>
@@ -93,18 +121,26 @@ export default function Dashboard({ username = "admin", onLogout }) {
         </aside>
 
         <main className="content">
-          {page === "dashboard" && <DashboardHome go={setPage} />}
-          {page === "detainees" && <DetaineesPage />}
+          {page === "dashboard" && <DashboardHome go={goPage} />}
+          {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
           {page === "cells" && <CellsPage />}
-          {page === "import" && <ImportExportPage />}
+          {page === "import" && (
+            <DataCapturePage
+              go={goPage}
+              initial={editingDetainee}
+              onDone={() => setEditingDetainee(null)}
+            />
+          )}
+          {page === "search" && <SearchPage />}
           {page === "logs" && <LogsPage />}
+          {page === "users" && isAdmin && <UsersPage currentUser={username} />}
         </main>
       </div>
     </>
   );
 }
 
-function Header({ username, dbOk, onLogout }) {
+function Header({ username, dbOk, onLogout, isAdmin }) {
   return (
     <header className="header">
       <div className="brand">
@@ -112,7 +148,7 @@ function Header({ username, dbOk, onLogout }) {
           <img src="/brand-logo.png" alt="Công an Nhân dân Việt Nam" />
         </div>
         <div>
-          <div className="brand-title">HỆ THỐNG QUẢN LÝ CCCD CAN PHẠM</div>
+          <div className="brand-title">PHẦN MỀM ĐĂNG KÝ CAN PHẠM</div>
           <div className="brand-subtitle">Cổng nội bộ • Phiên bản 1.0</div>
         </div>
       </div>
@@ -132,7 +168,7 @@ function Header({ username, dbOk, onLogout }) {
           <div className="avatar">{username.slice(0, 1).toUpperCase()}</div>
           <div className="user-info">
             <strong>{username}</strong>
-            <span>Quản trị viên</span>
+            <span>{isAdmin ? "Quản trị viên" : "Cán bộ"}</span>
           </div>
         </div>
 
@@ -349,13 +385,10 @@ function PageTitle({ title, subtitle, icon }) {
   );
 }
 
-function DetaineesPage() {
+function DetaineesPage({ onEdit }) {
   const [items, setItems] = useState([]);
   const [cells, setCells] = useState([]);
   const [total, setTotal] = useState(0);
-  const [q, setQ] = useState("");
-  const [cellCode, setCellCode] = useState("");
-  const [gender, setGender] = useState("");
   const [skip, setSkip] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -374,11 +407,6 @@ function DetaineesPage() {
         skip: String(skip),
         limit: String(limit),
       });
-
-      if (q.trim()) params.set("q", q.trim());
-      if (cellCode) params.set("cell_code", cellCode);
-      if (gender) params.set("gender", gender);
-
       const result = await api.request(`/api/detainees?${params}`);
       setItems(result.items || []);
       setTotal(result.total || 0);
@@ -395,7 +423,7 @@ function DetaineesPage() {
 
   useEffect(() => {
     load();
-  }, [skip, cellCode, gender]);
+  }, [skip]);
 
   const deleteItem = async (item) => {
     if (!window.confirm(`Xoá hồ sơ ${item.code} - ${item.full_name}?`)) return;
@@ -424,53 +452,6 @@ function DetaineesPage() {
           Thêm hồ sơ mới
         </button>
       </PageHeader>
-
-      <form
-        className="filter-bar"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setSkip(0);
-          load();
-        }}
-      >
-        <input
-          className="control search-control"
-          placeholder="Tìm theo tên, số CCCD, mã hồ sơ..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-
-        <select
-          className="control"
-          value={cellCode}
-          onChange={(e) => {
-            setCellCode(e.target.value);
-            setSkip(0);
-          }}
-        >
-          <option value="">Tất cả buồng</option>
-          {cells.map((cell) => (
-            <option key={cell.code} value={cell.code}>
-              {cell.code} - {cell.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="control"
-          value={gender}
-          onChange={(e) => {
-            setGender(e.target.value);
-            setSkip(0);
-          }}
-        >
-          <option value="">Tất cả giới tính</option>
-          <option value="male">Nam</option>
-          <option value="female">Nữ</option>
-        </select>
-
-        <button className="button primary" type="submit">Tìm kiếm</button>
-      </form>
 
       <div className="table-card">
         {loading ? (
@@ -516,7 +497,16 @@ function DetaineesPage() {
                   <td>
                     <div className="row-actions">
                       <button onClick={() => setViewing(item)}>Xem</button>
-                      <button onClick={() => { setEditing(item); setShowForm(true); }}>Sửa</button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const full = await api.getDetainee(item.id);
+                            onEdit?.(full);
+                          } catch {
+                            onEdit?.(item);
+                          }
+                        }}
+                      >Sửa</button>
                       <button className="danger-text" onClick={() => deleteItem(item)}>Xoá</button>
                     </div>
                   </td>
@@ -556,35 +546,121 @@ function DetaineesPage() {
   );
 }
 
+const DetailIcon = {
+  cccd: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="12" r="2.2" /><path d="M14 10h5M14 14h5M6.5 16.2c.7-1.4 2-2 2.5-2s1.8.6 2.5 2" />
+    </svg>
+  ),
+  dob: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" />
+    </svg>
+  ),
+  gender: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="10" r="4" /><path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  ),
+  ethnic: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="9" r="3.2" /><circle cx="17" cy="10" r="2.6" /><path d="M3 20a6 6 0 0 1 12 0M14 20a5 5 0 0 1 8-1.3" />
+    </svg>
+  ),
+  religion: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3c2 3 5 4 5 8a5 5 0 0 1-10 0c0-4 3-5 5-8z" /><path d="M9 21h6" />
+    </svg>
+  ),
+  home: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-6h-6v6H5a2 2 0 0 1-2-2z" />
+    </svg>
+  ),
+  pin: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z" /><circle cx="12" cy="10" r="2.6" />
+    </svg>
+  ),
+  door: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="3" width="14" height="18" rx="1" /><circle cx="15" cy="12" r="1" />
+    </svg>
+  ),
+  scale: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v18M4 21h16M6 8h12M6 8l-3 7a4 4 0 0 0 6 0zM18 8l-3 7a4 4 0 0 0 6 0z" />
+    </svg>
+  ),
+  clock: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+    </svg>
+  ),
+  note: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M14 3v5h5M8 13h8M8 17h5" />
+    </svg>
+  ),
+};
+
 function DetailModal({ detainee, onClose }) {
   const d = detainee;
+  const dobText = d.dob ? new Date(d.dob).toLocaleDateString("vi-VN") : "—";
+  const dateInText = d.date_in ? new Date(d.date_in).toLocaleDateString("vi-VN") : "—";
+  const genderText = d.gender === "female" ? "Nữ" : "Nam";
+  const genderSymbol = d.gender === "female" ? "♀" : "♂";
+  const avatar = d.photo_url || d.photos?.portrait_front;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal detail-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Chi tiết hồ sơ {d.code}</h3>
-          <button onClick={onClose}>×</button>
+      <div className="modal detail-modal-v2" onClick={(e) => e.stopPropagation()}>
+        <div className="detail-header">
+          <div className="detail-header-left">
+            <span className="detail-header-icon">{DetailIcon.cccd}</span>
+            <div>
+              <h3>Chi tiết hồ sơ {d.code}</h3>
+              <small>Thông tin can phạm</small>
+            </div>
+          </div>
+          <button className="detail-close" onClick={onClose} aria-label="Đóng">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <div className="detail-layout">
-          <div className="detail-photo">
-            {d.photo_url ? <img src={d.photo_url} alt="" /> : <span>Không có ảnh</span>}
-          </div>
+        <div className="detail-body">
+          <aside className="detail-card">
+            <div className="detail-avatar">
+              {avatar ? <img src={avatar} alt={d.full_name} /> : <span>Chưa có ảnh</span>}
+            </div>
+            <div className="detail-name-row">
+              <span className="detail-name">{d.full_name || "—"}</span>
+              <span className={"detail-gender-chip " + (d.gender === "female" ? "female" : "male")}>
+                <b>{genderSymbol}</b> {genderText}
+              </span>
+            </div>
+            <div className="detail-cccd-chip">
+              <span className="detail-cccd-icon">{DetailIcon.cccd}</span>
+              <div>
+                <small>Số CCCD</small>
+                <strong>{d.cccd_number || "—"}</strong>
+              </div>
+            </div>
+          </aside>
 
-          <div className="detail-grid">
-            <DetailRow label="Họ và tên" value={d.full_name} />
-            <DetailRow label="Giới tính" value={d.gender === "female" ? "Nữ" : "Nam"} />
-            <DetailRow label="Ngày sinh" value={d.dob ? new Date(d.dob).toLocaleDateString("vi-VN") : "-"} />
-            <DetailRow label="Số CCCD" value={d.cccd_number || "-"} />
-            <DetailRow label="Dân tộc" value={d.ethnicity || "-"} />
-            <DetailRow label="Tôn giáo" value={d.religion || "-"} />
-            <DetailRow label="Quê quán" value={d.hometown || "-"} />
-            <DetailRow label="Địa chỉ" value={d.address || "-"} />
-            <DetailRow label="Buồng giam" value={d.cell_code || "-"} />
-            <DetailRow label="Tội danh" value={d.charge || "-"} />
-            <DetailRow label="Ngày vào" value={d.date_in ? new Date(d.date_in).toLocaleDateString("vi-VN") : "-"} />
-            <DetailRow label="Ghi chú" value={d.note || "-"} />
+          <div className="detail-grid-v2">
+            <InfoTile icon={DetailIcon.dob} label="Ngày sinh" value={dobText} />
+            <InfoTile icon={DetailIcon.gender} label="Giới tính" value={genderText} />
+            <InfoTile icon={DetailIcon.ethnic} label="Dân tộc" value={d.ethnicity || "—"} />
+            <InfoTile icon={DetailIcon.religion} label="Tôn giáo" value={d.religion || "—"} />
+            <InfoTile icon={DetailIcon.home} label="Quê quán" value={d.hometown || "—"} />
+            <InfoTile icon={DetailIcon.pin} label="Địa chỉ" value={d.address || "—"} />
+            <InfoTile icon={DetailIcon.door} label="Buồng giam" value={d.cell_code || "—"} />
+            <InfoTile icon={DetailIcon.scale} label="Tội danh" value={d.charge || "—"} />
+            <InfoTile icon={DetailIcon.clock} label="Ngày vào" value={dateInText} />
+            <InfoTile icon={DetailIcon.note} label="Ghi chú" value={d.note || "—"} />
           </div>
         </div>
       </div>
@@ -592,11 +668,14 @@ function DetailModal({ detainee, onClose }) {
   );
 }
 
-function DetailRow({ label, value }) {
+function InfoTile({ icon, label, value }) {
   return (
-    <div className="detail-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="info-tile">
+      <span className="info-tile-icon">{icon}</span>
+      <div className="info-tile-content">
+        <span className="info-tile-label">{label}</span>
+        <strong className="info-tile-value">{value}</strong>
+      </div>
     </div>
   );
 }
@@ -846,20 +925,52 @@ function ImportExportPage() {
   );
 }
 
+function formatDateTime(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 function LogsPage() {
   const [logs, setLogs] = useState([]);
+  const [counts, setCounts] = useState({ create: 0, update: 0, delete: 0, login: 0, import: 0 });
+  const [cells, setCells] = useState([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [resourceFilter, setResourceFilter] = useState("detainee");
+  const [viewing, setViewing] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [busyRef, setBusyRef] = useState("");
+  const [notice, setNotice] = useState("");
 
   const load = async () => {
+    setLoading(true);
     try {
-      setLogs(await api.listLogs());
+      const params = {};
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (actionFilter) params.action = actionFilter;
+      if (resourceFilter) params.resource = resourceFilter;
+      const res = await api.listLogs(params);
+      setLogs(res.items || []);
+      setCounts(res.counts || { create: 0, update: 0, delete: 0, login: 0, import: 0 });
+      setError("");
     } catch (e) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     load();
+    api.listCells().then(setCells).catch(() => { });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const labels = {
@@ -870,16 +981,133 @@ function LogsPage() {
     import: "Nhập Excel",
   };
 
+  const resolveDetainee = async (log) => {
+    if (log.ref_id) {
+      try {
+        return await api.getDetainee(log.ref_id);
+      } catch (e) {
+        // fall through to code-based lookup
+      }
+    }
+    if (log.ref) return await api.getDetaineeByCode(log.ref);
+    throw new Error("Log không có tham chiếu can phạm");
+  };
+
+  const isDetaineeLog = (log) =>
+    log.resource === "detainee" &&
+    (log.ref || log.ref_id) &&
+    log.action !== "delete";
+
+  const onView = async (log) => {
+    setBusyRef(log.id);
+    setNotice("");
+    try {
+      const d = await resolveDetainee(log);
+      setViewing(d);
+    } catch (e) {
+      setNotice(`Không mở được hồ sơ: ${e.message}`);
+    } finally {
+      setBusyRef("");
+    }
+  };
+
+  const onEdit = async (log) => {
+    setBusyRef(log.id);
+    setNotice("");
+    try {
+      const d = await resolveDetainee(log);
+      setEditing(d);
+    } catch (e) {
+      setNotice(`Không mở được hồ sơ: ${e.message}`);
+    } finally {
+      setBusyRef("");
+    }
+  };
+
+  const onDelete = async (log) => {
+    if (!window.confirm(`Xoá can phạm ${log.ref || ""}?`)) return;
+    setBusyRef(log.id);
+    setNotice("");
+    try {
+      const d = await resolveDetainee(log);
+      await api.deleteDetainee(d.id);
+      setNotice(`Đã xoá can phạm ${d.code}.`);
+      load();
+    } catch (e) {
+      setNotice(`Xoá thất bại: ${e.message}`);
+    } finally {
+      setBusyRef("");
+    }
+  };
+
+  const clearFilters = () => {
+    setDateFrom("");
+    setDateTo("");
+    setActionFilter("");
+    setResourceFilter("detainee");
+  };
+
   return (
     <div className="page">
-      <PageHeader title="Nhật ký hệ thống" subtitle={`${logs.length} bản ghi gần nhất`}>
-        <button className="button secondary" onClick={load}>
+      <PageHeader
+        title="Báo cáo nhập liệu can phạm"
+        subtitle={`Thống kê thao tác theo ngày giờ. Tổng ${logs.length} bản ghi trong khoảng lọc.`}
+      >
+        <button className="button secondary" onClick={load} disabled={loading}>
           {Icon.refresh}
-          Làm mới
+          {loading ? "Đang tải..." : "Làm mới"}
         </button>
       </PageHeader>
 
+      <div className="stat-grid">
+        <StatCard tone="blue" icon={Icon.file} label="Đăng ký mới" value={counts.create || 0} note="Can phạm được tạo" />
+        <StatCard tone="orange" icon={Icon.sync} label="Đã sửa" value={counts.update || 0} note="Lượt cập nhật" />
+        <StatCard tone="purple" icon={Icon.log} label="Đã xoá" value={counts.delete || 0} note="Hồ sơ đã xoá" />
+        <StatCard tone="green" icon={Icon.cloudUpload} label="Nhập Excel" value={counts.import || 0} note="Lượt import" />
+      </div>
+
+      <form
+        className="filter-bar logs-filter"
+        onSubmit={(e) => { e.preventDefault(); load(); }}
+      >
+        <label className="field-inline">
+          <span>Từ (ngày giờ)</span>
+          <input
+            className="control"
+            type="datetime-local"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+        </label>
+        <label className="field-inline">
+          <span>Đến (ngày giờ)</span>
+          <input
+            className="control"
+            type="datetime-local"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </label>
+        <select className="control" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+          <option value="">Tất cả hành động</option>
+          <option value="create">Đăng ký mới</option>
+          <option value="update">Sửa</option>
+          <option value="delete">Xoá</option>
+          <option value="import">Nhập Excel</option>
+          <option value="login">Đăng nhập</option>
+        </select>
+        <select className="control" value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)}>
+          <option value="detainee">Can phạm</option>
+          <option value="cell">Buồng giam</option>
+          <option value="auth">Tài khoản</option>
+          <option value="">Tất cả đối tượng</option>
+        </select>
+        <button type="submit" className="button primary" disabled={loading}>Áp dụng</button>
+        <button type="button" className="button secondary" onClick={clearFilters}>Xoá lọc</button>
+      </form>
+
       {error && <StateBox type="error">{error}</StateBox>}
+      {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
 
       <div className="table-card">
         <table>
@@ -891,22 +1119,55 @@ function LogsPage() {
               <th>Đối tượng</th>
               <th>Tham chiếu</th>
               <th>IP</th>
+              <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => (
-              <tr key={log.id}>
-                <td>{new Date(log.at).toLocaleString("vi-VN")}</td>
-                <td><strong>{log.actor}</strong></td>
-                <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
-                <td>{log.resource}</td>
-                <td>{log.ref}</td>
-                <td>{log.ip}</td>
-              </tr>
-            ))}
+            {logs.map((log) => {
+              const canAct = isDetaineeLog(log);
+              const busy = busyRef === log.id;
+              return (
+                <tr key={log.id}>
+                  <td>{formatDateTime(log.at)}</td>
+                  <td><strong>{log.actor}</strong></td>
+                  <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
+                  <td>{log.resource}</td>
+                  <td>{log.ref}</td>
+                  <td>{log.ip}</td>
+                  <td>
+                    {canAct ? (
+                      <div className="row-actions">
+                        <button disabled={busy} onClick={() => onView(log)}>Xem</button>
+                        <button disabled={busy} onClick={() => onEdit(log)}>Sửa</button>
+                        <button className="danger-text" disabled={busy} onClick={() => onDelete(log)}>Xoá</button>
+                      </div>
+                    ) : (
+                      <span style={{ color: "#98a4b8" }}>-</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {!logs.length && (
+              <tr><td colSpan={7}><div className="empty">Không có bản ghi phù hợp.</div></td></tr>
+            )}
           </tbody>
         </table>
       </div>
+
+      {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
+      {editing && (
+        <DetaineeForm
+          initial={editing}
+          cells={cells}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            setNotice("Đã cập nhật hồ sơ.");
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -925,6 +1186,321 @@ function PageHeader({ title, subtitle, children }) {
 
 function StateBox({ type = "", children }) {
   return <div className={`state-box ${type}`}>{children}</div>;
+}
+
+function SearchPage() {
+  const [items, setItems] = useState([]);
+  const [cells, setCells] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [q, setQ] = useState("");
+  const [cellCode, setCellCode] = useState("");
+  const [gender, setGender] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [viewing, setViewing] = useState(null);
+  const [searched, setSearched] = useState(false);
+
+  useEffect(() => {
+    api.listCells().then(setCells).catch(() => { });
+  }, []);
+
+  const doSearch = async (e) => {
+    if (e) e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (q.trim()) params.set("q", q.trim());
+      if (cellCode) params.set("cell_code", cellCode);
+      if (gender) params.set("gender", gender);
+      const res = await api.request(`/api/detainees?${params}`);
+      setItems(res.items || []);
+      setTotal(res.total || 0);
+      setSearched(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page">
+      <PageHeader title="Tra cứu can phạm" subtitle={searched ? `Tìm thấy ${total} hồ sơ` : "Tìm kiếm theo tên, CCCD, mã hồ sơ, buồng giam, giới tính"} />
+
+      <form className="filter-bar" onSubmit={doSearch}>
+        <input
+          className="control search-control"
+          placeholder="Tìm theo tên, số CCCD, mã hồ sơ..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <select className="control" value={cellCode} onChange={(e) => setCellCode(e.target.value)}>
+          <option value="">Tất cả buồng</option>
+          {cells.map((cell) => (
+            <option key={cell.code} value={cell.code}>
+              {cell.code} - {cell.name}
+            </option>
+          ))}
+        </select>
+        <select className="control" value={gender} onChange={(e) => setGender(e.target.value)}>
+          <option value="">Tất cả giới tính</option>
+          <option value="male">Nam</option>
+          <option value="female">Nữ</option>
+        </select>
+        <button className="button primary" type="submit" disabled={loading}>
+          {loading ? "Đang tìm..." : "Tìm kiếm"}
+        </button>
+      </form>
+
+      {error && <StateBox type="error">{error}</StateBox>}
+
+      <div className="table-card">
+        {!searched ? (
+          <StateBox>Nhập điều kiện và bấm "Tìm kiếm" để tra cứu.</StateBox>
+        ) : loading ? (
+          <StateBox>Đang tải...</StateBox>
+        ) : !items.length ? (
+          <StateBox>Không tìm thấy hồ sơ phù hợp.</StateBox>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Ảnh</th>
+                <th>Mã hồ sơ</th>
+                <th>Họ và tên</th>
+                <th>Giới tính</th>
+                <th>Ngày sinh</th>
+                <th>Số CCCD</th>
+                <th>Buồng</th>
+                <th>Tội danh</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <div className="table-avatar">
+                      {item.photo_url ? <img src={item.photo_url} alt="" /> : (item.full_name || "?").slice(0, 1).toUpperCase()}
+                    </div>
+                  </td>
+                  <td><strong>{item.code}</strong></td>
+                  <td>{item.full_name}</td>
+                  <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
+                  <td>{item.dob ? new Date(item.dob).toLocaleDateString("vi-VN") : "-"}</td>
+                  <td>{item.cccd_number || "-"}</td>
+                  <td>{item.cell_code || "-"}</td>
+                  <td className="ellipsis">{item.charge || "-"}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button onClick={() => setViewing(item)}>Xem</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
+    </div>
+  );
+}
+
+function UsersPage({ currentUser }) {
+  const [users, setUsers] = useState([]);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setUsers(await api.listUsers());
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onDelete = async (u) => {
+    if (!window.confirm(`Xoá tài khoản "${u.username}"?`)) return;
+    try {
+      await api.deleteUser(u.id);
+      setNotice(`Đã xoá tài khoản ${u.username}.`);
+      load();
+    } catch (e) {
+      setNotice(`Lỗi: ${e.message}`);
+    }
+  };
+
+  return (
+    <div className="page">
+      <PageHeader title="Quản lý tài khoản" subtitle={`${users.length} tài khoản`}>
+        <button className="button primary" onClick={() => { setEditing(null); setShowForm(true); }}>
+          {Icon.plus}
+          Thêm tài khoản
+        </button>
+      </PageHeader>
+
+      {error && <StateBox type="error">{error}</StateBox>}
+      {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+
+      <div className="table-card">
+        {loading ? <StateBox>Đang tải...</StateBox> : (
+          <table>
+            <thead>
+              <tr>
+                <th>Tên đăng nhập</th>
+                <th>Họ tên</th>
+                <th>Vai trò</th>
+                <th>Ngày tạo</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td><strong>{u.username}</strong></td>
+                  <td>{u.full_name || "-"}</td>
+                  <td>
+                    <span className={`status-badge ${u.role === "admin" ? "delete" : "create"}`}>
+                      {u.role === "admin" ? "Quản trị" : "Cán bộ"}
+                    </span>
+                  </td>
+                  <td>{u.created_at ? formatDateTime(u.created_at) : "-"}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button onClick={() => { setEditing(u); setShowForm(true); }}>Sửa</button>
+                      <button
+                        className="danger-text"
+                        disabled={u.username === "admin" || u.username === currentUser}
+                        onClick={() => onDelete(u)}
+                        title={u.username === "admin" ? "Không thể xoá admin gốc" : u.username === currentUser ? "Không thể tự xoá" : ""}
+                      >
+                        Xoá
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!users.length && (
+                <tr><td colSpan={5}><div className="empty">Chưa có tài khoản.</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {showForm && (
+        <UserForm
+          initial={editing}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+          onSaved={(msg) => {
+            setShowForm(false); setEditing(null);
+            setNotice(msg || "Đã lưu tài khoản.");
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function UserForm({ initial, onClose, onSaved }) {
+  const isEdit = Boolean(initial);
+  const [username, setUsername] = useState(initial?.username || "");
+  const [fullName, setFullName] = useState(initial?.full_name || "");
+  const [role, setRole] = useState(initial?.role || "user");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      if (isEdit) {
+        const body = { full_name: fullName, role };
+        if (password) body.password = password;
+        await api.updateUser(initial.id, body);
+        onSaved(`Đã cập nhật ${initial.username}.`);
+      } else {
+        await api.createUser({ username: username.trim(), password, role, full_name: fullName });
+        onSaved(`Đã tạo tài khoản ${username}.`);
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{isEdit ? `Sửa tài khoản ${initial.username}` : "Thêm tài khoản"}</h3>
+          <button onClick={onClose}>×</button>
+        </div>
+        <form className="form" onSubmit={submit}>
+          {error && <div className="error-box">{error}</div>}
+          <FieldRow label="Tên đăng nhập *">
+            <input
+              className="control"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={isEdit}
+              required
+              minLength={3}
+              maxLength={40}
+              pattern="[a-zA-Z0-9_.\-]+"
+            />
+          </FieldRow>
+          <FieldRow label="Họ và tên">
+            <input className="control" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} />
+          </FieldRow>
+          <FieldRow label={isEdit ? "Đổi mật khẩu (bỏ trống nếu giữ nguyên)" : "Mật khẩu *"}>
+            <input
+              className="control"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required={!isEdit}
+              minLength={isEdit ? 0 : 6}
+              maxLength={100}
+            />
+          </FieldRow>
+          <FieldRow label="Vai trò *">
+            <select
+              className="control"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              disabled={isEdit && initial?.username === "admin"}
+            >
+              <option value="user">Cán bộ (chỉ dùng dữ liệu của mình)</option>
+              <option value="admin">Quản trị (xem/sửa/xoá tất cả)</option>
+            </select>
+          </FieldRow>
+          <div className="modal-actions">
+            <button type="button" className="button secondary" onClick={onClose}>Huỷ</button>
+            <button type="submit" className="button primary" disabled={saving}>
+              {saving ? "Đang lưu..." : "Lưu"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 export function FieldRow({ label, children }) {
@@ -1101,70 +1677,103 @@ const styles = `
     position: relative;
     display: flex;
     flex-direction: column;
-    padding: 18px 16px 16px;
+    padding: 20px 14px 16px;
     overflow: hidden;
-    background: white;
-    border-right: 1px solid #e3eaf5;
+    background:
+      radial-gradient(circle at 50% -30%, rgba(60, 130, 255, .18), transparent 55%),
+      linear-gradient(180deg, #0c1f47 0%, #061436 100%);
+    border-right: 1px solid rgba(255, 255, 255, .04);
+    color: #cbd7ec;
   }
 
   .sidebar-title {
-    padding: 0 16px 15px;
-    color: #75839b;
-    font-size: 12px;
+    padding: 0 6px 12px;
+    color: rgba(203, 215, 236, .55);
+    font-size: 10.5px;
     font-weight: 800;
-    letter-spacing: .6px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
   }
 
-  .nav { display: flex; flex-direction: column; gap: 8px; }
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
   .nav-item {
     width: 100%;
-    height: 56px;
+    height: 52px;
     display: flex;
     align-items: center;
-    gap: 15px;
-    padding: 0 17px;
-    border: 0;
+    gap: 12px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, .06);
     border-radius: 12px;
-    background: transparent;
-    color: #203653;
+    background: rgba(255, 255, 255, .03);
+    color: #c9d5eb;
     text-align: left;
+    font-size: 13px;
     font-weight: 600;
+    line-height: 1.25;
     transition: .18s ease;
   }
-  .nav-item:hover { background: #f2f6ff; color: #0e5ae4; }
+  .nav-item:hover {
+    color: white;
+    background: rgba(46, 111, 236, .18);
+    border-color: rgba(120, 170, 255, .35);
+    transform: translateX(2px);
+  }
   .nav-item.active {
     color: white;
-    background: linear-gradient(135deg, #1471f2, #0755d6);
-    box-shadow: 0 10px 22px rgba(12, 91, 224, .25);
+    background: linear-gradient(135deg, #1e6cf1 0%, #0c50d0 100%);
+    border-color: rgba(120, 170, 255, .5);
+    box-shadow:
+      0 8px 18px rgba(6, 55, 158, .45),
+      inset 0 1px 0 rgba(255, 255, 255, .18);
   }
 
   .nav-icon {
-    width: 25px;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
     display: grid;
     place-items: center;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .06);
+    color: #7fa6ff;
+    transition: .18s ease;
+  }
+  .nav-icon svg { width: 18px; height: 18px; }
+  .nav-item:hover .nav-icon { background: rgba(120, 170, 255, .16); color: white; }
+  .nav-item.active .nav-icon {
+    background: rgba(255, 255, 255, .18);
+    color: white;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
   }
 
   .security-card {
     margin-top: auto;
     display: flex;
-    gap: 14px;
-    padding: 18px;
-    border: 1px solid #dbe6f8;
-    border-radius: 16px;
-    background: linear-gradient(145deg, #f8fbff, #edf5ff);
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(120, 170, 255, .18);
+    border-radius: 14px;
+    background: linear-gradient(145deg, rgba(30, 108, 241, .22), rgba(12, 80, 208, .10));
+    color: #dbe7ff;
   }
-  .security-card strong { display: block; margin-bottom: 6px; color: #0e459e; font-size: 14px; }
-  .security-card p { margin: 0; color: #667791; font-size: 12px; line-height: 1.6; }
+  .security-card strong { display: block; margin-bottom: 4px; color: white; font-size: 12.5px; }
+  .security-card p { margin: 0; color: rgba(219, 231, 255, .72); font-size: 11px; line-height: 1.5; }
   .security-icon {
     flex: 0 0 auto;
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
     display: grid;
     place-items: center;
-    border-radius: 12px;
-    color: #0d62e3;
-    background: #e2edff;
+    border-radius: 10px;
+    color: white;
+    background: rgba(120, 170, 255, .22);
   }
+  .security-icon svg { width: 18px; height: 18px; }
 
   .content {
     min-width: 0;
@@ -1657,36 +2266,204 @@ const styles = `
     font-size: 23px;
   }
 
-  .detail-layout {
-    display: grid;
-    grid-template-columns: 230px 1fr;
-    gap: 24px;
-    padding: 24px;
-  }
-  .detail-photo {
-    min-height: 270px;
-    display: grid;
-    place-items: center;
+  /* ==================== Detail modal v2 ==================== */
+  .detail-modal-v2 {
+    width: min(1180px, 100%);
+    max-height: 92vh;
     overflow: hidden;
-    border-radius: 14px;
-    color: #8491a4;
-    background: #eef3f9;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 18px;
   }
-  .detail-photo img { width: 100%; height: 100%; object-fit: cover; }
-  .detail-grid {
+  .detail-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 26px;
+    border-bottom: 1px solid #eef2f8;
+    flex-shrink: 0;
+  }
+  .detail-header-left { display: flex; align-items: center; gap: 14px; }
+  .detail-header-icon {
+    width: 46px; height: 46px;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    background: #eaf2ff;
+    color: #0c50d0;
+  }
+  .detail-header-icon svg { width: 22px; height: 22px; }
+  .detail-header h3 {
+    margin: 0; color: #0f2344;
+    font-size: 20px; font-weight: 800;
+    letter-spacing: -.2px;
+  }
+  .detail-header small {
+    display: block; margin-top: 2px;
+    color: #7a8ea8; font-size: 12.5px; font-weight: 500;
+  }
+  .detail-close {
+    width: 40px; height: 40px;
+    display: grid; place-items: center;
+    border: 1px solid #e2e9f3;
+    border-radius: 50%;
+    background: white;
+    color: #4c5c76;
+    cursor: pointer;
+    transition: .15s;
+  }
+  .detail-close:hover { background: #f4f7fb; color: #0f2344; }
+  .detail-close svg { width: 18px; height: 18px; }
+
+  .detail-body {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0,1fr));
-    gap: 12px;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 20px;
+    padding: 20px 24px 24px;
+    overflow-y: auto;
+    background: #f7f9fc;
   }
-  .detail-row {
-    padding: 13px;
-    border: 1px solid #e6ecf4;
+
+  /* --- Left card --- */
+  .detail-card {
+    background: white;
+    border: 1px solid #e5ebf4;
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 3px 10px rgba(18, 52, 97, .04);
+    align-self: start;
+  }
+  .detail-avatar {
+    width: 250px;
+    height: 330px;
+    aspect-ratio: auto;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #eef3f9;
+    display: grid; place-items: center;
+    color: #8491a4; font-size: 13px;
+    margin: 0 auto;
+  }
+  .detail-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .detail-name-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    width: 100%;
+  }
+  .detail-name {
+    color: #0f2344;
+    font-size: 18px; font-weight: 800;
+    letter-spacing: -.1px;
+    line-height: 1.2;
+  }
+  .detail-gender-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px; font-weight: 700;
+    background: #eaf2ff;
+    color: #0c50d0;
+    flex-shrink: 0;
+  }
+  .detail-gender-chip.female { background: #fdeaf2; color: #b8306b; }
+  .detail-gender-chip b { font-size: 13px; line-height: 1; }
+  .detail-cccd-chip {
+    width: 100%;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    margin-top: 6px;
+    border-radius: 12px;
+    background: #eef4ff;
+    border: 1px solid #dbe6ff;
+  }
+  .detail-cccd-icon {
+    width: 38px; height: 38px;
+    display: grid; place-items: center;
     border-radius: 10px;
-    background: #fbfcfe;
+    background: white;
+    color: #0c50d0;
+    flex-shrink: 0;
   }
-  .detail-row span, .detail-row strong { display: block; }
-  .detail-row span { color: #7b899e; font-size: 12px; }
-  .detail-row strong { margin-top: 5px; color: #253a57; font-size: 14px; }
+  .detail-cccd-icon svg { width: 20px; height: 20px; }
+  .detail-cccd-chip small {
+    display: block;
+    color: #6f7f98;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .detail-cccd-chip strong {
+    display: block;
+    margin-top: 2px;
+    color: #0f2344;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: .3px;
+  }
+
+  /* --- Right grid --- */
+  .detail-grid-v2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-content: start;
+  }
+  .info-tile {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 22px;
+    background: white;
+    border: 1px solid #e5ebf4;
+    border-radius: 14px;
+    box-shadow: 0 2px 6px rgba(18, 52, 97, .03);
+    min-height: 84px;
+  }
+  .info-tile-icon {
+    width: 44px; height: 44px;
+    flex-shrink: 0;
+    display: grid; place-items: center;
+    border-radius: 11px;
+    background: #eaf2ff;
+    color: #0c50d0;
+  }
+  .info-tile-icon svg { width: 22px; height: 22px; }
+  .info-tile-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+  }
+  .info-tile-label {
+    color: #7a8ea8;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .1px;
+    line-height: 1.2;
+  }
+  .info-tile-value {
+    width: 100%;
+    color: #0f2344;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -.15px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    .detail-body { grid-template-columns: 1fr; }
+    .detail-grid-v2 { grid-template-columns: 1fr; }
+    .info-tile-value { max-width: 55%; }
+  }
 
   .form { padding: 24px; }
   .field-row {
@@ -1756,5 +2533,368 @@ const styles = `
     .system-item:last-child { border-bottom: 0; }
     .page-header { align-items: flex-start; flex-direction: column; }
     .detail-layout, .detail-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ============================================================
+     Thu nhận dữ liệu — bám sát mockup (image copy 15.png)
+     ============================================================ */
+  .capture-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0;
+    max-width: none;
+    margin: 0;
+    height: auto;
+  }
+
+  .capture-banner { flex-shrink: 0; }
+  .capture-banner .error-box,
+  .capture-banner .success-box { margin: 0; }
+  .banner-link {
+    margin-left: 10px; padding: 4px 10px; border-radius: 6px;
+    background: rgba(255,255,255,.7); color: inherit; border: 0;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+
+  /* --- Card container --- */
+  .cap-block {
+    background: white;
+    border: 1px solid #dfe6f2;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(18, 52, 97, .05);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .cap-block-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    padding: 11px 18px;
+    background: linear-gradient(180deg, #1e6cf1 0%, #0c50d0 100%);
+    color: white;
+    flex-shrink: 0;
+  }
+  .cap-block-title {
+    margin: 0;
+    font-size: 13.5px; font-weight: 800;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+  }
+
+  .btn-cccd-scan {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.35);
+    background: rgba(255,255,255,.15);
+    color: white; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: .15s;
+  }
+  .btn-cccd-scan:hover:not(:disabled) { background: rgba(255,255,255,.28); }
+  .btn-cccd-scan:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-cccd-scan svg { width: 14px; height: 14px; }
+
+  /* --- Photo slot base --- */
+  .photo-slot {
+    position: relative;
+    width: 100%;
+    border-radius: 8px;
+    background: #f4f7fb;
+    overflow: hidden;
+  }
+  .photo-slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-slot-empty {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 4px;
+    padding: 6px;
+    background: #f8fbff;
+    border: 1.5px dashed #c8d5ec;
+    border-radius: 8px;
+    color: #6f7f98;
+    cursor: pointer;
+    transition: .15s;
+    text-align: center;
+  }
+  .photo-slot-empty:hover:not(:disabled) {
+    border-color: #1e6cf1; background: #eaf2ff; color: #0c50d0;
+  }
+  .photo-slot-empty:disabled { opacity: .6; cursor: not-allowed; }
+  .photo-slot-icon { display: inline-flex; color: currentColor; }
+  .photo-slot-icon svg { width: 20px; height: 20px; }
+  .photo-slot-label { font-size: 11.5px; font-weight: 600; line-height: 1.2; }
+  .photo-slot-hint { font-size: 10.5px; color: #7a8ea8; }
+  .photo-slot-err { font-size: 10.5px; color: #c63142; }
+  .ps-compact .photo-slot-empty { padding: 4px; }
+  .ps-compact .photo-slot-icon svg { width: 16px; height: 16px; }
+  .photo-slot-clear {
+    position: absolute; top: 4px; right: 4px;
+    width: 20px; height: 20px;
+    display: grid; place-items: center;
+    border: 0; border-radius: 50%;
+    background: rgba(0,0,0,.6); color: white;
+    font-size: 14px; line-height: 1;
+    cursor: pointer;
+  }
+  .photo-slot-clear:hover { background: rgba(220,53,69,.9); }
+
+  /* --- Block 1: CCCD (2 field cols, no card preview) --- */
+  .cccd-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 22px;
+    padding: 18px 22px;
+    align-items: start;
+  }
+  .cccd-col { display: flex; flex-direction: column; gap: 12px; }
+  .cccd-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .cccd-field-label {
+    font-size: 12px; font-weight: 700; color: #40546e;
+    letter-spacing: .1px;
+  }
+  .cccd-field .control {
+    height: 40px; padding: 0 12px; font-size: 13.5px;
+    border-radius: 8px; background: #f7f9fd;
+  }
+  .cccd-field .control:focus { background: white; }
+
+  /* --- Row 2 & 3: 2-column layout --- */
+  .cap-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .cap-row-3 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  /* --- Block 2A: Biometric (fps + iris) --- */
+  .bio-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 20px;
+    padding: 16px 20px 18px;
+  }
+  .bio-sub-title {
+    font-size: 12px; font-weight: 800; color: #0f2344;
+    text-transform: uppercase; letter-spacing: .5px;
+    margin-bottom: 10px;
+  }
+  .bio-fp { display: flex; flex-direction: column; }
+  .fp-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .fp-item { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .fp-item .photo-slot { width: 100%; }
+  .fp-item-label {
+    font-size: 10.5px; color: #4c5c76; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%; text-align: center;
+  }
+  .bio-iris { display: flex; flex-direction: column; }
+  .iris-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .iris-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .iris-item .photo-slot { width: 100%; }
+  .iris-item-label {
+    font-size: 11px; color: #4c5c76; font-weight: 700;
+  }
+
+  .bio-status {
+    margin-top: 12px;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px; font-weight: 700;
+    align-self: flex-start;
+  }
+  .bio-status.ok { background: #e6f8ef; color: #087c48; border: 1px solid #b9ebd0; }
+  .bio-status.warn { background: #fff4e5; color: #a05a1c; border: 1px solid #ffdcb0; }
+  .bio-iris .bio-status { margin-top: 10px; }
+
+  /* --- Block 2B: Portrait with rulers --- */
+  .portrait-body {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    padding: 16px 20px 18px;
+    align-items: start;
+  }
+  .portrait-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px; min-width: 0;
+  }
+  .portrait-frame {
+    position: relative;
+    width: 100%;
+    padding: 0 22px;
+  }
+  .portrait-frame .photo-slot { width: 100%; }
+  .ruler {
+    position: absolute; top: 0; bottom: 0;
+    width: 22px;
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 8.5px; color: #7a8ea8;
+    font-weight: 600;
+    text-align: center;
+  }
+  .ruler-l { left: 0; border-right: 1px dashed #d3ddec; }
+  .ruler-r { right: 0; border-left: 1px dashed #d3ddec; }
+  .portrait-label {
+    font-size: 12px; font-weight: 700; color: #0f2344;
+  }
+
+  /* --- Block 3A: Extra info --- */
+  .extra-body {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 16px 20px 18px;
+  }
+  .extra-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .extra-note {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #eaf2ff;
+    border: 1px solid #cfe0ff;
+    color: #0c50d0;
+    font-size: 12px; font-weight: 600;
+  }
+  .info-dot {
+    display: inline-grid; place-items: center;
+    width: 20px; height: 20px; flex-shrink: 0;
+    color: #0c50d0;
+  }
+  .info-dot svg { width: 18px; height: 18px; }
+
+  /* --- Block 3B: Validate (grid 2 cột x 3 hàng) --- */
+  .validate-body {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 16px 20px 18px;
+  }
+  .validate-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .validate-cell {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+  }
+  .validate-cell.ok {
+    background: #ecfaef; border-color: #b9ebd0;
+  }
+  .validate-cell.warn {
+    background: #fff4e5; border-color: #ffdcb0;
+  }
+  .validate-cell strong { display: block; font-size: 12.5px; color: #0f2344; }
+  .validate-cell.ok strong { color: #087c48; }
+  .validate-cell.warn strong { color: #a05a1c; }
+  .validate-cell span {
+    display: block; margin-top: 2px;
+    font-size: 11px; color: #6f7f98; font-weight: 600;
+  }
+  .validate-note {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 12.5px; font-weight: 700;
+  }
+  .validate-note.ok {
+    background: #e6f8ef; color: #087c48;
+    border: 1px solid #b9ebd0;
+  }
+  .validate-note.warn {
+    background: #fff4e5; color: #a05a1c;
+    border: 1px solid #ffdcb0;
+  }
+  .validate-note .info-dot { color: inherit; }
+
+  .chk-dot {
+    display: inline-grid; place-items: center;
+    width: 22px; height: 22px; flex-shrink: 0;
+    border-radius: 50%;
+  }
+  .chk-dot.ok {
+    background: linear-gradient(135deg, #12af64, #16c47a);
+    color: white;
+  }
+  .chk-dot.warn {
+    background: white;
+    color: #a05a1c;
+    border: 1.5px solid #ffdcb0;
+  }
+  .chk-dot svg { width: 12px; height: 12px; }
+
+  /* --- Block 4: Save actions --- */
+  .save-block .cap-block-head {
+    background: linear-gradient(180deg, #0f4bbf 0%, #062a69 100%);
+  }
+  .save-actions {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    padding: 18px 20px;
+  }
+  .save-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 22px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    font-size: 13.5px; font-weight: 800;
+    cursor: pointer;
+    transition: .15s;
+    flex: 1 1 220px;
+  }
+  .save-btn svg { width: 18px; height: 18px; }
+  .save-btn:disabled { opacity: .55; cursor: not-allowed; filter: grayscale(.3); }
+  .save-primary {
+    color: white;
+    background: linear-gradient(135deg, #16c47a, #12874d);
+    box-shadow: 0 8px 18px rgba(18, 135, 77, .28);
+  }
+  .save-primary:hover:not(:disabled) { transform: translateY(-1px); }
+  .save-secondary {
+    color: #0c50d0;
+    background: white;
+    border-color: #cfe0ff;
+  }
+  .save-secondary:hover:not(:disabled) { background: #eaf2ff; }
+  .save-danger {
+    color: #c63142;
+    background: white;
+    border-color: #ffcbd1;
+  }
+  .save-danger:hover:not(:disabled) { background: #fff0f2; }
+
+  /* --- Responsive --- */
+  @media (max-width: 1280px) {
+    .cccd-body { grid-template-columns: 1fr; }
+    .bio-body { grid-template-columns: 1fr; }
+    .extra-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 1100px) {
+    .cap-row { grid-template-columns: 1fr; }
+    .cap-row-3 { grid-template-columns: 1fr; }
+    .portrait-body { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 780px) {
+    .extra-grid { grid-template-columns: 1fr; }
+    .validate-grid { grid-template-columns: 1fr; }
+    .portrait-body { grid-template-columns: 1fr; }
+    .save-btn { flex: 1 1 100%; }
+    .fp-grid { grid-template-columns: repeat(5, 1fr); }
   }
 `;

@@ -119,6 +119,19 @@ class LoginResp(BaseModel):
     role: str = "admin"
 
 
+class UserIn(BaseModel):
+    username: str = Field(min_length=3, max_length=40, pattern=r"^[a-zA-Z0-9_.\-]+$")
+    password: str = Field(min_length=6, max_length=100)
+    role: str = Field(default="user", pattern=r"^(admin|user)$")
+    full_name: Optional[str] = None
+
+
+class UserPatch(BaseModel):
+    password: Optional[str] = Field(None, min_length=6, max_length=100)
+    role: Optional[str] = Field(None, pattern=r"^(admin|user)$")
+    full_name: Optional[str] = None
+
+
 class CellIn(BaseModel):
     code: str = Field(min_length=1, max_length=20)
     name: str = Field(min_length=1, max_length=100)
@@ -130,16 +143,24 @@ class DetaineeIn(BaseModel):
     full_name: str = Field(min_length=1, max_length=100)
     dob: Optional[str] = None
     gender: str = "male"
-    cccd_number: Optional[str] = None
+    cccd_number: Optional[str] = Field(None, pattern=r"^\d{12}$")
+    personal_id: Optional[str] = Field(None, pattern=r"^\d{12}$")
+    nationality: Optional[str] = "Việt Nam"
     hometown: Optional[str] = None
     address: Optional[str] = None
     ethnicity: Optional[str] = None
     religion: Optional[str] = None
+    issued_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    issued_place: Optional[str] = None
+    height_cm: Optional[int] = Field(None, ge=50, le=250)
+    weight_kg: Optional[int] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
     charge: Optional[str] = None
     date_in: Optional[str] = None
     note: Optional[str] = None
     photo_url: Optional[str] = None
+    photos: Optional[dict] = None
 
 
 def _make_token(username: str, role: str = "admin") -> str:
@@ -166,7 +187,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     return {"username": username, "role": user.get("role", "admin")}
 
 
-async def _log(request: Request, user: dict, action: str, resource: str, ref: str = "", data: dict = None):
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Chỉ tài khoản quản trị mới được thực hiện thao tác này")
+    return user
+
+
+def _scope_filter(user: dict, base: dict = None) -> dict:
+    """Non-admin users only see records they created."""
+    filt = dict(base or {})
+    if user.get("role") != "admin":
+        filt["created_by"] = user["username"]
+    return filt
+
+
+async def _log(request: Request, user: dict, action: str, resource: str, ref: str = "", data: dict = None, ref_id: str = ""):
     try:
         await db.audit_logs.insert_one({
             "at": datetime.utcnow(),
@@ -174,6 +209,7 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
             "action": action,
             "resource": resource,
             "ref": ref,
+            "ref_id": ref_id,
             "ip": (request.client.host if request and request.client else ""),
             "data": data or {},
         })
@@ -181,7 +217,7 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
         print(f"[audit] err: {e}")
 
 
-app = FastAPI(title="Hệ thống Quản lý CCCD Can Phạm", lifespan=lifespan)
+app = FastAPI(title="Phần mềm Đăng ký Can phạm", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
@@ -295,6 +331,30 @@ async def _next_code() -> str:
     return f"CP{year}{seq:05d}"
 
 
+def _require_capture_fields(body: "DetaineeIn") -> None:
+    """Enforce mandatory fields for the "Thu nhận dữ liệu" flow.
+
+    Client is free to send partial data via the legacy short form (edit modal),
+    but a create request must carry CCCD number + both CCCD photos.
+    """
+    missing = []
+    if not body.full_name or not body.full_name.strip():
+        missing.append("Họ và tên")
+    if not body.cccd_number:
+        missing.append("Số CCCD (12 chữ số)")
+    if not body.dob:
+        missing.append("Ngày sinh")
+    if body.gender not in ("male", "female"):
+        missing.append("Giới tính")
+    photos = body.photos or {}
+    if not photos.get("cccd_front"):
+        missing.append("Ảnh CCCD mặt trước")
+    if not photos.get("cccd_back"):
+        missing.append("Ảnh CCCD mặt sau")
+    if missing:
+        raise HTTPException(400, "Thiếu thông tin bắt buộc: " + ", ".join(missing))
+
+
 async def _find_duplicates(full_name: str, dob: Optional[datetime], gender: str, exclude_id: Optional[str] = None) -> List[dict]:
     if not full_name:
         return []
@@ -315,7 +375,7 @@ async def list_detainees(
     limit: int = Query(20, ge=1, le=200),
     user: dict = Depends(get_current_user),
 ):
-    filt = {}
+    filt = _scope_filter(user)
     if q:
         rx = re.escape(q.strip())
         filt["$or"] = [
@@ -335,11 +395,19 @@ async def list_detainees(
     return {"total": total, "items": items, "skip": skip, "limit": limit}
 
 
+def _ensure_can_touch(doc: dict, user: dict) -> None:
+    if user.get("role") == "admin":
+        return
+    if doc.get("created_by") != user["username"]:
+        raise HTTPException(403, "Bạn chỉ được thao tác trên hồ sơ do chính mình đăng ký")
+
+
 @app.get("/api/detainees/{det_id}")
 async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
     doc = await db.detainees.find_one({"_id": _oid(det_id)})
     if not doc:
         raise HTTPException(404, "Không tìm thấy hồ sơ")
+    _ensure_can_touch(doc, user)
     return _s(doc)
 
 
@@ -352,6 +420,7 @@ async def check_duplicate(body: DetaineeIn, user: dict = Depends(get_current_use
 
 @app.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
+    _require_capture_fields(body)
     dob = _parse_dob(body.dob)
     now = datetime.utcnow()
     code = await _next_code()
@@ -361,27 +430,31 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         "full_name_norm": _norm_name(body.full_name),
         "dob": dob,
         "date_in": _parse_dob(body.date_in),
+        "issued_date": _parse_dob(body.issued_date),
+        "expiry_date": _parse_dob(body.expiry_date),
         "created_at": now,
         "updated_at": now,
         "created_by": user["username"],
     })
     res = await db.detainees.insert_one(doc)
     doc["_id"] = res.inserted_id
-    await _log(request, user, "create", "detainee", code, {"full_name": body.full_name})
+    await _log(request, user, "create", "detainee", code, {"full_name": body.full_name}, ref_id=str(res.inserted_id))
     return _s(doc)
 
 
 @app.patch("/api/detainees/{det_id}")
 async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
+    existing = await db.detainees.find_one({"_id": _oid(det_id)})
+    if not existing:
+        raise HTTPException(404, "Không tìm thấy hồ sơ")
+    _ensure_can_touch(existing, user)
     upd = body.model_dump()
     upd["full_name_norm"] = _norm_name(body.full_name)
     upd["dob"] = _parse_dob(body.dob)
     upd["date_in"] = _parse_dob(body.date_in)
     upd["updated_at"] = datetime.utcnow()
     doc = await db.detainees.find_one_and_update({"_id": _oid(det_id)}, {"$set": upd}, return_document=True)
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy hồ sơ")
-    await _log(request, user, "update", "detainee", doc.get("code", det_id), {"full_name": body.full_name})
+    await _log(request, user, "update", "detainee", doc.get("code", det_id), {"full_name": body.full_name}, ref_id=det_id)
     return _s(doc)
 
 
@@ -390,9 +463,19 @@ async def delete_detainee(det_id: str, request: Request, user: dict = Depends(ge
     doc = await db.detainees.find_one({"_id": _oid(det_id)})
     if not doc:
         raise HTTPException(404, "Không tìm thấy hồ sơ")
+    _ensure_can_touch(doc, user)
     await db.detainees.delete_one({"_id": _oid(det_id)})
-    await _log(request, user, "delete", "detainee", doc.get("code", det_id))
+    await _log(request, user, "delete", "detainee", doc.get("code", det_id), ref_id=det_id)
     return {"ok": True}
+
+
+@app.get("/api/detainees/by-code/{code}")
+async def get_detainee_by_code(code: str, user: dict = Depends(get_current_user)):
+    doc = await db.detainees.find_one({"code": code})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy hồ sơ")
+    _ensure_can_touch(doc, user)
+    return _s(doc)
 
 
 # ==================== PHOTO UPLOAD ====================
@@ -599,13 +682,127 @@ async def stats(user: dict = Depends(get_current_user)):
     }
 
 
-# ==================== AUDIT LOG ====================
+# ==================== AUDIT LOG / REPORT ====================
+def _parse_dt(s: Optional[str]) -> Optional[datetime]:
+    """Parse ISO 8601 or 'YYYY-MM-DDTHH:MM' from <input type=datetime-local>."""
+    if not s:
+        return None
+    s = s.strip()
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt)
+        except Exception:
+            continue
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
 @app.get("/api/logs")
-async def list_logs(limit: int = Query(50, ge=1, le=500), user: dict = Depends(get_current_user)):
+async def list_logs(
+    limit: int = Query(500, ge=1, le=5000),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    action: Optional[str] = Query(None),
+    resource: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
+):
+    filt: dict = {}
+    dt_from = _parse_dt(date_from)
+    dt_to = _parse_dt(date_to)
+    if dt_from or dt_to:
+        rng: dict = {}
+        if dt_from:
+            rng["$gte"] = dt_from
+        if dt_to:
+            rng["$lte"] = dt_to
+        filt["at"] = rng
+    if action:
+        filt["action"] = action
+    if resource:
+        filt["resource"] = resource
+    if user.get("role") != "admin":
+        filt["actor"] = user["username"]
+
     items = []
-    async for l in db.audit_logs.find({}).sort("at", -1).limit(limit):
+    async for l in db.audit_logs.find(filt).sort("at", -1).limit(limit):
         l["id"] = str(l.pop("_id"))
         if isinstance(l.get("at"), datetime):
             l["at"] = l["at"].isoformat()
         items.append(l)
-    return items
+
+    counts = {"create": 0, "update": 0, "delete": 0, "login": 0, "import": 0}
+    pipeline = [{"$match": filt}, {"$group": {"_id": "$action", "n": {"$sum": 1}}}]
+    async for r in db.audit_logs.aggregate(pipeline):
+        counts[r["_id"]] = r["n"]
+
+    return {"items": items, "counts": counts, "total": len(items)}
+
+
+# ==================== USER MANAGEMENT (admin only) ====================
+def _serialize_user(u: dict) -> dict:
+    return {
+        "id": str(u["_id"]),
+        "username": u["username"],
+        "role": u.get("role", "user"),
+        "full_name": u.get("full_name", ""),
+        "created_at": u["created_at"].isoformat() if isinstance(u.get("created_at"), datetime) else None,
+    }
+
+
+@app.get("/api/users")
+async def list_users(user: dict = Depends(require_admin)):
+    return [_serialize_user(u) async for u in db.users.find({}).sort("username", 1)]
+
+
+@app.post("/api/users")
+async def create_user(body: UserIn, request: Request, admin: dict = Depends(require_admin)):
+    if await db.users.find_one({"username": body.username}):
+        raise HTTPException(400, "Tên tài khoản đã tồn tại")
+    doc = {
+        "username": body.username,
+        "password_hash": hash_password(body.password),
+        "role": body.role,
+        "full_name": body.full_name or "",
+        "created_at": datetime.utcnow(),
+    }
+    res = await db.users.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    await _log(request, admin, "create", "user", body.username, {"role": body.role})
+    return _serialize_user(doc)
+
+
+@app.patch("/api/users/{user_id}")
+async def update_user(user_id: str, body: UserPatch, request: Request, admin: dict = Depends(require_admin)):
+    target = await db.users.find_one({"_id": _oid(user_id)})
+    if not target:
+        raise HTTPException(404, "Không tìm thấy tài khoản")
+    upd: dict = {}
+    if body.password:
+        upd["password_hash"] = hash_password(body.password)
+    if body.role:
+        if target["username"] == ADMIN_USERNAME and body.role != "admin":
+            raise HTTPException(400, "Không thể hạ quyền tài khoản admin gốc")
+        upd["role"] = body.role
+    if body.full_name is not None:
+        upd["full_name"] = body.full_name
+    if not upd:
+        return _serialize_user(target)
+    doc = await db.users.find_one_and_update({"_id": _oid(user_id)}, {"$set": upd}, return_document=True)
+    await _log(request, admin, "update", "user", doc["username"], {"fields": list(upd.keys())})
+    return _serialize_user(doc)
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(user_id: str, request: Request, admin: dict = Depends(require_admin)):
+    target = await db.users.find_one({"_id": _oid(user_id)})
+    if not target:
+        raise HTTPException(404, "Không tìm thấy tài khoản")
+    if target["username"] == ADMIN_USERNAME:
+        raise HTTPException(400, "Không thể xoá tài khoản admin gốc")
+    if target["username"] == admin["username"]:
+        raise HTTPException(400, "Không thể xoá tài khoản của chính bạn")
+    await db.users.delete_one({"_id": _oid(user_id)})
+    await _log(request, admin, "delete", "user", target["username"])
+    return {"ok": True}

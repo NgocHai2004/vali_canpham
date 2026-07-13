@@ -78,7 +78,7 @@ export default function Login({ onLogin }) {
           </div>
 
           <h1 id="lg-title" className="lg-title">
-            Hệ thống Quản lý dự án CCCD
+            Phần mềm Đăng ký Can phạm
           </h1>
           <p className="lg-subtitle">Cổng nội bộ &middot; Đăng nhập quản trị</p>
           <div className="lg-divider" aria-hidden="true" />
