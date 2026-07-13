@@ -105,6 +105,10 @@ export const api = {
   createDetainee: (body) => request("/api/detainees", { method: "POST", body: JSON.stringify(body) }),
   updateDetainee: (id, body) => request(`/api/detainees/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDetainee: (id) => request(`/api/detainees/${id}`, { method: "DELETE" }),
+  transferDetainee: (id, cell_code) => request(`/api/detainees/${id}/transfer`, {
+    method: "POST",
+    body: JSON.stringify({ cell_code }),
+  }),
   checkDuplicate: (body) => request("/api/detainees/check-duplicate", { method: "POST", body: JSON.stringify(body) }),
 
   uploadPhoto: async (file) => {

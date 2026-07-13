@@ -195,7 +195,7 @@ function DashboardHome({ go }) {
   const malePct = stats.total ? Math.round((stats.male / stats.total) * 100) : 0;
 
   return (
-    <div className="page">
+    <div className="page dashboard-page">
       <PageTitle
         title="Tổng quan"
         subtitle="Bảng điều khiển quản lý hồ sơ can phạm"
@@ -320,6 +320,19 @@ function DashboardHome({ go }) {
         <SystemItem icon={Icon.shield} label="An ninh hệ thống" value="100%" note="An toàn" />
         <SystemItem icon={Icon.server} label="Trạng thái server" value="Ổn định" note="Hoạt động tốt" />
         <SystemItem icon={Icon.log} label="Thời gian hoạt động" value="99.9%" note="Uptime" />
+      </div>
+    </div>
+  );
+}
+
+function ReportStat({ tone, icon, label, value, note }) {
+  return (
+    <div className={`report-stat ${tone}`}>
+      <div className="report-stat-icon">{icon}</div>
+      <div className="report-stat-body">
+        <span className="report-stat-label">{label}</span>
+        <strong className="report-stat-value">{value}</strong>
+        <small className="report-stat-note">{note}</small>
       </div>
     </div>
   );
@@ -685,6 +698,7 @@ function CellsPage() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [viewingCell, setViewingCell] = useState(null);
 
   const load = async () => {
     try {
@@ -757,6 +771,7 @@ function CellsPage() {
                   <td>{cell.note || "-"}</td>
                   <td>
                     <div className="row-actions">
+                      <button onClick={() => setViewingCell(cell)}>Xem can phạm</button>
                       <button onClick={() => { setEditing(cell); setShowForm(true); }}>Sửa</button>
                       <button className="danger-text" onClick={() => deleteCell(cell)}>Xoá</button>
                     </div>
@@ -782,6 +797,121 @@ function CellsPage() {
           }}
         />
       )}
+
+      {viewingCell && (
+        <CellDetaineesModal
+          cell={viewingCell}
+          allCells={cells}
+          onClose={() => setViewingCell(null)}
+          onChanged={load}
+        />
+      )}
+    </div>
+  );
+}
+
+function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [transferring, setTransferring] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ cell_code: cell.code, limit: "200" });
+      const res = await api.request(`/api/detainees?${params}`);
+      setItems(res.items || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [cell.code]);
+
+  const doTransfer = async (item, newCode) => {
+    if (newCode === item.cell_code) return;
+    if (!window.confirm(`Chuyển ${item.full_name} sang buồng ${newCode || "(bỏ trống)"}?`)) return;
+    setTransferring(item.id);
+    try {
+      await api.transferDetainee(item.id, newCode);
+      setNotice(`Đã chuyển ${item.full_name}.`);
+      load();
+      onChanged && onChanged();
+    } catch (e) {
+      setNotice(`Lỗi: ${e.message}`);
+    } finally {
+      setTransferring(null);
+    }
+  };
+
+  const otherCells = allCells.filter((c) => c.code !== cell.code);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Can phạm buồng {cell.code} - {cell.name}</h3>
+          <button onClick={onClose}>×</button>
+        </div>
+
+        <div style={{ padding: "16px 24px" }}>
+          {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+          {error && <StateBox type="error">{error}</StateBox>}
+
+          {loading ? (
+            <StateBox>Đang tải...</StateBox>
+          ) : !items.length ? (
+            <StateBox>Buồng này chưa có can phạm.</StateBox>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã hồ sơ</th>
+                  <th>Họ và tên</th>
+                  <th>Giới tính</th>
+                  <th>Tội danh</th>
+                  <th>Chuyển sang buồng</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td><strong>{item.code}</strong></td>
+                    <td>{item.full_name}</td>
+                    <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
+                    <td className="ellipsis">{item.charge || "-"}</td>
+                    <td>
+                      <select
+                        className="control"
+                        defaultValue=""
+                        disabled={transferring === item.id}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          e.target.value = "";
+                          if (v !== "") doTransfer(item, v);
+                        }}
+                      >
+                        <option value="">-- Chọn buồng --</option>
+                        {otherCells.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.code} - {c.name} ({c.current}/{c.capacity})
+                          </option>
+                        ))}
+                        <option value="">(Bỏ khỏi buồng)</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1048,7 +1178,8 @@ function LogsPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page report-page">
+      <div className="report-fixed">
       <PageHeader
         title="Báo cáo nhập liệu can phạm"
         subtitle={`Thống kê thao tác theo ngày giờ. Tổng ${logs.length} bản ghi trong khoảng lọc.`}
@@ -1059,56 +1190,74 @@ function LogsPage() {
         </button>
       </PageHeader>
 
-      <div className="stat-grid">
-        <StatCard tone="blue" icon={Icon.file} label="Đăng ký mới" value={counts.create || 0} note="Can phạm được tạo" />
-        <StatCard tone="orange" icon={Icon.sync} label="Đã sửa" value={counts.update || 0} note="Lượt cập nhật" />
-        <StatCard tone="purple" icon={Icon.log} label="Đã xoá" value={counts.delete || 0} note="Hồ sơ đã xoá" />
-        <StatCard tone="green" icon={Icon.cloudUpload} label="Nhập Excel" value={counts.import || 0} note="Lượt import" />
+      <div className="report-stat-grid">
+        <ReportStat tone="blue" icon={Icon.file} label="Đăng ký mới" value={counts.create || 0} note="Can phạm được tạo" />
+        <ReportStat tone="orange" icon={Icon.sync} label="Đã sửa" value={counts.update || 0} note="Lượt cập nhật" />
+        <ReportStat tone="purple" icon={Icon.log} label="Đã xoá" value={counts.delete || 0} note="Hồ sơ đã xoá" />
+        <ReportStat tone="green" icon={Icon.cloudUpload} label="Nhập Excel" value={counts.import || 0} note="Lượt import" />
       </div>
 
       <form
-        className="filter-bar logs-filter"
+        className="report-filter"
         onSubmit={(e) => { e.preventDefault(); load(); }}
       >
-        <label className="field-inline">
-          <span>Từ (ngày giờ)</span>
-          <input
-            className="control"
-            type="datetime-local"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-        </label>
-        <label className="field-inline">
-          <span>Đến (ngày giờ)</span>
-          <input
-            className="control"
-            type="datetime-local"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </label>
-        <select className="control" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-          <option value="">Tất cả hành động</option>
-          <option value="create">Đăng ký mới</option>
-          <option value="update">Sửa</option>
-          <option value="delete">Xoá</option>
-          <option value="import">Nhập Excel</option>
-          <option value="login">Đăng nhập</option>
-        </select>
-        <select className="control" value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)}>
-          <option value="detainee">Can phạm</option>
-          <option value="cell">Buồng giam</option>
-          <option value="auth">Tài khoản</option>
-          <option value="">Tất cả đối tượng</option>
-        </select>
-        <button type="submit" className="button primary" disabled={loading}>Áp dụng</button>
-        <button type="button" className="button secondary" onClick={clearFilters}>Xoá lọc</button>
+        <div className="report-filter-head">
+          <span className="report-filter-title">Bộ lọc báo cáo</span>
+          <span className="report-filter-hint">Chọn khoảng thời gian, loại hành động và đối tượng để lọc</span>
+        </div>
+        <div className="report-filter-grid">
+          <label className="report-field">
+            <span>Từ</span>
+            <input
+              className="control"
+              type="datetime-local"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </label>
+          <label className="report-field">
+            <span>Đến</span>
+            <input
+              className="control"
+              type="datetime-local"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </label>
+          <label className="report-field">
+            <span>Hành động</span>
+            <select className="control" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+              <option value="">Tất cả hành động</option>
+              <option value="create">Đăng ký mới</option>
+              <option value="update">Sửa</option>
+              <option value="delete">Xoá</option>
+              <option value="import">Nhập Excel</option>
+              <option value="login">Đăng nhập</option>
+            </select>
+          </label>
+          <label className="report-field">
+            <span>Đối tượng</span>
+            <select className="control" value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)}>
+              <option value="detainee">Can phạm</option>
+              <option value="cell">Buồng giam</option>
+              <option value="auth">Tài khoản</option>
+              <option value="">Tất cả đối tượng</option>
+            </select>
+          </label>
+          <div className="report-filter-actions">
+            <button type="button" className="button secondary" onClick={clearFilters}>Xoá lọc</button>
+            <button type="submit" className="button primary" disabled={loading}>
+              {loading ? "Đang lọc..." : "Áp dụng"}
+            </button>
+          </div>
+        </div>
       </form>
 
       {error && <StateBox type="error">{error}</StateBox>}
       {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+      </div>
 
+      <div className="report-scroll">
       <div className="table-card">
         <table>
           <thead>
@@ -1153,6 +1302,7 @@ function LogsPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
@@ -1419,7 +1569,6 @@ function UserForm({ initial, onClose, onSaved }) {
   const isEdit = Boolean(initial);
   const [username, setUsername] = useState(initial?.username || "");
   const [fullName, setFullName] = useState(initial?.full_name || "");
-  const [role, setRole] = useState(initial?.role || "user");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1430,12 +1579,17 @@ function UserForm({ initial, onClose, onSaved }) {
     setError("");
     try {
       if (isEdit) {
-        const body = { full_name: fullName, role };
+        const body = { full_name: fullName };
         if (password) body.password = password;
         await api.updateUser(initial.id, body);
         onSaved(`Đã cập nhật ${initial.username}.`);
       } else {
-        await api.createUser({ username: username.trim(), password, role, full_name: fullName });
+        await api.createUser({
+          username: username.trim(),
+          password,
+          role: "user",
+          full_name: fullName,
+        });
         onSaved(`Đã tạo tài khoản ${username}.`);
       }
     } catch (e) {
@@ -1480,16 +1634,13 @@ function UserForm({ initial, onClose, onSaved }) {
               maxLength={100}
             />
           </FieldRow>
-          <FieldRow label="Vai trò *">
-            <select
+          <FieldRow label="Vai trò">
+            <input
               className="control"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              disabled={isEdit && initial?.username === "admin"}
-            >
-              <option value="user">Cán bộ (chỉ dùng dữ liệu của mình)</option>
-              <option value="admin">Quản trị (xem/sửa/xoá tất cả)</option>
-            </select>
+              value={isEdit ? (initial.role === "admin" ? "Quản trị" : "Cán bộ") : "Cán bộ"}
+              disabled
+              readOnly
+            />
           </FieldRow>
           <div className="modal-actions">
             <button type="button" className="button secondary" onClick={onClose}>Huỷ</button>
@@ -1785,7 +1936,7 @@ const styles = `
   .page {
     max-width: 1500px;
     margin: 0 auto;
-    height: 100%;
+    min-height: 100%;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -2896,5 +3047,149 @@ const styles = `
     .portrait-body { grid-template-columns: 1fr; }
     .save-btn { flex: 1 1 100%; }
     .fp-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+
+  /* ============================================================
+     Báo cáo - Report page layout
+     ============================================================ */
+  .report-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 4px;
+  }
+  .report-stat {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    border: 1px solid #e4eaf4;
+    background: white;
+    box-shadow: 0 4px 14px rgba(18, 52, 97, .05);
+    position: relative;
+    overflow: hidden;
+  }
+  .report-stat::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--accent);
+  }
+  .report-stat.blue { --accent: #2371f4; --soft: #eaf2ff; }
+  .report-stat.green { --accent: #12af64; --soft: #e8f9f0; }
+  .report-stat.orange { --accent: #ff6b21; --soft: #fff0e7; }
+  .report-stat.purple { --accent: #7745db; --soft: #f1ebff; }
+  .report-stat-icon {
+    width: 48px; height: 48px;
+    flex: 0 0 auto;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    color: var(--accent);
+    background: var(--soft);
+  }
+  .report-stat-icon svg { width: 22px; height: 22px; }
+  .report-stat-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .report-stat-label {
+    color: #62738b; font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .3px;
+  }
+  .report-stat-value {
+    color: #071a37; font-size: 26px; line-height: 1; font-weight: 800;
+  }
+  .report-stat-note { color: #75839a; font-size: 12px; }
+
+  .report-filter {
+    display: flex; flex-direction: column;
+    border: 1px solid #e2e9f3;
+    border-radius: 14px;
+    background: white;
+    box-shadow: 0 4px 14px rgba(18, 52, 97, .05);
+    overflow: hidden;
+  }
+  .report-filter-head {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 12px 18px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f2f6fd 100%);
+    border-bottom: 1px solid #e6ecf4;
+  }
+  .report-filter-title {
+    color: #0f2344;
+    font-size: 12.5px; font-weight: 800;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .report-filter-hint { color: #6f7f98; font-size: 12px; }
+  .report-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    align-items: end;
+    gap: 12px 14px;
+    padding: 14px 18px 16px;
+  }
+  .report-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .report-field > span {
+    color: #40546e; font-size: 12px; font-weight: 700;
+  }
+  .report-filter-actions {
+    display: flex; gap: 8px;
+    justify-self: end;
+  }
+  .report-filter-actions .button {
+    min-height: 40px; padding: 0 14px;
+  }
+
+  @media (max-width: 1180px) {
+    .report-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .report-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .report-filter-actions { grid-column: 1 / -1; justify-self: stretch; }
+    .report-filter-actions .button { flex: 1; }
+  }
+  @media (max-width: 620px) {
+    .report-stat-grid { grid-template-columns: 1fr; }
+    .report-filter-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Trang Tổng quan cố định, chỉ các panel bên trong scroll riêng */
+  .dashboard-page {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .dashboard-page .dashboard-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .dashboard-page .cell-list,
+  .dashboard-page .recent-list {
+    overflow-y: auto;
+  }
+
+  /* Sticky header + scrollable body cho trang Báo cáo */
+  .report-page {
+    height: 100%;
+    min-height: 0;
+    gap: 12px;
+    overflow: hidden;
+  }
+  .report-fixed {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .report-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 4px;
+  }
+  .report-scroll .table-card { overflow: visible; }
+  .report-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8faff;
   }
 `;

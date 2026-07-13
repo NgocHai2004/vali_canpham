@@ -38,6 +38,7 @@ const EMPTY_FORM = {
   height_cm: "",
   weight_kg: "",
   charge: "",
+  cell_code: "",
   note: "",
 };
 
@@ -155,6 +156,7 @@ function normalizeInitial(initial) {
       height_cm: initial.height_cm != null ? String(initial.height_cm) : "",
       weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
       charge: initial.charge || "",
+      cell_code: initial.cell_code || "",
       note: initial.note || "",
     },
     photos,
@@ -170,6 +172,7 @@ export default function DataCapturePage({ go, initial, onDone }) {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [reading, setReading] = useState(false);
+  const [cells, setCells] = useState([]);
 
   useEffect(() => {
     setForm(seed.form);
@@ -177,6 +180,10 @@ export default function DataCapturePage({ go, initial, onDone }) {
     setErr("");
     setOk("");
   }, [seed]);
+
+  useEffect(() => {
+    api.listCells().then(setCells).catch(() => setCells([]));
+  }, []);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setPhoto = (k, v) =>
@@ -265,6 +272,7 @@ export default function DataCapturePage({ go, initial, onDone }) {
         height_cm: form.height_cm ? Number(form.height_cm) : null,
         weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
         charge: strOrNull(form.charge),
+        cell_code: strOrNull(form.cell_code),
         note: strOrNull(form.note),
         photo_url: photos.portrait_front || null,
         photos,
@@ -481,6 +489,20 @@ export default function DataCapturePage({ go, initial, onDone }) {
               <Field label="Mã can phạm">
                 <input className="control" value={form.code}
                   onChange={(e) => setField("code", e.target.value.toUpperCase())} placeholder="CP2024-000000" />
+              </Field>
+              <Field label="Buồng giam">
+                <select className="control" value={form.cell_code}
+                  onChange={(e) => setField("cell_code", e.target.value)}>
+                  <option value="">-- Chọn buồng --</option>
+                  {cells.map((c) => {
+                    const full = c.capacity != null && c.current >= c.capacity;
+                    return (
+                      <option key={c.code} value={c.code} disabled={full && form.cell_code !== c.code}>
+                        {c.code} — {c.name} ({c.current}/{c.capacity}){full ? " · Đầy" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
               </Field>
             </div>
             <div className="extra-note">

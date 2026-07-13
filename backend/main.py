@@ -478,6 +478,33 @@ async def get_detainee_by_code(code: str, user: dict = Depends(get_current_user)
     return _s(doc)
 
 
+class TransferBody(BaseModel):
+    cell_code: str
+
+
+@app.post("/api/detainees/{det_id}/transfer")
+async def transfer_detainee(det_id: str, body: TransferBody, request: Request, user: dict = Depends(get_current_user)):
+    doc = await db.detainees.find_one({"_id": _oid(det_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy hồ sơ")
+    _ensure_can_touch(doc, user)
+    new_code = (body.cell_code or "").strip()
+    if new_code and not await db.cells.find_one({"code": new_code}):
+        raise HTTPException(400, f"Buồng {new_code} không tồn tại")
+    old_code = doc.get("cell_code") or ""
+    if old_code == new_code:
+        raise HTTPException(400, "Can phạm đã ở buồng này")
+    await db.detainees.update_one(
+        {"_id": _oid(det_id)},
+        {"$set": {"cell_code": new_code or None, "updated_at": datetime.utcnow()}},
+    )
+    await _log(
+        request, user, "update", "detainee", doc.get("code", det_id),
+        {"transfer": {"from": old_code, "to": new_code}}, ref_id=det_id,
+    )
+    return {"ok": True, "from": old_code, "to": new_code}
+
+
 # ==================== PHOTO UPLOAD ====================
 @app.post("/api/upload/photo")
 async def upload_photo(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
