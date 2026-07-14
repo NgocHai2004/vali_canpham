@@ -70,7 +70,6 @@ const NAV_BASE = [
   { key: "detainees", label: "Hồ sơ can phạm", icon: Icon.folder },
   { key: "cells", label: "Đồng bộ dữ liệu", icon: Icon.sync },
   { key: "search", label: "Tra cứu", icon: Icon.search },
-  { key: "logs", label: "Báo cáo", icon: Icon.chart },
 ];
 const NAV_ADMIN = [{ key: "users", label: "Quản lý tài khoản", icon: Icon.users }];
 
@@ -1165,6 +1164,7 @@ function LogsPage() {
   const [dateTo, setDateTo] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("detainee");
+  const [sessionFilter, setSessionFilter] = useState("");
   const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null);
   const [busyRef, setBusyRef] = useState("");
@@ -1178,6 +1178,7 @@ function LogsPage() {
       if (dateTo) params.date_to = dateTo;
       if (actionFilter) params.action = actionFilter;
       if (resourceFilter) params.resource = resourceFilter;
+      if (sessionFilter.trim()) params.session_code = sessionFilter.trim();
       const res = await api.listLogs(params);
       setLogs(res.items || []);
       setCounts(res.counts || { create: 0, update: 0, delete: 0, login: 0, import: 0 });
@@ -1267,6 +1268,7 @@ function LogsPage() {
     setDateTo("");
     setActionFilter("");
     setResourceFilter("detainee");
+    setSessionFilter("");
   };
 
   return (
@@ -1331,12 +1333,23 @@ function LogsPage() {
             <span>Đối tượng</span>
             <select className="control" value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)}>
               <option value="detainee">Can phạm</option>
+              <option value="work_session">Phiên làm việc</option>
               <option value="cell">Buồng giam</option>
               <option value="auth">Tài khoản</option>
               <option value="">Tất cả đối tượng</option>
             </select>
           </label>
-          <div className="report-filter-actions">
+          <label className="report-field">
+            <span>Mã phiên</span>
+            <input
+              className="control"
+              type="text"
+              placeholder="S20260713-0001"
+              value={sessionFilter}
+              onChange={(e) => setSessionFilter(e.target.value)}
+            />
+          </label>
+          <div className="report-filter-actions report-filter-actions-inline">
             <button type="button" className="button secondary" onClick={clearFilters}>Xoá lọc</button>
             <button type="submit" className="button primary" disabled={loading}>
               {loading ? "Đang lọc..." : "Áp dụng"}
@@ -1355,7 +1368,8 @@ function LogsPage() {
           <thead>
             <tr>
               <th>Thời gian</th>
-              <th>Người dùng</th>
+              <th>Phiên</th>
+              <th>Cán bộ</th>
               <th>Hành động</th>
               <th>Đối tượng</th>
               <th>Tham chiếu</th>
@@ -1367,10 +1381,36 @@ function LogsPage() {
             {logs.map((log) => {
               const canAct = isDetaineeLog(log);
               const busy = busyRef === log.id;
+              const officer = log.officer || {};
+              const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
               return (
                 <tr key={log.id}>
                   <td>{formatDateTime(log.at)}</td>
-                  <td><strong>{log.actor}</strong></td>
+                  <td>
+                    {log.session ? (
+                      <span className="session-code-chip">
+                        <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
+                          {log.session.status === "open" ? "●" : "✓"}
+                        </span>
+                        <span className="mono">{log.session.code}</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: "#98a4b8" }}>—</span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="officer-cell">
+                      {officer.avatar_url ? (
+                        <img className="officer-avatar" src={officer.avatar_url} alt="" />
+                      ) : (
+                        <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                      )}
+                      <div className="officer-name">
+                        <strong>{officer.full_name || log.actor}</strong>
+                        {officer.full_name ? <small>@{log.actor}</small> : null}
+                      </div>
+                    </div>
+                  </td>
                   <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
                   <td>{log.resource}</td>
                   <td>{log.ref}</td>
@@ -1390,7 +1430,7 @@ function LogsPage() {
               );
             })}
             {!logs.length && (
-              <tr><td colSpan={7}><div className="empty">Không có bản ghi phù hợp.</div></td></tr>
+              <tr><td colSpan={8}><div className="empty">Không có bản ghi phù hợp.</div></td></tr>
             )}
           </tbody>
         </table>
@@ -1584,6 +1624,17 @@ function UsersPage({ currentUser }) {
     }
   };
 
+  const onUploadAvatar = async (u, file) => {
+    if (!file) return;
+    try {
+      await api.uploadUserAvatar(u.id, file);
+      setNotice(`Đã cập nhật ảnh cho ${u.username}.`);
+      load();
+    } catch (e) {
+      setNotice(`Lỗi: ${e.message}`);
+    }
+  };
+
   return (
     <div className="page">
       <PageHeader title="Quản lý tài khoản" subtitle={`${users.length} tài khoản`}>
@@ -1601,6 +1652,7 @@ function UsersPage({ currentUser }) {
           <table>
             <thead>
               <tr>
+                <th>Ảnh</th>
                 <th>Tên đăng nhập</th>
                 <th>Họ tên</th>
                 <th>Vai trò</th>
@@ -1609,8 +1661,28 @@ function UsersPage({ currentUser }) {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {users.map((u) => {
+                const initials = ((u.full_name || u.username || "?").trim()[0] || "?").toUpperCase();
+                return (
                 <tr key={u.id}>
+                  <td>
+                    <div className="users-avatar-cell">
+                      {u.avatar_url ? (
+                        <img className="officer-avatar" src={u.avatar_url} alt="" />
+                      ) : (
+                        <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                      )}
+                      <label className="avatar-upload-btn" title="Cập nhật ảnh">
+                        Đổi
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={(e) => onUploadAvatar(u, e.target.files?.[0])}
+                        />
+                      </label>
+                    </div>
+                  </td>
                   <td><strong>{u.username}</strong></td>
                   <td>{u.full_name || "-"}</td>
                   <td>
@@ -1633,9 +1705,10 @@ function UsersPage({ currentUser }) {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!users.length && (
-                <tr><td colSpan={5}><div className="empty">Chưa có tài khoản.</div></td></tr>
+                <tr><td colSpan={6}><div className="empty">Chưa có tài khoản.</div></td></tr>
               )}
             </tbody>
           </table>

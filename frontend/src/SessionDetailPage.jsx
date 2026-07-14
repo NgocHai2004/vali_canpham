@@ -19,6 +19,7 @@ function fmtTime(iso) {
 
 export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, onEditDetainee, onSessionClosed }) {
   const [session, setSession] = useState(null);
+  const [officer, setOfficer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [closing, setClosing] = useState(false);
@@ -29,6 +30,14 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     try {
       const s = await api.getSession(sessionId);
       setSession(s);
+      if (s?.officer) {
+        try {
+          const users = await api.listUsers();
+          setOfficer(users.find((u) => u.username === s.officer) || null);
+        } catch {
+          setOfficer(null);
+        }
+      }
     } catch (ex) {
       setErr(ex.message || "Không tải được phiên");
     } finally {
@@ -100,8 +109,27 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
           {isOpen ? <span className="badge badge-open">● Đang mở</span> : <span className="badge badge-closed">✓ Đã đóng</span>}
           <span className="session-detail-code mono">{session.code}</span>
         </div>
+        <div className="session-detail-officer">
+          {(() => {
+            const displayName = (officer?.full_name || session.officer_full_name || session.officer || "?").trim();
+            const initials = (displayName[0] || "?").toUpperCase();
+            const avatarUrl = officer?.avatar_url;
+            return (
+              <>
+                {avatarUrl ? (
+                  <img className="officer-avatar officer-avatar-lg" src={avatarUrl} alt="" />
+                ) : (
+                  <span className="officer-avatar officer-avatar-lg officer-avatar-fallback">{initials}</span>
+                )}
+                <div className="officer-name">
+                  <strong>{displayName}</strong>
+                  <small>@{session.officer}</small>
+                </div>
+              </>
+            );
+          })()}
+        </div>
         <div className="session-detail-meta">
-          <span>Cán bộ: <strong>{session.officer}{session.officer_full_name ? ` (${session.officer_full_name})` : ""}</strong></span>
           <span>Mở: <strong>{fmtDateTime(session.opened_at)}</strong></span>
           {!isOpen && <span>Đóng: <strong>{fmtDateTime(session.closed_at)}</strong></span>}
           {session.location && <span>Địa điểm: <strong>{session.location}</strong></span>}

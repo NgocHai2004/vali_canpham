@@ -2,6 +2,42 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import SessionOpenModal from "./SessionOpenModal";
 
+const STAT_ICONS = {
+  blue: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" />
+    </svg>
+  ),
+  orange: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6v5h-5M4 18v-5h5" /><path d="M6.1 9A7 7 0 0 1 18 6l2 5M4 13l2 5a7 7 0 0 0 11.9-3" />
+    </svg>
+  ),
+  purple: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+    </svg>
+  ),
+  green: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 18a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.34 8.05 4.5 4.5 0 0 0 7 18" /><path d="m8 14 4-4 4 4M12 10v9" />
+    </svg>
+  ),
+};
+
+function StatCard({ tone, label, value, note }) {
+  return (
+    <div className={`report-stat ${tone}`}>
+      <div className="report-stat-icon">{STAT_ICONS[tone]}</div>
+      <div className="report-stat-body">
+        <span className="report-stat-label">{label}</span>
+        <strong className="report-stat-value">{value}</strong>
+        <small className="report-stat-note">{note}</small>
+      </div>
+    </div>
+  );
+}
+
 function fmtDateTime(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -21,12 +57,13 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [dateTo, setDateTo] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [current, setCurrent] = useState(null);
+  const [stats, setStats] = useState({ create: 0, update: 0, delete: 0, import: 0 });
 
   const load = async () => {
     setLoading(true);
     setErr("");
     try {
-      const [resp, cur] = await Promise.all([
+      const [resp, cur, logsResp] = await Promise.all([
         api.listSessions({
           status: statusFilter,
           mine_only: mineOnly ? "true" : "",
@@ -34,10 +71,18 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           date_to: dateTo,
         }),
         api.getCurrentSession().catch(() => null),
+        api.listLogs({ resource: "detainee" }).catch(() => ({ counts: {} })),
       ]);
       setItems(resp.items || []);
       setTotal(resp.total || 0);
       setCurrent(cur);
+      const c = logsResp.counts || {};
+      setStats({
+        create: c.create || 0,
+        update: c.update || 0,
+        delete: c.delete || 0,
+        import: c.import || 0,
+      });
     } catch (ex) {
       setErr(ex.message || "Không tải được danh sách phiên");
     } finally {
@@ -70,6 +115,33 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
 
   return (
     <div className="session-list-page">
+      <div className="report-stat-grid session-list-stats">
+        <StatCard tone="blue" label="Đăng ký mới" value={stats.create} note="Can phạm được tạo" />
+        <StatCard tone="orange" label="Đã sửa" value={stats.update} note="Lượt cập nhật" />
+        <StatCard tone="purple" label="Đã xoá" value={stats.delete} note="Hồ sơ đã xoá" />
+        <StatCard tone="green" label="Nhập Excel" value={stats.import} note="Lượt import" />
+      </div>
+
+      {current && (
+        <div className="session-list-current">
+          <span className="badge badge-open">● Đang mở</span>
+          <span className="mono">{current.code}</span>
+          <span style={{ color: "#6b7280", fontSize: 13 }}>
+            · Cán bộ {current.officer}
+            {current.officer_full_name ? ` (${current.officer_full_name})` : ""}
+            · {current.detainee_count || 0} hồ sơ
+          </span>
+          <button
+            type="button"
+            className="btn-link"
+            style={{ marginLeft: "auto" }}
+            onClick={() => onOpenSession && onOpenSession(current.id)}
+          >
+            Vào phiên →
+          </button>
+        </div>
+      )}
+
       <div className="session-list-head">
         <h2>PHIÊN LÀM VIỆC</h2>
         <div
@@ -131,15 +203,14 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
               <th>Đóng lúc</th>
               <th>Địa điểm</th>
               <th style={{ textAlign: "right" }}>Hồ sơ</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={8} className="session-list-empty">Đang tải...</td></tr>
+              <tr><td colSpan={7} className="session-list-empty">Đang tải...</td></tr>
             )}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={8} className="session-list-empty">Chưa có phiên nào.</td></tr>
+              <tr><td colSpan={7} className="session-list-empty">Chưa có phiên nào.</td></tr>
             )}
             {!loading && items.map((s) => (
               <tr key={s.id} onClick={() => onOpenSession && onOpenSession(s.id)} className="session-list-row">
@@ -154,13 +225,6 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                 <td>{fmtDateTime(s.closed_at)}</td>
                 <td>{s.location || "—"}</td>
                 <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  {s.status === "closed" && s.report_url ? (
-                    <button type="button" className="btn-link" onClick={() => downloadReport(s)}>
-                      ⬇ Tải Excel
-                    </button>
-                  ) : null}
-                </td>
               </tr>
             ))}
           </tbody>

@@ -42,6 +42,74 @@ const EMPTY_FORM = {
   note: "",
 };
 
+function CccdCardUpload({ form, photos, onUpload, onClear }) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+
+  const pick = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setUploading(true);
+    setErr("");
+    try {
+      const res = await api.uploadPhoto(f);
+      onUpload(res.url);
+    } catch (ex) {
+      setErr(ex.message);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const uploaded = photos.cccd_front;
+
+  return (
+    <div className="cccd-card-mock" onClick={() => !uploaded && inputRef.current?.click()} style={{ cursor: uploaded ? "default" : "pointer" }}>
+      {uploaded ? (
+        <>
+          <img className="cccd-card-mock-bg" src={uploaded} alt="Ảnh CCCD" style={{ objectFit: "cover" }} />
+          <button
+            type="button"
+            className="cccd-card-mock-clear"
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            aria-label="Xoá ảnh CCCD"
+          >×</button>
+          <button
+            type="button"
+            className="cccd-card-mock-reupload"
+            onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+          >Đổi ảnh</button>
+        </>
+      ) : (
+        <>
+          <img className="cccd-card-mock-bg" src="/cccd-template.png" alt="" />
+          <div className="cccd-card-mock-photo">
+            {photos.portrait_front && <img src={photos.portrait_front} alt="" />}
+          </div>
+          <div className="cccd-card-mock-fields">
+            <div className="cccd-mf cccd-mf-no">{form.cccd_number || ""}</div>
+            <div className="cccd-mf cccd-mf-name">{form.full_name || ""}</div>
+            <div className="cccd-mf cccd-mf-dob">{form.dob || ""}</div>
+            <div className="cccd-mf cccd-mf-sex">{form.full_name ? (form.gender === "female" ? "Nữ" : "Nam") : ""}</div>
+            <div className="cccd-mf cccd-mf-nat">{form.nationality || ""}</div>
+            <div className="cccd-mf cccd-mf-origin">{form.hometown || ""}</div>
+            <div className="cccd-mf cccd-mf-res">{form.address || ""}</div>
+            <div className="cccd-mf cccd-mf-exp">{form.expiry_date || ""}</div>
+          </div>
+          {(uploading || err) && (
+            <div className="cccd-card-mock-hint">
+              {uploading ? "Đang tải ảnh..." : err}
+            </div>
+          )}
+        </>
+      )}
+      <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
+    </div>
+  );
+}
+
 function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, disabled }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -355,8 +423,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </button>
         </div>
 
-        <div className="cccd-body">
-          <div className="cccd-col">
+        <div className="cccd-body cccd-body-2col">
+          <div className="cccd-col cccd-col-form">
             <Field label="Họ và tên">
               <input className="control" value={form.full_name}
                 onChange={(e) => setField("full_name", e.target.value)} placeholder="Nguyễn Văn A" />
@@ -368,11 +436,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <Field label="Số CCCD">
               <input className="control" value={form.cccd_number}
                 onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
-                placeholder="079204012345" inputMode="numeric" />
-            </Field>
-            <Field label="Số định danh cá nhân">
-              <input className="control" value={form.personal_id}
-                onChange={(e) => setField("personal_id", e.target.value.replace(/\D/g, "").slice(0, 12))}
                 placeholder="079204012345" inputMode="numeric" />
             </Field>
             <Field label="Ngày sinh">
@@ -390,9 +453,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <input className="control" value={form.nationality}
                 onChange={(e) => setField("nationality", e.target.value)} />
             </Field>
-          </div>
-
-          <div className="cccd-col">
             <Field label="Quê quán">
               <input className="control" value={form.hometown}
                 onChange={(e) => setField("hometown", e.target.value)} placeholder="Xã ..., Huyện ..., Tỉnh ..." />
@@ -413,6 +473,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <input className="control" value={form.issued_place}
                 onChange={(e) => setField("issued_place", e.target.value)} placeholder="Cục Cảnh sát QLHC về TTXH" />
             </Field>
+          </div>
+
+          <div className="cccd-preview-col">
+            <CccdCardUpload
+              form={form}
+              photos={photos}
+              onUpload={(url) => setPhoto("cccd_front", url)}
+              onClear={() => setPhoto("cccd_front", "")}
+            />
           </div>
 
         </div>

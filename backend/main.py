@@ -247,9 +247,9 @@ def _scope_filter(user: dict, base: dict = None) -> dict:
     return filt
 
 
-async def _log(request: Request, user: dict, action: str, resource: str, ref: str = "", data: dict = None, ref_id: str = ""):
+async def _log(request: Request, user: dict, action: str, resource: str, ref: str = "", data: dict = None, ref_id: str = "", session_id=None):
     try:
-        await db.audit_logs.insert_one({
+        entry = {
             "at": datetime.utcnow(),
             "actor": user["username"],
             "action": action,
@@ -258,7 +258,9 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
             "ref_id": ref_id,
             "ip": (request.client.host if request and request.client else ""),
             "data": data or {},
-        })
+            "session_id": session_id,
+        }
+        await db.audit_logs.insert_one(entry)
     except Exception as e:
         print(f"[audit] err: {e}")
 
@@ -497,7 +499,7 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         {"_id": session_doc["_id"]},
         {"$inc": {"detainee_count": 1}, "$set": {"updated_at": now}},
     )
-    await _log(request, user, "create", "detainee", code, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id))
+    await _log(request, user, "create", "detainee", code, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id), session_id=session_doc["_id"])
     return _s(doc)
 
 
@@ -519,7 +521,7 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     upd["date_in"] = _parse_dob(body.date_in)
     upd["updated_at"] = datetime.utcnow()
     doc = await db.detainees.find_one_and_update({"_id": _oid(det_id)}, {"$set": upd}, return_document=True)
-    await _log(request, user, "update", "detainee", doc.get("code", det_id), {"full_name": body.full_name}, ref_id=det_id)
+    await _log(request, user, "update", "detainee", doc.get("code", det_id), {"full_name": body.full_name}, ref_id=det_id, session_id=doc.get("session_id"))
     return _s(doc)
 
 
@@ -540,7 +542,7 @@ async def delete_detainee(det_id: str, request: Request, user: dict = Depends(ge
             {"_id": sid},
             {"$inc": {"detainee_count": -1}, "$set": {"updated_at": datetime.utcnow()}},
         )
-    await _log(request, user, "delete", "detainee", doc.get("code", det_id), ref_id=det_id)
+    await _log(request, user, "delete", "detainee", doc.get("code", det_id), ref_id=det_id, session_id=sid)
     return {"ok": True}
 
 
@@ -603,7 +605,7 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
     }
     res = await db.work_sessions.insert_one(doc)
     doc["_id"] = res.inserted_id
-    await _log(request, user, "create", "work_session", doc["code"], ref_id=str(res.inserted_id))
+    await _log(request, user, "create", "work_session", doc["code"], ref_id=str(res.inserted_id), session_id=res.inserted_id)
     return _s_session(doc)
 
 
@@ -754,7 +756,7 @@ async def close_session(session_id: str, request: Request, user: dict = Depends(
     await _log(
         request, user, "update", "work_session", doc.get("code", ""),
         {"action": "close", "detainee_count": doc.get("detainee_count", 0)},
-        ref_id=session_id,
+        ref_id=session_id, session_id=doc["_id"],
     )
     return {"ok": True, "closed_at": now.isoformat(), "report_url": report_url, "report_filename": filename}
 
@@ -792,7 +794,7 @@ async def delete_session(session_id: str, request: Request, user: dict = Depends
     if doc.get("detainee_count", 0) > 0:
         raise HTTPException(400, "Chỉ có thể xoá phiên rỗng (0 hồ sơ).")
     await db.work_sessions.delete_one({"_id": doc["_id"]})
-    await _log(request, user, "delete", "work_session", doc.get("code", ""), ref_id=session_id)
+    await _log(request, user, "delete", "work_session", doc.get("code", ""), ref_id=session_id, session_id=doc["_id"])
     return {"ok": True}
 
 
@@ -1024,6 +1026,7 @@ async def list_logs(
     date_to: Optional[str] = Query(None),
     action: Optional[str] = Query(None),
     resource: Optional[str] = Query(None),
+    session_code: Optional[str] = Query(None),
     user: dict = Depends(get_current_user),
 ):
     filt: dict = {}
@@ -1042,20 +1045,85 @@ async def list_logs(
         filt["resource"] = resource
     if user.get("role") != "admin":
         filt["actor"] = user["username"]
+    if session_code:
+        sess = await db.work_sessions.find_one({"code": session_code})
+        if sess:
+            filt["session_id"] = sess["_id"]
+        else:
+            filt["session_id"] = None
+            filt["_impossible"] = True
+
+    session_cache: dict = {}
+    user_cache: dict = {}
+
+    async def _resolve_session(sid):
+        if sid is None:
+            return None
+        key = str(sid)
+        if key not in session_cache:
+            s = await db.work_sessions.find_one({"_id": sid})
+            session_cache[key] = {
+                "code": s.get("code", ""),
+                "status": s.get("status", ""),
+            } if s else None
+        return session_cache[key]
+
+    async def _resolve_user(uname):
+        if not uname:
+            return None
+        if uname not in user_cache:
+            u = await db.users.find_one({"username": uname})
+            user_cache[uname] = {
+                "username": uname,
+                "full_name": (u or {}).get("full_name", "") or "",
+                "avatar_url": (u or {}).get("avatar_url", "") or "",
+            }
+        return user_cache[uname]
 
     items = []
     async for l in db.audit_logs.find(filt).sort("at", -1).limit(limit):
         l["id"] = str(l.pop("_id"))
         if isinstance(l.get("at"), datetime):
             l["at"] = l["at"].isoformat()
+        sid = l.get("session_id")
+        l["session"] = await _resolve_session(sid) if sid is not None else None
+        if sid is not None:
+            l["session_id"] = str(sid)
+        l["officer"] = await _resolve_user(l.get("actor"))
         items.append(l)
 
     counts = {"create": 0, "update": 0, "delete": 0, "login": 0, "import": 0}
-    pipeline = [{"$match": filt}, {"$group": {"_id": "$action", "n": {"$sum": 1}}}]
+    count_filt = dict(filt)
+    count_filt.pop("_impossible", None)
+    pipeline = [{"$match": count_filt}, {"$group": {"_id": "$action", "n": {"$sum": 1}}}]
     async for r in db.audit_logs.aggregate(pipeline):
         counts[r["_id"]] = r["n"]
 
     return {"items": items, "counts": counts, "total": len(items)}
+
+
+# ==================== USER AVATAR ====================
+@app.post("/api/users/{user_id}/avatar")
+async def upload_user_avatar(user_id: str, file: UploadFile = File(...), request: Request = None, admin: dict = Depends(require_admin)):
+    target = await db.users.find_one({"_id": _oid(user_id)})
+    if not target:
+        raise HTTPException(404, "Không tìm thấy tài khoản")
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(400, "Chỉ hỗ trợ ảnh jpg/png/webp")
+    data = await file.read()
+    if len(data) > 3 * 1024 * 1024:
+        raise HTTPException(400, "Ảnh vượt quá 3MB")
+    avatars_dir = os.path.join(UPLOAD_DIR, "avatars")
+    os.makedirs(avatars_dir, exist_ok=True)
+    name = f"avatar_{target['username']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{ext}"
+    path = os.path.join(avatars_dir, name)
+    with open(path, "wb") as f:
+        f.write(data)
+    avatar_url = f"/uploads/avatars/{name}"
+    await db.users.update_one({"_id": _oid(user_id)}, {"$set": {"avatar_url": avatar_url}})
+    await _log(request, admin, "update", "user", target["username"], {"action": "avatar"})
+    return {"ok": True, "avatar_url": avatar_url}
 
 
 # ==================== USER MANAGEMENT (admin only) ====================
@@ -1065,6 +1133,7 @@ def _serialize_user(u: dict) -> dict:
         "username": u["username"],
         "role": u.get("role", "user"),
         "full_name": u.get("full_name", ""),
+        "avatar_url": u.get("avatar_url", "") or "",
         "created_at": u["created_at"].isoformat() if isinstance(u.get("created_at"), datetime) else None,
     }
 

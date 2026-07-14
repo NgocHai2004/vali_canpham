@@ -134,6 +134,11 @@ export const api = {
   createUser: (body) => request("/api/users", { method: "POST", body: JSON.stringify(body) }),
   updateUser: (id, body) => request(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteUser: (id) => request(`/api/users/${id}`, { method: "DELETE" }),
+  uploadUserAvatar: async (id, file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return request(`/api/users/${id}/avatar`, { method: "POST", body: fd });
+  },
 
   listSessions: (params = {}) => {
     const qs = new URLSearchParams();
