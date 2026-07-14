@@ -28,6 +28,8 @@ ADMIN_PASSWORD = "admin123"
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+REPORTS_DIR = os.path.join(UPLOAD_DIR, "reports")
+os.makedirs(REPORTS_DIR, exist_ok=True)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -57,6 +59,8 @@ def _s(doc: dict) -> dict:
     if not doc:
         return doc
     doc["id"] = str(doc.pop("_id"))
+    if "session_id" in doc and doc["session_id"] is not None:
+        doc["session_id"] = str(doc["session_id"])
     for k in ("created_at", "updated_at", "dob"):
         if k in doc and isinstance(doc[k], datetime):
             doc[k] = doc[k].isoformat()
@@ -161,6 +165,48 @@ class DetaineeIn(BaseModel):
     note: Optional[str] = None
     photo_url: Optional[str] = None
     photos: Optional[dict] = None
+    session_id: Optional[str] = None
+
+
+class WorkSessionIn(BaseModel):
+    location: str = Field(default="", max_length=200)
+    note: str = Field(default="", max_length=500)
+
+
+async def _next_session_code() -> str:
+    today = datetime.utcnow().strftime("%Y%m%d")
+    counter_id = f"session_code_{today}"
+    doc = await db.counters.find_one_and_update(
+        {"_id": counter_id},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    seq = doc["seq"] if doc else 1
+    return f"S{today}-{seq:04d}"
+
+
+async def _get_open_session_or_none(username: str) -> Optional[dict]:
+    return await db.work_sessions.find_one({"officer": username, "status": "open"})
+
+
+def _s_session(doc: dict) -> dict:
+    if not doc:
+        return doc
+    out = dict(doc)
+    out["id"] = str(out.pop("_id"))
+    for k in ("opened_at", "closed_at"):
+        v = out.get(k)
+        if isinstance(v, datetime):
+            out[k] = v.isoformat()
+    return out
+
+
+def _ensure_session_editable(session_doc: dict, username: str, is_admin: bool) -> None:
+    if session_doc.get("status") != "open":
+        raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể chỉnh sửa.")
+    if session_doc.get("officer") != username and not is_admin:
+        raise HTTPException(403, "Bạn không có quyền thao tác trên phiên này.")
 
 
 def _make_token(username: str, role: str = "admin") -> str:
@@ -420,11 +466,19 @@ async def check_duplicate(body: DetaineeIn, user: dict = Depends(get_current_use
 
 @app.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
+    if not body.session_id:
+        raise HTTPException(400, "Bạn phải mở 1 phiên làm việc trước khi tạo hồ sơ.")
+    session_doc = await db.work_sessions.find_one({"_id": _oid(body.session_id)})
+    if not session_doc:
+        raise HTTPException(400, "Phiên làm việc không tồn tại.")
+    is_admin = user.get("role") == "admin"
+    _ensure_session_editable(session_doc, user["username"], is_admin)
     _require_capture_fields(body)
     dob = _parse_dob(body.dob)
     now = datetime.utcnow()
     code = await _next_code()
     doc = body.model_dump()
+    doc.pop("session_id", None)
     doc.update({
         "code": code,
         "full_name_norm": _norm_name(body.full_name),
@@ -435,10 +489,15 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         "created_at": now,
         "updated_at": now,
         "created_by": user["username"],
+        "session_id": session_doc["_id"],
     })
     res = await db.detainees.insert_one(doc)
     doc["_id"] = res.inserted_id
-    await _log(request, user, "create", "detainee", code, {"full_name": body.full_name}, ref_id=str(res.inserted_id))
+    await db.work_sessions.update_one(
+        {"_id": session_doc["_id"]},
+        {"$inc": {"detainee_count": 1}, "$set": {"updated_at": now}},
+    )
+    await _log(request, user, "create", "detainee", code, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id))
     return _s(doc)
 
 
@@ -448,7 +507,13 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     if not existing:
         raise HTTPException(404, "Không tìm thấy hồ sơ")
     _ensure_can_touch(existing, user)
+    sid = existing.get("session_id")
+    if sid is not None:
+        session_doc = await db.work_sessions.find_one({"_id": sid})
+        if session_doc and session_doc.get("status") != "open":
+            raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể chỉnh sửa.")
     upd = body.model_dump()
+    upd.pop("session_id", None)
     upd["full_name_norm"] = _norm_name(body.full_name)
     upd["dob"] = _parse_dob(body.dob)
     upd["date_in"] = _parse_dob(body.date_in)
@@ -464,7 +529,17 @@ async def delete_detainee(det_id: str, request: Request, user: dict = Depends(ge
     if not doc:
         raise HTTPException(404, "Không tìm thấy hồ sơ")
     _ensure_can_touch(doc, user)
+    sid = doc.get("session_id")
+    if sid is not None:
+        session_doc = await db.work_sessions.find_one({"_id": sid})
+        if session_doc and session_doc.get("status") != "open":
+            raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể xoá.")
     await db.detainees.delete_one({"_id": _oid(det_id)})
+    if sid is not None:
+        await db.work_sessions.update_one(
+            {"_id": sid},
+            {"$inc": {"detainee_count": -1}, "$set": {"updated_at": datetime.utcnow()}},
+        )
     await _log(request, user, "delete", "detainee", doc.get("code", det_id), ref_id=det_id)
     return {"ok": True}
 
@@ -503,6 +578,222 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
         {"transfer": {"from": old_code, "to": new_code}}, ref_id=det_id,
     )
     return {"ok": True, "from": old_code, "to": new_code}
+
+
+# ==================== WORK SESSIONS ====================
+@app.post("/api/sessions")
+async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
+    existing = await _get_open_session_or_none(user["username"])
+    if existing:
+        raise HTTPException(409, f"Bạn đang có 1 phiên đang mở ({existing.get('code','?')}). Đóng phiên đó trước khi mở phiên mới.")
+    officer_doc = await db.users.find_one({"username": user["username"]})
+    now = datetime.utcnow()
+    doc = {
+        "code": await _next_session_code(),
+        "status": "open",
+        "officer": user["username"],
+        "officer_full_name": (officer_doc or {}).get("full_name", "") or user["username"],
+        "location": body.location.strip(),
+        "note": body.note.strip(),
+        "opened_at": now,
+        "closed_at": None,
+        "detainee_count": 0,
+        "report_url": None,
+        "report_filename": None,
+    }
+    res = await db.work_sessions.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    await _log(request, user, "create", "work_session", doc["code"], ref_id=str(res.inserted_id))
+    return _s_session(doc)
+
+
+@app.get("/api/sessions/current")
+async def get_current_session(user: dict = Depends(get_current_user)):
+    doc = await _get_open_session_or_none(user["username"])
+    if not doc:
+        raise HTTPException(404, "Bạn chưa có phiên làm việc nào đang mở.")
+    return _s_session(doc)
+
+
+@app.get("/api/sessions")
+async def list_sessions(
+    status: Optional[str] = Query(None, pattern=r"^(open|closed)$"),
+    mine_only: bool = Query(False),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    user: dict = Depends(get_current_user),
+):
+    filt: dict = {}
+    if status:
+        filt["status"] = status
+    if mine_only or user.get("role") != "admin":
+        filt["officer"] = user["username"]
+    dt_from = _parse_dt(date_from)
+    dt_to = _parse_dt(date_to)
+    if dt_from or dt_to:
+        rng: dict = {}
+        if dt_from:
+            rng["$gte"] = dt_from
+        if dt_to:
+            rng["$lte"] = dt_to
+        filt["opened_at"] = rng
+    total = await db.work_sessions.count_documents(filt)
+    items = [
+        _s_session(d)
+        async for d in db.work_sessions.find(filt).sort("opened_at", -1).skip(skip).limit(limit)
+    ]
+    return {"total": total, "items": items, "skip": skip, "limit": limit}
+
+
+async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
+    wb = Workbook()
+    ws1 = wb.active
+    ws1.title = "Thông tin phiên"
+    opened = session_doc.get("opened_at")
+    closed = session_doc.get("closed_at")
+
+    def _fmt_dt(dt):
+        return dt.strftime("%d/%m/%Y %H:%M") if isinstance(dt, datetime) else ""
+
+    rows = [
+        ["PHIẾU BÁO CÁO PHIÊN LÀM VIỆC"],
+        [],
+        ["Mã phiên:", session_doc.get("code", "")],
+        ["Cán bộ:", f"{session_doc.get('officer','')} ({session_doc.get('officer_full_name','')})"],
+        ["Địa điểm:", session_doc.get("location", "") or ""],
+        ["Ghi chú:", session_doc.get("note", "") or ""],
+        ["Mở lúc:", _fmt_dt(opened)],
+        ["Đóng lúc:", _fmt_dt(closed)],
+        ["Tổng hồ sơ:", session_doc.get("detainee_count", 0)],
+    ]
+    for r in rows:
+        ws1.append(r)
+    ws1.column_dimensions["A"].width = 18
+    ws1.column_dimensions["B"].width = 42
+
+    ws2 = wb.create_sheet("Danh sách hồ sơ")
+    headers = ["STT", "Mã HS", "Họ và tên", "Giới tính", "Ngày sinh", "Số CCCD", "Quê quán", "Buồng", "Ghi chú"]
+    ws2.append(headers)
+    i = 0
+    async for d in db.detainees.find({"session_id": session_doc["_id"]}).sort("created_at", 1):
+        i += 1
+        dob = d.get("dob")
+        dob_str = dob.strftime("%d/%m/%Y") if isinstance(dob, datetime) else ""
+        gender = "Nam" if d.get("gender") == "male" else "Nữ"
+        ws2.append([
+            i,
+            d.get("code", ""),
+            d.get("full_name", ""),
+            gender,
+            dob_str,
+            d.get("cccd_number", "") or "",
+            d.get("hometown", "") or "",
+            d.get("cell_code", "") or "",
+            d.get("note", "") or "",
+        ])
+    for col in ws2.columns:
+        letter = col[0].column_letter
+        ws2.column_dimensions[letter].width = 18
+
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    filename = f"session_{session_doc.get('code','')}_{ts}.xlsx"
+    filepath = os.path.join(REPORTS_DIR, filename)
+    wb.save(filepath)
+    return filepath, filename
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session_detail(session_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
+    if doc.get("officer") != user["username"] and user.get("role") != "admin":
+        raise HTTPException(403, "Bạn không có quyền xem phiên này.")
+    detainees = []
+    async for d in db.detainees.find({"session_id": doc["_id"]}).sort("created_at", 1):
+        detainees.append({
+            "id": str(d["_id"]),
+            "code": d.get("code", ""),
+            "full_name": d.get("full_name", ""),
+            "cccd_number": d.get("cccd_number", "") or "",
+            "gender": d.get("gender", "male"),
+            "dob": d["dob"].isoformat() if isinstance(d.get("dob"), datetime) else None,
+            "cell_code": d.get("cell_code", "") or "",
+            "created_at": d["created_at"].isoformat() if isinstance(d.get("created_at"), datetime) else None,
+        })
+    out = _s_session(doc)
+    out["detainees"] = detainees
+    return out
+
+
+@app.post("/api/sessions/{session_id}/close")
+async def close_session(session_id: str, request: Request, user: dict = Depends(get_current_user)):
+    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
+    if doc.get("officer") != user["username"] and user.get("role") != "admin":
+        raise HTTPException(403, "Bạn không có quyền đóng phiên này.")
+    if doc.get("status") != "open":
+        raise HTTPException(409, "Phiên này đã đóng.")
+    now = datetime.utcnow()
+    doc["closed_at"] = now
+    doc["status"] = "closed"
+    filepath, filename = await _build_session_report_xlsx(doc)
+    report_url = f"/uploads/reports/{filename}"
+    await db.work_sessions.update_one(
+        {"_id": doc["_id"]},
+        {"$set": {
+            "status": "closed",
+            "closed_at": now,
+            "report_url": report_url,
+            "report_filename": filename,
+        }},
+    )
+    await _log(
+        request, user, "update", "work_session", doc.get("code", ""),
+        {"action": "close", "detainee_count": doc.get("detainee_count", 0)},
+        ref_id=session_id,
+    )
+    return {"ok": True, "closed_at": now.isoformat(), "report_url": report_url, "report_filename": filename}
+
+
+@app.get("/api/sessions/{session_id}/report")
+async def download_session_report(session_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
+    if doc.get("officer") != user["username"] and user.get("role") != "admin":
+        raise HTTPException(403, "Bạn không có quyền tải báo cáo phiên này.")
+    if doc.get("status") != "closed" or not doc.get("report_filename"):
+        raise HTTPException(404, "Phiên chưa được đóng hoặc chưa có báo cáo.")
+    filepath = os.path.join(REPORTS_DIR, doc["report_filename"])
+    if not os.path.exists(filepath):
+        raise HTTPException(404, "File báo cáo không còn tồn tại trên máy chủ.")
+    with open(filepath, "rb") as f:
+        data = f.read()
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{doc["report_filename"]}"'},
+    )
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str, request: Request, user: dict = Depends(get_current_user)):
+    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
+    if doc.get("officer") != user["username"] and user.get("role") != "admin":
+        raise HTTPException(403, "Bạn không có quyền xoá phiên này.")
+    if doc.get("status") != "open":
+        raise HTTPException(400, "Chỉ có thể xoá phiên đang mở, chưa đóng.")
+    if doc.get("detainee_count", 0) > 0:
+        raise HTTPException(400, "Chỉ có thể xoá phiên rỗng (0 hồ sơ).")
+    await db.work_sessions.delete_one({"_id": doc["_id"]})
+    await _log(request, user, "delete", "work_session", doc.get("code", ""), ref_id=session_id)
+    return {"ok": True}
 
 
 # ==================== PHOTO UPLOAD ====================

@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
+import SessionListPage from "./SessionListPage";
+import SessionDetailPage from "./SessionDetailPage";
 
 const Icon = {
   dashboard: (
@@ -56,10 +58,14 @@ const Icon = {
   arrow: (
     <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></svg>
   ),
+  clipboard: (
+    <svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1" /><path d="M6 7h12v14H6z" /><path d="M9 12h6M9 16h4" /></svg>
+  ),
 };
 
 const NAV_BASE = [
   { key: "dashboard", label: "Tổng quan", icon: Icon.dashboard },
+  { key: "sessions", label: "Phiên làm việc", icon: Icon.clipboard },
   { key: "import", label: "Thu nhận dữ liệu", icon: Icon.cloudUpload },
   { key: "detainees", label: "Hồ sơ can phạm", icon: Icon.folder },
   { key: "cells", label: "Đồng bộ dữ liệu", icon: Icon.sync },
@@ -72,6 +78,8 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
   const [page, setPage] = useState("dashboard");
   const [dbOk, setDbOk] = useState(true);
   const [editingDetainee, setEditingDetainee] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [sessionCtx, setSessionCtx] = useState(null);
   const isAdmin = role === "admin";
   const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN] : NAV_BASE;
 
@@ -79,14 +87,70 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
     api.health().then((r) => setDbOk(Boolean(r.ok))).catch(() => setDbOk(false));
   }, []);
 
-  const goPage = (key) => {
-    if (key !== "import") setEditingDetainee(null);
+  const goPage = async (key) => {
+    if (key !== "import" && key !== "session_capture") {
+      setEditingDetainee(null);
+      setSessionCtx(null);
+    }
+    if (key === "import") {
+      try {
+        const cur = await api.getCurrentSession();
+        setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
+        setActiveSessionId(cur.id);
+        setPage("sessions_detail");
+        return;
+      } catch (ex) {
+        alert("Bạn cần mở một phiên làm việc trước khi thu nhận dữ liệu.");
+        setPage("sessions");
+        return;
+      }
+    }
+    if (key === "sessions") {
+      setActiveSessionId(null);
+      setSessionCtx(null);
+    }
     setPage(key);
   };
 
   const editDetainee = (detainee) => {
     setEditingDetainee(detainee);
+    setSessionCtx(null);
     setPage("import");
+  };
+
+  const openSession = (sessionId) => {
+    setActiveSessionId(sessionId);
+    setPage("sessions_detail");
+  };
+  const backToSessionList = () => {
+    setActiveSessionId(null);
+    setSessionCtx(null);
+    setPage("sessions");
+  };
+  const addDetaineeToSession = (sessionId) => {
+    setEditingDetainee(null);
+    setSessionCtx({ sessionId, sessionCode: null, sessionReadOnly: false });
+    setPage("session_capture");
+  };
+  const editDetaineeInSession = (detainee, session) => {
+    setEditingDetainee(detainee);
+    setSessionCtx({
+      sessionId: session.id,
+      sessionCode: session.code,
+      sessionReadOnly: session.status !== "open",
+    });
+    setPage("session_capture");
+  };
+  const doneSessionCapture = () => {
+    setEditingDetainee(null);
+    if (activeSessionId) {
+      setPage("sessions_detail");
+    } else {
+      setPage("sessions");
+    }
+  };
+  const handleSessionClosed = () => {
+    setSessionCtx(null);
   };
 
   return (
@@ -129,6 +193,34 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
               go={goPage}
               initial={editingDetainee}
               onDone={() => setEditingDetainee(null)}
+            />
+          )}
+          {page === "sessions" && (
+            <SessionListPage
+              role={role}
+              username={username}
+              fullName=""
+              onOpenSession={openSession}
+            />
+          )}
+          {page === "sessions_detail" && activeSessionId && (
+            <SessionDetailPage
+              sessionId={activeSessionId}
+              onBack={backToSessionList}
+              onAddDetainee={addDetaineeToSession}
+              onEditDetainee={editDetaineeInSession}
+              onSessionClosed={handleSessionClosed}
+            />
+          )}
+          {page === "session_capture" && sessionCtx && (
+            <DataCapturePage
+              go={goPage}
+              initial={editingDetainee}
+              onDone={() => setEditingDetainee(null)}
+              sessionId={sessionCtx.sessionId}
+              sessionCode={sessionCtx.sessionCode}
+              sessionReadOnly={sessionCtx.sessionReadOnly}
+              onSavedInSession={doneSessionCapture}
             />
           )}
           {page === "search" && <SearchPage />}

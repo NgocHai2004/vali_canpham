@@ -134,4 +134,19 @@ export const api = {
   createUser: (body) => request("/api/users", { method: "POST", body: JSON.stringify(body) }),
   updateUser: (id, body) => request(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteUser: (id) => request(`/api/users/${id}`, { method: "DELETE" }),
+
+  listSessions: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, v);
+    });
+    const s = qs.toString();
+    return request(`/api/sessions${s ? `?${s}` : ""}`);
+  },
+  getCurrentSession: () => request("/api/sessions/current"),
+  createSession: (body) => request("/api/sessions", { method: "POST", body: JSON.stringify(body || {}) }),
+  getSession: (id) => request(`/api/sessions/${id}`),
+  closeSession: (id) => request(`/api/sessions/${id}/close`, { method: "POST" }),
+  deleteSession: (id) => request(`/api/sessions/${id}`, { method: "DELETE" }),
+  downloadSessionReport: (id, filename) => downloadFile(`/api/sessions/${id}/report`, filename || `session_report.xlsx`),
 };

@@ -163,7 +163,7 @@ function normalizeInitial(initial) {
   };
 }
 
-export default function DataCapturePage({ go, initial, onDone }) {
+export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession }) {
   const isEdit = Boolean(initial && initial.id);
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
@@ -256,6 +256,7 @@ export default function DataCapturePage({ go, initial, onDone }) {
         return /^\d{12}$/.test(s) ? s : null;
       };
       const body = {
+        session_id: sessionId || null,
         full_name: form.full_name.trim(),
         gender: form.gender === "female" ? "female" : "male",
         dob: strOrNull(form.dob),
@@ -281,12 +282,19 @@ export default function DataCapturePage({ go, initial, onDone }) {
         const updated = await api.updateDetainee(initial.id, body);
         setOk(`Đã cập nhật hồ sơ ${updated.code} — ${updated.full_name}`);
         if (onDone) onDone();
-        if (go) setTimeout(() => go("detainees"), 800);
+        if (sessionId && onSavedInSession) {
+          setTimeout(() => onSavedInSession(), 600);
+        } else if (go) {
+          setTimeout(() => go("detainees"), 800);
+        }
       } else {
         const created = await api.createDetainee(body);
         setOk(`Đã lưu hồ sơ ${created.code} — ${created.full_name}`);
         setForm(EMPTY_FORM);
         setPhotos({});
+        if (sessionId && onSavedInSession) {
+          setTimeout(() => onSavedInSession(), 800);
+        }
       }
     } catch (ex) {
       setErr(ex.message);
@@ -311,6 +319,16 @@ export default function DataCapturePage({ go, initial, onDone }) {
 
   return (
     <div className="page capture-page">
+      {sessionId && (
+        <div className={"capture-session-banner " + (sessionReadOnly ? "closed" : "open")}>
+          <span className="dot" />
+          {sessionReadOnly ? (
+            <>Đang xem hồ sơ trong phiên <strong>{sessionCode || sessionId}</strong> (đã đóng — chỉ đọc)</>
+          ) : (
+            <>Đang trong phiên <strong>{sessionCode || sessionId}</strong></>
+          )}
+        </div>
+      )}
       {(err || ok) && (
         <div className="capture-banner">
           {err && <div className="error-box">{err}</div>}
