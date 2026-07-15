@@ -2869,19 +2869,23 @@ textarea.input { resize: vertical; min-height: 60px; }
   gap: 20px;
   align-items: start;
 }
-.cccd-col-form {
-  display: flex; flex-direction: column;
-  gap: 6px;
+.cccd-body-2col .cccd-col-form {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: repeat(5, auto);
+  grid-auto-flow: column;
+  gap: 6px 16px;
   min-width: 0;
 }
 .cccd-body-2col .cccd-field {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr);
+  grid-template-columns: 100px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0;
   border-bottom: none;
   min-height: auto;
+  min-width: 0;
 }
 .cccd-body-2col .cccd-field-label {
   font-size: 12px;
@@ -2918,7 +2922,7 @@ textarea.input { resize: vertical; min-height: 60px; }
 }
 .cccd-card-mock {
   position: relative;
-  width: 100%;
+  width: 50%;
   aspect-ratio: 1024 / 596;
   border-radius: 12px;
   overflow: hidden;

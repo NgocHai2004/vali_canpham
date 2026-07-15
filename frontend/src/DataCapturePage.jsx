@@ -387,16 +387,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   return (
     <div className="page capture-page">
-      {sessionId && (
-        <div className={"capture-session-banner " + (sessionReadOnly ? "closed" : "open")}>
-          <span className="dot" />
-          {sessionReadOnly ? (
-            <>Đang xem hồ sơ trong phiên <strong>{sessionCode || sessionId}</strong> (đã đóng — chỉ đọc)</>
-          ) : (
-            <>Đang trong phiên <strong>{sessionCode || sessionId}</strong></>
-          )}
-        </div>
-      )}
       {(err || ok) && (
         <div className="capture-banner">
           {err && <div className="error-box">{err}</div>}
@@ -417,7 +407,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           <h2 className="cap-block-title">CĂN CƯỚC CÔNG DÂN</h2>
           <button type="button" className="btn-cccd-scan" onClick={readCCCD} disabled={reading}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18" />
+              <rect x="3" y="5" width="5" height="5" rx="2" /><path d="M3 10h18" />
             </svg>
             {reading ? "Đang đọc..." : "Đọc thẻ CCCD"}
           </button>
@@ -464,10 +454,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <Field label="Ngày cấp">
               <input className="control" value={form.issued_date}
                 onChange={(e) => setField("issued_date", e.target.value)} placeholder="dd/mm/yyyy" />
-            </Field>
-            <Field label="Ngày hết hạn">
-              <input className="control" value={form.expiry_date}
-                onChange={(e) => setField("expiry_date", e.target.value)} placeholder="dd/mm/yyyy" />
             </Field>
             <Field label="Nơi cấp">
               <input className="control" value={form.issued_place}
