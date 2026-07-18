@@ -58,6 +58,8 @@ graphify-out/
 /image.png
 /image copy*.png
 /background.png
+/Capture.PNG
+/Annotation *.png
 
 # ===== Misc =====
 *.tmp

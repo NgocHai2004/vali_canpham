@@ -397,8 +397,6 @@ def _require_capture_fields(body: "DetaineeIn") -> None:
     photos = body.photos or {}
     if not photos.get("cccd_front"):
         missing.append("Ảnh CCCD mặt trước")
-    if not photos.get("cccd_back"):
-        missing.append("Ảnh CCCD mặt sau")
     if missing:
         raise HTTPException(400, "Thiếu thông tin bắt buộc: " + ", ".join(missing))
 

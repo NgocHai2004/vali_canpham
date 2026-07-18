@@ -155,3 +155,46 @@ export const api = {
   deleteSession: (id) => request(`/api/sessions/${id}`, { method: "DELETE" }),
   downloadSessionReport: (id, filename) => downloadFile(`/api/sessions/${id}/report`, filename || `session_report.xlsx`),
 };
+
+// ============ ZKFinger fingerprint sensor API (python service :8765) ============
+async function fpRequest(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  let res;
+  try {
+    res = await fetch(path, { ...opts, headers });
+  } catch (netErr) {
+    throw new Error("Không kết nối được máy quét vân tay (" + netErr.message + ")");
+  }
+  const ct = res.headers.get("content-type") || "";
+  const data = ct.includes("application/json") ? await res.json() : await res.text();
+  if (!res.ok) {
+    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy quét vân tay");
+    throw new Error(msg);
+  }
+  return data;
+}
+
+export const fpApi = {
+  health: () => fpRequest("/fp/api/health"),
+  listFingers: () => fpRequest("/fp/api/fingers"),
+  startSession: (userName) => fpRequest("/fp/api/session/start", {
+    method: "POST",
+    body: JSON.stringify({ user_name: userName }),
+  }),
+  getSession: (sid) => fpRequest(`/fp/api/session/${sid}`),
+  capture: (sid) => fpRequest(`/fp/api/session/${sid}/capture`, { method: "POST" }),
+  redo: (sid, code) => fpRequest(`/fp/api/session/${sid}/redo/${code}`, { method: "POST" }),
+  cancel: (sid) => fpRequest(`/fp/api/session/${sid}`, { method: "DELETE" }),
+};
+
+// base64 PNG (không kèm data:image/png;base64,) → File
+export async function b64PngToFile(b64, filename) {
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const blob = new Blob([buf], { type: "image/png" });
+  return new File([blob], filename, { type: "image/png" });
+}

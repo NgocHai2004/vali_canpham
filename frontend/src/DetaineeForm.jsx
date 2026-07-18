@@ -94,10 +94,14 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
 
     setSaving(true);
     try {
+      const body = { ...form };
+      if (initial && initial.photos && body.photos === undefined) {
+        body.photos = initial.photos;
+      }
       if (initial) {
-        await api.updateDetainee(initial.id, form);
+        await api.updateDetainee(initial.id, body);
       } else {
-        await api.createDetainee(form);
+        await api.createDetainee(body);
       }
       onSaved();
     } catch (e) {

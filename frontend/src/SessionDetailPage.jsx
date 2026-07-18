@@ -18,6 +18,15 @@ function fmtTime(iso) {
 }
 
 export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, onEditDetainee, onSessionClosed }) {
+  const openEditFull = async (d, session) => {
+    if (!onEditDetainee) return;
+    try {
+      const full = await api.getDetainee(d.id);
+      onEditDetainee(full, session);
+    } catch {
+      onEditDetainee(d, session);
+    }
+  };
   const [session, setSession] = useState(null);
   const [officer, setOfficer] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -178,7 +187,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
               </tr>
             )}
             {(session.detainees || []).map((d) => (
-              <tr key={d.id} className="session-list-row" onClick={() => onEditDetainee && onEditDetainee(d, session)}>
+              <tr key={d.id} className="session-list-row" onClick={() => openEditFull(d, session)}>
                 <td className="mono">{d.code}</td>
                 <td>{d.full_name}</td>
                 <td>{d.gender === "female" ? "Nữ" : "Nam"}</td>
