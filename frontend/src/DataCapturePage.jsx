@@ -104,7 +104,7 @@ async function cropPortraitFromCCCD(file) {
   return new File([blob], "portrait_from_cccd.jpg", { type: "image/jpeg" });
 }
 
-function CccdCardUpload({ form, photos, onUpload, onClear, onPortraitUpload }) {
+function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardPortraitPreview }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
@@ -115,23 +115,16 @@ function CccdCardUpload({ form, photos, onUpload, onClear, onPortraitUpload }) {
     setUploading(true);
     setErr("");
 
-    let portraitTmpDataUrl = null;
-    if (onPortraitUpload) {
+    if (onCardPortraitPreview) {
       try {
         const portraitFile = await cropPortraitFromCCCD(f);
-        portraitTmpDataUrl = await new Promise((resolve, reject) => {
+        const dataUrl = await new Promise((resolve, reject) => {
           const r = new FileReader();
           r.onload = () => resolve(r.result);
           r.onerror = () => reject(new Error("read fail"));
           r.readAsDataURL(portraitFile);
         });
-        onPortraitUpload(portraitTmpDataUrl);
-        try {
-          const p = await api.uploadPhoto(portraitFile);
-          onPortraitUpload(p.url);
-        } catch (upEx) {
-          console.error("[CCCD portrait upload] fail:", upEx);
-        }
+        onCardPortraitPreview(dataUrl);
       } catch (cropEx) {
         console.error("[CCCD crop] error:", cropEx);
       }
@@ -154,7 +147,7 @@ function CccdCardUpload({ form, photos, onUpload, onClear, onPortraitUpload }) {
     <div className="cccd-card-mock" onClick={() => inputRef.current?.click()} style={{ cursor: "pointer" }}>
       <img className="cccd-card-mock-bg" src="/cccd-template.png" alt="" />
       <div className="cccd-card-mock-photo">
-        {photos.portrait_front && <img src={photos.portrait_front} alt="" />}
+        {cardPortrait && <img src={cardPortrait} alt="" />}
       </div>
       <div className="cccd-card-mock-fields">
         <div className="cccd-mf cccd-mf-no">{form.cccd_number || ""}</div>
@@ -344,6 +337,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
   const [photos, setPhotos] = useState(seed.photos);
+  const [cccdCardPortrait, setCccdCardPortrait] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
@@ -645,6 +639,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <input className="control" value={form.issued_date}
                 onChange={(e) => setField("issued_date", e.target.value)} placeholder="dd/mm/yyyy" />
             </Field>
+            <Field label="Có giá trị đến">
+              <input className="control" value={form.expiry_date}
+                onChange={(e) => setField("expiry_date", e.target.value)} placeholder="dd/mm/yyyy" />
+            </Field>
             <Field label="Nơi cấp">
               <input className="control" value={form.issued_place}
                 onChange={(e) => setField("issued_place", e.target.value)} placeholder="Cục Cảnh sát QLHC về TTXH" />
@@ -655,9 +653,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <CccdCardUpload
               form={form}
               photos={photos}
+              cardPortrait={cccdCardPortrait}
               onUpload={(url) => setPhoto("cccd_front", url)}
-              onClear={() => setPhoto("cccd_front", "")}
-              onPortraitUpload={(url) => setPhoto("portrait_front", url)}
+              onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
+              onCardPortraitPreview={setCccdCardPortrait}
             />
           </div>
 

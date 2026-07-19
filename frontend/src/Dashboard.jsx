@@ -3011,7 +3011,7 @@ const styles = `
   .cccd-col-form {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    grid-template-rows: repeat(5, auto) !important;
+    grid-template-rows: repeat(6, auto) !important;
     grid-auto-flow: column !important;
     gap: 4px 10px !important;
     min-width: 0;
