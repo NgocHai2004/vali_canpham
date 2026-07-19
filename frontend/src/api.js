@@ -117,7 +117,6 @@ export const api = {
     return request("/api/upload/photo", { method: "POST", body: fd });
   },
 
-  mockReadCCCD: () => request("/api/mock/cccd-read"),
 
   importXlsx: async (formData) => request("/api/detainees/import/xlsx", { method: "POST", body: formData }),
   downloadExport: () => downloadFile("/api/detainees/export/xlsx", "can_pham.xlsx"),
@@ -188,6 +187,40 @@ export const fpApi = {
   capture: (sid) => fpRequest(`/fp/api/session/${sid}/capture`, { method: "POST" }),
   redo: (sid, code) => fpRequest(`/fp/api/session/${sid}/redo/${code}`, { method: "POST" }),
   cancel: (sid) => fpRequest(`/fp/api/session/${sid}`, { method: "DELETE" }),
+};
+
+// ============ CCCD Hanel HN-212 reader API (python service :8767) ============
+async function cccdRequest(path, opts = {}, signal) {
+  const headers = { ...(opts.headers || {}) };
+  if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  let res;
+  try {
+    res = await fetch(path, { ...opts, headers, signal });
+  } catch (netErr) {
+    if (netErr.name === "AbortError") throw netErr;
+    throw new Error("Không kết nối được đầu đọc CCCD (" + netErr.message + ")");
+  }
+  if (res.status === 204) return { status: "timeout" };
+  const ct = res.headers.get("content-type") || "";
+  const data = ct.includes("application/json") ? await res.json() : await res.text();
+  if (!res.ok) {
+    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi đầu đọc CCCD");
+    throw new Error(msg);
+  }
+  return data;
+}
+
+export const cccdApi = {
+  health: () => cccdRequest("/cccd/api/health"),
+  startSession: () => cccdRequest("/cccd/api/session/start", { method: "POST" }),
+  wait: (sid, signal, timeout = 25) =>
+    cccdRequest(`/cccd/api/session/${sid}/wait?timeout=${timeout}`, {}, signal),
+  readAgain: (sid) =>
+    cccdRequest(`/cccd/api/session/${sid}/read_again`, { method: "POST" }),
+  cancel: (sid) =>
+    cccdRequest(`/cccd/api/session/${sid}`, { method: "DELETE" }),
 };
 
 // base64 PNG (không kèm data:image/png;base64,) → File

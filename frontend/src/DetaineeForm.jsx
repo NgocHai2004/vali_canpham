@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import CccdReadModal from "./CccdReadModal";
 
 const emptyForm = {
   full_name: "",
@@ -36,24 +37,15 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   });
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
   const [dupCheck, setDupCheck] = useState(null);
   const [confirmDup, setConfirmDup] = useState(false);
+  const [cccdOpen, setCccdOpen] = useState(false);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const readCCCD = async () => {
-    setReading(true);
-    setErr("");
-    try {
-      const d = await api.mockReadCCCD();
-      setForm((f) => ({ ...f, ...d }));
-    } catch (e) {
-      setErr("Không đọc được CCCD: " + e.message);
-    } finally {
-      setReading(false);
-    }
+  const onCccdRead = (data) => {
+    setForm((f) => ({ ...f, ...data }));
   };
 
   const onPhotoChange = async (e) => {
@@ -145,11 +137,10 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                 <button
                   type="button"
                   className="btn-cccd-reader"
-                  onClick={readCCCD}
-                  disabled={reading}
-                  title="Giả lập máy đọc CCCD - tự điền dữ liệu mẫu"
+                  onClick={() => setCccdOpen(true)}
+                  title="Đọc CCCD từ đầu đọc Hanel HN-212"
                 >
-                  {reading ? "Đang đọc..." : "📄 Đọc CCCD (giả lập)"}
+                  📄 Đọc CCCD
                 </button>
               )}
             </div>
@@ -226,6 +217,12 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
             </button>
           </div>
         </form>
+
+        <CccdReadModal
+          open={cccdOpen}
+          onClose={() => setCccdOpen(false)}
+          onDone={onCccdRead}
+        />
 
         {dupCheck && (
           <div className="dup-overlay" onClick={() => setDupCheck(null)}>

@@ -6084,3 +6084,265 @@ textarea.input {
     grid-template-columns: 1fr;
   }
 }
+
+/* ================= CCCD Reader Modal ================= */
+.cccd-modal {
+  width: min(720px, 96vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.cccd-body {
+  padding: 18px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.cccd-status-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.cccd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cccd-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cccd-badge.ok {
+  background: #e6f7ee;
+  color: #137333;
+}
+
+.cccd-badge.ok .dot {
+  background: #34a853;
+}
+
+.cccd-badge.off {
+  background: #fdeaea;
+  color: #b3261e;
+}
+
+.cccd-badge.off .dot {
+  background: #b3261e;
+}
+
+.cccd-progress-text {
+  font-size: 13px;
+  color: #4a5568;
+}
+
+.cccd-center-msg {
+  padding: 40px 0;
+  text-align: center;
+  color: #4a5568;
+  font-size: 14px;
+}
+
+/* ---- WAITING ---- */
+.cccd-wait-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 20px;
+  border: 2px dashed #c9d3e6;
+  border-radius: 12px;
+  background: #f7f9fd;
+}
+
+.cccd-wait-icon {
+  font-size: 56px;
+  line-height: 1;
+}
+
+.cccd-wait-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a365d;
+}
+
+.cccd-wait-sub {
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+}
+
+.cccd-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid #d6dff0;
+  border-top-color: #1e5eff;
+  animation: cccd-spin 0.9s linear infinite;
+  margin: 4px 0 2px;
+}
+
+@keyframes cccd-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- PREVIEW ---- */
+.cccd-preview-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cccd-verify-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cccd-verify-badge {
+  border-radius: 8px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+}
+
+.cccd-verify-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  opacity: 0.75;
+}
+
+.cccd-verify-text {
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.cccd-verify-badge.ok {
+  background: #e6f7ee;
+  border-color: #b6e3c8;
+  color: #0f6b34;
+}
+
+.cccd-verify-badge.bad {
+  background: #fdeaea;
+  border-color: #f5c5c1;
+  color: #b3261e;
+}
+
+.cccd-verify-badge.unknown {
+  background: #f1f4f9;
+  border-color: #d5dce7;
+  color: #475569;
+}
+
+.cccd-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 20px;
+  border: 1px solid #e4e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  background: #fbfcfe;
+}
+
+.cccd-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px dotted #e6ebf3;
+}
+
+.cccd-row:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+
+.cccd-row-label {
+  color: #64748b;
+  font-size: 12.5px;
+}
+
+.cccd-row-value {
+  color: #1a365d;
+  font-size: 13.5px;
+  word-break: break-word;
+}
+
+.cccd-row-value.strong {
+  font-weight: 700;
+  color: #0a4d8f;
+}
+
+.cccd-row-value.empty {
+  color: #a0aec0;
+  font-style: italic;
+}
+
+/* ---- ERROR / NO_READER ---- */
+.cccd-error-panel {
+  border: 1px solid #f5c5c1;
+  background: #fff6f6;
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cccd-error-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #b3261e;
+}
+
+.cccd-error-msg {
+  font-size: 13.5px;
+  color: #5a2422;
+  white-space: pre-wrap;
+}
+
+.cccd-hint {
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.cccd-hint code {
+  background: #e2e8f2;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1e5eff;
+}
+
+.cccd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .cccd-verify-row,
+  .cccd-fields {
+    grid-template-columns: 1fr;
+  }
+  .cccd-row {
+    grid-template-columns: 100px 1fr;
+  }
+}

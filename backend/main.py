@@ -149,6 +149,7 @@ class DetaineeIn(BaseModel):
     gender: str = "male"
     cccd_number: Optional[str] = Field(None, pattern=r"^\d{12}$")
     personal_id: Optional[str] = Field(None, pattern=r"^\d{12}$")
+    cmnd_old: Optional[str] = Field(None, max_length=20)
     nationality: Optional[str] = "Việt Nam"
     hometown: Optional[str] = None
     address: Optional[str] = None
