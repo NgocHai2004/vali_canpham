@@ -275,143 +275,320 @@ function Header({ username, dbOk, onLogout, isAdmin }) {
 function DashboardHome({ go }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
+  const [now, setNow] = useState(new Date());
 
   useEffect(() => {
     api.stats().then(setStats).catch((e) => setError(e.message));
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
   }, []);
 
   if (error) return <StateBox type="error">Lỗi: {error}</StateBox>;
   if (!stats) return <StateBox>Đang tải dữ liệu...</StateBox>;
 
-  const malePct = stats.total ? Math.round((stats.male / stats.total) * 100) : 0;
+  const total = stats.total || 0;
+  const male = stats.male || 0;
+  const female = stats.female || 0;
+  const malePct = total ? Math.round((male / total) * 100) : 0;
+  const femalePct = total ? 100 - malePct : 0;
+  const activity = stats.activity_14d || [];
+  const topCharges = stats.top_charges || [];
+  const officers = stats.today_by_officer || [];
+  const recentSessions = stats.recent_sessions || [];
+  const recentActivity = stats.recent_activity || [];
+  const openSession = stats.open_session;
+  const missing = stats.missing_data_count || 0;
+
+  const hour = now.getHours();
+  const greet = hour < 11 ? "Chào buổi sáng" : hour < 14 ? "Chào buổi trưa" : hour < 18 ? "Chào buổi chiều" : "Chào buổi tối";
+  const dayNames = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const dateStr = `${dayNames[now.getDay()]}, ${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+
+  const todayDelta = stats.today - (stats.yesterday || 0);
 
   return (
     <div className="page dashboard-page">
-      <PageTitle
-        title="Tổng quan"
-        subtitle="Bảng điều khiển quản lý hồ sơ can phạm"
-        icon={Icon.chart}
-      />
+      <div className="dash-hero">
+        <div>
+          <h1>{greet}, {stats.open_session?.officer_full_name || "cán bộ"}</h1>
+          <p>{timeStr} • {dateStr}</p>
+        </div>
+        {openSession ? (
+          <div className="dash-hero-session">
+            <div className="dash-hero-session-info">
+              <span className="dash-hero-badge">● Phiên đang mở</span>
+              <strong className="mono">{openSession.code}</strong>
+              <small>Đã nhập {openSession.detainee_count || 0} hồ sơ</small>
+            </div>
+            <button className="button primary" onClick={() => go("import")}>
+              Vào phiên {Icon.arrow}
+            </button>
+          </div>
+        ) : (
+          <div className="dash-hero-session dash-hero-session-empty">
+            <div className="dash-hero-session-info">
+              <span className="dash-hero-badge dash-hero-badge-idle">○ Chưa có phiên</span>
+              <small>Mở phiên mới để bắt đầu thu nhận dữ liệu</small>
+            </div>
+            <button className="button primary" onClick={() => go("sessions")}>
+              {Icon.plus} Mở phiên mới
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="stat-grid">
-        <StatCard
-          tone="blue"
-          icon={Icon.file}
-          label="Tổng hồ sơ"
-          value={stats.total}
-          note="Đang quản lý"
-        />
         <StatCard
           tone="green"
           icon={Icon.file}
           label="Hồ sơ hôm nay"
           value={stats.today}
-          note="Mới lập"
+          note={todayDelta === 0 ? "Bằng hôm qua" : todayDelta > 0 ? `↑ ${todayDelta} vs hôm qua` : `↓ ${Math.abs(todayDelta)} vs hôm qua`}
+          delta={todayDelta}
+          extra={<Sparkline data={activity.map((a) => a.count)} color="#12af64" />}
         />
         <StatCard
-          tone="orange"
-          icon={Icon.building}
-          label="Số buồng giam"
-          value={stats.cells_count}
-          note="Đang vận hành"
+          tone="blue"
+          icon={Icon.folder}
+          label="Tổng hồ sơ"
+          value={total.toLocaleString("vi-VN")}
+          note="Đang quản lý toàn hệ thống"
         />
         <StatCard
           tone="purple"
-          icon={Icon.users}
-          label="Tỉ lệ Nam / Nữ"
-          value={`${stats.male} / ${stats.female}`}
-          note={`${malePct}% nam`}
-          ring={malePct}
+          icon={Icon.clipboard}
+          label="Phiên đang mở"
+          value={openSession ? 1 : 0}
+          note={openSession ? openSession.code : "Chưa có phiên nào"}
+        />
+        <StatCard
+          tone={missing > 0 ? "orange" : "green"}
+          icon={Icon.shield}
+          label="Hồ sơ thiếu dữ liệu"
+          value={missing}
+          note={missing > 0 ? "Cần bổ sung ảnh/CCCD" : "Đầy đủ"}
+          alert={missing > 0}
+          onClick={() => go("detainees")}
         />
       </div>
 
       <div className="dashboard-grid">
         <section className="panel">
-          <PanelHeader
-            title="Sức chứa các buồng"
-            action="Quản lý buồng"
-            onAction={() => go("cells")}
+          <PanelHeader title="Hoạt động 14 ngày qua" />
+          <BarChart data={activity} />
+        </section>
+
+        <section className="panel panel-donut">
+          <PanelHeader title="Cơ cấu giới tính" />
+          <DonutGender male={male} female={female} malePct={malePct} femalePct={femalePct} />
+        </section>
+      </div>
+
+      <div className="dashboard-grid">
+        <section className="panel">
+          <PanelHeader title="Top 5 tội danh" />
+          <HBarList
+            items={topCharges.map((c) => ({ label: c.charge, value: c.count }))}
+            empty="Chưa có dữ liệu tội danh."
+            color="#2371f4"
           />
+        </section>
 
-          <div className="cell-list">
-            {stats.by_cell.map((cell, index) => {
-              const percent = cell.capacity
-                ? Math.min(100, Math.round((cell.current / cell.capacity) * 100))
-                : 0;
+        <section className="panel">
+          <PanelHeader title="Năng suất cán bộ (7 ngày)" />
+          <OfficerList officers={officers} />
+        </section>
+      </div>
 
-              return (
-                <div className="cell-row" key={cell.code}>
-                  <div className={`cell-symbol cell-symbol-${index % 4}`}>
-                    {Icon.building}
+      <div className="dashboard-grid">
+        <section className="panel">
+          <PanelHeader
+            title="5 phiên gần nhất"
+            action="Xem tất cả"
+            onAction={() => go("sessions")}
+          />
+          <div className="session-list">
+            {recentSessions.map((s) => (
+              <div className="session-row" key={s.id}>
+                <span className={`session-dot ${s.status === "open" ? "open" : "closed"}`} />
+                <div className="session-main">
+                  <div className="session-line">
+                    <strong className="mono">{s.code}</strong>
+                    <small>{s.officer_full_name || s.officer}</small>
                   </div>
-                  <div className="cell-main">
-                    <div className="cell-line">
-                      <div>
-                        <strong>{cell.code}</strong>
-                        <span> - {cell.name}</span>
-                      </div>
-                      <div className="cell-number">
-                        {cell.current}/{cell.capacity}
-                      </div>
-                    </div>
-                    <div className="progress">
-                      <span style={{ width: `${percent}%` }} />
-                    </div>
+                  <div className="session-meta">
+                    {s.detainee_count || 0} hồ sơ • {formatDateTime(s.opened_at)}
                   </div>
-                  <div className="cell-percent">{percent}%</div>
                 </div>
-              );
-            })}
-
-            {!stats.by_cell.length && (
-              <div className="empty">Chưa có dữ liệu buồng giam.</div>
-            )}
+                <span className={`session-status ${s.status}`}>
+                  {s.status === "open" ? "Đang mở" : "Đã đóng"}
+                </span>
+              </div>
+            ))}
+            {!recentSessions.length && <div className="empty">Chưa có phiên nào.</div>}
           </div>
         </section>
 
         <section className="panel">
           <PanelHeader
-            title="Hồ sơ mới nhất"
-            action="Xem tất cả"
-            onAction={() => go("detainees")}
+            title="Nhật ký hoạt động"
+            action="Xem báo cáo"
+            onAction={() => go("logs")}
           />
-
-          <div className="recent-list">
-            {stats.recent.map((item) => (
-              <div className="recent-item" key={item.id}>
-                <div className="recent-avatar">
-                  {item.photo_url ? (
-                    <img src={item.photo_url} alt="" />
-                  ) : (
-                    (item.full_name || "?").slice(0, 1).toUpperCase()
-                  )}
+          <div className="activity-feed">
+            {recentActivity.map((a) => (
+              <div className="activity-row" key={a.id}>
+                <span className={`activity-dot ${a.action}`} />
+                <div className="activity-main">
+                  <div className="activity-line">
+                    <strong>{a.actor_full_name}</strong> {ACTIVITY_LABEL[a.action] || a.action}{" "}
+                    <span className="mono">{a.ref || a.resource}</span>
+                  </div>
+                  <div className="activity-time">{formatDateTime(a.at)}</div>
                 </div>
-
-                <div className="recent-content">
-                  <strong>{item.full_name}</strong>
-                  <span>
-                    {item.code} • Buồng {item.cell_code || "—"} •{" "}
-                    {item.gender === "female" ? "Nữ" : "Nam"}
-                  </span>
-                </div>
-
-                <div className="recent-time">Hôm nay</div>
               </div>
             ))}
-
-            {!stats.recent.length && (
-              <div className="empty">Chưa có hồ sơ mới.</div>
-            )}
+            {!recentActivity.length && <div className="empty">Chưa có hoạt động.</div>}
           </div>
         </section>
       </div>
+    </div>
+  );
+}
 
-      <div className="system-strip">
-        <SystemItem icon={Icon.users} label="Tổng can phạm" value={stats.total} note="Đang quản lý" />
-        <SystemItem icon={Icon.shield} label="An ninh hệ thống" value="100%" note="An toàn" />
-        <SystemItem icon={Icon.server} label="Trạng thái server" value="Ổn định" note="Hoạt động tốt" />
-        <SystemItem icon={Icon.log} label="Thời gian hoạt động" value="99.9%" note="Uptime" />
+const ACTIVITY_LABEL = {
+  create: "đã tạo",
+  update: "đã sửa",
+  delete: "đã xoá",
+  import: "đã nhập Excel",
+  login: "đã đăng nhập",
+};
+
+function Sparkline({ data = [], color = "#2371f4" }) {
+  if (!data.length) return null;
+  const w = 120;
+  const h = 28;
+  const max = Math.max(1, ...data);
+  const step = w / Math.max(1, data.length - 1);
+  const points = data.map((v, i) => `${i * step},${h - (v / max) * h}`).join(" ");
+  const area = `0,${h} ${points} ${w},${h}`;
+  return (
+    <svg className="sparkline-svg" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <polygon fill={color} fillOpacity="0.15" points={area} />
+      <polyline fill="none" stroke={color} strokeWidth="1.8" points={points} />
+    </svg>
+  );
+}
+
+function BarChart({ data = [] }) {
+  if (!data.length) return <div className="empty">Không có dữ liệu.</div>;
+  const max = Math.max(1, ...data.map((d) => d.count));
+  return (
+    <div className="bar-chart">
+      <div className="bar-chart-body">
+        {data.map((d) => {
+          const h = Math.max(2, Math.round((d.count / max) * 100));
+          const day = new Date(d.date);
+          const label = `${day.getDate()}/${day.getMonth() + 1}`;
+          return (
+            <div className="bar-col" key={d.date} title={`${label}: ${d.count} hồ sơ`}>
+              <span className="bar-count">{d.count || ""}</span>
+              <span className="bar-fill" style={{ height: `${h}%` }} />
+              <span className="bar-label">{label}</span>
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function DonutGender({ male, female, malePct, femalePct }) {
+  const total = male + female;
+  const r = 52;
+  const c = 2 * Math.PI * r;
+  const maleLen = total ? (malePct / 100) * c : 0;
+  return (
+    <div className="donut-wrap">
+      <svg viewBox="0 0 140 140" className="donut">
+        <circle cx="70" cy="70" r={r} fill="none" stroke="#eaf2ff" strokeWidth="18" />
+        <circle
+          cx="70" cy="70" r={r} fill="none"
+          stroke="#2371f4" strokeWidth="18" strokeLinecap="butt"
+          strokeDasharray={`${maleLen} ${c}`}
+          transform="rotate(-90 70 70)"
+        />
+        <text x="70" y="66" textAnchor="middle" className="donut-value">{malePct}%</text>
+        <text x="70" y="86" textAnchor="middle" className="donut-label">Nam</text>
+      </svg>
+      <div className="donut-legend">
+        <div className="donut-legend-row">
+          <span className="donut-dot" style={{ background: "#2371f4" }} />
+          <span>Nam</span>
+          <strong>{male.toLocaleString("vi-VN")}</strong>
+          <small>{malePct}%</small>
+        </div>
+        <div className="donut-legend-row">
+          <span className="donut-dot" style={{ background: "#eaf2ff", border: "2px solid #cfe0ff" }} />
+          <span>Nữ</span>
+          <strong>{female.toLocaleString("vi-VN")}</strong>
+          <small>{femalePct}%</small>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HBarList({ items = [], empty, color = "#2371f4" }) {
+  if (!items.length) return <div className="empty">{empty || "Không có dữ liệu."}</div>;
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return (
+    <div className="hbar-list">
+      {items.map((item, idx) => {
+        const pct = Math.round((item.value / max) * 100);
+        return (
+          <div className="hbar-row" key={idx}>
+            <span className="hbar-label" title={item.label}>{item.label}</span>
+            <span className="hbar-track">
+              <span className="hbar-fill" style={{ width: `${pct}%`, background: color }} />
+            </span>
+            <strong className="hbar-value">{item.value}</strong>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OfficerList({ officers = [] }) {
+  if (!officers.length) return <div className="empty">Chưa có hoạt động trong 7 ngày.</div>;
+  const max = Math.max(1, ...officers.map((o) => o.count));
+  return (
+    <div className="officer-list">
+      {officers.map((o, i) => {
+        const pct = Math.round((o.count / max) * 100);
+        const initials = ((o.full_name || o.username || "?").trim()[0] || "?").toUpperCase();
+        return (
+          <div className="officer-row" key={o.username}>
+            <span className="officer-rank">{i + 1}</span>
+            {o.avatar_url ? (
+              <img className="officer-avatar" src={o.avatar_url} alt="" />
+            ) : (
+              <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+            )}
+            <div className="officer-main">
+              <div className="officer-name-row">
+                <strong>{o.full_name}</strong>
+                <span className="officer-count">{o.count}</span>
+              </div>
+              <span className="hbar-track">
+                <span className="hbar-fill" style={{ width: `${pct}%`, background: "#7745db" }} />
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2366,6 +2543,369 @@ const styles = `
   .recent-content strong { color: #102441; font-size: 13.5px; }
   .recent-content span { margin-top: 3px; color: #6f7f98; font-size: 12px; }
   .recent-time { align-self: flex-start; margin-top: 3px; color: #58708f; font-size: 11px; }
+
+  /* ============ DASHBOARD MỚI ============ */
+  .dash-hero {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 20px;
+    padding: 18px 22px;
+    margin-bottom: 4px;
+    border-radius: 16px;
+    background:
+      radial-gradient(circle at 90% 20%, rgba(35, 113, 244, .10), transparent 45%),
+      linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%);
+    border: 1px solid #e4ecf7;
+    box-shadow: 0 6px 20px rgba(23, 55, 111, .05);
+  }
+  .dash-hero h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f2344;
+    letter-spacing: -.2px;
+  }
+  .dash-hero > div > p {
+    margin: 4px 0 0;
+    color: #5c6e88;
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .dash-hero-session {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 12px 10px 16px;
+    border-radius: 12px;
+    background: white;
+    border: 1px solid #dfe7f3;
+    box-shadow: 0 3px 10px rgba(23, 55, 111, .04);
+  }
+  .dash-hero-session-empty {
+    background: #fff9f0;
+    border-color: #f5d9a8;
+  }
+  .dash-hero-session-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-right: 6px;
+  }
+  .dash-hero-session-info strong { color: #0f2344; font-size: 15px; }
+  .dash-hero-session-info small { color: #6a7c95; font-size: 12px; }
+  .dash-hero-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #e6f7ec;
+    color: #0a8a45;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: .3px;
+    width: fit-content;
+  }
+  .dash-hero-badge-idle {
+    background: #fff2d9;
+    color: #a26a09;
+  }
+
+  /* StatCard mở rộng */
+  .stat-card.clickable { cursor: pointer; }
+  .stat-card.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(23, 55, 111, .10);
+    transition: all .18s ease;
+  }
+  .stat-card.alert {
+    border-left-color: #ef4444;
+    background: linear-gradient(180deg, #fff, #fff5f5);
+  }
+  .stat-card .stat-extra {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+  .sparkline-svg { width: 100%; height: 28px; display: block; }
+
+  /* Bar chart 14 ngày */
+  .bar-chart { padding: 8px 16px 16px; }
+  .bar-chart-body {
+    display: grid;
+    grid-template-columns: repeat(14, 1fr);
+    align-items: end;
+    gap: 6px;
+    height: 180px;
+    padding-top: 20px;
+  }
+  .bar-col {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    cursor: default;
+  }
+  .bar-fill {
+    width: 100%;
+    max-width: 32px;
+    border-radius: 6px 6px 0 0;
+    background: linear-gradient(180deg, #4a95ff 0%, #2371f4 100%);
+    transition: opacity .2s;
+  }
+  .bar-col:hover .bar-fill { opacity: .85; }
+  .bar-count {
+    position: absolute;
+    top: -18px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #47597a;
+  }
+  .bar-label {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #7d8ca7;
+    font-weight: 600;
+  }
+
+  /* Donut giới tính */
+  .panel-donut .bar-chart { padding: 0; }
+  .donut-wrap {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    align-items: center;
+    gap: 20px;
+    padding: 8px 20px 20px;
+  }
+  .donut { width: 100%; height: auto; max-height: 180px; }
+  .donut-value {
+    font-size: 24px;
+    font-weight: 800;
+    fill: #0f2344;
+  }
+  .donut-label {
+    font-size: 11px;
+    fill: #7787a0;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+  }
+  .donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .donut-legend-row {
+    display: grid;
+    grid-template-columns: 14px 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f6f9fd;
+    color: #47597a;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .donut-legend-row strong { color: #0f2344; font-size: 15px; font-weight: 800; }
+  .donut-legend-row small { color: #7787a0; font-size: 12px; font-weight: 700; }
+  .donut-dot { width: 12px; height: 12px; border-radius: 50%; display: block; }
+
+  /* Horizontal bar list */
+  .hbar-list {
+    padding: 8px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .hbar-row {
+    display: grid;
+    grid-template-columns: 150px 1fr 44px;
+    align-items: center;
+    gap: 12px;
+  }
+  .hbar-label {
+    color: #47597a;
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hbar-track {
+    height: 10px;
+    border-radius: 999px;
+    background: #eef2f8;
+    overflow: hidden;
+    display: block;
+  }
+  .hbar-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #2371f4;
+    transition: width .35s ease;
+  }
+  .hbar-value {
+    color: #0f2344;
+    font-size: 14px;
+    font-weight: 800;
+    text-align: right;
+  }
+
+  /* Officer list */
+  .officer-list {
+    padding: 8px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .officer-row {
+    display: grid;
+    grid-template-columns: 22px 36px 1fr;
+    align-items: center;
+    gap: 12px;
+  }
+  .officer-rank {
+    color: #98a5bd;
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+  }
+  .officer-row .officer-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: #eef2f8;
+    color: #47597a;
+    font-weight: 800;
+    font-size: 13px;
+  }
+  .officer-row .officer-avatar-fallback {
+    background: linear-gradient(145deg, #7b5fe0, #5f42c8);
+    color: white;
+  }
+  .officer-row .officer-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .officer-main { min-width: 0; }
+  .officer-name-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  .officer-name-row strong {
+    color: #0f2344;
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+  .officer-count {
+    color: #7745db;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  /* Session list */
+  .session-list {
+    padding: 6px 6px 12px;
+    display: flex;
+    flex-direction: column;
+  }
+  .session-row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    border-radius: 10px;
+  }
+  .session-row:hover { background: #f5f8fd; }
+  .session-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: block;
+  }
+  .session-dot.open {
+    background: #12af64;
+    box-shadow: 0 0 0 4px rgba(18, 175, 100, .18);
+  }
+  .session-dot.closed {
+    background: #98a5bd;
+  }
+  .session-main { min-width: 0; }
+  .session-line {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .session-line strong { color: #0f2344; font-size: 14px; }
+  .session-line small { color: #6a7c95; font-size: 12px; }
+  .session-meta {
+    margin-top: 3px;
+    color: #7d8ca7;
+    font-size: 12px;
+  }
+  .session-status {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: .3px;
+  }
+  .session-status.open { background: #e6f7ec; color: #0a8a45; }
+  .session-status.closed { background: #eef2f8; color: #6a7c95; }
+
+  /* Activity feed */
+  .activity-feed {
+    padding: 6px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .activity-row {
+    display: grid;
+    grid-template-columns: 12px 1fr;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px dashed #eef2f8;
+  }
+  .activity-row:last-child { border-bottom: 0; }
+  .activity-dot {
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: #2371f4;
+  }
+  .activity-dot.create { background: #12af64; }
+  .activity-dot.update { background: #ff9820; }
+  .activity-dot.delete { background: #ef4444; }
+  .activity-dot.import { background: #7745db; }
+  .activity-dot.login  { background: #2371f4; }
+  .activity-line {
+    color: #47597a;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .activity-line strong { color: #0f2344; font-weight: 700; }
+  .activity-time {
+    margin-top: 2px;
+    color: #98a5bd;
+    font-size: 11.5px;
+  }
+
+  .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-weight: 700; letter-spacing: .3px; }
+
+  @media (max-width: 900px) {
+    .dash-hero { grid-template-columns: 1fr; }
+    .bar-chart-body { grid-template-columns: repeat(7, 1fr); gap: 4px; height: 140px; }
+    .bar-chart-body > .bar-col:nth-child(-n+7) { display: none; }
+    .donut-wrap { grid-template-columns: 1fr; }
+    .hbar-row { grid-template-columns: 110px 1fr 40px; }
+  }
 
   .system-strip {
     display: grid;
