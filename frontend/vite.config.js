@@ -21,11 +21,6 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/fp/, ''),
       },
-      '/cccd': {
-        target: 'http://127.0.0.1:8767',
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/cccd/, ''),
-      },
     },
   },
 })

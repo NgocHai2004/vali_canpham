@@ -3,15 +3,6 @@ import { cccdApi } from "./api";
 
 const GENDER_VI = { male: "Nam", female: "Nữ" };
 
-const isPositive = (v) => {
-  if (v === undefined || v === null) return null;
-  const s = String(v).trim().toLowerCase();
-  if (!s || s === "—") return null;
-  if (["true", "ok", "success", "1", "valid"].some((k) => s.includes(k))) return true;
-  if (["false", "fail", "error", "0", "invalid"].some((k) => s.includes(k))) return false;
-  return null;
-};
-
 export default function CccdReadModal({ open, onClose, onDone }) {
   // states: INIT | NO_READER | WAITING | PREVIEW | ERROR
   const [state, setState] = useState("INIT");
@@ -37,7 +28,6 @@ export default function CccdReadModal({ open, onClose, onDone }) {
     onClose();
   }, [cleanupSession, onClose]);
 
-  // Khởi tạo modal khi mở
   useEffect(() => {
     if (!open) return;
     cancelledRef.current = false;
@@ -51,7 +41,7 @@ export default function CccdReadModal({ open, onClose, onDone }) {
         if (cancelledRef.current) return;
         setHealth(h);
         if (!h.ok) {
-          setErr(h.error || "Đầu đọc CCCD chưa sẵn sàng.");
+          setErr("Thư mục dữ liệu CCCD chưa sẵn sàng: " + (h.data_dir || ""));
           setState("NO_READER");
           return;
         }
@@ -73,7 +63,6 @@ export default function CccdReadModal({ open, onClose, onDone }) {
     };
   }, [open]);
 
-  // Long-poll khi đang WAITING
   useEffect(() => {
     if (state !== "WAITING" || !sid) return;
     let stopped = false;
@@ -89,7 +78,6 @@ export default function CccdReadModal({ open, onClose, onDone }) {
             setState("PREVIEW");
             return;
           }
-          // timeout → loop tiếp
         } catch (e) {
           if (e.name === "AbortError" || cancelledRef.current) return;
           setErr(e.message);
@@ -118,7 +106,7 @@ export default function CccdReadModal({ open, onClose, onDone }) {
   const apply = () => {
     if (!data) return;
     // eslint-disable-next-line no-unused-vars
-    const { verify_sod, aa_ca_authen, ...formData } = data;
+    const { facePhoto, personal_identification, sex_vi, _scan_folder, ...formData } = data;
     onDone(formData);
     cleanupSession();
     onClose();
@@ -126,14 +114,15 @@ export default function CccdReadModal({ open, onClose, onDone }) {
 
   if (!open) return null;
 
-  const sodOk = data ? isPositive(data.verify_sod) : null;
-  const aaOk = data ? isPositive(data.aa_ca_authen) : null;
+  const faceSrc = data && data.facePhoto
+    ? `data:image/jpeg;base64,${data.facePhoto}`
+    : null;
 
   return (
     <div className="modal-backdrop" onClick={close}>
       <div className="modal cccd-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h3>Đọc CCCD (Hanel HN-212)</h3>
+          <h3>Đọc CCCD (HANEL eKYC)</h3>
           <button className="close-x" onClick={close} aria-label="Đóng">×</button>
         </div>
 
@@ -142,16 +131,16 @@ export default function CccdReadModal({ open, onClose, onDone }) {
             <span className={"cccd-badge " + (health && health.ok ? "ok" : "off")}>
               <span className="dot" />
               {health && health.ok
-                ? `Đầu đọc OK · ${health.sdk || "HN-212"}`
-                : "Đầu đọc chưa sẵn sàng"}
+                ? "Đang theo dõi thư mục dữ liệu CCCD"
+                : "Thư mục dữ liệu chưa sẵn sàng"}
             </span>
             {state === "WAITING" && (
-              <span className="cccd-progress-text">Đang chờ thẻ...</span>
+              <span className="cccd-progress-text">Đang chờ thẻ mới...</span>
             )}
           </div>
 
           {state === "INIT" && (
-            <div className="cccd-center-msg">Đang khởi tạo đầu đọc...</div>
+            <div className="cccd-center-msg">Đang khởi tạo phiên đọc...</div>
           )}
 
           {state === "NO_READER" && (
@@ -159,7 +148,7 @@ export default function CccdReadModal({ open, onClose, onDone }) {
               <div className="cccd-error-title">Không sẵn sàng</div>
               <div className="cccd-error-msg">{err}</div>
               <div className="cccd-hint">
-                Kiểm tra cáp USB, driver đầu đọc, và service Python <code>cccd_api</code> đã chạy ở cổng <b>8767</b>.
+                Kiểm tra thư mục <code>backend/data_cccd/</code> đã tồn tại và app HANEL eKYC đang ghi file vào đó.
               </div>
               <div className="cccd-actions">
                 <button className="btn-primary" onClick={async () => {
@@ -173,7 +162,7 @@ export default function CccdReadModal({ open, onClose, onDone }) {
                       setSid(s.session_id);
                       setState("WAITING");
                     } else {
-                      setErr(h.error || "Đầu đọc CCCD chưa sẵn sàng.");
+                      setErr("Thư mục dữ liệu CCCD chưa sẵn sàng: " + (h.data_dir || ""));
                       setState("NO_READER");
                     }
                   } catch (e) {
@@ -189,8 +178,10 @@ export default function CccdReadModal({ open, onClose, onDone }) {
           {state === "WAITING" && (
             <div className="cccd-wait-panel">
               <div className="cccd-wait-icon">🪪</div>
-              <div className="cccd-wait-title">Đưa thẻ CCCD vào đầu đọc</div>
-              <div className="cccd-wait-sub">Giữ nguyên thẻ tới khi hệ thống báo đọc xong.</div>
+              <div className="cccd-wait-title">Đưa thẻ CCCD vào đầu đọc HANEL eKYC</div>
+              <div className="cccd-wait-sub">
+                Hệ thống sẽ tự động nhận dữ liệu ngay khi app HANEL eKYC quét xong thẻ.
+              </div>
               <div className="cccd-spinner" />
               <div className="cccd-actions">
                 <button className="btn-ghost" onClick={close}>Huỷ</button>
@@ -200,24 +191,27 @@ export default function CccdReadModal({ open, onClose, onDone }) {
 
           {state === "PREVIEW" && data && (
             <div className="cccd-preview-panel">
-              <div className="cccd-verify-row">
-                <VerifyBadge label="Xác thực toàn vẹn (SOD)" ok={sodOk} raw={data.verify_sod} />
-                <VerifyBadge label="Xác thực chip (AA/CA)" ok={aaOk} raw={data.aa_ca_authen} />
-              </div>
+              <div className="cccd-preview-grid">
+                <div className="cccd-face">
+                  {faceSrc ? (
+                    <img src={faceSrc} alt="Ảnh chân dung" />
+                  ) : (
+                    <div className="cccd-face-empty">Không có ảnh</div>
+                  )}
+                </div>
 
-              <div className="cccd-fields">
-                <Row label="Họ và tên" value={data.full_name} strong />
-                <Row label="Số CCCD" value={data.cccd_number} strong />
-                <Row label="Ngày sinh" value={data.dob} />
-                <Row label="Giới tính" value={GENDER_VI[data.gender] || data.gender} />
-                <Row label="Dân tộc" value={data.ethnicity} />
-                <Row label="Tôn giáo" value={data.religion} />
-                <Row label="Quê quán" value={data.hometown} />
-                <Row label="Thường trú" value={data.address} />
-                <Row label="Ngày cấp" value={data.issued_date} />
-                <Row label="Hết hạn" value={data.expiry_date} />
-                <Row label="CMND cũ" value={data.cmnd_old} />
-                <Row label="Quốc tịch" value={data.nationality} />
+                <div className="cccd-fields">
+                  <Row label="Số CCCD" value={data.cccd_number} strong />
+                  <Row label="Họ và tên" value={data.full_name} strong />
+                  <Row label="Ngày sinh" value={data.dob} />
+                  <Row label="Giới tính" value={data.sex_vi || GENDER_VI[data.gender] || data.gender} />
+                  <Row label="Quốc tịch" value={data.nationality} />
+                  <Row label="Quê quán" value={data.hometown} />
+                  <Row label="Nơi thường trú" value={data.address} />
+                  <Row label="Ngày cấp" value={data.issued_date} />
+                  <Row label="Ngày hết hạn" value={data.expiry_date} />
+                  <Row label="Đặc điểm nhận dạng" value={data.personal_identification} />
+                </div>
               </div>
 
               <div className="cccd-actions">
@@ -252,17 +246,6 @@ function Row({ label, value, strong }) {
       <span className={"cccd-row-value" + (strong ? " strong" : "") + (empty ? " empty" : "")}>
         {empty ? "—" : value}
       </span>
-    </div>
-  );
-}
-
-function VerifyBadge({ label, ok, raw }) {
-  const cls = ok === true ? "ok" : ok === false ? "bad" : "unknown";
-  const text = ok === true ? "HỢP LỆ" : ok === false ? "KHÔNG HỢP LỆ" : (raw || "—");
-  return (
-    <div className={"cccd-verify-badge " + cls}>
-      <div className="cccd-verify-label">{label}</div>
-      <div className="cccd-verify-text">{text}</div>
     </div>
   );
 }

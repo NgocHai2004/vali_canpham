@@ -813,31 +813,49 @@ async def upload_photo(file: UploadFile = File(...), user: dict = Depends(get_cu
     return {"url": f"/uploads/{name}", "size": len(data)}
 
 
-# ==================== CCCD READER MOCK ====================
-_MOCK_NAMES = [
-    ("Nguyễn Văn An", "male"), ("Trần Thị Bích", "female"),
-    ("Lê Hoàng Cường", "male"), ("Phạm Ngọc Dung", "female"),
-    ("Hoàng Minh Đức", "male"), ("Vũ Thị Hà", "female"),
-    ("Đặng Quốc Huy", "male"), ("Bùi Thanh Lan", "female"),
-]
-_MOCK_HOMETOWNS = ["Hà Nội", "Hải Phòng", "Đà Nẵng", "TP.HCM", "Cần Thơ", "Bắc Ninh", "Thái Bình", "Nam Định"]
+# ==================== CCCD READER (watch folder data_cccd) ====================
+from cccd_watcher import (
+    cccd_health as _cccd_health,
+    cccd_start_session as _cccd_start_session,
+    cccd_wait_session as _cccd_wait_session,
+    cccd_read_again as _cccd_read_again,
+    cccd_end_session as _cccd_end_session,
+)
 
 
-@app.get("/api/mock/cccd-read")
-async def mock_cccd_read(user: dict = Depends(get_current_user)):
-    import random
-    name, gender = random.choice(_MOCK_NAMES)
-    year = random.randint(1970, 2005)
-    return {
-        "full_name": name,
-        "gender": gender,
-        "dob": f"{random.randint(1,28):02d}/{random.randint(1,12):02d}/{year}",
-        "cccd_number": "".join(str(random.randint(0, 9)) for _ in range(12)),
-        "hometown": random.choice(_MOCK_HOMETOWNS),
-        "address": f"Số {random.randint(1, 200)}, {random.choice(_MOCK_HOMETOWNS)}",
-        "ethnicity": "Kinh",
-        "religion": "Không",
-    }
+@app.get("/api/cccd/health")
+async def cccd_health(user: dict = Depends(get_current_user)):
+    return _cccd_health()
+
+
+@app.post("/api/cccd/session/start")
+async def cccd_session_start(user: dict = Depends(get_current_user)):
+    sid = _cccd_start_session()
+    return {"session_id": sid}
+
+
+@app.get("/api/cccd/session/{sid}/wait")
+async def cccd_session_wait(sid: str, timeout: int = Query(25, ge=1, le=60), user: dict = Depends(get_current_user)):
+    result = await _cccd_wait_session(sid, timeout)
+    if result is None:
+        raise HTTPException(404, "Phiên không tồn tại hoặc đã hết hạn.")
+    if result.get("status") == "timeout":
+        return Response(status_code=204)
+    return result
+
+
+@app.post("/api/cccd/session/{sid}/read_again")
+async def cccd_session_read_again(sid: str, user: dict = Depends(get_current_user)):
+    ok = _cccd_read_again(sid)
+    if not ok:
+        raise HTTPException(404, "Phiên không tồn tại.")
+    return {"ok": True}
+
+
+@app.delete("/api/cccd/session/{sid}")
+async def cccd_session_delete(sid: str, user: dict = Depends(get_current_user)):
+    _cccd_end_session(sid)
+    return {"ok": True}
 
 
 # ==================== IMPORT / EXPORT ====================

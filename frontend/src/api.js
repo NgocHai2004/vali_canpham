@@ -189,9 +189,11 @@ export const fpApi = {
   cancel: (sid) => fpRequest(`/fp/api/session/${sid}`, { method: "DELETE" }),
 };
 
-// ============ CCCD Hanel HN-212 reader API (python service :8767) ============
+// ============ CCCD reader API (watch folder backend/data_cccd via /api/cccd/*) ============
 async function cccdRequest(path, opts = {}, signal) {
   const headers = { ...(opts.headers || {}) };
+  const token = auth.getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
@@ -200,27 +202,32 @@ async function cccdRequest(path, opts = {}, signal) {
     res = await fetch(path, { ...opts, headers, signal });
   } catch (netErr) {
     if (netErr.name === "AbortError") throw netErr;
-    throw new Error("Không kết nối được đầu đọc CCCD (" + netErr.message + ")");
+    throw new Error("Không kết nối được máy chủ CCCD (" + netErr.message + ")");
   }
   if (res.status === 204) return { status: "timeout" };
+  if (res.status === 401) {
+    auth.clear();
+    if (onAuthExpired) onAuthExpired();
+    throw new Error("Phiên đăng nhập đã hết hạn");
+  }
   const ct = res.headers.get("content-type") || "";
   const data = ct.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
-    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi đầu đọc CCCD");
+    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy chủ CCCD");
     throw new Error(msg);
   }
   return data;
 }
 
 export const cccdApi = {
-  health: () => cccdRequest("/cccd/api/health"),
-  startSession: () => cccdRequest("/cccd/api/session/start", { method: "POST" }),
+  health: () => cccdRequest("/api/cccd/health"),
+  startSession: () => cccdRequest("/api/cccd/session/start", { method: "POST" }),
   wait: (sid, signal, timeout = 25) =>
-    cccdRequest(`/cccd/api/session/${sid}/wait?timeout=${timeout}`, {}, signal),
+    cccdRequest(`/api/cccd/session/${sid}/wait?timeout=${timeout}`, {}, signal),
   readAgain: (sid) =>
-    cccdRequest(`/cccd/api/session/${sid}/read_again`, { method: "POST" }),
+    cccdRequest(`/api/cccd/session/${sid}/read_again`, { method: "POST" }),
   cancel: (sid) =>
-    cccdRequest(`/cccd/api/session/${sid}`, { method: "DELETE" }),
+    cccdRequest(`/api/cccd/session/${sid}`, { method: "DELETE" }),
 };
 
 // base64 PNG (không kèm data:image/png;base64,) → File

@@ -387,22 +387,6 @@ function DashboardHome({ go }) {
 
       <div className="dashboard-grid">
         <section className="panel">
-          <PanelHeader title="Top 5 tội danh" />
-          <HBarList
-            items={topCharges.map((c) => ({ label: c.charge, value: c.count }))}
-            empty="Chưa có dữ liệu tội danh."
-            color="#2371f4"
-          />
-        </section>
-
-        <section className="panel">
-          <PanelHeader title="Năng suất cán bộ (7 ngày)" />
-          <OfficerList officers={officers} />
-        </section>
-      </div>
-
-      <div className="dashboard-grid">
-        <section className="panel">
           <PanelHeader
             title="5 phiên gần nhất"
             action="Xem tất cả"
@@ -488,13 +472,13 @@ function BarChart({ data = [] }) {
     <div className="bar-chart">
       <div className="bar-chart-body">
         {data.map((d) => {
-          const h = Math.max(2, Math.round((d.count / max) * 100));
+          const pct = d.count ? Math.max(6, Math.round((d.count / max) * 100)) : 0;
           const day = new Date(d.date);
           const label = `${day.getDate()}/${day.getMonth() + 1}`;
           return (
             <div className="bar-col" key={d.date} title={`${label}: ${d.count} hồ sơ`}>
               <span className="bar-count">{d.count || ""}</span>
-              <span className="bar-fill" style={{ height: `${h}%` }} />
+              <span className="bar-fill" style={{ height: `${pct}%` }} />
               <span className="bar-label">{label}</span>
             </div>
           );
@@ -509,14 +493,24 @@ function DonutGender({ male, female, malePct, femalePct }) {
   const r = 52;
   const c = 2 * Math.PI * r;
   const maleLen = total ? (malePct / 100) * c : 0;
+  const femaleLen = total ? (femalePct / 100) * c : 0;
+  const MALE_COLOR = "#2371f4";
+  const FEMALE_COLOR = "#ec4899";
   return (
     <div className="donut-wrap">
       <svg viewBox="0 0 140 140" className="donut">
-        <circle cx="70" cy="70" r={r} fill="none" stroke="#eaf2ff" strokeWidth="18" />
+        <circle cx="70" cy="70" r={r} fill="none" stroke="#eef2f8" strokeWidth="18" />
         <circle
           cx="70" cy="70" r={r} fill="none"
-          stroke="#2371f4" strokeWidth="18" strokeLinecap="butt"
+          stroke={MALE_COLOR} strokeWidth="18" strokeLinecap="butt"
           strokeDasharray={`${maleLen} ${c}`}
+          transform="rotate(-90 70 70)"
+        />
+        <circle
+          cx="70" cy="70" r={r} fill="none"
+          stroke={FEMALE_COLOR} strokeWidth="18" strokeLinecap="butt"
+          strokeDasharray={`${femaleLen} ${c}`}
+          strokeDashoffset={-maleLen}
           transform="rotate(-90 70 70)"
         />
         <text x="70" y="66" textAnchor="middle" className="donut-value">{malePct}%</text>
@@ -524,13 +518,13 @@ function DonutGender({ male, female, malePct, femalePct }) {
       </svg>
       <div className="donut-legend">
         <div className="donut-legend-row">
-          <span className="donut-dot" style={{ background: "#2371f4" }} />
+          <span className="donut-dot" style={{ background: MALE_COLOR }} />
           <span>Nam</span>
           <strong>{male.toLocaleString("vi-VN")}</strong>
           <small>{malePct}%</small>
         </div>
         <div className="donut-legend-row">
-          <span className="donut-dot" style={{ background: "#eaf2ff", border: "2px solid #cfe0ff" }} />
+          <span className="donut-dot" style={{ background: FEMALE_COLOR }} />
           <span>Nữ</span>
           <strong>{female.toLocaleString("vi-VN")}</strong>
           <small>{femalePct}%</small>
@@ -2628,14 +2622,16 @@ const styles = `
   .sparkline-svg { width: 100%; height: 28px; display: block; }
 
   /* Bar chart 14 ngày */
-  .bar-chart { padding: 8px 16px 16px; }
+  .bar-chart { padding: 12px 20px 20px; }
   .bar-chart-body {
     display: grid;
     grid-template-columns: repeat(14, 1fr);
     align-items: end;
     gap: 6px;
-    height: 180px;
-    padding-top: 20px;
+    height: 220px;
+    padding-top: 22px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid #eef2f8;
   }
   .bar-col {
     position: relative;
@@ -2672,12 +2668,19 @@ const styles = `
   .panel-donut .bar-chart { padding: 0; }
   .donut-wrap {
     display: grid;
-    grid-template-columns: 160px 1fr;
+    grid-template-columns: 180px 1fr;
     align-items: center;
-    gap: 20px;
-    padding: 8px 20px 20px;
+    gap: 24px;
+    padding: 18px 22px 22px;
   }
-  .donut { width: 100%; height: auto; max-height: 180px; }
+  .donut {
+    width: 180px;
+    height: 180px;
+    max-width: 100%;
+    display: block;
+    margin: 0 auto;
+    overflow: visible;
+  }
   .donut-value {
     font-size: 24px;
     font-weight: 800;
@@ -4034,13 +4037,60 @@ const styles = `
     height: 100%;
     min-height: 0;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 6px 0;
   }
+  .dashboard-page .dash-hero { flex: 0 0 auto; padding: 12px 18px; }
+  .dashboard-page .dash-hero h1 { font-size: 18px; }
+  .dashboard-page .dash-hero > div > p { margin-top: 2px; font-size: 12.5px; }
+  .dashboard-page .stat-grid {
+    flex: 0 0 auto;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 0;
+  }
+  .dashboard-page .stat-card { padding: 12px 14px; }
   .dashboard-page .dashboard-grid {
     flex: 1 1 auto;
     min-height: 0;
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: 12px;
   }
-  .dashboard-page .cell-list,
-  .dashboard-page .recent-list {
+  .dashboard-page .dashboard-grid:nth-of-type(3) { flex: 1 1 auto; }
+  .dashboard-page .panel {
+    overflow: hidden;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-page .panel-header { height: 42px; padding: 0 14px; }
+  .dashboard-page .panel-header h3 { font-size: 13.5px; }
+  .dashboard-page .bar-chart { padding: 8px 14px 10px; flex: 1 1 auto; min-height: 0; }
+  .dashboard-page .bar-chart-body { height: 100%; padding-top: 18px; padding-bottom: 18px; }
+  .dashboard-page .panel-donut { overflow: visible; }
+  .dashboard-page .donut-wrap {
+    grid-template-columns: 130px 1fr;
+    padding: 10px 14px 14px;
+    gap: 14px;
+    overflow: visible;
+    min-height: 0;
+  }
+  .dashboard-page .donut {
+    width: 130px;
+    height: 130px;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+  .dashboard-page .donut-legend { gap: 8px; }
+  .dashboard-page .donut-legend-row { padding: 6px 10px; }
+  .dashboard-page .donut-legend-row strong { font-size: 14px; }
+  .dashboard-page .session-list,
+  .dashboard-page .activity-feed {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
   }
 

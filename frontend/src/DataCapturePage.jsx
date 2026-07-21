@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, b64PngToFile } from "./api";
+import CccdReadModal from "./CccdReadModal";
+import cccdTemplateBg from "./assets/cccd-template.png";
 
 const FINGERS = [
   { key: "fp_l1", label: "T. cái trái" },
@@ -145,7 +147,7 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
 
   return (
     <div className="cccd-card-mock" onClick={() => inputRef.current?.click()} style={{ cursor: "pointer" }}>
-      <img className="cccd-card-mock-bg" src="/cccd-template.png" alt="" />
+      <img className="cccd-card-mock-bg" src={cccdTemplateBg} alt="" />
       <div className="cccd-card-mock-photo">
         {cardPortrait && <img src={cardPortrait} alt="" />}
       </div>
@@ -342,6 +344,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [reading, setReading] = useState(false);
+  const [cccdModalOpen, setCccdModalOpen] = useState(false);
   const [cells, setCells] = useState([]);
   const [fpRunning, setFpRunning] = useState(false);
   const [fpNextCode, setFpNextCode] = useState(null);
@@ -446,28 +449,29 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  const readCCCD = async () => {
-    setReading(true);
+  const readCCCD = () => {
     setErr("");
-    try {
-      const d = await api.mockReadCCCD();
-      setForm((f) => ({
-        ...f,
-        full_name: d.full_name || f.full_name,
-        cccd_number: d.cccd_number || f.cccd_number,
-        personal_id: d.cccd_number || f.personal_id,
-        dob: d.dob || f.dob,
-        gender: d.gender || f.gender,
-        hometown: d.hometown || f.hometown,
-        address: d.address || d.hometown || f.address,
-        ethnicity: d.ethnicity || f.ethnicity,
-        religion: d.religion || f.religion,
-      }));
-    } catch (ex) {
-      setErr(ex.message);
-    } finally {
-      setReading(false);
-    }
+    setCccdModalOpen(true);
+  };
+
+  const applyCccdData = (d) => {
+    if (!d) return;
+    setForm((f) => ({
+      ...f,
+      full_name: d.full_name || f.full_name,
+      cccd_number: d.cccd_number || f.cccd_number,
+      personal_id: d.cccd_number || f.personal_id,
+      dob: d.dob || f.dob,
+      gender: d.gender || f.gender,
+      hometown: d.hometown || f.hometown,
+      address: d.address || d.hometown || f.address,
+      ethnicity: d.ethnicity || f.ethnicity,
+      religion: d.religion || f.religion,
+      nationality: d.nationality || f.nationality,
+      issued_date: d.issued_date || f.issued_date,
+      expiry_date: d.expiry_date || f.expiry_date,
+      cmnd_old: d.cmnd_old || f.cmnd_old,
+    }));
   };
 
   const fpCount = FINGERS.filter((f) => photos[f.key]).length;
@@ -867,6 +871,16 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           onClose={() => setPreviewOpen(false)}
         />
       )}
+
+      <CccdReadModal
+        open={cccdModalOpen}
+        onClose={() => setCccdModalOpen(false)}
+        onDone={(data) => {
+          applyCccdData(data);
+          setCccdModalOpen(false);
+        }}
+      />
+
 
       {/* ================ Block 4: Actions ================ */}
       <section className="cap-block save-block">
