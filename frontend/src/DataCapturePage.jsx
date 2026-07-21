@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, fpApi, b64PngToFile } from "./api";
-import CccdReadModal from "./CccdReadModal";
+import { api, fpApi, cccdApi, b64PngToFile } from "./api";
 import cccdTemplateBg from "./assets/cccd-template.png";
 
 const FINGERS = [
@@ -344,7 +343,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [reading, setReading] = useState(false);
-  const [cccdModalOpen, setCccdModalOpen] = useState(false);
+  const cccdSidRef = useRef(null);
+  const cccdAbortRef = useRef(null);
   const [cells, setCells] = useState([]);
   const [fpRunning, setFpRunning] = useState(false);
   const [fpNextCode, setFpNextCode] = useState(null);
@@ -449,11 +449,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  const readCCCD = () => {
-    setErr("");
-    setCccdModalOpen(true);
-  };
-
   const applyCccdData = (d) => {
     if (!d) return;
     setForm((f) => ({
@@ -472,6 +467,51 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       expiry_date: d.expiry_date || f.expiry_date,
       cmnd_old: d.cmnd_old || f.cmnd_old,
     }));
+    if (d.facePhoto) {
+      setCccdCardPortrait(`data:image/jpeg;base64,${d.facePhoto}`);
+    }
+  };
+
+  const readCCCD = async () => {
+    if (reading) return;
+    setErr("");
+    setOk("");
+    setReading(true);
+    const ac = new AbortController();
+    cccdAbortRef.current = ac;
+    try {
+      const h = await cccdApi.health();
+      if (!h.ok) {
+        throw new Error("Thư mục dữ liệu CCCD chưa sẵn sàng: " + (h.data_dir || ""));
+      }
+      const s = await cccdApi.startSession();
+      cccdSidRef.current = s.session_id;
+      while (!ac.signal.aborted) {
+        const r = await cccdApi.wait(s.session_id, ac.signal, 25);
+        if (ac.signal.aborted) break;
+        if (r && r.status === "ok" && r.data) {
+          applyCccdData(r.data);
+          setOk("Đã đọc dữ liệu CCCD từ HANEL eKYC.");
+          break;
+        }
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") setErr(e.message);
+    } finally {
+      const sid = cccdSidRef.current;
+      cccdSidRef.current = null;
+      cccdAbortRef.current = null;
+      setReading(false);
+      if (sid) {
+        try { await cccdApi.cancel(sid); } catch { /* noop */ }
+      }
+    }
+  };
+
+  const cancelReadCCCD = () => {
+    if (cccdAbortRef.current) {
+      try { cccdAbortRef.current.abort(); } catch { /* noop */ }
+    }
   };
 
   const fpCount = FINGERS.filter((f) => photos[f.key]).length;
@@ -662,6 +702,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
               onCardPortraitPreview={setCccdCardPortrait}
             />
+
           </div>
 
         </div>
@@ -871,15 +912,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           onClose={() => setPreviewOpen(false)}
         />
       )}
-
-      <CccdReadModal
-        open={cccdModalOpen}
-        onClose={() => setCccdModalOpen(false)}
-        onDone={(data) => {
-          applyCccdData(data);
-          setCccdModalOpen(false);
-        }}
-      />
 
 
       {/* ================ Block 4: Actions ================ */}

@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { api } from "./api";
-import CccdReadModal from "./CccdReadModal";
+import { useEffect, useRef, useState } from "react";
+import { api, cccdApi } from "./api";
 
 const emptyForm = {
   full_name: "",
@@ -40,12 +39,56 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const [err, setErr] = useState("");
   const [dupCheck, setDupCheck] = useState(null);
   const [confirmDup, setConfirmDup] = useState(false);
-  const [cccdOpen, setCccdOpen] = useState(false);
+  const [reading, setReading] = useState(false);
+  const cccdSidRef = useRef(null);
+  const cccdAbortRef = useRef(null);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const onCccdRead = (data) => {
-    setForm((f) => ({ ...f, ...data }));
+  const readCCCD = async () => {
+    if (reading) return;
+    setErr("");
+    setReading(true);
+    const ac = new AbortController();
+    cccdAbortRef.current = ac;
+    try {
+      const h = await cccdApi.health();
+      if (!h.ok) throw new Error("Thư mục dữ liệu CCCD chưa sẵn sàng: " + (h.data_dir || ""));
+      const s = await cccdApi.startSession();
+      cccdSidRef.current = s.session_id;
+      while (!ac.signal.aborted) {
+        const r = await cccdApi.wait(s.session_id, ac.signal, 25);
+        if (ac.signal.aborted) break;
+        if (r && r.status === "ok" && r.data) {
+          const d = r.data;
+          setForm((f) => ({
+            ...f,
+            full_name: d.full_name || f.full_name,
+            cccd_number: d.cccd_number || f.cccd_number,
+            dob: d.dob || f.dob,
+            gender: d.gender || f.gender,
+            hometown: d.hometown || f.hometown,
+            address: d.address || f.address,
+            ethnicity: d.ethnicity || f.ethnicity,
+            religion: d.religion || f.religion,
+          }));
+          if (d.facePhoto) {
+            setForm((f) => ({ ...f, photo_url: `data:image/jpeg;base64,${d.facePhoto}` }));
+          }
+          break;
+        }
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") setErr(e.message);
+    } finally {
+      const sid = cccdSidRef.current;
+      cccdSidRef.current = null;
+      cccdAbortRef.current = null;
+      setReading(false);
+      if (sid) {
+        try { await cccdApi.cancel(sid); } catch { /* noop */ }
+      }
+    }
   };
 
   const onPhotoChange = async (e) => {
@@ -137,10 +180,11 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                 <button
                   type="button"
                   className="btn-cccd-reader"
-                  onClick={() => setCccdOpen(true)}
-                  title="Đọc CCCD từ đầu đọc Hanel HN-212"
+                  onClick={readCCCD}
+                  disabled={reading}
+                  title="Đọc CCCD từ folder HANEL eKYC"
                 >
-                  📄 Đọc CCCD
+                  {reading ? "Đang chờ thẻ..." : "📄 Đọc CCCD"}
                 </button>
               )}
             </div>
@@ -217,12 +261,6 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
             </button>
           </div>
         </form>
-
-        <CccdReadModal
-          open={cccdOpen}
-          onClose={() => setCccdOpen(false)}
-          onDone={onCccdRead}
-        />
 
         {dupCheck && (
           <div className="dup-overlay" onClick={() => setDupCheck(null)}>

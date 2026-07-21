@@ -1887,6 +1887,107 @@ textarea.input {
   cursor: not-allowed;
 }
 
+.cccd-scan-info {
+  margin-top: 14px;
+  border: 1px solid #cfe0ff;
+  background: #f5f9ff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(30, 94, 255, 0.08);
+}
+
+.cccd-scan-info-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #1e5eff, #4b7fff);
+  color: #fff;
+}
+
+.cccd-scan-info-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.cccd-scan-info-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.85;
+}
+
+.cccd-scan-info-close:hover {
+  opacity: 1;
+}
+
+.cccd-scan-info-body {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 14px;
+  padding: 14px;
+  align-items: start;
+}
+
+.cccd-scan-info-face {
+  width: 130px;
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #d5dce7;
+  background: #f1f4f9;
+  display: block;
+}
+
+.cccd-scan-info-face-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+  padding: 8px;
+}
+
+.cccd-scan-info-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  row-gap: 4px;
+  column-gap: 10px;
+  font-size: 12.5px;
+}
+
+.cccd-scan-info-fields dt {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.cccd-scan-info-fields dd {
+  margin: 0;
+  color: #1a365d;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.cccd-scan-info-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #64748b;
+  padding: 8px 14px 10px;
+  border-top: 1px dashed #d5dce7;
+  background: #eef4ff;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .col-fields {
   min-width: 0;
 }
@@ -5294,73 +5395,95 @@ textarea.input {
 
 .cccd-mf {
   position: absolute;
-  color: #111827;
+  color: #0b1220;
   font-weight: 600;
-  font-size: clamp(9px, 1.4cqw, 13px);
-  line-height: 1;
-  white-space: nowrap;
+  font-size: clamp(9px, 1.35cqw, 12.5px);
+  line-height: 1.15;
+  white-space: normal;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.55);
 }
 
 .cccd-mf-no {
   left: 40%;
-  top: 38.5%;
+  right: 4%;
+  top: 39%;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: clamp(18px, 2.9cqw, 18px);
+  font-size: clamp(13px, 2.35cqw, 17px);
   font-weight: 700;
-  letter-spacing: .4px;
+  letter-spacing: .35px;
+  -webkit-line-clamp: 1;
 }
 
 .cccd-mf-name {
   left: 31%;
-  right: 6%;
-  top: 55.5%;
-  font-size: clamp(11px, 2.2cqw, 20px);
-  font-weight: 400;
+  right: 5%;
+  top: 55%;
+  font-size: clamp(10px, 1.85cqw, 15px);
+  font-weight: 700;
   text-transform: uppercase;
-  line-height: 1.05;
+  line-height: 1.1;
+  -webkit-line-clamp: 2;
+  max-height: 2.4em;
 }
 
 .cccd-mf-dob {
-  left: 57%;
-  top: 59.5%;
-  font-size: clamp(10px, 1.8cqw, 16px);
+  left: 55%;
+  right: 5%;
+  top: 65%;
+  font-size: clamp(9px, 1.55cqw, 13px);
+  -webkit-line-clamp: 1;
 }
 
 .cccd-mf-sex {
-  left: 49%;
-  top: 66.5%;
-  font-size: clamp(10px, 1.8cqw, 16px);
+  left: 40%;
+  top: 71%;
+  font-size: clamp(9px, 1.55cqw, 13px);
+  -webkit-line-clamp: 1;
 }
 
 .cccd-mf-nat {
-  left: 82%;
-  top: 66.5%;
-  font-size: clamp(10px, 1.8cqw, 16px);
+  left: 70%;
+  right: 5%;
+  top: 71%;
+  font-size: clamp(9px, 1.55cqw, 13px);
+  -webkit-line-clamp: 1;
 }
 
 .cccd-mf-origin {
   left: 31%;
   right: 4%;
-  top: 78.8%;
-  font-size: clamp(10px, 1.8cqw, 16px);
+  top: 77%;
+  font-size: clamp(9px, 1.55cqw, 13px);
   line-height: 1.15;
+  -webkit-line-clamp: 2;
+  max-height: 2.4em;
 }
 
 .cccd-mf-res {
   left: 31%;
   right: 4%;
-  top: 91%;
-  font-size: clamp(10px, 1.7cqw, 15px);
+  top: 88%;
+  font-size: clamp(9px, 1.55cqw, 13px);
   line-height: 1.15;
+  -webkit-line-clamp: 2;
+  max-height: 2.4em;
 }
 
 .cccd-mf-exp {
-  left: 18%;
-  top: 89%;
-  font-size: clamp(8px, 1.6cqw, 10px);
-  font-weight: 400;
+  left: 15%;
+  right: 60%;
+  top: 92%;
+  font-size: clamp(8px, 1.4cqw, 11px);
+  font-weight: 600;
+  -webkit-line-clamp: 1;
 }
 
 .cccd-card-mock-clear {
