@@ -15,6 +15,22 @@ const FINGERS = [
   { key: "fp_r5", label: "T. út phải" },
 ];
 
+// Sắp xếp theo hình bàn tay: út → áp út → giữa → trỏ → cái (ngón cái sát giữa)
+const LEFT_HAND = [
+  { key: "fp_l5", label: "Út" },
+  { key: "fp_l4", label: "Áp út" },
+  { key: "fp_l3", label: "Giữa" },
+  { key: "fp_l2", label: "Trỏ" },
+  { key: "fp_l1", label: "Cái" },
+];
+const RIGHT_HAND = [
+  { key: "fp_r1", label: "Cái" },
+  { key: "fp_r2", label: "Trỏ" },
+  { key: "fp_r3", label: "Giữa" },
+  { key: "fp_r4", label: "Áp út" },
+  { key: "fp_r5", label: "Út" },
+];
+
 const FP_CODE_TO_KEY = {
   left_thumb: "fp_l1",
   left_index: "fp_l2",
@@ -757,18 +773,36 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   </span>
                 </div>
               )}
-              <div className="fp-grid">
-                {FINGERS.map((f) => {
-                  const targetKey = fpNextCode ? FP_CODE_TO_KEY[fpNextCode] : null;
-                  const isActive = fpRunning && targetKey === f.key;
-                  return (
-                    <div key={f.key} className={"fp-item" + (isActive ? " fp-item-active" : "")}>
-                      <PhotoSlot compact label={f.label} value={photos[f.key]}
-                        onChange={(u) => setPhoto(f.key, u)} aspect="3 / 4" />
-                      <span className="fp-item-label">{f.label}</span>
+              <div className="fp-hands">
+                {[
+                  { side: "left", title: "Bàn tay trái", fingers: LEFT_HAND },
+                  { side: "right", title: "Bàn tay phải", fingers: RIGHT_HAND },
+                ].map(({ side, title, fingers }) => (
+                  <div key={side} className={"fp-hand fp-hand-" + side}>
+                    <div className="fp-hand-title">{title}</div>
+                    <div className="fp-hand-row">
+                      {fingers.map((f) => {
+                        const targetKey = fpNextCode ? FP_CODE_TO_KEY[fpNextCode] : null;
+                        const isActive = fpRunning && targetKey === f.key;
+                        const filled = !!photos[f.key];
+                        return (
+                          <div
+                            key={f.key}
+                            className={
+                              "fp-item" +
+                              (isActive ? " fp-item-active" : "") +
+                              (filled ? " fp-item-done" : "")
+                            }
+                          >
+                            <PhotoSlot compact label={f.label} value={photos[f.key]}
+                              onChange={(u) => setPhoto(f.key, u)} aspect="1 / 1" />
+                            <span className="fp-item-label">{f.label}</span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
               <div className={"bio-status " + (fpCount === 10 ? "ok" : "warn")}>
                 <CheckDot ok={fpCount === 10} />

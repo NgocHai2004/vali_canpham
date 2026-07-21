@@ -3622,9 +3622,9 @@ const styles = `
   /* --- Block 2A: Biometric (fps + iris) --- */
   .bio-body {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    gap: 10px;
-    padding: 6px 10px 6px;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+    gap: 12px;
+    padding: 8px 12px 10px;
     min-height: 0;
     flex: 1 1 0;
     overflow: hidden;
@@ -3635,19 +3635,65 @@ const styles = `
     margin-bottom: 4px;
     flex-shrink: 0;
   }
-  .bio-fp { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-  .fp-grid {
+  .bio-fp { display: flex; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
+  /* Overlay: thông báo lỗi/tiến độ nổi phía trên khối vân tay,
+     không chiếm chỗ trong flow nên lưới 10 ngón không bị đẩy */
+  .bio-fp > .fp-inline-status {
+    position: absolute;
+    top: 30px;
+    left: 8px;
+    right: 8px;
+    z-index: 5;
+    margin: 0;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    line-height: 1.25;
+    border-radius: 8px;
+    box-shadow: 0 6px 14px rgba(15, 35, 68, 0.14);
+    pointer-events: none;
+  }
+  /* --- Layout hai bàn tay: trái | phải, đối xứng --- */
+  .fp-hands {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-    gap: 4px 6px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
     flex: 1 1 0;
     min-height: 0;
     overflow: hidden;
   }
+  .fp-hand {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    padding: 6px 8px 8px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #f5f9ff 0%, #eef4fc 100%);
+    border: 1px solid #dbe4f0;
+  }
+  .fp-hand-title {
+    font-size: 10.5px;
+    font-weight: 800;
+    color: #0f2344;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    text-align: center;
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+    border-bottom: 1px dashed #cdd8e8;
+    flex-shrink: 0;
+  }
+  .fp-hand-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    flex: 1 1 0;
+    min-height: 0;
+    align-items: stretch;
+  }
   .fp-item {
     display: flex; flex-direction: column; align-items: center;
-    gap: 2px; min-width: 0; min-height: 0; overflow: hidden;
+    gap: 3px; min-width: 0; min-height: 0; overflow: hidden;
   }
   .fp-item .photo-slot {
     width: 100%;
@@ -3656,13 +3702,31 @@ const styles = `
     min-height: 0;
     aspect-ratio: auto;
     max-width: none;
+    background: #fff;
+    border: 1px solid #d7e0ee;
+    border-radius: 6px;
   }
-  .fp-item .photo-slot-empty { height: 100%; }
+  .fp-item .photo-slot-empty {
+    height: 100%;
+    background: #fbfdff;
+    border: 1.2px dashed #c6d3e6;
+    color: #8595ad;
+  }
+  .fp-item-done .photo-slot {
+    border-color: #7fd5a5;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.12);
+  }
   .fp-item-label {
-    font-size: 9.5px; color: #4c5c76; font-weight: 600;
+    font-size: 10px; color: #3d4d68; font-weight: 700;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     max-width: 100%; text-align: center; line-height: 1.1;
+    letter-spacing: 0.2px;
   }
+  .fp-item-active .photo-slot {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.22);
+  }
+  .fp-item-active .fp-item-label { color: #b45309; }
   .bio-iris { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   .iris-grid {
     display: grid;
