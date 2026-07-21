@@ -380,6 +380,18 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     api.listCells().then(setCells).catch(() => setCells([]));
   }, []);
 
+  // Cooldown 10s: banner ok/err tự ẩn sau 10 giây
+  useEffect(() => {
+    if (!ok) return;
+    const t = setTimeout(() => setOk(""), 10000);
+    return () => clearTimeout(t);
+  }, [ok]);
+  useEffect(() => {
+    if (!err) return;
+    const t = setTimeout(() => setErr(""), 10000);
+    return () => clearTimeout(t);
+  }, [err]);
+
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setPhoto = (k, v) =>
     setPhotos((p) => {
@@ -703,9 +715,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <input className="control" value={form.expiry_date}
                 onChange={(e) => setField("expiry_date", e.target.value)} placeholder="dd/mm/yyyy" />
             </Field>
-            <Field label="Nơi cấp">
-              <input className="control" value={form.issued_place}
-                onChange={(e) => setField("issued_place", e.target.value)} placeholder="Cục Cảnh sát QLHC về TTXH" />
+            <Field label="Dân tộc">
+              <input className="control" value={form.ethnicity}
+                onChange={(e) => setField("ethnicity", e.target.value)} placeholder="Kinh" />
+            </Field>
+            <Field label="Tôn giáo">
+              <input className="control" value={form.religion}
+                onChange={(e) => setField("religion", e.target.value)} placeholder="Không" />
             </Field>
           </div>
 

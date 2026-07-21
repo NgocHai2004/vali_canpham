@@ -3443,14 +3443,47 @@ const styles = `
     overflow: hidden;
   }
 
-  .capture-banner { flex-shrink: 0; }
-  .capture-banner .error-box,
-  .capture-banner .success-box { margin: 0; padding: 6px 10px; font-size: 12px; }
-  .banner-link {
-    margin-left: 10px; padding: 3px 8px; border-radius: 6px;
-    background: rgba(255,255,255,.7); color: inherit; border: 0;
-    font-size: 11.5px; font-weight: 700; cursor: pointer;
+  /* Banner "Đã đọc dữ liệu CCCD" / lỗi — toast dạng dán góc dưới trang thu nhận,
+     KHÔNG chiếm chỗ trong flow, hiển thị ~60s rồi tự ẩn (JS xử lý timeout) */
+  .capture-banner {
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    z-index: 20;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: min(420px, 90%);
+    animation: capBannerIn 0.22s ease-out;
   }
+  @keyframes capBannerIn {
+    from { transform: translateY(8px); opacity: 0; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+  .capture-banner .error-box,
+  .capture-banner .success-box {
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.35;
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(15, 35, 68, 0.22);
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid transparent;
+  }
+  .capture-banner .success-box { border-color: #b9ebd0; }
+  .capture-banner .error-box   { border-color: #f6bfc6; }
+  .banner-link {
+    margin-left: 6px; padding: 2px 8px; border-radius: 6px;
+    background: rgba(255,255,255,.75); color: inherit; border: 0;
+    font-size: 11.5px; font-weight: 700; cursor: pointer;
+    pointer-events: auto;
+  }
+  .capture-page { position: relative; }
 
   /* --- Card container --- */
   .cap-block {
@@ -3636,15 +3669,21 @@ const styles = `
     flex-shrink: 0;
   }
   .bio-fp { display: flex; flex-direction: column; min-height: 0; min-width: 0; position: relative; }
-  /* Overlay: thông báo lỗi/tiến độ nổi phía trên khối vân tay,
-     không chiếm chỗ trong flow nên lưới 10 ngón không bị đẩy */
+  /* Sub-row (tiêu đề + nút Thu thập) — chừa chỗ overlay bên trái */
+  .bio-fp > .bio-sub-row {
+    position: relative;
+    z-index: 6;
+    margin-bottom: 2px;
+  }
+  /* Overlay: thông báo lỗi/tiến độ nằm ngay TRÊN sub-row (bay ra ngoài khối vân tay),
+     tuyệt đối không chạm phần ảnh */
   .bio-fp > .fp-inline-status {
     position: absolute;
-    top: 30px;
-    left: 8px;
-    right: 8px;
-    z-index: 5;
-    margin: 0;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    margin: 0 0 4px 0;
+    z-index: 10;
     padding: 6px 10px;
     font-size: 11.5px;
     line-height: 1.25;
