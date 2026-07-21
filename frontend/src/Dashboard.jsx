@@ -3675,21 +3675,9 @@ const styles = `
     z-index: 6;
     margin-bottom: 2px;
   }
-  /* Overlay: thông báo lỗi/tiến độ nằm ngay TRÊN sub-row (bay ra ngoài khối vân tay),
-     tuyệt đối không chạm phần ảnh */
+  /* Ẩn overlay thông báo vân tay để không đè lên header block */
   .bio-fp > .fp-inline-status {
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    right: 0;
-    margin: 0 0 4px 0;
-    z-index: 10;
-    padding: 6px 10px;
-    font-size: 11.5px;
-    line-height: 1.25;
-    border-radius: 8px;
-    box-shadow: 0 6px 14px rgba(15, 35, 68, 0.14);
-    pointer-events: none;
+    display: none;
   }
   /* --- Layout hai bàn tay: trái | phải, đối xứng --- */
   .fp-hands {

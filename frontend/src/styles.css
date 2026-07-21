@@ -1711,6 +1711,37 @@ textarea.input {
   animation: slideUp 0.2s ease;
 }
 
+.camera-modal {
+  max-width: 720px;
+}
+.camera-body {
+  padding: 12px 16px;
+  background: #0b1220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+.camera-video {
+  width: 100%;
+  max-height: 60vh;
+  border-radius: 8px;
+  background: #000;
+  object-fit: contain;
+}
+.camera-err {
+  color: #fca5a5;
+  font-size: 13.5px;
+  padding: 20px;
+  text-align: center;
+}
+.camera-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px 16px;
+}
+
 @keyframes slideUp {
   from {
     transform: translateY(20px);

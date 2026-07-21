@@ -220,14 +220,148 @@ async function resizeImageFile(file, maxW, maxH, mime = "image/jpeg", quality = 
   return new File([blob], file.name.replace(/\.[^.]+$/, "") + "." + ext, { type: mime });
 }
 
-function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, disabled, resize }) {
+const PREFERRED_CAMERA_LABEL = (import.meta.env.VITE_CCCD_CAMERA_LABEL || "").trim();
+
+async function pickPreferredCamera() {
+  if (!PREFERRED_CAMERA_LABEL) return null;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter((d) => d.kind === "videoinput");
+    const wanted = PREFERRED_CAMERA_LABEL.toLowerCase();
+    const match = cams.find((c) => (c.label || "").toLowerCase().includes(wanted));
+    return match ? match.deviceId : null;
+  } catch {
+    return null;
+  }
+}
+
+function CameraCaptureModal({ open, label, onCapture, onClose }) {
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [err, setErr] = useState("");
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [deviceLabel, setDeviceLabel] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setErr("");
+    setReady(false);
+    setDeviceLabel("");
+    (async () => {
+      const openStream = async (constraints) => navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
+      try {
+        // 1) probe permission bằng constraint tối thiểu để enumerateDevices trả về label
+        let probe;
+        try {
+          probe = await openStream({ facingMode: "user" });
+        } catch {
+          probe = await openStream(true);
+        }
+        probe.getTracks().forEach((t) => t.stop());
+
+        // 2) chọn camera cố định theo .env
+        const preferredId = await pickPreferredCamera();
+        let stream;
+        if (preferredId) {
+          try {
+            stream = await openStream({ deviceId: { exact: preferredId }, width: { ideal: 1280 }, height: { ideal: 960 } });
+          } catch {
+            stream = await openStream({ facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } });
+          }
+        } else {
+          stream = await openStream({ facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } });
+        }
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const track = stream.getVideoTracks()[0];
+        if (track) setDeviceLabel(track.label || "");
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => setReady(true);
+        }
+      } catch (e) {
+        if (!cancelled) setErr(e.message || "Không mở được camera. Kiểm tra quyền truy cập.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [open]);
+
+  const snap = () => {
+    if (!videoRef.current || busy) return;
+    setBusy(true);
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          setErr("Không tạo được ảnh từ camera.");
+          setBusy(false);
+          return;
+        }
+        const file = new File([blob], `portrait_${Date.now()}.jpg`, { type: "image/jpeg" });
+        onCapture(file);
+      }, "image/jpeg", 0.92);
+    } catch (e) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal camera-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>Chụp {label || "ảnh chân dung"}</h3>
+          <button className="close-x" onClick={onClose} aria-label="Đóng">×</button>
+        </div>
+        <div className="camera-body">
+          {err ? (
+            <div className="camera-err">{err}</div>
+          ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="camera-video"
+            />
+          )}
+        </div>
+        <div className="camera-actions">
+          <button className="btn-ghost" onClick={onClose} disabled={busy}>Huỷ</button>
+          <button className="btn-primary" onClick={snap} disabled={!ready || busy || !!err}>
+            {busy ? "Đang xử lý..." : "📸 Chụp"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, disabled, resize, useCamera }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
 
-  const pick = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const uploadFile = async (f) => {
     setUploading(true);
     setErr("");
     try {
@@ -245,8 +379,24 @@ function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, di
       setErr(ex.message);
     } finally {
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
     }
+  };
+
+  const pick = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    await uploadFile(f);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const handleEmptyClick = () => {
+    if (useCamera) setCameraOpen(true);
+    else inputRef.current?.click();
+  };
+
+  const onCameraCaptured = async (file) => {
+    setCameraOpen(false);
+    await uploadFile(file);
   };
 
   const style = { aspectRatio: aspect };
@@ -274,22 +424,38 @@ function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, di
         <button
           type="button"
           className="photo-slot-empty"
-          onClick={() => inputRef.current?.click()}
+          onClick={handleEmptyClick}
           disabled={uploading || disabled}
         >
           <span className="photo-slot-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="6" width="18" height="14" rx="2" />
-              <circle cx="12" cy="13" r="4" />
-              <path d="M8 6l1.5-2h5L16 6" />
-            </svg>
+            {useCamera ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="6" width="18" height="14" rx="2" />
+                <circle cx="12" cy="13" r="4" />
+                <path d="M8 6l1.5-2h5L16 6" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            )}
           </span>
-          {!compact && <span className="photo-slot-label">{label}</span>}
+          {!compact && <span className="photo-slot-label">{useCamera ? `📷 Chụp ${label}` : label}</span>}
           {!compact && uploading && <span className="photo-slot-hint">Đang tải...</span>}
           {!compact && err && <span className="photo-slot-err">{err}</span>}
         </button>
       )}
       <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
+      {useCamera && (
+        <CameraCaptureModal
+          open={cameraOpen}
+          label={label}
+          onCapture={onCameraCaptured}
+          onClose={() => setCameraOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -477,7 +643,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  const applyCccdData = (d) => {
+  const applyCccdData = async (d) => {
     if (!d) return;
     setForm((f) => ({
       ...f,
@@ -496,7 +662,16 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       cmnd_old: d.cmnd_old || f.cmnd_old,
     }));
     if (d.facePhoto) {
-      setCccdCardPortrait(`data:image/jpeg;base64,${d.facePhoto}`);
+      const dataUrl = `data:image/jpeg;base64,${d.facePhoto}`;
+      setCccdCardPortrait(dataUrl);
+      try {
+        const file = await b64PngToFile(d.facePhoto, `cccd_face_${d.cccd_number || Date.now()}.jpg`);
+        const jpgFile = new File([file], file.name, { type: "image/jpeg" });
+        const res = await api.uploadPhoto(jpgFile);
+        setPhoto("cccd_front", res.url);
+      } catch (uploadEx) {
+        console.error("[CCCD] Không upload được ảnh chân dung:", uploadEx);
+      }
     }
   };
 
@@ -864,6 +1039,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   </div>
                   <PhotoSlot label={p.label} value={photos[p.key]}
                     onChange={(u) => setPhoto(p.key, u)} aspect="3 / 4"
+                    useCamera
                     resize={{ w: 600, h: 800, mime: "image/jpeg", quality: 0.9 }} />
                 </div>
                 <span className="portrait-label">{p.label}</span>

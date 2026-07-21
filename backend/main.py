@@ -477,9 +477,23 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
     _require_capture_fields(body)
     dob = _parse_dob(body.dob)
     now = datetime.utcnow()
-    code = await _next_code()
+
+    raw_code = (body.code or "").strip() if hasattr(body, "code") else ""
+    if raw_code:
+        if await db.detainees.find_one({"code": raw_code}):
+            raise HTTPException(400, f"Mã can phạm '{raw_code}' đã tồn tại, vui lòng chọn mã khác.")
+        code = raw_code
+    else:
+        code = await _next_code()
+
+    if body.cccd_number:
+        dup_cccd = await db.detainees.find_one({"cccd_number": body.cccd_number})
+        if dup_cccd:
+            raise HTTPException(400, f"Số CCCD '{body.cccd_number}' đã có trong hồ sơ '{dup_cccd.get('code')}'.")
+
     doc = body.model_dump()
     doc.pop("session_id", None)
+    doc.pop("code", None)
     doc.update({
         "code": code,
         "full_name_norm": _norm_name(body.full_name),
@@ -492,7 +506,12 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         "created_by": user["username"],
         "session_id": session_doc["_id"],
     })
-    res = await db.detainees.insert_one(doc)
+    try:
+        res = await db.detainees.insert_one(doc)
+    except Exception as e:
+        if "duplicate key" in str(e):
+            raise HTTPException(400, f"Mã can phạm '{code}' đã tồn tại (khác thao tác đồng thời), vui lòng thử lại.")
+        raise
     doc["_id"] = res.inserted_id
     await db.work_sessions.update_one(
         {"_id": session_doc["_id"]},
