@@ -65,11 +65,10 @@ const PORTRAITS = [
 
 const EMPTY_FORM = {
   full_name: "",
-  code: "",
   cccd_number: "",
   personal_id: "",
   dob: "",
-  gender: "male",
+  gender: "",
   nationality: "Việt Nam",
   ethnicity: "",
   religion: "",
@@ -170,7 +169,7 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
         <div className="cccd-mf cccd-mf-no">{form.cccd_number || ""}</div>
         <div className="cccd-mf cccd-mf-name">{form.full_name || ""}</div>
         <div className="cccd-mf cccd-mf-dob">{form.dob || ""}</div>
-        <div className="cccd-mf cccd-mf-sex">{form.full_name ? (form.gender === "female" ? "Nữ" : "Nam") : ""}</div>
+        <div className="cccd-mf cccd-mf-sex">{form.gender ? (form.gender === "female" ? "Nữ" : "Nam") : ""}</div>
         <div className="cccd-mf cccd-mf-nat">{form.nationality || ""}</div>
         <div className="cccd-mf cccd-mf-origin">{form.hometown || ""}</div>
         <div className="cccd-mf cccd-mf-res">{form.address || ""}</div>
@@ -492,11 +491,10 @@ function normalizeInitial(initial) {
     form: {
       ...EMPTY_FORM,
       full_name: initial.full_name || "",
-      code: initial.code || "",
       cccd_number: initial.cccd_number || "",
-      personal_id: initial.personal_id || initial.cccd_number || "",
+      personal_id: initial.personal_id || "",
       dob: toDobInput(initial.dob),
-      gender: initial.gender === "female" ? "female" : "male",
+      gender: initial.gender || "",
       nationality: initial.nationality || "Việt Nam",
       ethnicity: initial.ethnicity || "",
       religion: initial.religion || "",
@@ -649,7 +647,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       ...f,
       full_name: d.full_name || f.full_name,
       cccd_number: d.cccd_number || f.cccd_number,
-      personal_id: d.cccd_number || f.personal_id,
+      personal_id: f.personal_id,
       dob: d.dob || f.dob,
       gender: d.gender || f.gender,
       hometown: d.hometown || f.hometown,
@@ -723,12 +721,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   const checks = useMemo(() => {
     const cccdOk =
+      !!(form.personal_id || "").trim() &&
       !!form.full_name.trim() &&
       /^\d{12}$/.test(form.cccd_number || "") &&
-      !!form.dob &&
-      !!form.code.trim();
+      !!form.dob;
     return [
-      { key: "cccd", label: "Thông tin CCCD", ok: cccdOk, required: true },
+      { key: "cccd", label: "Mã can phạm + Thông tin CCCD", ok: cccdOk, required: true },
       { key: "portrait", label: "Ảnh chân dung đa góc", ok: portraitCount === 3, required: false },
       { key: "fp", label: "Vân tay (10/10)", ok: fpCount === 10, required: false },
       { key: "iris", label: "Mống mắt (2/2)", ok: irisCount === 2, required: false },
@@ -757,10 +755,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       const body = {
         session_id: sessionId || null,
         full_name: form.full_name.trim(),
-        gender: form.gender === "female" ? "female" : "male",
+        gender: form.gender || "male",
         dob: strOrNull(form.dob),
         cccd_number: digitsOrNull(form.cccd_number),
-        personal_id: digitsOrNull(form.personal_id),
+        personal_id: strOrNull(form.personal_id),
         nationality: strOrNull(form.nationality),
         hometown: strOrNull(form.hometown),
         address: strOrNull(form.address),
@@ -846,13 +844,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
         <div className="cccd-body cccd-body-2col">
           <div className="cccd-col cccd-col-form">
+            <Field label="Mã can phạm *">
+              <input className="control" value={form.personal_id}
+                onChange={(e) => setField("personal_id", e.target.value)}
+                placeholder="VD: CP2026-001 hoặc số CCCD" required />
+            </Field>
             <Field label="Họ và tên">
               <input className="control" value={form.full_name}
                 onChange={(e) => setField("full_name", e.target.value)} placeholder="Nguyễn Văn A" />
-            </Field>
-            <Field label="Mã can phạm">
-              <input className="control" value={form.code}
-                onChange={(e) => setField("code", e.target.value.toUpperCase())} placeholder="CP2024-000000" />
             </Field>
             <Field label="Số CCCD">
               <input className="control" value={form.cccd_number}
@@ -865,9 +864,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             </Field>
             <Field label="Giới tính">
               <select className="control" value={form.gender}
-                onChange={(e) => setField("gender", e.target.value)}>
-                <option value="male">Nam</option>
-                <option value="female">Nữ</option>
+                onChange={(e) => setField("gender", e.target.value)}
+                style={{ color: form.gender ? "" : "var(--text-muted, #aaa)" }}>
+                <option value="" style={{ color: "#aaa" }}>-- Chọn --</option>
+                <option value="male" style={{ color: "" }}>Nam</option>
+                <option value="female" style={{ color: "" }}>Nữ</option>
               </select>
             </Field>
             <Field label="Quốc tịch">
@@ -1065,10 +1066,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 <input className="control" type="number" min="20" max="200" value={form.weight_kg}
                   onChange={(e) => setField("weight_kg", e.target.value)} placeholder="65" />
               </Field>
-              <Field label="Mã can phạm">
-                <input className="control" value={form.code}
-                  onChange={(e) => setField("code", e.target.value.toUpperCase())} placeholder="CP2024-000000" />
-              </Field>
               <Field label="Buồng giam">
                 <select className="control" value={form.cell_code}
                   onChange={(e) => setField("cell_code", e.target.value)}>
@@ -1208,7 +1205,7 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
           </div>
 
           <h1 className="pv-title">HỒ SƠ CAN PHẠM</h1>
-          <div className="pv-subtitle">Mã hồ sơ: <b>{val(form.code)}</b></div>
+          <div className="pv-subtitle">Số định danh: <b>{val(form.personal_id || form.cccd_number)}</b></div>
 
           <div className="pv-body">
             <div className="pv-body-left">

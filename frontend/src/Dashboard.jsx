@@ -1547,7 +1547,7 @@ function LogsPage() {
         // fall through to code-based lookup
       }
     }
-    if (log.ref) return await api.getDetaineeByCode(log.ref);
+    if (log.ref) return await api.getDetaineeByPersonalId(log.ref);
     throw new Error("Log không có tham chiếu can phạm");
   };
 

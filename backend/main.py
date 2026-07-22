@@ -110,7 +110,7 @@ async def _ensure_default_cells():
 
 
 async def _ensure_indexes():
-    await db.detainees.create_index("code", unique=True, sparse=True)
+    await db.detainees.create_index("personal_id", unique=True, sparse=True)
     await db.detainees.create_index([("full_name", 1), ("dob", 1)])
     await db.detainees.create_index("cccd_number", sparse=True)
     await db.cells.create_index("code", unique=True)
@@ -148,7 +148,7 @@ class DetaineeIn(BaseModel):
     dob: Optional[str] = None
     gender: str = "male"
     cccd_number: Optional[str] = Field(None, pattern=r"^\d{12}$")
-    personal_id: Optional[str] = Field(None, pattern=r"^\d{12}$")
+    personal_id: Optional[str] = Field(None, min_length=1, max_length=50)
     cmnd_old: Optional[str] = Field(None, max_length=20)
     nationality: Optional[str] = "Việt Nam"
     hometown: Optional[str] = None
@@ -353,31 +353,19 @@ async def delete_cell(cell_id: str, request: Request, user: dict = Depends(get_c
 
 
 # ==================== DETAINEES ====================
-def _norm_name(s: str) -> str:
-    return re.sub(r"\s+", " ", (s or "").strip()).lower()
-
-
-def _parse_dob(s: Optional[str]) -> Optional[datetime]:
+def _parse_dob(s: Optional[str]) -> Optional[str]:
+    """Parse ngày sinh / ngày cấp / ngày hết hạn → chuẩn hoá string YYYY-MM-DD."""
+    if not s:
+        return None
+    s = str(s).strip()
     if not s:
         return None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
         try:
-            return datetime.strptime(s.strip(), fmt)
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except Exception:
             continue
     return None
-
-
-async def _next_code() -> str:
-    doc = await db.counters.find_one_and_update(
-        {"_id": "detainee_code"},
-        {"$inc": {"seq": 1}},
-        upsert=True,
-        return_document=True,
-    )
-    seq = doc["seq"] if doc else 1
-    year = datetime.utcnow().year
-    return f"CP{year}{seq:05d}"
 
 
 def _require_capture_fields(body: "DetaineeIn") -> None:
@@ -402,10 +390,10 @@ def _require_capture_fields(body: "DetaineeIn") -> None:
         raise HTTPException(400, "Thiếu thông tin bắt buộc: " + ", ".join(missing))
 
 
-async def _find_duplicates(full_name: str, dob: Optional[datetime], gender: str, exclude_id: Optional[str] = None) -> List[dict]:
+async def _find_duplicates(full_name: str, dob: Optional[str], gender: str, exclude_id: Optional[str] = None) -> List[dict]:
     if not full_name:
         return []
-    q = {"full_name_norm": _norm_name(full_name), "gender": gender}
+    q = {"full_name": full_name.strip(), "gender": gender}
     if dob:
         q["dob"] = dob
     if exclude_id:
@@ -428,7 +416,7 @@ async def list_detainees(
         filt["$or"] = [
             {"full_name": {"$regex": rx, "$options": "i"}},
             {"cccd_number": {"$regex": rx, "$options": "i"}},
-            {"code": {"$regex": rx, "$options": "i"}},
+            {"personal_id": {"$regex": rx, "$options": "i"}},
         ]
     if cell_code:
         filt["cell_code"] = cell_code
@@ -478,25 +466,17 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
     dob = _parse_dob(body.dob)
     now = datetime.utcnow()
 
-    raw_code = (body.code or "").strip() if hasattr(body, "code") else ""
-    if raw_code:
-        if await db.detainees.find_one({"code": raw_code}):
-            raise HTTPException(400, f"Mã can phạm '{raw_code}' đã tồn tại, vui lòng chọn mã khác.")
-        code = raw_code
-    else:
-        code = await _next_code()
-
-    if body.cccd_number:
-        dup_cccd = await db.detainees.find_one({"cccd_number": body.cccd_number})
-        if dup_cccd:
-            raise HTTPException(400, f"Số CCCD '{body.cccd_number}' đã có trong hồ sơ '{dup_cccd.get('code')}'.")
+    personal_id = (body.personal_id or "").strip()
+    if not personal_id:
+        raise HTTPException(400, "Thiếu mã can phạm (personal_id).")
+    if await db.detainees.find_one({"personal_id": personal_id}):
+        raise HTTPException(400, f"Mã can phạm '{personal_id}' đã có trong hệ thống.")
 
     doc = body.model_dump()
     doc.pop("session_id", None)
-    doc.pop("code", None)
     doc.update({
-        "code": code,
-        "full_name_norm": _norm_name(body.full_name),
+        "personal_id": personal_id,
+        "cccd_number": body.cccd_number or "",
         "dob": dob,
         "date_in": _parse_dob(body.date_in),
         "issued_date": _parse_dob(body.issued_date),
@@ -510,14 +490,14 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         res = await db.detainees.insert_one(doc)
     except Exception as e:
         if "duplicate key" in str(e):
-            raise HTTPException(400, f"Mã can phạm '{code}' đã tồn tại (khác thao tác đồng thời), vui lòng thử lại.")
+            raise HTTPException(400, f"Số định danh '{personal_id}' đã tồn tại (đồng thời), vui lòng thử lại.")
         raise
     doc["_id"] = res.inserted_id
     await db.work_sessions.update_one(
         {"_id": session_doc["_id"]},
         {"$inc": {"detainee_count": 1}, "$set": {"updated_at": now}},
     )
-    await _log(request, user, "create", "detainee", code, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id), session_id=session_doc["_id"])
+    await _log(request, user, "create", "detainee", personal_id, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id), session_id=session_doc["_id"])
     return _s(doc)
 
 
@@ -534,12 +514,20 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
             raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể chỉnh sửa.")
     upd = body.model_dump()
     upd.pop("session_id", None)
-    upd["full_name_norm"] = _norm_name(body.full_name)
     upd["dob"] = _parse_dob(body.dob)
     upd["date_in"] = _parse_dob(body.date_in)
+    upd["issued_date"] = _parse_dob(body.issued_date)
+    upd["expiry_date"] = _parse_dob(body.expiry_date)
+    new_pid = (body.personal_id or "").strip()
+    if new_pid:
+        conflict = await db.detainees.find_one({"personal_id": new_pid, "_id": {"$ne": _oid(det_id)}})
+        if conflict:
+            raise HTTPException(400, f"Mã can phạm '{new_pid}' đã có trong hồ sơ khác.")
+        upd["personal_id"] = new_pid
+        upd["cccd_number"] = body.cccd_number or upd.get("cccd_number", "")
     upd["updated_at"] = datetime.utcnow()
     doc = await db.detainees.find_one_and_update({"_id": _oid(det_id)}, {"$set": upd}, return_document=True)
-    await _log(request, user, "update", "detainee", doc.get("code", det_id), {"full_name": body.full_name}, ref_id=det_id, session_id=doc.get("session_id"))
+    await _log(request, user, "update", "detainee", doc.get("personal_id", det_id), {"full_name": body.full_name}, ref_id=det_id, session_id=doc.get("session_id"))
     return _s(doc)
 
 
@@ -560,13 +548,13 @@ async def delete_detainee(det_id: str, request: Request, user: dict = Depends(ge
             {"_id": sid},
             {"$inc": {"detainee_count": -1}, "$set": {"updated_at": datetime.utcnow()}},
         )
-    await _log(request, user, "delete", "detainee", doc.get("code", det_id), ref_id=det_id, session_id=sid)
+    await _log(request, user, "delete", "detainee", doc.get("personal_id", det_id), ref_id=det_id, session_id=sid)
     return {"ok": True}
 
 
-@app.get("/api/detainees/by-code/{code}")
-async def get_detainee_by_code(code: str, user: dict = Depends(get_current_user)):
-    doc = await db.detainees.find_one({"code": code})
+@app.get("/api/detainees/by-personal-id/{personal_id}")
+async def get_detainee_by_personal_id(personal_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.detainees.find_one({"personal_id": personal_id})
     if not doc:
         raise HTTPException(404, "Không tìm thấy hồ sơ")
     _ensure_can_touch(doc, user)
@@ -594,7 +582,7 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
         {"$set": {"cell_code": new_code or None, "updated_at": datetime.utcnow()}},
     )
     await _log(
-        request, user, "update", "detainee", doc.get("code", det_id),
+        request, user, "update", "detainee", doc.get("personal_id", det_id),
         {"transfer": {"from": old_code, "to": new_code}}, ref_id=det_id,
     )
     return {"ok": True, "from": old_code, "to": new_code}
@@ -690,23 +678,23 @@ async def list_sessions_full(
             async for d in db.detainees.find({"session_id": s["_id"]}).sort("created_at", 1):
                 detainees.append({
                     "id": str(d["_id"]),
-                    "code": d.get("code", ""),
+                    "personal_id": d.get("personal_id", "") or d.get("cccd_number", "") or "",
                     "full_name": d.get("full_name", ""),
                     "cccd_number": d.get("cccd_number", "") or "",
                     "gender": d.get("gender", "male"),
-                    "dob": d["dob"].isoformat() if isinstance(d.get("dob"), datetime) else None,
+                    "dob": d.get("dob") or None,
                     "nationality": d.get("nationality", "") or "",
                     "ethnicity": d.get("ethnicity", "") or "",
                     "religion": d.get("religion", "") or "",
                     "hometown": d.get("hometown", "") or "",
                     "address": d.get("address", "") or "",
                     "issued_date": d["issued_date"].isoformat() if isinstance(d.get("issued_date"), datetime) else None,
-                    "expiry_date": d["expiry_date"].isoformat() if isinstance(d.get("expiry_date"), datetime) else None,
+                    "expiry_date": d.get("expiry_date") or None,
                     "height_cm": d.get("height_cm"),
                     "weight_kg": d.get("weight_kg"),
                     "cell_code": d.get("cell_code", "") or "",
                     "charge": d.get("charge", "") or "",
-                    "date_in": d["date_in"].isoformat() if isinstance(d.get("date_in"), datetime) else None,
+                    "date_in": d.get("date_in") or None,
                     "note": d.get("note", "") or "",
                     "photos": d.get("photos") or {},
                     "created_at": d["created_at"].isoformat() if isinstance(d.get("created_at"), datetime) else None,
@@ -786,17 +774,16 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
     ws1.column_dimensions["B"].width = 42
 
     ws2 = wb.create_sheet("Danh sách hồ sơ")
-    headers = ["STT", "Mã HS", "Họ và tên", "Giới tính", "Ngày sinh", "Số CCCD", "Quê quán", "Buồng", "Ghi chú"]
+    headers = ["STT", "Số định danh", "Họ và tên", "Giới tính", "Ngày sinh", "Số CCCD", "Quê quán", "Buồng", "Ghi chú"]
     ws2.append(headers)
     i = 0
     async for d in db.detainees.find({"session_id": session_doc["_id"]}).sort("created_at", 1):
         i += 1
-        dob = d.get("dob")
-        dob_str = dob.strftime("%d/%m/%Y") if isinstance(dob, datetime) else ""
+        dob_str = d.get("dob") or ""
         gender = "Nam" if d.get("gender") == "male" else "Nữ"
         ws2.append([
             i,
-            d.get("code", ""),
+            d.get("personal_id", "") or d.get("cccd_number", "") or "",
             d.get("full_name", ""),
             gender,
             dob_str,
@@ -971,7 +958,7 @@ async def cccd_session_delete(sid: str, user: dict = Depends(get_current_user)):
 
 # ==================== IMPORT / EXPORT ====================
 EXCEL_COLS = [
-    ("code", "Mã hồ sơ"),
+    ("personal_id", "Số định danh"),
     ("full_name", "Họ và tên"),
     ("gender", "Giới tính"),
     ("dob", "Ngày sinh"),
@@ -993,12 +980,10 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
     ws = wb.active
     ws.title = "Can pham"
     ws.append([h for _, h in EXCEL_COLS])
-    async for d in db.detainees.find({}).sort("code", 1):
+    async for d in db.detainees.find({}).sort("personal_id", 1):
         row = []
         for k, _ in EXCEL_COLS:
             v = d.get(k, "")
-            if isinstance(v, datetime):
-                v = v.strftime("%d/%m/%Y")
             row.append(v if v is not None else "")
         ws.append(row)
     for col in ws.columns:
@@ -1064,16 +1049,18 @@ async def import_xlsx(file: UploadFile = File(...), request: Request = None, use
             if not full_name:
                 errors.append(f"Dòng {i}: thiếu Họ và tên")
                 continue
-            code = get("code") or await _next_code()
             dob = _parse_dob(get("dob"))
             date_in = _parse_dob(get("date_in"))
+            personal_id = (get("personal_id") or "").strip()
+            if not personal_id:
+                errors.append(f"Dòng {i}: thiếu mã can phạm (personal_id)")
+                continue
             doc = {
-                "code": code,
+                "personal_id": personal_id,
                 "full_name": full_name,
-                "full_name_norm": _norm_name(full_name),
                 "gender": (get("gender") or "male").lower(),
                 "dob": dob,
-                "cccd_number": get("cccd_number"),
+                "cccd_number": get("cccd_number") or "",
                 "hometown": get("hometown"),
                 "address": get("address"),
                 "ethnicity": get("ethnicity"),
@@ -1091,7 +1078,7 @@ async def import_xlsx(file: UploadFile = File(...), request: Request = None, use
                 inserted += 1
             except Exception as e:
                 if "duplicate key" in str(e):
-                    errors.append(f"Dòng {i}: mã {code} đã tồn tại")
+                    errors.append(f"Dòng {i}: số định danh {personal_id} đã tồn tại")
                 else:
                     errors.append(f"Dòng {i}: {e}")
         except Exception as e:

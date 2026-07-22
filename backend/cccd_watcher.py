@@ -53,15 +53,17 @@ def _find_json_in(scan_dir: Path) -> Optional[Path]:
     return None
 
 
-def _sex_to_gender(sex: Optional[str]) -> str:
+def _sex_to_gender(sex: Optional[str]) -> Optional[str]:
     if not sex:
-        return "male"
+        return None
     s = sex.strip().lower()
     if s.startswith("n") and "ữ" in s:
         return "female"
     if "female" in s or s in ("nữ", "nu"):
         return "female"
-    return "male"
+    if "male" in s or s in ("nam",):
+        return "male"
+    return None
 
 
 def _normalize(card: dict, scan_dir: Path) -> dict:

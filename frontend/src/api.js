@@ -101,7 +101,7 @@ export const api = {
   deleteCell: (id) => request(`/api/cells/${id}`, { method: "DELETE" }),
 
   getDetainee: (id) => request(`/api/detainees/${id}`),
-  getDetaineeByCode: (code) => request(`/api/detainees/by-code/${encodeURIComponent(code)}`),
+  getDetaineeByPersonalId: (personalId) => request(`/api/detainees/by-personal-id/${encodeURIComponent(personalId)}`),
   createDetainee: (body) => request("/api/detainees", { method: "POST", body: JSON.stringify(body) }),
   updateDetainee: (id, body) => request(`/api/detainees/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDetainee: (id) => request(`/api/detainees/${id}`, { method: "DELETE" }),
