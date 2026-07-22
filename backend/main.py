@@ -635,6 +635,98 @@ async def get_current_session(user: dict = Depends(get_current_user)):
     return _s_session(doc)
 
 
+@app.get("/api/sessions/full")
+async def list_sessions_full(
+    status: Optional[str] = Query(None, pattern=r"^(open|closed)$"),
+    mine_only: bool = Query(False),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    include_detainees: bool = Query(True),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    user: dict = Depends(get_current_user),
+):
+    """Trả về đầy đủ thông tin các phiên làm việc (cả đang mở lẫn đã đóng)
+    kèm danh sách hồ sơ can phạm bên trong mỗi phiên."""
+    filt: dict = {}
+    if status:
+        filt["status"] = status
+    if mine_only or user.get("role") != "admin":
+        filt["officer"] = user["username"]
+    dt_from = _parse_dt(date_from)
+    dt_to = _parse_dt(date_to)
+    if dt_from or dt_to:
+        rng: dict = {}
+        if dt_from:
+            rng["$gte"] = dt_from
+        if dt_to:
+            rng["$lte"] = dt_to
+        filt["opened_at"] = rng
+
+    total = await db.work_sessions.count_documents(filt)
+    open_count = await db.work_sessions.count_documents({**filt, "status": "open"})
+    closed_count = await db.work_sessions.count_documents({**filt, "status": "closed"})
+
+    items: list[dict] = []
+    async for s in db.work_sessions.find(filt).sort("opened_at", -1).skip(skip).limit(limit):
+        row = _s_session(s)
+        officer_doc = await db.users.find_one({"username": s.get("officer")}) or {}
+        row["officer_info"] = {
+            "username": s.get("officer", ""),
+            "full_name": officer_doc.get("full_name") or s.get("officer_full_name") or s.get("officer", ""),
+            "avatar_url": officer_doc.get("avatar_url", "") or "",
+            "role": officer_doc.get("role", ""),
+        }
+        opened = s.get("opened_at")
+        closed = s.get("closed_at")
+        duration_seconds = None
+        if isinstance(opened, datetime):
+            end = closed if isinstance(closed, datetime) else datetime.utcnow()
+            duration_seconds = int((end - opened).total_seconds())
+        row["duration_seconds"] = duration_seconds
+
+        if include_detainees:
+            detainees = []
+            async for d in db.detainees.find({"session_id": s["_id"]}).sort("created_at", 1):
+                detainees.append({
+                    "id": str(d["_id"]),
+                    "code": d.get("code", ""),
+                    "full_name": d.get("full_name", ""),
+                    "cccd_number": d.get("cccd_number", "") or "",
+                    "gender": d.get("gender", "male"),
+                    "dob": d["dob"].isoformat() if isinstance(d.get("dob"), datetime) else None,
+                    "nationality": d.get("nationality", "") or "",
+                    "ethnicity": d.get("ethnicity", "") or "",
+                    "religion": d.get("religion", "") or "",
+                    "hometown": d.get("hometown", "") or "",
+                    "address": d.get("address", "") or "",
+                    "issued_date": d["issued_date"].isoformat() if isinstance(d.get("issued_date"), datetime) else None,
+                    "expiry_date": d["expiry_date"].isoformat() if isinstance(d.get("expiry_date"), datetime) else None,
+                    "height_cm": d.get("height_cm"),
+                    "weight_kg": d.get("weight_kg"),
+                    "cell_code": d.get("cell_code", "") or "",
+                    "charge": d.get("charge", "") or "",
+                    "date_in": d["date_in"].isoformat() if isinstance(d.get("date_in"), datetime) else None,
+                    "note": d.get("note", "") or "",
+                    "photos": d.get("photos") or {},
+                    "created_at": d["created_at"].isoformat() if isinstance(d.get("created_at"), datetime) else None,
+                    "updated_at": d["updated_at"].isoformat() if isinstance(d.get("updated_at"), datetime) else None,
+                    "created_by": d.get("created_by", ""),
+                })
+            row["detainees"] = detainees
+            row["detainee_count"] = row.get("detainee_count", len(detainees))
+        items.append(row)
+
+    return {
+        "total": total,
+        "open_count": open_count,
+        "closed_count": closed_count,
+        "skip": skip,
+        "limit": limit,
+        "items": items,
+    }
+
+
 @app.get("/api/sessions")
 async def list_sessions(
     status: Optional[str] = Query(None, pattern=r"^(open|closed)$"),

@@ -956,9 +956,165 @@ function InfoTile({ icon, label, value }) {
 }
 
 function SyncPage() {
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [selected, setSelected] = useState(() => new Set());
+  const [syncingIds, setSyncingIds] = useState(() => new Set());
+  const [q, setQ] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = {};
+      if (statusFilter) params.status = statusFilter;
+      const r = await api.listSessions(params);
+      setSessions(r.items || []);
+    } catch (e) {
+      setError(e.message);
+      setSessions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [statusFilter]);
+
+  const filtered = sessions.filter((s) => {
+    if (!q.trim()) return true;
+    const kw = q.trim().toLowerCase();
+    return (
+      (s.code || "").toLowerCase().includes(kw) ||
+      (s.officer || "").toLowerCase().includes(kw) ||
+      (s.officer_full_name || "").toLowerCase().includes(kw) ||
+      (s.location || "").toLowerCase().includes(kw)
+    );
+  });
+
+  const allChecked = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
+  const toggleOne = (id) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+  const toggleAll = () => {
+    if (allChecked) setSelected(new Set());
+    else setSelected(new Set(filtered.map((s) => s.id)));
+  };
+
+  const syncOne = async (session) => {
+    setSyncingIds((prev) => new Set(prev).add(session.id));
+    try {
+      // TODO: gọi API đồng bộ tới hệ thống bên ngoài — placeholder, người dùng tự xử lý sau
+      await new Promise((r) => setTimeout(r, 400));
+      console.log("[sync] payload for", session.code, "→ TODO: POST tới hệ thống bên khác");
+    } finally {
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(session.id);
+        return next;
+      });
+    }
+  };
+
+  const syncSelected = async () => {
+    const targets = filtered.filter((s) => selected.has(s.id));
+    for (const s of targets) {
+      // eslint-disable-next-line no-await-in-loop
+      await syncOne(s);
+    }
+  };
+
+  const fmtDT = (iso) => {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      if (isNaN(d)) return "—";
+      return d.toLocaleString("vi-VN");
+    } catch { return "—"; }
+  };
+
   return (
     <div className="page">
-      <PageHeader title="Đồng bộ dữ liệu" subtitle="Chức năng đang được phát triển" />
+      <PageHeader title="Đồng bộ dữ liệu" subtitle="Chọn các phiên làm việc để đồng bộ sang hệ thống bên khác" />
+
+      <div className="sync-toolbar">
+        <input
+          className="control sync-search"
+          placeholder="Tìm theo mã phiên, cán bộ, địa điểm..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <select className="control" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Tất cả trạng thái</option>
+          <option value="open">Đang mở</option>
+          <option value="closed">Đã đóng</option>
+        </select>
+        <button className="button" onClick={load} disabled={loading}>{loading ? "Đang tải..." : "Làm mới"}</button>
+        <div className="sync-toolbar-spacer" />
+        <button
+          className="button primary"
+          disabled={selected.size === 0 || syncingIds.size > 0}
+          onClick={syncSelected}
+          title={selected.size === 0 ? "Chọn ít nhất 1 phiên" : `Đồng bộ ${selected.size} phiên đã chọn`}
+        >
+          Đồng bộ {selected.size > 0 ? `(${selected.size})` : ""}
+        </button>
+      </div>
+
+      {error && <div className="error-box">{error}</div>}
+
+      <div className="sync-table-wrap">
+        <table className="sync-table">
+          <thead>
+            <tr>
+              <th style={{ width: 40 }}>
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Chọn tất cả" />
+              </th>
+              <th>Mã phiên</th>
+              <th>Trạng thái</th>
+              <th>Cán bộ</th>
+              <th>Địa điểm</th>
+              <th>Mở lúc</th>
+              <th>Đóng lúc</th>
+              <th style={{ textAlign: "center" }}>Số HS</th>
+              <th style={{ width: 140 }}>Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && !loading && (
+              <tr><td colSpan={9} className="sync-empty">Không có phiên nào phù hợp.</td></tr>
+            )}
+            {filtered.map((s) => {
+              const busy = syncingIds.has(s.id);
+              return (
+                <tr key={s.id} className={selected.has(s.id) ? "row-selected" : ""}>
+                  <td><input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></td>
+                  <td><strong>{s.code}</strong></td>
+                  <td>
+                    <span className={"sync-badge " + (s.status === "open" ? "open" : "closed")}>
+                      {s.status === "open" ? "Đang mở" : "Đã đóng"}
+                    </span>
+                  </td>
+                  <td>{s.officer_full_name || s.officer}</td>
+                  <td>{s.location || "—"}</td>
+                  <td>{fmtDT(s.opened_at)}</td>
+                  <td>{fmtDT(s.closed_at)}</td>
+                  <td style={{ textAlign: "center" }}>{s.detainee_count || 0}</td>
+                  <td>
+                    <button className="button small" disabled={busy} onClick={() => syncOne(s)}>
+                      {busy ? "Đang đồng bộ..." : "Đồng bộ"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
