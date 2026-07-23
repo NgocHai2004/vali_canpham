@@ -1013,58 +1013,76 @@ function SyncPage() {
     setSyncErrors((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
     setSyncSuccess((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
     try {
+      const REMOTE = "/api/proxy";  // proxy qua backend để tránh CORS
+
+      // Upload 1 ảnh lên server bên kia qua proxy, trả về URL bên kia
+      const uploadPhoto = async (url) => {
+        if (!url) return "";
+        try {
+          const absUrl = url.startsWith("http") ? url : url;
+          const imgRes = await fetch(absUrl);
+          if (!imgRes.ok) return "";
+          const blob = await imgRes.blob();
+          const ext = blob.type.includes("png") ? "png" : "jpg";
+          const form = new FormData();
+          form.append("file", blob, `photo.${ext}`);
+          const j = await api.request(`${REMOTE}/upload-image`, { method: "POST", body: form });
+          return j.url || "";
+        } catch { return ""; }
+      };
+
       // Lấy danh sách can phạm đầy đủ trong phiên
       const detail = await api.request(`/api/sessions/${session.id}`);
       const detaineeFull = await Promise.all(
         (detail.detainees || []).map((d) => api.getDetainee(d.id).catch(() => d))
       );
 
-      const BASE_URL = "http://192.168.21.24:8000";
-      const toAbsUrl = (url) => {
-        if (!url) return "";
-        return url.startsWith("http") ? url : `${BASE_URL}${url}`;
-      };
-
-      const mappedDetainees = detaineeFull.map((d) => ({
-        personal_id: d.personal_id || d.code || "",
-        full_name: d.full_name || "",
-        gender: d.gender || "male",
-        dob: d.dob || null,
-        cccd_number: d.cccd_number || "",
-        nationality: d.nationality || "Việt Nam",
-        ethnicity: d.ethnicity || "",
-        religion: d.religion || "",
-        hometown: d.hometown || "",
-        address: d.address || "",
-        issued_date: d.issued_date || null,
-        expiry_date: d.expiry_date || null,
-        issued_place: d.issued_place || "",
-        height_cm: d.height_cm || null,
-        weight_kg: d.weight_kg || null,
-        cell_code: d.cell_code || "",
-        charge: d.charge || "",
-        date_in: d.date_in || null,
-        note: d.note || "",
-        created_by: d.created_by || "",
-        photos: {
-          cccd_front:      toAbsUrl(d.photos?.cccd_front || ""),
-          cccd_back:       toAbsUrl(d.photos?.cccd_back || ""),
-          portrait_front:  toAbsUrl(d.photos?.portrait_front || d.photo_url || ""),
-          portrait_left:   toAbsUrl(d.photos?.portrait_left || ""),
-          portrait_right:  toAbsUrl(d.photos?.portrait_right || ""),
-          fp_l1: toAbsUrl(d.photos?.fp_l1 || ""),
-          fp_l2: toAbsUrl(d.photos?.fp_l2 || ""),
-          fp_l3: toAbsUrl(d.photos?.fp_l3 || ""),
-          fp_l4: toAbsUrl(d.photos?.fp_l4 || ""),
-          fp_l5: toAbsUrl(d.photos?.fp_l5 || ""),
-          fp_r1: toAbsUrl(d.photos?.fp_r1 || ""),
-          fp_r2: toAbsUrl(d.photos?.fp_r2 || ""),
-          fp_r3: toAbsUrl(d.photos?.fp_r3 || ""),
-          fp_r4: toAbsUrl(d.photos?.fp_r4 || ""),
-          fp_r5: toAbsUrl(d.photos?.fp_r5 || ""),
-          iris_left:  toAbsUrl(d.photos?.iris_left || ""),
-          iris_right: toAbsUrl(d.photos?.iris_right || ""),
-        },
+      // Upload ảnh từng can phạm sang bên kia rồi map payload
+      const mappedDetainees = await Promise.all(detaineeFull.map(async (d) => {
+        const p = d.photos || {};
+        const [cccd_front, cccd_back, portrait_front, portrait_left, portrait_right,
+          fp_l1, fp_l2, fp_l3, fp_l4, fp_l5,
+          fp_r1, fp_r2, fp_r3, fp_r4, fp_r5,
+          iris_left, iris_right] = await Promise.all([
+          uploadPhoto(p.cccd_front),
+          uploadPhoto(p.cccd_back),
+          uploadPhoto(p.portrait_front || d.photo_url),
+          uploadPhoto(p.portrait_left),
+          uploadPhoto(p.portrait_right),
+          uploadPhoto(p.fp_l1), uploadPhoto(p.fp_l2), uploadPhoto(p.fp_l3),
+          uploadPhoto(p.fp_l4), uploadPhoto(p.fp_l5),
+          uploadPhoto(p.fp_r1), uploadPhoto(p.fp_r2), uploadPhoto(p.fp_r3),
+          uploadPhoto(p.fp_r4), uploadPhoto(p.fp_r5),
+          uploadPhoto(p.iris_left), uploadPhoto(p.iris_right),
+        ]);
+        return {
+          personal_id: d.personal_id || d.code || "",
+          full_name: d.full_name || "",
+          gender: d.gender || "male",
+          dob: d.dob || null,
+          cccd_number: d.cccd_number || "",
+          nationality: d.nationality || "Việt Nam",
+          ethnicity: d.ethnicity || "",
+          religion: d.religion || "",
+          hometown: d.hometown || "",
+          address: d.address || "",
+          issued_date: d.issued_date || null,
+          expiry_date: d.expiry_date || null,
+          issued_place: d.issued_place || "",
+          height_cm: d.height_cm || null,
+          weight_kg: d.weight_kg || null,
+          cell_code: d.cell_code || "",
+          charge: d.charge || "",
+          date_in: d.date_in || null,
+          note: d.note || "",
+          created_by: d.created_by || "",
+          photos: {
+            cccd_front, cccd_back, portrait_front, portrait_left, portrait_right,
+            fp_l1, fp_l2, fp_l3, fp_l4, fp_l5,
+            fp_r1, fp_r2, fp_r3, fp_r4, fp_r5,
+            iris_left, iris_right,
+          },
+        };
       }));
 
       const payload = {
@@ -1072,16 +1090,10 @@ function SyncPage() {
         items: [{ detainees: mappedDetainees }],
       };
 
-      const res = await fetch("http://192.168.22.65:3000/api/sync-detainee", {
+      await api.request(`${REMOTE}/sync-detainee`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Server trả về ${res.status}: ${err}`);
-      }
       setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
     } catch (e) {
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));

@@ -1,6 +1,7 @@
 import os
 import io
 import re
+import httpx
 from datetime import datetime, timedelta, date
 from typing import Optional, List
 from contextlib import asynccontextmanager
@@ -1387,3 +1388,35 @@ async def delete_user(user_id: str, request: Request, admin: dict = Depends(requ
     await db.users.delete_one({"_id": _oid(user_id)})
     await _log(request, admin, "delete", "user", target["username"])
     return {"ok": True}
+
+
+# ==================== SYNC PROXY (tránh CORS khi gọi hệ thống bên ngoài) ====================
+import httpx
+
+SYNC_REMOTE = os.getenv("SYNC_REMOTE_URL", "http://192.168.22.65:3000")
+
+@app.post("/api/proxy/upload-image")
+async def proxy_upload_image(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    data = await file.read()
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.post(
+            f"{SYNC_REMOTE}/api/upload-image",
+            files={"image": (file.filename, data, file.content_type)},
+        )
+    if not res.is_success:
+        raise HTTPException(res.status_code, res.text)
+    return res.json()
+
+
+@app.post("/api/proxy/sync-detainee")
+async def proxy_sync_detainee(request: Request, user: dict = Depends(get_current_user)):
+    body = await request.body()
+    async with httpx.AsyncClient(timeout=60) as client:
+        res = await client.post(
+            f"{SYNC_REMOTE}/api/sync-detainee",
+            content=body,
+            headers={"Content-Type": "application/json"},
+        )
+    if not res.is_success:
+        raise HTTPException(res.status_code, res.text)
+    return res.json()

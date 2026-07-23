@@ -518,7 +518,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
   const [photos, setPhotos] = useState(seed.photos);
-  const [cccdCardPortrait, setCccdCardPortrait] = useState("");
+  const [cccdCardPortrait, setCccdCardPortrait] = useState(seed.photos?.cccd_front || seed.photos?.portrait_front || "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
@@ -538,6 +538,50 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setPhotos(seed.photos);
     setErr("");
     setOk("");
+
+    const savedUrl = seed.photos?.cccd_front;
+    if (!savedUrl) {
+      setCccdCardPortrait("");
+      return;
+    }
+    // Hiển thị tạm ảnh CCCD gốc trong khung; re-crop bất đồng bộ ở dưới
+    setCccdCardPortrait(savedUrl);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = () => reject(new Error("Không tải được ảnh CCCD đã lưu"));
+          i.src = savedUrl;
+        });
+        const targetRatio = (22.5 * 1024) / (55 * 596);
+        const imgRatio = img.width / img.height;
+        let cropW, cropH;
+        if (imgRatio > targetRatio) {
+          cropH = img.height;
+          cropW = Math.round(cropH * targetRatio);
+        } else {
+          cropW = img.width;
+          cropH = Math.round(cropW / targetRatio);
+        }
+        const cropX = Math.round((img.width - cropW) / 2);
+        const cropY = Math.round((img.height - cropH) / 2);
+        const outW = 300;
+        const outH = Math.round(outW / targetRatio);
+        const canvas = document.createElement("canvas");
+        canvas.width = outW;
+        canvas.height = outH;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        if (!cancelled) setCccdCardPortrait(dataUrl);
+      } catch {
+        // giữ savedUrl làm fallback nếu re-crop lỗi
+      }
+    })();
+    return () => { cancelled = true; };
   }, [seed]);
 
   useEffect(() => {
@@ -667,8 +711,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         const jpgFile = new File([file], file.name, { type: "image/jpeg" });
         const res = await api.uploadPhoto(jpgFile);
         setPhoto("cccd_front", res.url);
+        setPhoto("portrait_front", res.url);
       } catch (uploadEx) {
         console.error("[CCCD] Không upload được ảnh chân dung:", uploadEx);
+        setErr("Đọc CCCD thành công nhưng không lưu được ảnh: " + uploadEx.message);
       }
     }
   };
