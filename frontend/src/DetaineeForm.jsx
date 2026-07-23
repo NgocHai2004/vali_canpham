@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, cccdApi } from "./api";
+import { api, cccdApi, weightApi } from "./api";
 
 const emptyForm = {
   full_name: "",
@@ -15,6 +15,8 @@ const emptyForm = {
   date_in: "",
   note: "",
   photo_url: "",
+  height_cm: "",
+  weight_kg: "",
 };
 
 function isoToDMY(iso) {
@@ -40,8 +42,25 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const [dupCheck, setDupCheck] = useState(null);
   const [confirmDup, setConfirmDup] = useState(false);
   const [reading, setReading] = useState(false);
+  const [weightFlash, setWeightFlash] = useState(false);
   const cccdSidRef = useRef(null);
   const cccdAbortRef = useRef(null);
+  const weightFlashTimerRef = useRef(null);
+
+  useEffect(() => {
+    const close = weightApi.connect((payload) => {
+      const kg = Math.round(payload.weight_kg);
+      if (!kg || kg < 20 || kg > 200) return;
+      setForm((f) => ({ ...f, weight_kg: kg }));
+      setWeightFlash(true);
+      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
+      weightFlashTimerRef.current = setTimeout(() => setWeightFlash(false), 1200);
+    });
+    return () => {
+      close();
+      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
+    };
+  }, []);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -227,6 +246,30 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
               <Field label="Địa chỉ thường trú">
                 <input className="input" value={form.address || ""} onChange={set("address")} />
               </Field>
+
+              <div className="row-2">
+                <Field label="Chiều cao (cm)">
+                  <input
+                    className="input"
+                    type="number"
+                    min={50}
+                    max={250}
+                    value={form.height_cm ?? ""}
+                    onChange={set("height_cm")}
+                  />
+                </Field>
+                <Field label="Cân nặng (kg)">
+                  <input
+                    className={"input" + (weightFlash ? " weight-flash" : "")}
+                    type="number"
+                    min={20}
+                    max={200}
+                    value={form.weight_kg ?? ""}
+                    onChange={set("weight_kg")}
+                    title="Máy cân bắn về sẽ tự điền vào đây"
+                  />
+                </Field>
+              </div>
 
               <div className="row-2">
                 <Field label="Buồng giam">

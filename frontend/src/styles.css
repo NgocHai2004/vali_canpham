@@ -1556,6 +1556,15 @@ a:hover {
   box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.1);
 }
 
+@keyframes weight-flash-kf {
+  0%   { background: #d1fadf; border-color: #12b76a; box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.18); }
+  100% { background: #fff;    border-color: #e2e8f2; box-shadow: none; }
+}
+
+.input.weight-flash {
+  animation: weight-flash-kf 1.2s ease-out;
+}
+
 select.input {
   cursor: pointer;
 }

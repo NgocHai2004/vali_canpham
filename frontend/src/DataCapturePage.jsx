@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, fpApi, cccdApi, b64PngToFile } from "./api";
+import { api, fpApi, cccdApi, b64PngToFile, weightApi } from "./api";
 import cccdTemplateBg from "./assets/cccd-template.png";
 
 const FINGERS = [
@@ -588,6 +588,25 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     api.listCells().then(setCells).catch(() => setCells([]));
   }, []);
 
+  // WebSocket lắng nghe cân nặng từ máy cân ngoài (POST /api/weight/push -> broadcast)
+  const [weightFlash, setWeightFlash] = useState(false);
+  const weightFlashTimerRef = useRef(null);
+  useEffect(() => {
+    const close = weightApi.connect((payload) => {
+      const raw = Number(payload.weight_kg);
+      if (!Number.isFinite(raw) || raw < 20 || raw > 200) return;
+      const kg = Math.round(raw * 10) / 10;
+      setForm((f) => ({ ...f, weight_kg: kg.toFixed(1) }));
+      setWeightFlash(true);
+      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
+      weightFlashTimerRef.current = setTimeout(() => setWeightFlash(false), 1200);
+    });
+    return () => {
+      close();
+      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
+    };
+  }, []);
+
   // Cooldown 10s: banner ok/err tự ẩn sau 10 giây
   useEffect(() => {
     if (!ok) return;
@@ -711,7 +730,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         const jpgFile = new File([file], file.name, { type: "image/jpeg" });
         const res = await api.uploadPhoto(jpgFile);
         setPhoto("cccd_front", res.url);
-        setPhoto("portrait_front", res.url);
       } catch (uploadEx) {
         console.error("[CCCD] Không upload được ảnh chân dung:", uploadEx);
         setErr("Đọc CCCD thành công nhưng không lưu được ảnh: " + uploadEx.message);
@@ -813,8 +831,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         issued_date: strOrNull(form.issued_date),
         expiry_date: strOrNull(form.expiry_date),
         issued_place: strOrNull(form.issued_place),
-        height_cm: form.height_cm ? Number(form.height_cm) : null,
-        weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
+        height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
+        weight_kg: form.weight_kg ? Math.round(Number(form.weight_kg)) : null,
         charge: strOrNull(form.charge),
         cell_code: strOrNull(form.cell_code),
         note: strOrNull(form.note),

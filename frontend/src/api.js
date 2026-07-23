@@ -42,7 +42,13 @@ async function request(path, opts = {}) {
   const ct = res.headers.get("content-type") || "";
   const data = ct.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
-    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy chủ");
+    console.error("[api]", path, res.status, data);
+    let msg;
+    if (Array.isArray(data?.detail)) {
+      msg = data.detail.map((e) => `${e.loc ? e.loc.join(".") : "?"}: ${e.msg}`).join("; ");
+    } else {
+      msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy chủ");
+    }
     throw new Error(msg);
   }
   return data;
@@ -228,6 +234,57 @@ export const cccdApi = {
     cccdRequest(`/api/cccd/session/${sid}/read_again`, { method: "POST" }),
   cancel: (sid) =>
     cccdRequest(`/api/cccd/session/${sid}`, { method: "DELETE" }),
+};
+
+// ============ Weight scale WebSocket (máy cân bên ngoài POST /api/weight/push) ============
+export const weightApi = {
+  // Mở WebSocket lắng nghe cân nặng. onValue({weight_kg, source, ts}) mỗi khi máy cân bắn về.
+  // Trả về hàm close() để đóng kết nối khi component unmount.
+  connect(onValue) {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    // Dev Vite (:5173): nối thẳng vào backend :8000, tránh phụ thuộc `ws: true` trong vite.config.js.
+    // Prod / khi FE serve cùng host với BE: giữ nguyên location.host.
+    const host = location.port === "5173" ? `${location.hostname}:8000` : location.host;
+    const url = `${proto}//${host}/api/weight/ws`;
+    let ws = null;
+    let closed = false;
+    let retry = 0;
+    let retryTimer = null;
+
+    const open = () => {
+      try {
+        ws = new WebSocket(url);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+      ws.onopen = () => { retry = 0; };
+      ws.onmessage = (e) => {
+        let payload;
+        try { payload = JSON.parse(e.data); } catch { return; }
+        if (payload && typeof payload.weight_kg === "number") onValue(payload);
+      };
+      ws.onerror = () => { /* để onclose xử lý reconnect */ };
+      ws.onclose = () => {
+        if (closed) return;
+        scheduleReconnect();
+      };
+    };
+
+    const scheduleReconnect = () => {
+      retry = Math.min(retry + 1, 4);
+      const delay = Math.min(1000 * 2 ** (retry - 1), 10000);
+      retryTimer = setTimeout(open, delay);
+    };
+
+    open();
+
+    return () => {
+      closed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      try { ws && ws.close(); } catch { /* noop */ }
+    };
+  },
 };
 
 // base64 PNG (không kèm data:image/png;base64,) → File

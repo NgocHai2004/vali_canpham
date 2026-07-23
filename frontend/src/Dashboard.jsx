@@ -151,6 +151,8 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
   };
   const handleSessionClosed = () => {
     setSessionCtx(null);
+    setActiveSessionId(null);
+    setPage("sessions");
   };
 
   return (

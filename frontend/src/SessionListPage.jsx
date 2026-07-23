@@ -58,6 +58,24 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [modalOpen, setModalOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const [stats, setStats] = useState({ create: 0, update: 0, delete: 0, import: 0 });
+  const [deletingId, setDeletingId] = useState(null);
+
+  const removeSession = async (s) => {
+    const n = s.detainee_count || 0;
+    const warn = n > 0
+      ? `⚠ Xoá phiên ${s.code} sẽ XOÁ VĨNH VIỄN ${n} hồ sơ can phạm trong phiên.\n\nKhông thể hoàn tác. Bạn chắc chắn?`
+      : `Xoá phiên ${s.code}?`;
+    if (!window.confirm(warn)) return;
+    setDeletingId(s.id);
+    try {
+      await api.deleteSession(s.id);
+      await load();
+    } catch (ex) {
+      alert(ex.message || "Không xoá được phiên");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -203,30 +221,47 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
               <th>Đóng lúc</th>
               <th>Địa điểm</th>
               <th style={{ textAlign: "right" }}>Hồ sơ</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={7} className="session-list-empty">Đang tải...</td></tr>
+              <tr><td colSpan={8} className="session-list-empty">Đang tải...</td></tr>
             )}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={7} className="session-list-empty">Chưa có phiên nào.</td></tr>
+              <tr><td colSpan={8} className="session-list-empty">Chưa có phiên nào.</td></tr>
             )}
-            {!loading && items.map((s) => (
-              <tr key={s.id} onClick={() => onOpenSession && onOpenSession(s.id)} className="session-list-row">
-                <td>
-                  {s.status === "open"
-                    ? <span className="badge badge-open">● Đang mở</span>
-                    : <span className="badge badge-closed">✓ Đã đóng</span>}
-                </td>
-                <td className="mono">{s.code}</td>
-                <td>{s.officer}{s.officer_full_name ? ` (${s.officer_full_name})` : ""}</td>
-                <td>{fmtDateTime(s.opened_at)}</td>
-                <td>{fmtDateTime(s.closed_at)}</td>
-                <td>{s.location || "—"}</td>
-                <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
-              </tr>
-            ))}
+            {!loading && items.map((s) => {
+              const canDelete = s.status === "open" && (role === "admin" || s.officer === username);
+              return (
+                <tr key={s.id} onClick={() => onOpenSession && onOpenSession(s.id)} className="session-list-row">
+                  <td>
+                    {s.status === "open"
+                      ? <span className="badge badge-open">● Đang mở</span>
+                      : <span className="badge badge-closed">✓ Đã đóng</span>}
+                  </td>
+                  <td className="mono">{s.code}</td>
+                  <td>{s.officer}{s.officer_full_name ? ` (${s.officer_full_name})` : ""}</td>
+                  <td>{fmtDateTime(s.opened_at)}</td>
+                  <td>{fmtDateTime(s.closed_at)}</td>
+                  <td>{s.location || "—"}</td>
+                  <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
+                  <td style={{ textAlign: "right" }}>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="btn-link btn-link-danger"
+                        disabled={deletingId === s.id}
+                        onClick={(e) => { e.stopPropagation(); removeSession(s); }}
+                        title={s.detainee_count ? `Xoá phiên (sẽ xoá ${s.detainee_count} hồ sơ)` : "Xoá phiên"}
+                      >
+                        {deletingId === s.id ? "Đang xoá..." : "Xoá"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         <div className="session-list-footer">Tổng: {total}</div>
@@ -236,6 +271,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
         <SessionOpenModal
           officerName={username}
           officerFullName={fullName}
+          role={role}
           onCancel={() => setModalOpen(false)}
           onCreated={handleCreated}
         />

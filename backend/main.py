@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form, Query, Request
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
@@ -159,8 +159,8 @@ class DetaineeIn(BaseModel):
     issued_date: Optional[str] = None
     expiry_date: Optional[str] = None
     issued_place: Optional[str] = None
-    height_cm: Optional[int] = Field(None, ge=50, le=250)
-    weight_kg: Optional[int] = Field(None, ge=20, le=200)
+    height_cm: Optional[float] = Field(None, ge=50, le=250)
+    weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
     charge: Optional[str] = None
     date_in: Optional[str] = None
@@ -173,6 +173,7 @@ class DetaineeIn(BaseModel):
 class WorkSessionIn(BaseModel):
     location: str = Field(default="", max_length=200)
     note: str = Field(default="", max_length=500)
+    officer: Optional[str] = Field(default=None, max_length=64)
 
 
 async def _next_session_code() -> str:
@@ -592,16 +593,25 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
 # ==================== WORK SESSIONS ====================
 @app.post("/api/sessions")
 async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
-    existing = await _get_open_session_or_none(user["username"])
+    is_admin = user.get("role") == "admin"
+    officer_username = user["username"]
+    officer_full_name_override: Optional[str] = None
+    if body.officer and body.officer.strip() and body.officer.strip() != user["username"]:
+        if not is_admin:
+            raise HTTPException(403, "Chỉ admin mới có thể mở phiên thay cho cán bộ khác.")
+        # Admin nhập tên tự do: giữ chủ sở hữu phiên là admin (để phân quyền không đổi),
+        # còn "tên cán bộ" hiển thị trên phiên/báo cáo là tên tự do admin nhập.
+        officer_full_name_override = body.officer.strip()
+    existing = await _get_open_session_or_none(officer_username)
     if existing:
         raise HTTPException(409, f"Bạn đang có 1 phiên đang mở ({existing.get('code','?')}). Đóng phiên đó trước khi mở phiên mới.")
-    officer_doc = await db.users.find_one({"username": user["username"]})
+    officer_doc = await db.users.find_one({"username": officer_username})
     now = datetime.utcnow()
     doc = {
         "code": await _next_session_code(),
         "status": "open",
-        "officer": user["username"],
-        "officer_full_name": (officer_doc or {}).get("full_name", "") or user["username"],
+        "officer": officer_username,
+        "officer_full_name": officer_full_name_override or (officer_doc or {}).get("full_name", "") or officer_username,
         "location": body.location.strip(),
         "note": body.note.strip(),
         "opened_at": now,
@@ -889,11 +899,16 @@ async def delete_session(session_id: str, request: Request, user: dict = Depends
         raise HTTPException(403, "Bạn không có quyền xoá phiên này.")
     if doc.get("status") != "open":
         raise HTTPException(400, "Chỉ có thể xoá phiên đang mở, chưa đóng.")
-    if doc.get("detainee_count", 0) > 0:
-        raise HTTPException(400, "Chỉ có thể xoá phiên rỗng (0 hồ sơ).")
+    # Xoá toàn bộ hồ sơ can phạm thuộc phiên này
+    cursor = db.detainees.find({"session_id": doc["_id"]}, {"personal_id": 1})
+    deleted_count = 0
+    async for d in cursor:
+        await db.detainees.delete_one({"_id": d["_id"]})
+        deleted_count += 1
+        await _log(request, user, "delete", "detainee", d.get("personal_id", str(d["_id"])), ref_id=str(d["_id"]), session_id=doc["_id"])
     await db.work_sessions.delete_one({"_id": doc["_id"]})
-    await _log(request, user, "delete", "work_session", doc.get("code", ""), ref_id=session_id, session_id=doc["_id"])
-    return {"ok": True}
+    await _log(request, user, "delete", "work_session", doc.get("code", ""), ref_id=session_id, session_id=doc["_id"], data={"deleted_detainees": deleted_count})
+    return {"ok": True, "deleted_detainees": deleted_count}
 
 
 # ==================== PHOTO UPLOAD ====================
@@ -955,6 +970,50 @@ async def cccd_session_read_again(sid: str, user: dict = Depends(get_current_use
 async def cccd_session_delete(sid: str, user: dict = Depends(get_current_user)):
     _cccd_end_session(sid)
     return {"ok": True}
+
+
+# ==================== WEIGHT SCALE (push từ máy cân ngoài + WS broadcast) ====================
+from weight_hub import hub as _weight_hub
+
+WEIGHT_API_KEY = os.getenv("WEIGHT_API_KEY", "")
+
+
+class WeightPushBody(BaseModel):
+    weight_kg: float = Field(..., ge=0, le=500)
+    source: Optional[str] = Field(None, max_length=64)
+
+
+@app.post("/api/weight/push")
+async def weight_push(body: WeightPushBody, request: Request):
+    if WEIGHT_API_KEY:
+        if request.headers.get("X-Weight-Key", "") != WEIGHT_API_KEY:
+            raise HTTPException(401, "Sai X-Weight-Key")
+    payload = {
+        "weight_kg": round(body.weight_kg, 1),
+        "source": body.source or "",
+        "ts": datetime.utcnow().isoformat(),
+    }
+    delivered = await _weight_hub.broadcast(payload)
+    return {"ok": True, "delivered": delivered, **payload}
+
+
+@app.get("/api/weight/last")
+async def weight_last(user: dict = Depends(get_current_user)):
+    return _weight_hub.last_value or {"weight_kg": None}
+
+
+@app.websocket("/api/weight/ws")
+async def weight_ws(ws: WebSocket):
+    await _weight_hub.connect(ws)
+    try:
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await _weight_hub.disconnect(ws)
 
 
 # ==================== IMPORT / EXPORT ====================

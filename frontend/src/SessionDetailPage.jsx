@@ -79,6 +79,25 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     }
   };
 
+  const doDelete = async () => {
+    if (!session) return;
+    const n = session.detainee_count || 0;
+    const warn = n > 0
+      ? `⚠ CẢNH BÁO: Xoá phiên ${session.code} sẽ XOÁ VĨNH VIỄN ${n} hồ sơ can phạm trong phiên này.\n\nHành động không thể hoàn tác. Bạn chắc chắn?`
+      : `Xoá phiên ${session.code}? (phiên rỗng)`;
+    if (!window.confirm(warn)) return;
+    setClosing(true);
+    setErr("");
+    try {
+      await api.deleteSession(sessionId);
+      if (onSessionClosed) onSessionClosed(session);
+    } catch (ex) {
+      setErr(ex.message || "Không xoá được phiên");
+    } finally {
+      setClosing(false);
+    }
+  };
+
   const doDownload = async () => {
     if (!session) return;
     try {
@@ -156,6 +175,9 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
               <button className="btn-primary" onClick={() => onAddDetainee && onAddDetainee(session.id)}>+ Thêm hồ sơ mới</button>
               <button className="btn-danger-outline" onClick={doClose} disabled={closing}>
                 {closing ? "Đang đóng..." : "Đóng phiên"}
+              </button>
+              <button className="btn-danger-outline" onClick={doDelete} disabled={closing}>
+                {closing ? "Đang xoá..." : "Xoá phiên"}
               </button>
             </>
           ) : (
