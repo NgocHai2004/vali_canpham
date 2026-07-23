@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
@@ -70,6 +70,7 @@ const NAV_BASE = [
   { key: "detainees", label: "Hồ sơ can phạm", icon: Icon.folder },
   { key: "cells", label: "Đồng bộ dữ liệu", icon: Icon.sync },
   { key: "search", label: "Tra cứu", icon: Icon.search },
+  { key: "detainee_history", label: "Lịch sử thao tác can phạm", icon: Icon.log },
 ];
 const NAV_ADMIN = [{ key: "users", label: "Quản lý tài khoản", icon: Icon.users }];
 
@@ -223,6 +224,7 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
             />
           )}
           {page === "search" && <SearchPage />}
+          {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
           {page === "logs" && <LogsPage />}
           {page === "users" && isAdmin && <UsersPage currentUser={username} />}
         </main>
@@ -1897,6 +1899,258 @@ function PageHeader({ title, subtitle, children }) {
 
 function StateBox({ type = "", children }) {
   return <div className={`state-box ${type}`}>{children}</div>;
+}
+
+function DetaineeHistoryPage({ onEdit }) {
+  const [logs, setLogs] = useState([]);
+  const [counts, setCounts] = useState({ create: 0, update: 0, delete: 0, import: 0 });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [q, setQ] = useState("");
+  const [viewing, setViewing] = useState(null);
+  const [busyRef, setBusyRef] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const params = { resource: "detainee" };
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (actionFilter) params.action = actionFilter;
+      const res = await api.listLogs(params);
+      setLogs(res.items || []);
+      setCounts(res.counts || { create: 0, update: 0, delete: 0, import: 0 });
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filtered = useMemo(() => {
+    const kw = q.trim().toLowerCase();
+    if (!kw) return logs;
+    return logs.filter((l) => {
+      const officer = l.officer || {};
+      return (
+        (l.ref || "").toLowerCase().includes(kw) ||
+        (l.actor || "").toLowerCase().includes(kw) ||
+        (officer.full_name || "").toLowerCase().includes(kw) ||
+        (l.session && (l.session.code || "").toLowerCase().includes(kw))
+      );
+    });
+  }, [logs, q]);
+
+  const labels = {
+    create: "Đăng ký mới",
+    update: "Cập nhật",
+    delete: "Xoá",
+    import: "Nhập Excel",
+  };
+
+  const resolveDetainee = async (log) => {
+    if (log.ref_id) {
+      try { return await api.getDetainee(log.ref_id); } catch { /* fallback */ }
+    }
+    if (log.ref) return await api.getDetaineeByPersonalId(log.ref);
+    throw new Error("Log không có tham chiếu can phạm");
+  };
+
+  const onView = async (log) => {
+    setBusyRef(log.id);
+    setNotice("");
+    try {
+      const d = await resolveDetainee(log);
+      setViewing(d);
+    } catch (e) {
+      setNotice(`Không mở được hồ sơ: ${e.message}`);
+    } finally {
+      setBusyRef("");
+    }
+  };
+
+  const onEditLog = async (log) => {
+    setBusyRef(log.id);
+    setNotice("");
+    try {
+      const d = await resolveDetainee(log);
+      if (onEdit) onEdit(d);
+    } catch (e) {
+      setNotice(`Không mở được hồ sơ: ${e.message}`);
+    } finally {
+      setBusyRef("");
+    }
+  };
+
+  const clearFilters = () => {
+    setDateFrom("");
+    setDateTo("");
+    setActionFilter("");
+    setQ("");
+  };
+
+  const isActable = (log) => (log.ref || log.ref_id) && log.action !== "delete";
+
+  return (
+    <div className="page report-page">
+      <div className="report-fixed">
+        <PageHeader
+          title="Lịch sử thao tác can phạm"
+          subtitle={`Nhật ký các thao tác đăng ký, cập nhật, xoá hồ sơ can phạm. Tổng ${filtered.length} bản ghi.`}
+        >
+          <button className="button secondary" onClick={load} disabled={loading}>
+            {Icon.refresh}
+            {loading ? "Đang tải..." : "Làm mới"}
+          </button>
+        </PageHeader>
+
+        <div className="report-stat-grid">
+          <ReportStat tone="blue" icon={Icon.file} label="Đăng ký mới" value={counts.create || 0} note="Hồ sơ được tạo" />
+          <ReportStat tone="orange" icon={Icon.sync} label="Đã sửa" value={counts.update || 0} note="Lượt cập nhật" />
+          <ReportStat tone="purple" icon={Icon.log} label="Đã xoá" value={counts.delete || 0} note="Hồ sơ đã xoá" />
+          <ReportStat tone="green" icon={Icon.cloudUpload} label="Nhập Excel" value={counts.import || 0} note="Lượt import" />
+        </div>
+
+        <form
+          className="report-filter"
+          onSubmit={(e) => { e.preventDefault(); load(); }}
+        >
+          <div className="report-filter-head">
+            <span className="report-filter-title">Bộ lọc lịch sử</span>
+            <span className="report-filter-hint">Lọc theo thời gian, hành động hoặc từ khoá</span>
+          </div>
+          <div className="report-filter-grid">
+            <label className="report-field">
+              <span>Từ</span>
+              <input className="control" type="datetime-local"
+                value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </label>
+            <label className="report-field">
+              <span>Đến</span>
+              <input className="control" type="datetime-local"
+                value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </label>
+            <label className="report-field">
+              <span>Hành động</span>
+              <select className="control" value={actionFilter}
+                onChange={(e) => setActionFilter(e.target.value)}>
+                <option value="">Tất cả</option>
+                <option value="create">Đăng ký mới</option>
+                <option value="update">Cập nhật</option>
+                <option value="delete">Xoá</option>
+                <option value="import">Nhập Excel</option>
+              </select>
+            </label>
+            <label className="report-field">
+              <span>Từ khoá</span>
+              <input
+                className="control"
+                type="text"
+                placeholder="Mã hồ sơ, cán bộ, mã phiên..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            <div className="report-filter-actions report-filter-actions-inline">
+              <button type="button" className="button secondary" onClick={clearFilters}>Xoá lọc</button>
+              <button type="submit" className="button primary" disabled={loading}>
+                {loading ? "Đang lọc..." : "Áp dụng"}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {error && <StateBox type="error">{error}</StateBox>}
+        {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+      </div>
+
+      <div className="report-scroll">
+        <div className="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Thời gian</th>
+                <th>Phiên</th>
+                <th>Cán bộ</th>
+                <th>Hành động</th>
+                <th>Mã hồ sơ</th>
+                <th>IP</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((log) => {
+                const busy = busyRef === log.id;
+                const officer = log.officer || {};
+                const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
+                const canAct = isActable(log);
+                return (
+                  <tr key={log.id}>
+                    <td>{formatDateTime(log.at)}</td>
+                    <td>
+                      {log.session ? (
+                        <span className="session-code-chip">
+                          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
+                            {log.session.status === "open" ? "●" : "✓"}
+                          </span>
+                          <span className="mono">{log.session.code}</span>
+                        </span>
+                      ) : (
+                        <span style={{ color: "#98a4b8" }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="officer-cell">
+                        {officer.avatar_url ? (
+                          <img className="officer-avatar" src={officer.avatar_url} alt="" />
+                        ) : (
+                          <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                        )}
+                        <div className="officer-name">
+                          <strong>{officer.full_name || log.actor}</strong>
+                          {officer.full_name ? <small>@{log.actor}</small> : null}
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
+                    <td>{log.ref || "—"}</td>
+                    <td>{log.ip || "—"}</td>
+                    <td>
+                      {canAct ? (
+                        <div className="row-actions">
+                          <button disabled={busy} onClick={() => onView(log)}>Xem</button>
+                          {onEdit && (
+                            <button disabled={busy} onClick={() => onEditLog(log)}>Mở sửa</button>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: "#98a4b8" }}>-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {!filtered.length && (
+                <tr><td colSpan={7}><div className="empty">Không có bản ghi phù hợp.</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
+    </div>
+  );
 }
 
 function SearchPage() {
