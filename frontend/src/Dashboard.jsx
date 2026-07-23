@@ -762,7 +762,7 @@ function DetaineesPage({ onEdit }) {
                       )}
                     </div>
                   </td>
-                  <td><strong>{item.code}</strong></td>
+                  <td><strong>{item.personal_id || item.code}</strong></td>
                   <td>{item.full_name}</td>
                   <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
                   <td>{item.dob ? new Date(item.dob).toLocaleDateString("vi-VN") : "-"}</td>
@@ -1005,12 +1005,86 @@ function SyncPage() {
     else setSelected(new Set(filtered.map((s) => s.id)));
   };
 
+  const [syncErrors, setSyncErrors] = useState({});
+  const [syncSuccess, setSyncSuccess] = useState({});
+
   const syncOne = async (session) => {
     setSyncingIds((prev) => new Set(prev).add(session.id));
+    setSyncErrors((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
+    setSyncSuccess((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
     try {
-      // TODO: gọi API đồng bộ tới hệ thống bên ngoài — placeholder, người dùng tự xử lý sau
-      await new Promise((r) => setTimeout(r, 400));
-      console.log("[sync] payload for", session.code, "→ TODO: POST tới hệ thống bên khác");
+      // Lấy danh sách can phạm đầy đủ trong phiên
+      const detail = await api.request(`/api/sessions/${session.id}`);
+      const detaineeFull = await Promise.all(
+        (detail.detainees || []).map((d) => api.getDetainee(d.id).catch(() => d))
+      );
+
+      const BASE_URL = "http://192.168.21.24:8000";
+      const toAbsUrl = (url) => {
+        if (!url) return "";
+        return url.startsWith("http") ? url : `${BASE_URL}${url}`;
+      };
+
+      const mappedDetainees = detaineeFull.map((d) => ({
+        personal_id: d.personal_id || d.code || "",
+        full_name: d.full_name || "",
+        gender: d.gender || "male",
+        dob: d.dob || null,
+        cccd_number: d.cccd_number || "",
+        nationality: d.nationality || "Việt Nam",
+        ethnicity: d.ethnicity || "",
+        religion: d.religion || "",
+        hometown: d.hometown || "",
+        address: d.address || "",
+        issued_date: d.issued_date || null,
+        expiry_date: d.expiry_date || null,
+        issued_place: d.issued_place || "",
+        height_cm: d.height_cm || null,
+        weight_kg: d.weight_kg || null,
+        cell_code: d.cell_code || "",
+        charge: d.charge || "",
+        date_in: d.date_in || null,
+        note: d.note || "",
+        created_by: d.created_by || "",
+        photos: {
+          cccd_front:      toAbsUrl(d.photos?.cccd_front || ""),
+          cccd_back:       toAbsUrl(d.photos?.cccd_back || ""),
+          portrait_front:  toAbsUrl(d.photos?.portrait_front || d.photo_url || ""),
+          portrait_left:   toAbsUrl(d.photos?.portrait_left || ""),
+          portrait_right:  toAbsUrl(d.photos?.portrait_right || ""),
+          fp_l1: toAbsUrl(d.photos?.fp_l1 || ""),
+          fp_l2: toAbsUrl(d.photos?.fp_l2 || ""),
+          fp_l3: toAbsUrl(d.photos?.fp_l3 || ""),
+          fp_l4: toAbsUrl(d.photos?.fp_l4 || ""),
+          fp_l5: toAbsUrl(d.photos?.fp_l5 || ""),
+          fp_r1: toAbsUrl(d.photos?.fp_r1 || ""),
+          fp_r2: toAbsUrl(d.photos?.fp_r2 || ""),
+          fp_r3: toAbsUrl(d.photos?.fp_r3 || ""),
+          fp_r4: toAbsUrl(d.photos?.fp_r4 || ""),
+          fp_r5: toAbsUrl(d.photos?.fp_r5 || ""),
+          iris_left:  toAbsUrl(d.photos?.iris_left || ""),
+          iris_right: toAbsUrl(d.photos?.iris_right || ""),
+        },
+      }));
+
+      const payload = {
+        total: mappedDetainees.length,
+        items: [{ detainees: mappedDetainees }],
+      };
+
+      const res = await fetch("http://192.168.22.65:3000/api/sync-detainee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Server trả về ${res.status}: ${err}`);
+      }
+      setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
+    } catch (e) {
+      setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev);
@@ -1105,9 +1179,17 @@ function SyncPage() {
                   <td>{fmtDT(s.closed_at)}</td>
                   <td style={{ textAlign: "center" }}>{s.detainee_count || 0}</td>
                   <td>
-                    <button className="button small" disabled={busy} onClick={() => syncOne(s)}>
-                      {busy ? "Đang đồng bộ..." : "Đồng bộ"}
-                    </button>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <button className="button small" disabled={busy} onClick={() => syncOne(s)}>
+                        {busy ? "Đang đồng bộ..." : "Đồng bộ"}
+                      </button>
+                      {syncErrors[s.id] && (
+                        <span style={{ fontSize: 11, color: "#e53e3e" }}>✗ {syncErrors[s.id]}</span>
+                      )}
+                      {syncSuccess[s.id] && !syncErrors[s.id] && (
+                        <span style={{ fontSize: 11, color: "#12af64" }}>✓ Đồng bộ thành công</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -1307,7 +1389,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id}>
-                    <td><strong>{item.code}</strong></td>
+                    <td><strong>{item.personal_id || item.code}</strong></td>
                     <td>{item.full_name}</td>
                     <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
                     <td className="ellipsis">{item.charge || "-"}</td>
@@ -1902,7 +1984,7 @@ function SearchPage() {
                       {item.photo_url ? <img src={item.photo_url} alt="" /> : (item.full_name || "?").slice(0, 1).toUpperCase()}
                     </div>
                   </td>
-                  <td><strong>{item.code}</strong></td>
+                  <td><strong>{item.personal_id || item.code}</strong></td>
                   <td>{item.full_name}</td>
                   <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
                   <td>{item.dob ? new Date(item.dob).toLocaleDateString("vi-VN") : "-"}</td>
