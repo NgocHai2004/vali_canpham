@@ -6725,10 +6725,8 @@ textarea.input {
   box-sizing: border-box;
 }
 .fp-preview-thumb img {
-  max-width: 50%;
-  max-height: 50%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   display: block;
 }

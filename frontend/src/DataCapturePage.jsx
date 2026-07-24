@@ -1258,9 +1258,9 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
 
   return (
     <>
-      <div className="body-shot-body">
+      <div className={"body-shot-body" + (showRuler ? " body-shot-body--ruler" : "")}>
         {showRuler && (
-          <div className="ruler">
+          <div className="ruler ruler--external">
             {[200, 190, 180, 170, 160, 150, 140, 130, 120, 110, 100].map((n) => (
               <span key={n}>{n}</span>
             ))}

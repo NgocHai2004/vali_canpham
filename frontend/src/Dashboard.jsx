@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
@@ -2356,22 +2356,41 @@ function DetaineeHistoryPage({ onEdit }) {
 }
 
 function SearchPage() {
+  const [mode, setMode] = useState("text"); // "text" | "cccd" | "fingerprint"
   const [items, setItems] = useState([]);
   const [cells, setCells] = useState([]);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
+  const [cccdNumber, setCccdNumber] = useState("");
+  const [fpFile, setFpFile] = useState(null);
+  const [fpPreview, setFpPreview] = useState("");
+  const [fpMatchScore, setFpMatchScore] = useState(null);
   const [cellCode, setCellCode] = useState("");
   const [gender, setGender] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [viewing, setViewing] = useState(null);
   const [searched, setSearched] = useState(false);
+  const fpInputRef = useRef(null);
 
   useEffect(() => {
     api.listCells().then(setCells).catch(() => { });
   }, []);
 
-  const doSearch = async (e) => {
+  const resetResults = () => {
+    setItems([]);
+    setTotal(0);
+    setSearched(false);
+    setError("");
+    setFpMatchScore(null);
+  };
+
+  const switchMode = (m) => {
+    setMode(m);
+    resetResults();
+  };
+
+  const doSearchText = async (e) => {
     if (e) e.preventDefault();
     setLoading(true);
     setError("");
@@ -2391,34 +2410,200 @@ function SearchPage() {
     }
   };
 
+  const doSearchCccd = async (e) => {
+    if (e) e.preventDefault();
+    const num = cccdNumber.trim();
+    if (!num) {
+      setError("Vui lòng nhập số CCCD.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ q: num, limit: "50" });
+      const res = await api.request(`/api/detainees?${params}`);
+      // Ưu tiên match chính xác cccd_number trước, rồi partial
+      const list = res.items || [];
+      const exact = list.filter((it) => it.cccd_number === num);
+      const filtered = exact.length ? exact : list;
+      setItems(filtered);
+      setTotal(filtered.length);
+      setSearched(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onFpPick = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFpFile(f);
+    const url = URL.createObjectURL(f);
+    setFpPreview(url);
+    setFpMatchScore(null);
+  };
+
+  const doSearchFingerprint = async (e) => {
+    if (e) e.preventDefault();
+    if (!fpFile) {
+      setError("Vui lòng chọn ảnh vân tay.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", fpFile);
+      const res = await api.request(`/api/detainees/match_fingerprint`, {
+        method: "POST",
+        body: fd,
+      });
+      // Response kỳ vọng: { items: [...], score?: number } hoặc { detainee: {...}, score }
+      let list = [];
+      if (Array.isArray(res.items)) list = res.items;
+      else if (res.detainee) list = [res.detainee];
+      else if (Array.isArray(res)) list = res;
+      setItems(list);
+      setTotal(list.length);
+      if (typeof res.score === "number") setFpMatchScore(res.score);
+      setSearched(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearFp = () => {
+    setFpFile(null);
+    if (fpPreview) { URL.revokeObjectURL(fpPreview); setFpPreview(""); }
+    setFpMatchScore(null);
+    if (fpInputRef.current) fpInputRef.current.value = "";
+  };
+
+  const subtitle = searched
+    ? `Tìm thấy ${total} hồ sơ${fpMatchScore != null ? ` · Độ khớp: ${(fpMatchScore * 100).toFixed(1)}%` : ""}`
+    : "Chọn phương thức tra cứu: theo tên, số CCCD, hoặc vân tay";
+
   return (
     <div className="page">
-      <PageHeader title="Tra cứu can phạm" subtitle={searched ? `Tìm thấy ${total} hồ sơ` : "Tìm kiếm theo tên, CCCD, mã hồ sơ, buồng giam, giới tính"} />
+      <PageHeader title="Tra cứu can phạm" subtitle={subtitle} />
 
-      <form className="filter-bar" onSubmit={doSearch}>
-        <input
-          className="control search-control"
-          placeholder="Tìm theo tên, số CCCD, mã hồ sơ..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <select className="control" value={cellCode} onChange={(e) => setCellCode(e.target.value)}>
-          <option value="">Tất cả buồng</option>
-          {cells.map((cell) => (
-            <option key={cell.code} value={cell.code}>
-              {cell.code} - {cell.name}
-            </option>
-          ))}
-        </select>
-        <select className="control" value={gender} onChange={(e) => setGender(e.target.value)}>
-          <option value="">Tất cả giới tính</option>
-          <option value="male">Nam</option>
-          <option value="female">Nữ</option>
-        </select>
-        <button className="button primary" type="submit" disabled={loading}>
-          {loading ? "Đang tìm..." : "Tìm kiếm"}
+      <div className="search-tabs" role="tablist" aria-label="Phương thức tra cứu">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "text"}
+          className={"search-tab " + (mode === "text" ? "active" : "")}
+          onClick={() => switchMode("text")}
+        >
+          Tìm nâng cao
         </button>
-      </form>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "cccd"}
+          className={"search-tab " + (mode === "cccd" ? "active" : "")}
+          onClick={() => switchMode("cccd")}
+        >
+          Theo số CCCD
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "fingerprint"}
+          className={"search-tab " + (mode === "fingerprint" ? "active" : "")}
+          onClick={() => switchMode("fingerprint")}
+        >
+          Theo vân tay
+        </button>
+      </div>
+
+      {mode === "text" && (
+        <form className="filter-bar" onSubmit={doSearchText}>
+          <input
+            className="control search-control"
+            placeholder="Tìm theo tên, số CCCD, mã hồ sơ..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select className="control" value={cellCode} onChange={(e) => setCellCode(e.target.value)}>
+            <option value="">Tất cả buồng</option>
+            {cells.map((cell) => (
+              <option key={cell.code} value={cell.code}>
+                {cell.code} - {cell.name}
+              </option>
+            ))}
+          </select>
+          <select className="control" value={gender} onChange={(e) => setGender(e.target.value)}>
+            <option value="">Tất cả giới tính</option>
+            <option value="male">Nam</option>
+            <option value="female">Nữ</option>
+          </select>
+          <button className="button primary" type="submit" disabled={loading}>
+            {loading ? "Đang tìm..." : "Tìm kiếm"}
+          </button>
+        </form>
+      )}
+
+      {mode === "cccd" && (
+        <form className="filter-bar" onSubmit={doSearchCccd}>
+          <input
+            className="control search-control"
+            placeholder="Nhập số CCCD (12 chữ số)..."
+            value={cccdNumber}
+            onChange={(e) => setCccdNumber(e.target.value.replace(/\D/g, "").slice(0, 12))}
+            inputMode="numeric"
+            maxLength={12}
+            autoFocus
+          />
+          <button className="button primary" type="submit" disabled={loading || cccdNumber.length < 6}>
+            {loading ? "Đang tìm..." : "Tìm theo CCCD"}
+          </button>
+        </form>
+      )}
+
+      {mode === "fingerprint" && (
+        <form className="filter-bar filter-bar-fp" onSubmit={doSearchFingerprint}>
+          <div className="fp-search-slot">
+            {fpPreview ? (
+              <div className="fp-search-preview">
+                <img src={fpPreview} alt="Vân tay" />
+                <button type="button" className="fp-search-clear" onClick={clearFp} aria-label="Xoá ảnh">×</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="fp-search-drop"
+                onClick={() => fpInputRef.current?.click()}
+              >
+                <span className="fp-search-drop-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 11c0-4 3-7 7-7" />
+                    <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
+                    <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
+                    <path d="M12 15v1a3 3 0 0 0 3 3" />
+                  </svg>
+                </span>
+                <span>Chọn ảnh vân tay</span>
+                <span className="fp-search-drop-hint">PNG / JPG</span>
+              </button>
+            )}
+            <input
+              ref={fpInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={onFpPick}
+            />
+          </div>
+          <button className="button primary" type="submit" disabled={loading || !fpFile}>
+            {loading ? "Đang so khớp..." : "So khớp vân tay"}
+          </button>
+        </form>
+      )}
 
       {error && <StateBox type="error">{error}</StateBox>}
 
@@ -3908,6 +4093,115 @@ const styles = `
     border-radius: 14px;
     background: white;
   }
+
+  /* SearchPage: 3-mode tabs */
+  .search-tabs {
+    display: inline-flex;
+    gap: 4px;
+    margin-bottom: 14px;
+    padding: 4px;
+    background: #f4f6f9;
+    border: 1px solid #e2e9f3;
+    border-radius: 10px;
+  }
+  .search-tab {
+    height: 34px;
+    padding: 0 16px;
+    border: 0;
+    background: transparent;
+    color: #4a5568;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .search-tab:hover { color: #8E0000; }
+  .search-tab.active {
+    background: #8E0000;
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(142, 0, 0, .18);
+  }
+
+  /* Fingerprint search mode: 2 cols (slot + submit) */
+  .filter-bar-fp {
+    grid-template-columns: minmax(280px, 1fr) auto;
+  }
+  .fp-search-slot { display: flex; align-items: center; justify-content: flex-start; }
+  .fp-search-drop {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 200px;
+    height: 140px;
+    border: 2px dashed #d9e3f0;
+    border-radius: 10px;
+    background: #fafcff;
+    color: #4a5568;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
+    padding: 12px;
+    text-align: center;
+  }
+  .fp-search-drop:hover {
+    border-color: #8E0000;
+    background: #fff8f8;
+    color: #8E0000;
+  }
+  .fp-search-drop-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: #fde8ea;
+    color: #8E0000;
+  }
+  .fp-search-drop-icon svg { width: 24px; height: 24px; }
+  .fp-search-drop-hint {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 400;
+  }
+  .fp-search-preview {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    border: 1px solid #d9e3f0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f4f4f4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fp-search-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .fp-search-clear {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .fp-search-clear:hover { background: #8E0000; }
   .control {
     width: 100%;
     height: 42px;
@@ -5352,9 +5646,12 @@ const styles = `
   .body-shot-body {
     position: relative;
     display: flex;
-    gap: 4px;
+    gap: 0;
     flex: 1;
     min-height: 0;
+  }
+  .body-shot-body--ruler {
+    /* Không dùng padding — ruler nổi absolute bên trong khung ảnh, không đẩy frame lệch */
   }
   .ruler {
     display: flex;
@@ -5369,6 +5666,15 @@ const styles = `
     text-align: right;
     line-height: 1;
     border-right: 1px solid #d9c3c6;
+  }
+  .ruler--external {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    border-right: 1px solid #d9c3c6;
+    background: transparent;
   }
   .ruler span { display: block; }
   .body-shot-frame {
@@ -5501,11 +5807,12 @@ const styles = `
     overflow: hidden;
   }
 
-  /* Tier 2: Fingerprints + KPI tròn */
+  /* Tier 2: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) */
   .case-tier-2 {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 220px;
-    gap: 8px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 10px;
     min-height: 0;
   }
   .case-tier-2 .cap-block { min-height: 0; overflow: hidden; }
@@ -5537,6 +5844,39 @@ const styles = `
     border-radius: 6px;
     line-height: 1.1;
     writing-mode: horizontal-tb;
+  }
+  /* Single-row variant: label xuống hàng 2, span 5 cột, không nền pill */
+  .fp-preview-grid.fp-preview-grid--single-row {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    gap: 6px;
+    padding: 8px 10px 10px;
+  }
+  .fp-preview-grid.fp-preview-grid--single-row .fp-preview-cell {
+    grid-row: 1;
+  }
+  .fp-preview-grid.fp-preview-grid--single-row .fp-hand-below {
+    grid-row: 2;
+    background: transparent;
+    color: #8E0000;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .8px;
+    padding: 6px 4px 2px;
+    border-top: 1px solid #E3E6EC;
+    border-radius: 0;
+    margin-top: 4px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .fp-preview-grid.fp-preview-grid--single-row .fp-hand-below-left {
+    grid-column: 1 / span 5;
+  }
+  .fp-preview-grid.fp-preview-grid--single-row .fp-hand-below-right {
+    grid-column: 6 / span 5;
   }
   .fp-preview-cell {
     display: flex;
@@ -5588,28 +5928,30 @@ const styles = `
 
   .fp-kpi {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 14px 10px;
+    justify-content: space-around;
+    gap: 20px;
+    padding: 6px 20px;
     text-align: center;
+    line-height: 1;
   }
+  .fp-kpi > * { flex-shrink: 0; }
   .fp-kpi-icon {
-    width: 60px; height: 60px;
+    width: 32px; height: 32px;
     border-radius: 50%;
     display: grid; place-items: center;
     background: #fde8ea;
     color: #7f171e;
   }
-  .fp-kpi-icon svg { width: 32px; height: 32px; }
-  .fp-kpi-count { color: #7f171e; font-size: 13px; font-weight: 800; }
+  .fp-kpi-icon svg { width: 18px; height: 18px; }
+  .fp-kpi-count { color: #7f171e; font-size: 12px; font-weight: 800; }
   .fp-kpi-big {
     color: #7f171e;
-    font-size: 44px;
+    font-size: 24px;
     font-weight: 800;
     line-height: 1;
-    letter-spacing: -1px;
+    letter-spacing: -0.5px;
   }
   .fp-kpi-caption {
     color: #7d8ca7;
