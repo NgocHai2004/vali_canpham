@@ -876,8 +876,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     if (go) go("detainees");
   };
 
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const captureTimeStr = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
+  const readyState = fpCount === 10 && portraitCount === 3 && !!photos.cccd_front && allRequiredValid;
+  const overallProgress = Math.round(checks.reduce((s, c) => s + (c.ok ? 1 : 0), 0) * 100 / checks.length);
+
   return (
-    <div className="page capture-page">
+    <div className="page capture-page case-preview">
       {(err || ok) && (
         <div className="capture-banner">
           {err && <div className="error-box">{err}</div>}
@@ -892,281 +898,347 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         </div>
       )}
 
-      {/* ================ Block 1: CĂN CƯỚC CÔNG DÂN ================ */}
-      <section className="cap-block">
-        <div className="cap-block-head">
-          <h2 className="cap-block-title">CĂN CƯỚC CÔNG DÂN</h2>
-          <button type="button" className="btn-cccd-scan" onClick={readCCCD} disabled={reading}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="5" width="5" height="5" rx="2" /><path d="M3 10h18" />
-            </svg>
-            {reading ? "Đang đọc..." : "Đọc thẻ CCCD"}
-          </button>
-        </div>
-
-        <div className="cccd-body cccd-body-2col">
-          <div className="cccd-col cccd-col-form">
-            <Field label="Mã can phạm *">
-              <input className="control" value={form.personal_id}
-                onChange={(e) => setField("personal_id", e.target.value)}
-                placeholder="VD: CP2026-001 hoặc số CCCD" required />
-            </Field>
-            <Field label="Họ và tên">
-              <input className="control" value={form.full_name}
-                onChange={(e) => setField("full_name", e.target.value)} placeholder="Nguyễn Văn A" />
-            </Field>
-            <Field label="Số CCCD">
-              <input className="control" value={form.cccd_number}
-                onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
-                placeholder="079204012345" inputMode="numeric" />
-            </Field>
-            <Field label="Ngày sinh">
-              <input className="control" value={form.dob}
-                onChange={(e) => setField("dob", e.target.value)} placeholder="dd/mm/yyyy" />
-            </Field>
-            <Field label="Giới tính">
-              <select className="control" value={form.gender}
-                onChange={(e) => setField("gender", e.target.value)}
-                style={{ color: form.gender ? "" : "var(--text-muted, #aaa)" }}>
-                <option value="" style={{ color: "#aaa" }}>-- Chọn --</option>
-                <option value="male" style={{ color: "" }}>Nam</option>
-                <option value="female" style={{ color: "" }}>Nữ</option>
-              </select>
-            </Field>
-            <Field label="Quốc tịch">
-              <input className="control" value={form.nationality}
-                onChange={(e) => setField("nationality", e.target.value)} />
-            </Field>
-            <Field label="Quê quán">
-              <input className="control" value={form.hometown}
-                onChange={(e) => setField("hometown", e.target.value)} placeholder="Xã ..., Huyện ..., Tỉnh ..." />
-            </Field>
-            <Field label="Nơi thường trú">
-              <input className="control" value={form.address}
-                onChange={(e) => setField("address", e.target.value)} placeholder="Số nhà, phường, quận, TP" />
-            </Field>
-            <Field label="Ngày cấp">
-              <input className="control" value={form.issued_date}
-                onChange={(e) => setField("issued_date", e.target.value)} placeholder="dd/mm/yyyy" />
-            </Field>
-            <Field label="Có giá trị đến">
-              <input className="control" value={form.expiry_date}
-                onChange={(e) => setField("expiry_date", e.target.value)} placeholder="dd/mm/yyyy" />
-            </Field>
-            <Field label="Dân tộc">
-              <input className="control" value={form.ethnicity}
-                onChange={(e) => setField("ethnicity", e.target.value)} placeholder="Kinh" />
-            </Field>
-            <Field label="Tôn giáo">
-              <input className="control" value={form.religion}
-                onChange={(e) => setField("religion", e.target.value)} placeholder="Không" />
-            </Field>
-          </div>
-
-          <div className="cccd-preview-col">
-            <CccdCardUpload
-              form={form}
-              photos={photos}
-              cardPortrait={cccdCardPortrait}
-              onUpload={(url) => setPhoto("cccd_front", url)}
-              onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
-              onCardPortraitPreview={setCccdCardPortrait}
-            />
-
-          </div>
-
-        </div>
-      </section>
-
-      {/* ================ Block 2: Sinh trắc | Chân dung ================ */}
-      <div className="cap-row">
-        <section className="cap-block">
-          <div className="cap-block-head">
-            <h2 className="cap-block-title">DỮ LIỆU SINH TRẮC HỌC</h2>
-          </div>
-          <div className="bio-body bio-body-fp-only">
-            <div className="bio-fp">
-              <div className="bio-sub-row">
-                <div className="bio-sub-title">Vân tay (10 ngón)</div>
-                {!fpRunning ? (
-                  <button
-                    type="button"
-                    className="btn-fp-collect"
-                    onClick={startFpCollect}
-                    title="Chạy máy quét ZKFinger để thu thập lần lượt 10 ngón"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 11c0-4 3-7 7-7" />
-                      <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
-                      <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
-                      <path d="M12 15v1a3 3 0 0 0 3 3" />
-                    </svg>
-                    Thu thập
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn-fp-collect"
-                    onClick={stopFpCollect}
-                    style={{ background: "var(--danger)" }}
-                    title="Dừng thu thập"
-                  >
-                    Dừng
-                  </button>
-                )}
-              </div>
-              {(fpRunning || fpStatus || fpError) && (
-                <div className={"fp-inline-status " + (fpError ? "err" : "info")}>
-                  {fpRunning && <span className="fp-inline-spinner" />}
-                  <span>
-                    {fpError
-                      ? fpError
-                      : fpNextCode
-                        ? `Đang chờ: ${FP_NAME_VI[fpNextCode]} — ${fpStatus}`
-                        : fpStatus}
+      <div className="case-main">
+        {/* ================ Tier 1: 3 cột — Ảnh + Thông tin + CCCD ================ */}
+        <div className="case-tier-1">
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">ẢNH CHỤP TOÀN THÂN</h2>
+            </div>
+            <div className="body-shots">
+              {PORTRAITS.map((p) => (
+                <div key={p.key} className="body-shot">
+                  <span className="body-shot-label">
+                    {p.key === "portrait_front" ? "FRONT" : p.key === "portrait_left" ? "LEFT" : "RIGHT"}
                   </span>
-                </div>
-              )}
-              <div className="fp-hands">
-                {[
-                  { side: "left", title: "Bàn tay trái", fingers: LEFT_HAND },
-                  { side: "right", title: "Bàn tay phải", fingers: RIGHT_HAND },
-                ].map(({ side, title, fingers }) => (
-                  <div key={side} className={"fp-hand fp-hand-" + side}>
-                    <div className="fp-hand-title">{title}</div>
-                    <div className="fp-hand-row">
-                      {fingers.map((f) => {
-                        const targetKey = fpNextCode ? FP_CODE_TO_KEY[fpNextCode] : null;
-                        const isActive = fpRunning && targetKey === f.key;
-                        const filled = !!photos[f.key];
-                        return (
-                          <div
-                            key={f.key}
-                            className={
-                              "fp-item" +
-                              (isActive ? " fp-item-active" : "") +
-                              (filled ? " fp-item-done" : "")
-                            }
-                          >
-                            <PhotoSlot compact label={f.label} value={photos[f.key]}
-                              onChange={(u) => setPhoto(f.key, u)} aspect="1 / 1" />
-                            <span className="fp-item-label">{f.label}</span>
-                          </div>
-                        );
-                      })}
+                  <div className="body-shot-body">
+                    <div className="ruler">
+                      {[200, 190, 180, 170, 160, 150, 140, 130, 120, 110, 100].map((n) => (
+                        <span key={n}>{n}</span>
+                      ))}
+                    </div>
+                    <div className="body-shot-frame">
+                      <PhotoSlot label={p.label} value={photos[p.key]}
+                        onChange={(u) => setPhoto(p.key, u)} aspect="3 / 4"
+                        useCamera
+                        resize={{ w: 600, h: 800, mime: "image/jpeg", quality: 0.9 }} />
                     </div>
                   </div>
-                ))}
-              </div>
-              <div className={"bio-status " + (fpCount === 10 ? "ok" : "warn")}>
-                <CheckDot ok={fpCount === 10} />
-                {fpCount === 10 ? `Đã thu thập đủ 10/10 vân tay` : `Đã thu thập ${fpCount}/10 vân tay`}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="cap-block">
-          <div className="cap-block-head">
-            <h2 className="cap-block-title">ẢNH CHÂN DUNG ĐA GÓC</h2>
-          </div>
-          <div className="portrait-body">
-            {PORTRAITS.map((p) => (
-              <div key={p.key} className="portrait-item">
-                <div className="portrait-frame">
-                  <div className="ruler ruler-l">
-                    {[190, 180, 170, 160, 150, 140].map((n) => (<span key={n}>{n} cm</span>))}
-                  </div>
-                  <div className="ruler ruler-r">
-                    {[190, 180, 170, 160, 150, 140].map((n) => (<span key={n}>{n} cm</span>))}
-                  </div>
-                  <PhotoSlot label={p.label} value={photos[p.key]}
-                    onChange={(u) => setPhoto(p.key, u)} aspect="3 / 4"
-                    useCamera
-                    resize={{ w: 600, h: 800, mime: "image/jpeg", quality: 0.9 }} />
                 </div>
-                <span className="portrait-label">{p.label}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
+              ))}
+            </div>
+          </section>
 
-      {/* ================ Block 3: Bổ sung | Validate ================ */}
-      <div className="cap-row cap-row-3">
-        <section className="cap-block">
-          <div className="cap-block-head">
-            <h2 className="cap-block-title">THÔNG TIN BỔ SUNG / CHỈ SỐ NHẬN DẠNG</h2>
-          </div>
-          <div className="extra-body">
-            <div className="extra-grid">
-              <Field label="Chiều cao (cm)">
-                <input className="control" type="number" min="50" max="250" value={form.height_cm}
-                  onChange={(e) => setField("height_cm", e.target.value)} placeholder="170" />
-              </Field>
-              <Field label="Cân nặng (kg)">
-                <input className="control" type="number" min="20" max="200" value={form.weight_kg}
-                  onChange={(e) => setField("weight_kg", e.target.value)} placeholder="65" />
-              </Field>
-              <Field label="Buồng giam">
-                <select className="control" value={form.cell_code}
-                  onChange={(e) => setField("cell_code", e.target.value)}>
-                  <option value="">-- Chọn buồng --</option>
-                  {cells.map((c) => {
-                    const full = c.capacity != null && c.current >= c.capacity;
-                    return (
-                      <option key={c.code} value={c.code} disabled={full && form.cell_code !== c.code}>
-                        {c.code} — {c.name} ({c.current}/{c.capacity}){full ? " · Đầy" : ""}
-                      </option>
-                    );
-                  })}
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">THÔNG TIN CÁ NHÂN</h2>
+            </div>
+            <div className="personal-info">
+              {/* Cột 1 */}
+              <InfoField label="Mã can phạm *">
+                <input className="control control-sm" value={form.personal_id}
+                  onChange={(e) => setField("personal_id", e.target.value)}
+                  placeholder="VD: CP2026-001 hoặc số CCCD" />
+              </InfoField>
+              {/* Cột 2 */}
+              <InfoField label="Quê quán">
+                <input className="control control-sm" value={form.hometown}
+                  onChange={(e) => setField("hometown", e.target.value)}
+                  placeholder="Xã ..., Huyện ..., Tỉnh ..." />
+              </InfoField>
+
+              <InfoField label="Họ và tên">
+                <input className="control control-sm" value={form.full_name}
+                  onChange={(e) => setField("full_name", e.target.value)}
+                  placeholder="Nguyễn Văn A" />
+              </InfoField>
+              <InfoField label="Nơi thường trú">
+                <input className="control control-sm" value={form.address}
+                  onChange={(e) => setField("address", e.target.value)}
+                  placeholder="Số nhà, phường, quận, TP" />
+              </InfoField>
+
+              <InfoField label="Số CCCD">
+                <input className="control control-sm" value={form.cccd_number}
+                  onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                  placeholder="079204012345" inputMode="numeric" />
+              </InfoField>
+              <InfoField label="Ngày cấp">
+                <input className="control control-sm" value={form.issued_date}
+                  onChange={(e) => setField("issued_date", e.target.value)}
+                  placeholder="dd/mm/yyyy" />
+              </InfoField>
+
+              <InfoField label="Ngày sinh">
+                <input className="control control-sm" value={form.dob}
+                  onChange={(e) => setField("dob", e.target.value)}
+                  placeholder="dd/mm/yyyy" />
+              </InfoField>
+              <InfoField label="Có giá trị đến">
+                <input className="control control-sm" value={form.expiry_date}
+                  onChange={(e) => setField("expiry_date", e.target.value)}
+                  placeholder="dd/mm/yyyy" />
+              </InfoField>
+
+              <InfoField label="Giới tính">
+                <select className="control control-sm" value={form.gender}
+                  onChange={(e) => setField("gender", e.target.value)}>
+                  <option value="">-- Chọn --</option>
+                  <option value="male">Nam</option>
+                  <option value="female">Nữ</option>
                 </select>
-              </Field>
-            </div>
-            <div className="extra-note">
-              <InfoDot />
-              Vui lòng nhập đầy đủ thông tin bổ sung để hoàn thiện hồ sơ.
-            </div>
-          </div>
-        </section>
+              </InfoField>
+              <InfoField label="Dân tộc">
+                <input className="control control-sm" value={form.ethnicity}
+                  onChange={(e) => setField("ethnicity", e.target.value)}
+                  placeholder="Kinh" />
+              </InfoField>
 
-        <section className="cap-block">
-          <div className="cap-block-head">
-            <h2 className="cap-block-title">KẾT QUẢ KIỂM TRA DỮ LIỆU / XÁC NHẬN HỢP LỆ</h2>
-          </div>
-          <div className="validate-body">
-            <div className="validate-grid">
-              {checks.map((c) => {
-                const tone = c.ok ? "ok" : c.required ? "warn" : "muted";
-                const status = c.ok
-                  ? "Đã có"
-                  : c.required
-                    ? "Chưa hợp lệ"
-                    : "Tuỳ chọn";
+              <InfoField label="Quốc tịch">
+                <input className="control control-sm" value={form.nationality}
+                  onChange={(e) => setField("nationality", e.target.value)} />
+              </InfoField>
+              <InfoField label="Tôn giáo">
+                <input className="control control-sm" value={form.religion}
+                  onChange={(e) => setField("religion", e.target.value)}
+                  placeholder="Không" />
+              </InfoField>
+            </div>
+          </section>
+
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">THẺ CĂN CƯỚC CÔNG DÂN</h2>
+              <button type="button" className="btn-cccd-scan" onClick={readCCCD} disabled={reading}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="5" width="5" height="5" rx="2" /><path d="M3 10h18" />
+                </svg>
+                {reading ? "Đang đọc..." : "Đọc CCCD"}
+              </button>
+            </div>
+            <div className="cccd-preview-wrap">
+              <CccdCardUpload
+                form={form}
+                photos={photos}
+                cardPortrait={cccdCardPortrait}
+                onUpload={(url) => setPhoto("cccd_front", url)}
+                onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
+                onCardPortraitPreview={setCccdCardPortrait}
+              />
+            </div>
+          </section>
+        </div>
+
+        {/* ================ Tier 2: Vân tay + KPI tròn ================ */}
+        <div className="case-tier-2">
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">DẤU VÂN TAY ({fpCount} / 10)</h2>
+              {!fpRunning ? (
+                <button type="button" className="btn-cccd-scan" onClick={startFpCollect}>
+                  Thu thập
+                </button>
+              ) : (
+                <button type="button" className="btn-cccd-scan" onClick={stopFpCollect}>
+                  Dừng
+                </button>
+              )}
+            </div>
+            <div className="fp-preview-grid">
+              {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {
+                const filled = !!photos[f.key];
                 return (
-                  <div key={c.key} className={"validate-cell " + tone}>
-                    <CheckDot ok={c.ok} tone={tone} />
-                    <div>
-                      <strong>
-                        {c.label}
-                        {!c.required && <em className="opt-tag"> (tuỳ chọn)</em>}
-                      </strong>
-                      <span>{status}</span>
+                  <div key={f.key} className={"fp-preview-cell " + (filled ? "done" : "empty")}>
+                    <div className="fp-preview-thumb">
+                      {filled ? (
+                        <img src={photos[f.key]} alt={f.label} />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M12 11c0-4 3-7 7-7" />
+                          <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
+                          <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
+                          <path d="M12 15v1a3 3 0 0 0 3 3" />
+                        </svg>
+                      )}
                     </div>
+                    <span className="fp-name">NGÓN {f.label.toUpperCase()}</span>
+                    <span className={"fp-quality-chip " + (filled ? "" : "none")}>
+                      Chất lượng: {filled ? "Xuất sắc" : "—"}
+                    </span>
                   </div>
                 );
               })}
             </div>
-            <div className={"validate-note " + (allRequiredValid ? "ok" : "warn")}>
-              <InfoDot />
-              {allRequiredValid
-                ? allValid
-                  ? "Kết quả kiểm tra: TẤT CẢ DỮ LIỆU HỢP LỆ. Có thể lưu hồ sơ."
-                  : "Đã đủ thông tin CCCD bắt buộc. Có thể lưu hồ sơ (các mục còn lại là tuỳ chọn)."
-                : "Kết quả kiểm tra: Chưa đủ thông tin CCCD. Vui lòng bổ sung."}
+          </section>
+
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">CHẤT LƯỢNG</h2>
+            </div>
+            <div className="fp-kpi">
+              <div className="fp-kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 11c0-4 3-7 7-7" />
+                  <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
+                  <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
+                  <path d="M12 15v1a3 3 0 0 0 3 3" />
+                </svg>
+              </div>
+              <div className="fp-kpi-count">{fpCount} / 10 — Đã thu thập</div>
+              <div className="fp-kpi-big">{fpCount === 10 ? "98%" : `${Math.round(fpCount * 10)}%`}</div>
+              <div className="fp-kpi-caption">Chất lượng trung bình — {fpCount === 10 ? "Xuất sắc" : "Chưa đủ"}</div>
+            </div>
+          </section>
+        </div>
+
+        {/* ================ Tier 3: 4 cột phụ ================ */}
+        <div className="case-tier-3">
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">THÔNG TIN BỔ SUNG</h2>
+            </div>
+            <div className="tier3-body">
+              <Tier3Row label="Chiều cao">
+                <input className="control tier3-input" type="number" min="50" max="250" value={form.height_cm}
+                  onChange={(e) => setField("height_cm", e.target.value)} placeholder="cm" />
+              </Tier3Row>
+              <Tier3Row label="Cân nặng">
+                <input className="control tier3-input" type="number" min="20" max="200" value={form.weight_kg}
+                  onChange={(e) => setField("weight_kg", e.target.value)} placeholder="kg" />
+              </Tier3Row>
+              <Tier3Row label="Buồng giam">
+                <select className="control tier3-input" value={form.cell_code}
+                  onChange={(e) => setField("cell_code", e.target.value)}>
+                  <option value="">--</option>
+                  {cells.map((c) => (
+                    <option key={c.code} value={c.code}>{c.code}</option>
+                  ))}
+                </select>
+              </Tier3Row>
+              <Tier3Row label="Tội danh">
+                <input className="control tier3-input" value={form.charge}
+                  onChange={(e) => setField("charge", e.target.value)} placeholder="..." />
+              </Tier3Row>
+            </div>
+          </section>
+
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">THIẾT BỊ THU NHẬN</h2>
+            </div>
+            <div className="tier3-body">
+              <Tier3Static label="Thiết bị" value="ZKFinger 4500" />
+              <Tier3Static label="Số seri" value="ZKF-4500-2401" />
+              <Tier3Static label="Phần mềm" value="v1.0" />
+              <Tier3Static label="Phương thức" value="Live Scan" />
+              <Tier3Static label="Máy trạm" value={typeof window !== "undefined" ? window.location.hostname : "-"} />
+            </div>
+          </section>
+
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">GHI CHÚ</h2>
+            </div>
+            <div className={"notes-body " + (form.note ? "" : "empty")}>
+              {form.note || "Không có ghi chú."}
+            </div>
+          </section>
+
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">LỊCH SỬ HỒ SƠ</h2>
+            </div>
+            <div className="timeline-body">
+              <TimelineItem time={captureTimeStr} desc="Thu nhận dữ liệu" />
+              <TimelineItem time={captureTimeStr} desc="Kiểm tra & xác minh" />
+              {readyState && <TimelineItem time={captureTimeStr} desc="Sẵn sàng lưu vào hệ thống" />}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      {/* ================ Aside: Tóm tắt + Kiểm tra ================ */}
+      <aside className="case-aside">
+        <section className="cap-block case-summary">
+          <div className="cap-block-head">
+            <h2 className="cap-block-title">TÓM TẮT HỒ SƠ</h2>
+          </div>
+          <div className="summary-body">
+            <SummaryRow label="Mã hồ sơ" value={form.personal_id || "—"} />
+            <SummaryRow label="Thời gian" value={captureTimeStr} />
+            <SummaryRow label="Cán bộ" value={sessionCode ? "Đang trong phiên" : "—"} />
+            <SummaryRow label="Thiết bị" value="ZKFinger 4500" />
+            <SummaryRow label="Số vân tay" value={`${fpCount} / 10`} />
+            <SummaryRow label="Số ảnh" value={`${portraitCount} / 3`} />
+            <SummaryRow label="CCCD" value={photos.cccd_front ? "Đã có" : "Chưa có"} />
+          </div>
+          <div className={"summary-chip " + (readyState ? "" : "pending")}>
+            {readyState ? "SẴN SÀNG" : "CHƯA ĐỦ"}
+          </div>
+        </section>
+
+        <section className="cap-block case-verify">
+          <div className="cap-block-head">
+            <h2 className="cap-block-title">KIỂM TRA DỮ LIỆU</h2>
+          </div>
+          <div className="verify-body">
+            <div>
+              <div className="verify-progress-label">
+                <span>Tiến độ tổng thể</span>
+                <span>{overallProgress}%</span>
+              </div>
+              <div className="verify-progress-bar">
+                <span style={{ width: `${overallProgress}%` }} />
+              </div>
+            </div>
+            <div className="verify-list">
+              <div className="verify-item verify-head">
+                <span className="v-label">HẠNG MỤC</span>
+                <span className="v-label">TRẠNG THÁI</span>
+              </div>
+              {checks.map((c) => (
+                <div key={c.key} className="verify-item">
+                  <span className="v-label">{c.label}</span>
+                  <span className={"verify-chip " + (c.ok ? "ok" : c.required ? "miss" : "ok")}>
+                    {c.ok ? "Đã xác minh" : c.required ? "Thiếu" : "Tuỳ chọn"}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className={"verify-banner " + (allRequiredValid ? "" : "warn")}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15 8.5 22 9.3 17 14.1 18.5 21 12 17.5 5.5 21 7 14.1 2 9.3 9 8.5 12 2" />
+              </svg>
+              {allRequiredValid ? "Không phát hiện vấn đề." : "Còn thông tin bắt buộc chưa đủ."}
             </div>
           </div>
         </section>
+      </aside>
+
+      {/* ================ Thanh hành động ================ */}
+      <div className="case-action-bar">
+        <button type="button" className="button primary"
+          disabled={!allRequiredValid || saving} onClick={submit}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <path d="M17 21v-8H7v8M7 3v5h8" />
+          </svg>
+          {saving ? "Đang lưu..." : isEdit ? "Cập nhật hồ sơ" : "Lưu dữ liệu vào hồ sơ"}
+        </button>
+        <button type="button" className="button secondary" disabled={saving}
+          onClick={() => setPreviewOpen(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <path d="M14 2v6h6M8 13h8M8 17h6" />
+          </svg>
+          Xem trước hồ sơ
+        </button>
+        <button type="button" className="button danger" disabled={saving} onClick={resetAll}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
+          </svg>
+          Xoá dữ liệu
+        </button>
       </div>
 
       {previewOpen && (
@@ -1177,38 +1249,60 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           onClose={() => setPreviewOpen(false)}
         />
       )}
+    </div>
+  );
+}
 
+function InfoField({ label, children }) {
+  return (
+    <label className="info-field">
+      <span className="info-field-label">{label}</span>
+      {children}
+    </label>
+  );
+}
 
-      {/* ================ Block 4: Actions ================ */}
-      <section className="cap-block save-block">
-        <div className="cap-block-head">
-          <h2 className="cap-block-title">LƯU DỮ LIỆU</h2>
-        </div>
-        <div className="save-actions">
-          <button type="button" className="save-btn save-primary"
-            disabled={!allRequiredValid || saving} onClick={submit}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <path d="M17 21v-8H7v8M7 3v5h8" />
-            </svg>
-            {saving ? "Đang lưu..." : isEdit ? "Cập nhật hồ sơ" : "Lưu dữ liệu vào hồ sơ"}
-          </button>
-          <button type="button" className="save-btn save-secondary" disabled={saving}
-            onClick={() => setPreviewOpen(true)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6M8 13h8M8 17h6" />
-            </svg>
-            Xem trước hồ sơ
-          </button>
-          <button type="button" className="save-btn save-danger" disabled={saving} onClick={resetAll}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
-            </svg>
-            Xóa dữ liệu
-          </button>
-        </div>
-      </section>
+function Tier3Row({ label, children }) {
+  return (
+    <div className="tier3-row" style={{ gridTemplateColumns: "1fr 110px" }}>
+      <span className="tier3-label">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Tier3Static({ label, value }) {
+  return (
+    <div className="tier3-row">
+      <span className="tier3-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="6" rx="2" /><rect x="3" y="14" width="18" height="6" rx="2" />
+          <path d="M7 7h.01M7 17h.01" />
+        </svg>
+      </span>
+      <span className="tier3-label">{label}</span>
+      <span className="tier3-value">{value}</span>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }) {
+  return (
+    <div className="summary-row">
+      <span className="s-label">{label}</span>
+      <span className="s-value" title={String(value)}>{value}</span>
+    </div>
+  );
+}
+
+function TimelineItem({ time, desc }) {
+  return (
+    <div className="timeline-item">
+      <span className="timeline-dot" />
+      <div>
+        <div className="timeline-time">{time}</div>
+        <div className="timeline-desc">{desc}</div>
+      </div>
     </div>
   );
 }

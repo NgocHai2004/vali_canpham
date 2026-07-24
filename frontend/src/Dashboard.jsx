@@ -276,15 +276,69 @@ function Header({ username, dbOk, onLogout, isAdmin }) {
   );
 }
 
+function jitter(base, spread, min = 0, max = 100) {
+  const v = base + (Math.random() - 0.5) * spread;
+  return Math.max(min, Math.min(max, Math.round(v)));
+}
+
+function makeHwSample() {
+  return {
+    cpu: jitter(38, 14),
+    ram: jitter(54, 8),
+    disk: jitter(41, 3),
+    gpu: jitter(22, 10),
+    temp: jitter(48, 5, 30, 90),
+    battery: jitter(86, 3, 0, 100),
+    powerIn: (jitter(53, 6, 30, 90) / 10).toFixed(1),
+    fan: jitter(2100, 400, 800, 4200),
+    uptime: 4 * 3600 + Math.floor(Math.random() * 60) * 60,
+  };
+}
+
+const DEVICE_TEMPLATE = [
+  { id: "cccd", label: "Đầu đọc CCCD", note: "CardReader ACR39U", port: "USB 3.0 · Port 1" },
+  { id: "fp", label: "Máy quét vân tay", note: "Live Scan L-Scan Guardian", port: "USB 3.0 · Port 2" },
+  { id: "cam", label: "Camera chân dung", note: "Sony IMX415 · 4K", port: "USB 3.0 · Port 3" },
+  { id: "iris", label: "Camera mống mắt", note: "IriShield MK2120U", port: "USB 3.0 · Port 4" },
+  { id: "sign", label: "Bảng ký số", note: "Wacom STU-540", port: "USB 2.0 · Port 5" },
+  { id: "lan", label: "Kết nối mạng LAN", note: "Gigabit · 1 Gbps", port: "RJ45" },
+  { id: "printer", label: "Máy in nhiệt", note: "Zebra ZD421", port: "USB 2.0 · Port 6" },
+  { id: "hub", label: "USB Hub nội bộ", note: "7 cổng · 5 Gbps", port: "PCIe Bus 0" },
+];
+
+function makeDeviceList() {
+  return DEVICE_TEMPLATE.map((d, i) => ({
+    ...d,
+    status: i === 6 ? "warn" : "ok",
+    latency: i === 6 ? null : jitter(6 + i, 4, 1, 30),
+  }));
+}
+
+function tickDevices(prev) {
+  return prev.map((d) => {
+    if (d.status === "warn") return d;
+    const flick = Math.random() < 0.02;
+    return {
+      ...d,
+      latency: jitter((d.latency || 8) + (flick ? 6 : 0), 3, 1, 40),
+      status: flick && Math.random() < 0.2 ? "warn" : "ok",
+    };
+  });
+}
+
 function DashboardHome({ go }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
+  const [hw, setHw] = useState(() => makeHwSample());
+  const [devices, setDevices] = useState(() => makeDeviceList());
 
   useEffect(() => {
     api.stats().then(setStats).catch((e) => setError(e.message));
     const t = setInterval(() => setNow(new Date()), 30_000);
-    return () => clearInterval(t);
+    const th = setInterval(() => setHw(makeHwSample()), 2500);
+    const td = setInterval(() => setDevices((prev) => tickDevices(prev)), 4000);
+    return () => { clearInterval(t); clearInterval(th); clearInterval(td); };
   }, []);
 
   if (error) return <StateBox type="error">Lỗi: {error}</StateBox>;
@@ -386,6 +440,18 @@ function DashboardHome({ go }) {
         <section className="panel panel-donut">
           <PanelHeader title="Cơ cấu giới tính" />
           <DonutGender male={male} female={female} malePct={malePct} femalePct={femalePct} />
+        </section>
+      </div>
+
+      <div className="dashboard-grid dashboard-grid-hw">
+        <section className="panel">
+          <PanelHeader title="Trạng thái vali thu nhận" />
+          <HardwareStatus hw={hw} />
+        </section>
+
+        <section className="panel">
+          <PanelHeader title="Thiết bị kết nối" />
+          <DeviceStatus devices={devices} />
         </section>
       </div>
 
@@ -533,6 +599,138 @@ function DonutGender({ male, female, malePct, femalePct }) {
           <strong>{female.toLocaleString("vi-VN")}</strong>
           <small>{femalePct}%</small>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function RingGauge({ value, label, unit = "%", tone = "red", size = 76 }) {
+  const r = size / 2 - 6;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, Number(value) || 0));
+  const dash = (pct / 100) * c;
+  const palette = {
+    red: "#b91c26",
+    orange: "#e07a1f",
+    green: "#12af64",
+    blue: "#2371f4",
+    purple: "#7745db",
+  };
+  const color = palette[tone] || palette.red;
+  return (
+    <div className="ring-gauge">
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f2e4e6" strokeWidth="6" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={color} strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={`${dash} ${c}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" className="ring-gauge-value" fill={color}>
+          {value}{unit}
+        </text>
+      </svg>
+      <span className="ring-gauge-label">{label}</span>
+    </div>
+  );
+}
+
+function HardwareBar({ label, value, unit = "%", tone = "red" }) {
+  const palette = {
+    red: "#b91c26",
+    orange: "#e07a1f",
+    green: "#12af64",
+    blue: "#2371f4",
+  };
+  const color = palette[tone] || palette.red;
+  const pct = Math.max(0, Math.min(100, Number(value) || 0));
+  return (
+    <div className="hw-bar">
+      <div className="hw-bar-head">
+        <span>{label}</span>
+        <strong>{value}{unit}</strong>
+      </div>
+      <span className="hw-bar-track">
+        <span className="hw-bar-fill" style={{ width: `${pct}%`, background: color }} />
+      </span>
+    </div>
+  );
+}
+
+function HardwareStatus({ hw }) {
+  const uptimeH = Math.floor(hw.uptime / 3600);
+  const uptimeM = Math.floor((hw.uptime % 3600) / 60);
+  return (
+    <div className="hw-status">
+      <div className="hw-rings">
+        <RingGauge value={hw.cpu} label="CPU" tone={hw.cpu > 80 ? "red" : hw.cpu > 60 ? "orange" : "green"} />
+        <RingGauge value={hw.ram} label="RAM" tone={hw.ram > 80 ? "red" : hw.ram > 60 ? "orange" : "green"} />
+        <RingGauge value={hw.disk} label="Ổ đĩa" tone={hw.disk > 85 ? "red" : "blue"} />
+        <RingGauge value={hw.gpu} label="Chip AI" tone="purple" />
+      </div>
+      <div className="hw-bars">
+        <HardwareBar label="Nhiệt độ hệ thống" value={hw.temp} unit="°C" tone={hw.temp > 70 ? "red" : hw.temp > 55 ? "orange" : "green"} />
+        <HardwareBar label="Nguồn (pin dự phòng)" value={hw.battery} tone={hw.battery < 20 ? "red" : "green"} />
+      </div>
+      <div className="hw-meta">
+        <div className="hw-meta-item">
+          <span>Điện áp vào</span>
+          <strong>{hw.powerIn} V</strong>
+        </div>
+        <div className="hw-meta-item">
+          <span>Quạt tản</span>
+          <strong>{hw.fan.toLocaleString("vi-VN")} rpm</strong>
+        </div>
+        <div className="hw-meta-item">
+          <span>Thời gian chạy</span>
+          <strong>{uptimeH}h {String(uptimeM).padStart(2, "0")}m</strong>
+        </div>
+        <div className="hw-meta-item">
+          <span>Trạng thái</span>
+          <strong className="hw-meta-ok">● Vali sẵn sàng</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeviceStatus({ devices = [] }) {
+  const okCount = devices.filter((d) => d.status === "ok").length;
+  return (
+    <div className="dev-status">
+      <div className="dev-status-summary">
+        <span>Đã kết nối</span>
+        <strong>{okCount}/{devices.length}</strong>
+      </div>
+      <div className="dev-list">
+        {devices.map((d) => (
+          <div className={`dev-row dev-${d.status}`} key={d.id}>
+            <span className="dev-dot" />
+            <div className="dev-main">
+              <div className="dev-line">
+                <strong>{d.label}</strong>
+                <span className={`dev-badge dev-badge-${d.status}`}>
+                  {d.status === "ok" ? "Hoạt động" : "Cảnh báo"}
+                </span>
+              </div>
+              <div className="dev-meta">
+                <span>{d.note}</span>
+                <span className="dev-port">{d.port}</span>
+              </div>
+            </div>
+            <div className="dev-latency">
+              {d.latency != null ? (
+                <>
+                  <strong>{d.latency}</strong>
+                  <small>ms</small>
+                </>
+              ) : (
+                <small className="dev-offline">—</small>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -3406,6 +3604,220 @@ const styles = `
     font-size: 11.5px;
   }
 
+  /* ============ HARDWARE + DEVICE STATUS ============ */
+  .hw-status {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px 14px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .hw-rings {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .ring-gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border: 1px solid #eef2f8;
+    border-radius: 10px;
+    background: #fbfcfe;
+  }
+  .ring-gauge svg { display: block; }
+  .ring-gauge-value {
+    font-size: 15px;
+    font-weight: 800;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  .ring-gauge-label {
+    color: #6a7c95;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  .hw-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .hw-bar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+    color: #47597a;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .hw-bar-head strong {
+    color: #0f2344;
+    font-size: 13px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-weight: 800;
+  }
+  .hw-bar-track {
+    display: block;
+    height: 8px;
+    border-radius: 999px;
+    background: #eef2f8;
+    overflow: hidden;
+  }
+  .hw-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    transition: width .35s ease;
+  }
+  .hw-meta {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #eef2f8;
+  }
+  .hw-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .hw-meta-item span {
+    color: #7787a0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .hw-meta-item strong {
+    color: #0f2344;
+    font-size: 13px;
+    font-weight: 800;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  .hw-meta-ok {
+    color: #0a8a45 !important;
+    font-family: Inter, sans-serif !important;
+  }
+
+  .dev-status {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .dev-status-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 10px 18px 8px;
+    border-bottom: 1px dashed #eef2f8;
+  }
+  .dev-status-summary span {
+    color: #7787a0;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  .dev-status-summary strong {
+    color: #0a8a45;
+    font-size: 16px;
+    font-weight: 800;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  .dev-list {
+    padding: 4px 12px 10px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .dev-row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 6px;
+    border-bottom: 1px dashed #f0f3f8;
+  }
+  .dev-row:last-child { border-bottom: 0; }
+  .dev-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #12af64;
+    box-shadow: 0 0 0 3px rgba(18, 175, 100, .18);
+  }
+  .dev-warn .dev-dot {
+    background: #e07a1f;
+    box-shadow: 0 0 0 3px rgba(224, 122, 31, .2);
+  }
+  .dev-main { min-width: 0; }
+  .dev-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .dev-line strong {
+    color: #0f2344;
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+  .dev-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: .3px;
+  }
+  .dev-badge-ok { background: #e6f7ec; color: #0a8a45; }
+  .dev-badge-warn { background: #fdefdc; color: #a05a10; }
+  .dev-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    color: #7787a0;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+  .dev-port {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    color: #98a5bd;
+    font-size: 11px;
+  }
+  .dev-latency {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1;
+  }
+  .dev-latency strong {
+    color: #0f2344;
+    font-size: 15px;
+    font-weight: 800;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  .dev-latency small {
+    margin-top: 2px;
+    color: #98a5bd;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+  .dev-latency .dev-offline { color: #c05a1a; }
+
+  .dashboard-grid-hw {
+    grid-template-columns: 1.15fr .85fr !important;
+  }
+
   .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-weight: 700; letter-spacing: .3px; }
 
   @media (max-width: 900px) {
@@ -4738,6 +5150,484 @@ const styles = `
     top: 0;
     z-index: 2;
     background: #f8faff;
+  }
+
+  /* =============================================================
+     CASE PREVIEW LAYOUT — 2 cột (main + aside) + action bar
+     ============================================================= */
+  .case-preview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 210px;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  .case-main {
+    display: grid;
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.9fr) minmax(0, 0.75fr);
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .case-aside {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .case-action-bar {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 10px;
+    background: white;
+    border: 1px solid #e6cdd0;
+    border-radius: 10px;
+  }
+  .case-action-bar .button { width: 100%; }
+  .case-action-bar .button.danger {
+    color: #b91c26;
+    border: 1px solid #e6cdd0;
+    background: white;
+  }
+  .case-action-bar .button.danger:hover { background: #fff5f6; }
+
+  /* Tier 1: 3 cột — Body photos | Personal info | CCCD */
+  .case-tier-1 {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.85fr);
+    gap: 8px;
+    min-height: 0;
+  }
+  .case-tier-1 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* Body photos (3 khung ảnh + thước đo) */
+  .body-shots {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px 8px 8px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .body-shot {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .body-shot-label {
+    display: block;
+    text-align: center;
+    color: #4a0f14;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+  }
+  .body-shot-body {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    min-height: 0;
+  }
+  .ruler {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2px 0;
+    width: 18px;
+    flex-shrink: 0;
+    font-size: 7px;
+    font-weight: 700;
+    color: #7f171e;
+    text-align: right;
+    line-height: 1;
+    border-right: 1px solid #d9c3c6;
+  }
+  .ruler span { display: block; }
+  .body-shot-frame {
+    flex: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fafafa;
+    min-height: 0;
+    display: flex;
+  }
+  .body-shot-frame > * {
+    flex: 1;
+    min-height: 0;
+  }
+  .body-shot-frame img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* Personal info — 2 cột × 6 hàng, mỗi field: label trên, input dưới */
+  .personal-info {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+    grid-auto-flow: column;
+    align-content: stretch;
+    gap: 4px 10px;
+    padding: 6px 10px 8px;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .info-field {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .info-field-label {
+    color: #47597a;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1px;
+    line-height: 1;
+  }
+  .info-field .control-sm {
+    width: 100%;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid #d9e3f0;
+    border-radius: 6px;
+    background: white;
+    color: #0f2344;
+    font-size: 11.5px;
+    font-weight: 600;
+    outline: none;
+  }
+  .info-field .control-sm:focus {
+    border-color: #b91c26;
+    box-shadow: 0 0 0 2px rgba(185, 28, 38, .14);
+  }
+  .info-field select.control-sm {
+    padding-right: 20px;
+  }
+
+  /* CCCD wrapper — bo hộp cho gọn */
+  .cccd-preview-wrap {
+    display: grid;
+    place-items: center;
+    padding: 8px 10px 10px;
+  }
+  .cccd-preview-wrap .cccd-card-mock {
+    width: 100%;
+    max-width: 300px;
+    box-shadow: 0 4px 14px rgba(74, 15, 20, .12);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  /* Tier 2: Fingerprints + KPI tròn */
+  .case-tier-2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 8px;
+    min-height: 0;
+  }
+  .case-tier-2 .cap-block { min-height: 0; overflow: hidden; }
+  .fp-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-rows: repeat(2, auto);
+    gap: 6px;
+    padding: 8px 10px 10px;
+  }
+  .fp-preview-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    border: 1px solid #e6cdd0;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .fp-preview-cell.done { border-color: #12af64; background: #f0fbf6; }
+  .fp-preview-cell.empty { border-style: dashed; background: #fafafa; }
+  .fp-preview-thumb {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: #f4f4f4;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    color: #98a5bd;
+  }
+  .fp-preview-thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+    filter: grayscale(1) contrast(1.1);
+  }
+  .fp-preview-thumb svg { width: 20px; height: 20px; }
+  .fp-preview-cell .fp-name {
+    font-size: 9.5px;
+    font-weight: 800;
+    color: #0f2344;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1.1;
+  }
+  .fp-quality-chip {
+    font-size: 8.5px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: #e6f7ec;
+    color: #0a8a45;
+  }
+  .fp-quality-chip.avg { background: #fff2d9; color: #a26a09; }
+  .fp-quality-chip.bad { background: #fde8ea; color: #b91c26; }
+  .fp-quality-chip.none { background: #eef2f8; color: #98a5bd; }
+
+  .fp-kpi {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .fp-kpi-icon {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: #fde8ea;
+    color: #7f171e;
+  }
+  .fp-kpi-icon svg { width: 32px; height: 32px; }
+  .fp-kpi-count { color: #7f171e; font-size: 13px; font-weight: 800; }
+  .fp-kpi-big {
+    color: #7f171e;
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+  .fp-kpi-caption {
+    color: #7d8ca7;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* Tier 3: 4 cột phụ */
+  .case-tier-3 {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    min-height: 0;
+  }
+  .case-tier-3 .cap-block { min-height: 0; overflow: hidden; }
+  .tier3-body {
+    padding: 8px 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .tier3-row {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+  }
+  .tier3-row .tier3-icon { color: #7f171e; }
+  .tier3-row .tier3-icon svg { width: 13px; height: 13px; }
+  .tier3-row .tier3-label { color: #7d8ca7; font-weight: 600; }
+  .tier3-row .tier3-value { color: #0f2344; font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  .timeline-body {
+    padding: 8px 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+  }
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 12px 1fr;
+    gap: 8px;
+    position: relative;
+  }
+  .timeline-item::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 12px; bottom: -14px;
+    width: 2px;
+    background: #e6cdd0;
+  }
+  .timeline-item:last-child::before { display: none; }
+  .timeline-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #7f171e;
+    margin-top: 3px;
+    z-index: 1;
+  }
+  .timeline-time {
+    color: #7d8ca7;
+    font-size: 10.5px;
+    font-weight: 700;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .timeline-desc {
+    color: #0f2344;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 1px;
+  }
+  .notes-body {
+    padding: 8px 12px 10px;
+    color: #47597a;
+    font-size: 12px;
+    line-height: 1.5;
+    min-height: 40px;
+  }
+  .notes-body.empty { color: #b8c1d0; font-style: italic; }
+
+  /* Aside: Case Summary + Data Verification */
+  .case-summary { flex-shrink: 0; }
+  .summary-body {
+    padding: 8px 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px dashed #f0e2e4;
+    font-size: 11.5px;
+  }
+  .summary-row:last-child { border-bottom: 0; }
+  .summary-row .s-label { color: #7d8ca7; font-weight: 600; }
+  .summary-row .s-value {
+    color: #0f2344;
+    font-weight: 800;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    text-align: right;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .summary-chip {
+    margin: 10px 12px 12px;
+    display: grid;
+    place-items: center;
+    height: 40px;
+    border-radius: 10px;
+    background: #f0c33c;
+    color: #4a0f14;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 12px rgba(240, 195, 60, .35);
+  }
+  .summary-chip.pending { background: #eef2f8; color: #7d8ca7; box-shadow: none; }
+
+  .case-verify {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .verify-body {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .verify-progress-label {
+    display: flex;
+    justify-content: space-between;
+    color: #47597a;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .verify-progress-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: #fde8ea;
+    overflow: hidden;
+  }
+  .verify-progress-bar > span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #b91c26, #7f171e);
+    transition: width .3s;
+  }
+  .verify-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .verify-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px dashed #f0e2e4;
+    font-size: 11.5px;
+  }
+  .verify-item:last-child { border-bottom: 0; }
+  .verify-item .v-label { color: #0f2344; font-weight: 600; }
+  .verify-item.verify-head { padding: 4px 0; border-bottom: 1px solid #d9c3c6; }
+  .verify-item.verify-head .v-label {
+    color: #7f171e;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .verify-chip {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .3px;
+  }
+  .verify-chip.ok { background: #e6f7ec; color: #0a8a45; }
+  .verify-chip.miss { background: #fde8ea; color: #b91c26; }
+  .verify-banner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #fff8e0;
+    color: #7f5a0e;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .verify-banner.warn { background: #fde8ea; color: #b91c26; }
+  .verify-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* Preview: content không cần scroll body */
+  .content:has(.case-preview) {
+    overflow: hidden !important;
+    padding: 6px 8px !important;
+    display: flex !important;
+    flex-direction: column;
   }
 
   /* =============================================================
