@@ -911,19 +911,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   <span className="body-shot-label">
                     {p.key === "portrait_front" ? "FRONT" : p.key === "portrait_left" ? "LEFT" : "RIGHT"}
                   </span>
-                  <div className="body-shot-body">
-                    <div className="ruler">
-                      {[200, 190, 180, 170, 160, 150, 140, 130, 120, 110, 100].map((n) => (
-                        <span key={n}>{n}</span>
-                      ))}
-                    </div>
-                    <div className="body-shot-frame">
-                      <PhotoSlot label={p.label} value={photos[p.key]}
-                        onChange={(u) => setPhoto(p.key, u)} aspect="3 / 4"
-                        useCamera
-                        resize={{ w: 600, h: 800, mime: "image/jpeg", quality: 0.9 }} />
-                    </div>
-                  </div>
+                  <LiveCamShot
+                    label={p.label}
+                    shortLabel={p.key === "portrait_front" ? "FRONT" : p.key === "portrait_left" ? "LEFT" : "RIGHT"}
+                    value={photos[p.key]}
+                    onCapture={(u) => setPhoto(p.key, u)}
+                    showRuler={p.key === "portrait_front"}
+                  />
                 </div>
               ))}
             </div>
@@ -1045,7 +1039,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               )}
             </div>
             <div className="fp-preview-grid">
-              {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {
+              <div className="fp-hand-label fp-hand-left">BÀN TAY TRÁI</div>
+              {LEFT_HAND.map((f) => {
                 const filled = !!photos[f.key];
                 return (
                   <div key={f.key} className={"fp-preview-cell " + (filled ? "done" : "empty")}>
@@ -1063,7 +1058,31 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     </div>
                     <span className="fp-name">NGÓN {f.label.toUpperCase()}</span>
                     <span className={"fp-quality-chip " + (filled ? "" : "none")}>
-                      Chất lượng: {filled ? "Xuất sắc" : "—"}
+                      {filled ? "Xuất sắc" : "Chưa có"}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="fp-hand-label fp-hand-right">BÀN TAY PHẢI</div>
+              {RIGHT_HAND.map((f) => {
+                const filled = !!photos[f.key];
+                return (
+                  <div key={f.key} className={"fp-preview-cell " + (filled ? "done" : "empty")}>
+                    <div className="fp-preview-thumb">
+                      {filled ? (
+                        <img src={photos[f.key]} alt={f.label} />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M12 11c0-4 3-7 7-7" />
+                          <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
+                          <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
+                          <path d="M12 15v1a3 3 0 0 0 3 3" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="fp-name">NGÓN {f.label.toUpperCase()}</span>
+                    <span className={"fp-quality-chip " + (filled ? "" : "none")}>
+                      {filled ? "Xuất sắc" : "Chưa có"}
                     </span>
                   </div>
                 );
@@ -1114,10 +1133,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     <option key={c.code} value={c.code}>{c.code}</option>
                   ))}
                 </select>
-              </Tier3Row>
-              <Tier3Row label="Tội danh">
-                <input className="control tier3-input" value={form.charge}
-                  onChange={(e) => setField("charge", e.target.value)} placeholder="..." />
               </Tier3Row>
             </div>
           </section>
@@ -1241,6 +1256,70 @@ function InfoField({ label, children }) {
       <span className="info-field-label">{label}</span>
       {children}
     </label>
+  );
+}
+
+function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [camOpen, setCamOpen] = useState(false);
+
+  const handleCapture = async (file) => {
+    setCamOpen(false);
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await api.uploadPhoto(file);
+      onCapture(res.url);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="body-shot-body">
+        {showRuler && (
+          <div className="ruler">
+            {[200, 190, 180, 170, 160, 150, 140, 130, 120, 110, 100].map((n) => (
+              <span key={n}>{n}</span>
+            ))}
+          </div>
+        )}
+        <div className="body-shot-frame">
+          {value ? (
+            <img src={value} alt={label} />
+          ) : err ? (
+            <div className="body-shot-err">{err}</div>
+          ) : (
+            <div className="body-shot-placeholder">
+              <svg viewBox="0 0 64 96" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="32" cy="20" r="10" />
+                <path d="M12 92c0-16 9-26 20-26s20 10 20 26" />
+                <path d="M32 30v36" opacity=".35" />
+                <path d="M22 46h20" opacity=".35" />
+              </svg>
+              <span>{label}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <button type="button" className="body-shot-btn" onClick={() => setCamOpen(true)} disabled={busy}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+          <circle cx="12" cy="13" r="4" />
+        </svg>
+        {busy ? "Đang tải..." : value ? "Chụp lại" : "Chụp"}
+      </button>
+      <CameraCaptureModal
+        open={camOpen}
+        label={label}
+        onCapture={handleCapture}
+        onClose={() => setCamOpen(false)}
+      />
+    </>
   );
 }
 
