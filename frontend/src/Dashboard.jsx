@@ -4739,4 +4739,128 @@ const styles = `
     z-index: 2;
     background: #f8faff;
   }
+
+  /* =============================================================
+     THEME OVERRIDE — CÔNG AN (đỏ maroon + nền phòng họp)
+     Chỉ đổi màu & background, không đụng layout/spacing.
+     ============================================================= */
+  :root {
+    --ca-red-900: #4a0f14;
+    --ca-red-800: #661319;
+    --ca-red-700: #7f171e;
+    --ca-red-600: #9a1b23;
+    --ca-red-500: #b91c26;
+    --ca-red-400: #d33641;
+    --ca-red-050: #fde8ea;
+    --ca-red-025: #fff5f6;
+    --ca-gold:    #f0c33c;
+  }
+
+  body,
+  :root {
+    background: #f5efe4;
+  }
+
+  .app {
+    background:
+      radial-gradient(circle at 80% 10%, rgba(154, 27, 35, .06), transparent 32%),
+      #f5efe4 !important;
+  }
+
+  /* Header đỏ maroon */
+  .header {
+    background:
+      radial-gradient(circle at 45% -140%, rgba(240, 195, 60, .18), transparent 54%),
+      linear-gradient(120deg, var(--ca-red-700) 0%, var(--ca-red-900) 100%) !important;
+    box-shadow: 0 8px 28px rgba(74, 15, 20, .28) !important;
+  }
+  .brand-subtitle { color: #f5d8b6 !important; }
+  .server-status { background: rgba(255, 255, 255, .10) !important; border-color: rgba(255,255,255,.22) !important; }
+  .avatar { background: linear-gradient(145deg, var(--ca-red-500), var(--ca-red-800)) !important; }
+  .user-info span { color: #f5d8b6 !important; }
+
+  /* Sidebar đỏ maroon */
+  .sidebar {
+    background:
+      radial-gradient(circle at 50% -30%, rgba(240, 195, 60, .18), transparent 55%),
+      linear-gradient(180deg, var(--ca-red-800) 0%, var(--ca-red-900) 100%) !important;
+    border-right: 1px solid rgba(255, 255, 255, .06) !important;
+    color: #f6dcbf !important;
+  }
+  .sidebar-title { color: rgba(246, 220, 191, .60) !important; }
+  .nav-item {
+    background: rgba(255, 255, 255, .04) !important;
+    border-color: rgba(255, 255, 255, .08) !important;
+    color: #f2dbc0 !important;
+  }
+  .nav-item:hover {
+    background: rgba(240, 195, 60, .15) !important;
+    border-color: rgba(240, 195, 60, .45) !important;
+    color: white !important;
+  }
+  .nav-item.active {
+    background: linear-gradient(135deg, var(--ca-red-500), var(--ca-red-700)) !important;
+    border-color: rgba(240, 195, 60, .55) !important;
+    box-shadow:
+      0 8px 18px rgba(74, 15, 20, .55),
+      inset 0 1px 0 rgba(255, 255, 255, .18) !important;
+    color: white !important;
+  }
+  .nav-icon { background: rgba(255, 255, 255, .06) !important; color: var(--ca-gold) !important; }
+  .nav-item:hover .nav-icon { background: rgba(240, 195, 60, .22) !important; color: white !important; }
+  .nav-item.active .nav-icon {
+    background: rgba(255, 255, 255, .20) !important;
+    color: white !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22) !important;
+  }
+  .security-card {
+    background: linear-gradient(145deg, rgba(240, 195, 60, .20), rgba(154, 27, 35, .10)) !important;
+    border-color: rgba(240, 195, 60, .28) !important;
+    color: #f6dcbf !important;
+  }
+  .security-icon { background: rgba(240, 195, 60, .25) !important; color: white !important; }
+
+  /* Nút primary đỏ */
+  .button.primary {
+    background: linear-gradient(135deg, var(--ca-red-500), var(--ca-red-700)) !important;
+    box-shadow: 0 7px 16px rgba(154, 27, 35, .28) !important;
+    color: white !important;
+  }
+  .button.secondary { color: var(--ca-red-800) !important; border-color: #e6cdd0 !important; }
+
+  /* Focus & link accents chuyển sang đỏ */
+  .control:focus {
+    border-color: var(--ca-red-500) !important;
+    box-shadow: 0 0 0 3px rgba(185, 28, 38, .14) !important;
+  }
+  .panel-header button { color: var(--ca-red-700) !important; }
+
+  /* Bảng: header đỏ nhạt */
+  th { background: var(--ca-red-050) !important; color: var(--ca-red-800) !important; }
+  tbody tr:hover { background: var(--ca-red-025) !important; }
+  .row-actions button { color: var(--ca-red-800) !important; border-color: #e6cdd0 !important; }
+  .pagination button { color: var(--ca-red-800) !important; border-color: #e6cdd0 !important; }
+
+  /* Stat card accent */
+  .stat-card.blue   { --accent: var(--ca-red-600); --soft: var(--ca-red-050); }
+  .stat-card.purple { --accent: #7a1f52;           --soft: #fbe6ef; }
+
+  /* Hero card */
+  .dash-hero {
+    background:
+      radial-gradient(circle at 90% 20%, rgba(154, 27, 35, .10), transparent 45%),
+      linear-gradient(135deg, #ffffff 0%, #fff5f6 100%) !important;
+    border-color: #f0d8db !important;
+  }
+
+  /* Capture page: đầu card sang đỏ */
+  .cap-block-head {
+    background: linear-gradient(180deg, var(--ca-red-600) 0%, var(--ca-red-800) 100%) !important;
+  }
+
+  /* Page-title icon */
+  .page-title-icon {
+    background: linear-gradient(145deg, var(--ca-red-500), var(--ca-red-800)) !important;
+    box-shadow: 0 6px 14px rgba(154, 27, 35, .28) !important;
+  }
 `;
