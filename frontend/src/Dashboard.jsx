@@ -70,7 +70,7 @@ const NAV_BASE = [
   { key: "detainees", label: "Hồ sơ can phạm", icon: Icon.folder },
   { key: "cells", label: "Đồng bộ dữ liệu", icon: Icon.sync },
   { key: "search", label: "Tra cứu", icon: Icon.search },
-  { key: "detainee_history", label: "Lịch sử thao tác can phạm", icon: Icon.log },
+  { key: "detainee_history", label: "Lịch sử", icon: Icon.log },
 ];
 const NAV_ADMIN = [{ key: "users", label: "Quản lý tài khoản", icon: Icon.users }];
 
@@ -2007,7 +2007,7 @@ function DetaineeHistoryPage({ onEdit }) {
     <div className="page report-page">
       <div className="report-fixed">
         <PageHeader
-          title="Lịch sử thao tác can phạm"
+          title="Lịch sử"
           subtitle={`Nhật ký các thao tác đăng ký, cập nhật, xoá hồ sơ can phạm. Tổng ${filtered.length} bản ghi.`}
         >
           <button className="button secondary" onClick={load} disabled={loading}>
