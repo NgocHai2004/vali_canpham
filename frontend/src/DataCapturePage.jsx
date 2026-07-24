@@ -1042,9 +1042,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 </button>
               )}
             </div>
-            <div className="fp-preview-grid">
-              <div className="fp-hand-label fp-hand-left">BÀN TAY TRÁI</div>
-              {LEFT_HAND.map((f) => {
+            <div className="fp-preview-grid fp-preview-grid--single-row">
+              {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {
                 const filled = !!photos[f.key];
                 return (
                   <div key={f.key} className={"fp-preview-cell " + (filled ? "done" : "empty")}>
@@ -1064,27 +1063,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   </div>
                 );
               })}
-              <div className="fp-hand-label fp-hand-right">BÀN TAY PHẢI</div>
-              {RIGHT_HAND.map((f) => {
-                const filled = !!photos[f.key];
-                return (
-                  <div key={f.key} className={"fp-preview-cell " + (filled ? "done" : "empty")}>
-                    <div className="fp-preview-thumb">
-                      {filled ? (
-                        <img src={photos[f.key]} alt={f.label} />
-                      ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M12 11c0-4 3-7 7-7" />
-                          <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
-                          <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
-                          <path d="M12 15v1a3 3 0 0 0 3 3" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="fp-name">NGÓN {f.label.toUpperCase()}</span>
-                  </div>
-                );
-              })}
+              <div className="fp-hand-label fp-hand-below fp-hand-below-left">BÀN TAY TRÁI</div>
+              <div className="fp-hand-label fp-hand-below fp-hand-below-right">BÀN TAY PHẢI</div>
             </div>
           </section>
 

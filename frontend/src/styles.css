@@ -6698,6 +6698,84 @@ textarea.input {
   border-radius: 6px;
 }
 
+/* ============ Fingerprint preview cell (Tier 2 — 10-finger grid) ============
+   Ảnh vân tay hiển thị đầy đủ, không crop */
+.fp-preview-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.fp-preview-thumb {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  min-height: 130px;
+  max-height: 180px;
+  margin: 0;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #94a3b8;
+  padding: 0;
+  box-sizing: border-box;
+}
+.fp-preview-thumb img {
+  max-width: 50%;
+  max-height: 50%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+.fp-preview-thumb svg {
+  width: 32px;
+  height: 32px;
+  color: #94a3b8;
+}
+.fp-preview-cell .fp-name {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: #1e293b;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+}
+.fp-preview-cell.empty .fp-name { color: #64748b; }
+
+/* 10 vân tay 1 hàng + 2 label bàn tay bên dưới */
+.fp-preview-grid.fp-preview-grid--single-row {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-auto-rows: auto;
+  gap: 6px 6px;
+  align-items: start;
+}
+.fp-preview-grid.fp-preview-grid--single-row .fp-preview-cell {
+  grid-row: 1;
+}
+.fp-preview-grid.fp-preview-grid--single-row .fp-hand-below {
+  grid-row: 2;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #8E0000;
+  padding: 6px 4px 2px;
+  border-top: 1px solid #E3E6EC;
+  margin-top: 2px;
+}
+.fp-preview-grid.fp-preview-grid--single-row .fp-hand-below-left {
+  grid-column: 1 / span 5;
+}
+.fp-preview-grid.fp-preview-grid--single-row .fp-hand-below-right {
+  grid-column: 6 / span 5;
+}
+
 .fp-next {
   text-align: center;
 }
