@@ -59,6 +59,8 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [current, setCurrent] = useState(null);
   const [stats, setStats] = useState({ create: 0, update: 0, delete: 0, import: 0 });
   const [deletingId, setDeletingId] = useState(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const removeSession = async (s) => {
     const n = s.detainee_count || 0;
@@ -87,6 +89,8 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           mine_only: mineOnly ? "true" : "",
           date_from: dateFrom,
           date_to: dateTo,
+          skip: String((page - 1) * pageSize),
+          limit: String(pageSize),
         }),
         api.getCurrentSession().catch(() => null),
         api.listLogs({ resource: "detainee" }).catch(() => ({ counts: {} })),
@@ -108,7 +112,10 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
     }
   };
 
-  useEffect(() => { load(); }, [statusFilter, mineOnly, dateFrom, dateTo]);
+  useEffect(() => { load(); }, [statusFilter, mineOnly, dateFrom, dateTo, page]);
+  useEffect(() => { setPage(1); }, [statusFilter, mineOnly, dateFrom, dateTo]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const hasOpenSession = Boolean(current);
 
@@ -264,7 +271,14 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
             })}
           </tbody>
         </table>
-        <div className="session-list-footer">Tổng: {total}</div>
+        <div className="session-list-toolbar">
+          <div className="session-list-total">Tổng: {total}</div>
+          <div className="pagination">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Trước</button>
+            <span>Trang {page} / {totalPages}</span>
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau →</button>
+          </div>
+        </div>
       </div>
 
       {modalOpen && (

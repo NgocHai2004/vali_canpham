@@ -4823,16 +4823,21 @@ textarea.input {
 
 /* ============ Session List Page ============ */
 .session-list-page {
-  padding: 20px 24px;
-  max-width: 1280px;
+  padding: 14px 18px;
   margin: 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 1600px;
 }
 
 .session-list-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 0;
+  flex: 0 0 auto;
 }
 
 .session-list-head h2 {
@@ -4863,13 +4868,14 @@ textarea.input {
 
 .session-list-filters {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-end;
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: #f9fafb;
   border-radius: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   flex-wrap: wrap;
+  flex: 0 0 auto;
 }
 
 .session-list-filters label {
@@ -4908,6 +4914,14 @@ textarea.input {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow: hidden;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.session-list-table-wrap .session-list-table {
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .session-list-table {
@@ -4917,18 +4931,21 @@ textarea.input {
 
 .session-list-table th {
   background: #f3f4f6;
-  padding: 10px 12px;
+  padding: 9px 14px;
   text-align: left;
   font-size: 12px;
   text-transform: uppercase;
   color: #6b7280;
   font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .session-list-table td {
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-top: 1px solid #f1f5f9;
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 .session-list-row {
@@ -4947,10 +4964,56 @@ textarea.input {
 }
 
 .session-list-footer {
-  padding: 8px 12px;
+  padding: 8px 14px;
   font-size: 12px;
   color: #6b7280;
   background: #f9fafb;
+  flex: 0 0 auto;
+}
+
+.session-list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  background: #f9fafb;
+  border-top: 1px solid #f1f5f9;
+}
+
+.session-list-toolbar .session-list-total {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.session-list-toolbar .pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-list-toolbar .pagination button {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.session-list-toolbar .pagination button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.session-list-toolbar .pagination span {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 600;
 }
 
 .badge {
@@ -5245,8 +5308,112 @@ textarea.input {
 .session-list-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+/* Report stat cards (StatCard on SessionListPage).
+   These previously had no CSS, so they rendered with no
+   white background — only the page background showed through. */
+.report-stat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #eaeef5;
+  border-left: 4px solid #94a3b8;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+
+.report-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px -8px rgba(15, 23, 42, 0.15);
+}
+
+.report-stat.blue {
+  border-left-color: #2563eb;
+}
+
+.report-stat.orange {
+  border-left-color: #ea580c;
+}
+
+.report-stat.purple {
+  border-left-color: #7c3aed;
+}
+
+.report-stat.green {
+  border-left-color: #16a34a;
+}
+
+.report-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.report-stat-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.report-stat.blue .report-stat-icon {
+  background: linear-gradient(135deg, #e0edff, #c7dbff);
+  color: #2563eb;
+}
+
+.report-stat.orange .report-stat-icon {
+  background: linear-gradient(135deg, #ffe4c9, #fed7aa);
+  color: #ea580c;
+}
+
+.report-stat.purple .report-stat-icon {
+  background: linear-gradient(135deg, #e2dbfc, #ddd6fe);
+  color: #7c3aed;
+}
+
+.report-stat.green .report-stat-icon {
+  background: linear-gradient(135deg, #d7f5e3, #a7f3c8);
+  color: #16a34a;
+}
+
+.report-stat-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7a8699;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.report-stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0a2540;
+  line-height: 1.1;
+  margin: 3px 0 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.4px;
+}
+
+.report-stat-note {
+  font-size: 11.5px;
+  color: #94a1b3;
+  margin-top: 3px;
 }
 
 .stat-card {
@@ -5297,12 +5464,13 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   background: #fef8f8;
   border: 1px solid #fecaca;
   border-radius: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   font-size: 13px;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 900px) {
@@ -5723,21 +5891,71 @@ textarea.input {
 
 .preview-a4 {
   width: 210mm;
+  max-width: 210mm;
   min-height: 297mm;
   background: #fff;
-  padding: 16mm 18mm;
+  padding: 12mm 14mm;
+  box-sizing: border-box;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
   font-family: "Times New Roman", "Cambria", serif;
   color: #111;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+.pv-top {
+  display: grid;
+  grid-template-columns: 48mm 1fr;
+  gap: 6mm;
+  align-items: start;
+  margin-bottom: 6px;
+}
+
+.pv-cccd-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  min-width: 0;
+  margin: 8px auto 10px;
+  width: max-content;
+}
+
+.pv-cccd-corner img {
+  width: 100%;
+  max-width: 48mm;
+  height: 30mm;
+  object-fit: cover;
+  border: 1.2px solid #111;
+  background: #f8fafc;
+}
+
+.pv-cccd-corner span {
+  width: 100%;
+  max-width: 48mm;
+  height: 30mm;
+  border: 1.2px dashed #94a3b8;
+  background: #f8fafc;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 10px;
+}
+
+.pv-cccd-corner-caption {
+  text-align: center;
+  font-style: italic;
+  color: #475569;
 }
 
 .pv-header {
   display: flex;
   justify-content: center;
   text-align: center;
-  margin-bottom: 8px;
 }
 
 .pv-org1 {
@@ -6514,4 +6732,230 @@ textarea.input {
   .cccd-row {
     grid-template-columns: 100px 1fr;
   }
+}
+
+/* ============================================================
+   Sync Page — "Đồng bộ dữ liệu" (SyncPage in Dashboard.jsx)
+   Previously had no CSS: rows were transparent, only hovered
+   rows showed any background. Add white panel + row backgrounds.
+   ============================================================ */
+.sync-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.sync-toolbar .control {
+  min-width: 150px;
+  padding: 9px 12px;
+  border: 1px solid #e2e8f2;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: #0a2540;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.sync-toolbar .control:focus {
+  border-color: #1e5eff;
+  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.1);
+}
+
+.sync-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.sync-toolbar .button {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f2;
+  background: #fff;
+  color: #4a5568;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sync-toolbar .button:hover:not(:disabled) {
+  background: #f4f7fb;
+  border-color: #1e5eff;
+  color: #1e5eff;
+}
+
+.sync-toolbar .button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sync-toolbar .button.primary {
+  background: linear-gradient(135deg, #2a6bff, #1e5eff);
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 6px rgba(30, 94, 255, 0.25);
+}
+
+.sync-toolbar .button.primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #2a6bff, #1e5eff);
+}
+
+.sync-toolbar-spacer {
+  flex: 1;
+}
+
+/* Table container: white panel with rounded corners + shadow */
+.sync-table-wrap {
+  background: #fff;
+  border: 1px solid #eaeef5;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+.sync-table-wrap .session-list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #f9fafb;
+  border-top: 1px solid #f1f5f9;
+}
+.sync-table-wrap .session-list-total {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.sync-table-wrap .pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sync-table-wrap .pagination button {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sync-table-wrap .pagination button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.sync-table-wrap .pagination span {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 600;
+}
+
+.sync-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: #fff;
+}
+
+.sync-table thead th {
+  background: #f4f7fb;
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid #e2e8f2;
+  white-space: nowrap;
+}
+
+/* Row backgrounds: white by default, light hover, selected = light blue */
+.sync-table tbody tr {
+  background: #fff;
+  border-bottom: 1px solid #f4f7fb;
+  transition: background 0.1s;
+}
+
+.sync-table tbody tr:hover {
+  background: #fafbfd;
+}
+
+.sync-table tbody tr.row-selected,
+.sync-table tbody tr.row-selected:hover {
+  background: #eef4ff;
+}
+
+.sync-table tbody td {
+  padding: 11px 14px;
+  color: #0a2540;
+  vertical-align: middle;
+}
+
+.sync-table tbody td strong {
+  color: #0a2540;
+  font-weight: 700;
+}
+
+.sync-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #1e5eff;
+}
+
+.sync-table .button.small {
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #1e5eff;
+  background: #fff;
+  color: #1e5eff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sync-table .button.small:hover:not(:disabled) {
+  background: #1e5eff;
+  color: #fff;
+}
+
+.sync-table .button.small:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sync-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sync-badge.open {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.sync-badge.closed {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.sync-empty {
+  text-align: center;
+  color: #94a3b3;
+  padding: 32px 20px !important;
+  font-size: 13px;
 }

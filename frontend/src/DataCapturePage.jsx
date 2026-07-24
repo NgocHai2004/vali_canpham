@@ -844,7 +844,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         if (sessionId && onSavedInSession) {
           setTimeout(() => onSavedInSession(), 600);
         } else if (go) {
-          setTimeout(() => go("detainees"), 800);
+          setTimeout(() => go("sessions"), 800);
         }
       } else {
         const created = await api.createDetainee(body);
@@ -873,7 +873,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   const backToList = () => {
     if (onDone) onDone();
-    if (go) go("detainees");
+    if (sessionId && onSavedInSession) {
+      onSavedInSession();
+    } else if (go) {
+      go("sessions");
+    }
   };
 
   const now = new Date();
@@ -890,7 +894,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           {ok && (
             <div className="success-box">
               {ok}
-              <button type="button" className="banner-link" onClick={() => go && go("detainees")}>
+              <button type="button" className="banner-link" onClick={backToList}>
                 Xem danh sách →
               </button>
             </div>
@@ -1399,6 +1403,13 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
               <div className="pv-org2">Độc lập - Tự do - Hạnh phúc</div>
               <div className="pv-org-underline" />
             </div>
+          </div>
+
+          <div className="pv-cccd-corner">
+            {photos.cccd_front
+              ? <img src={photos.cccd_front} alt="Ảnh CCCD" />
+              : <span>Chưa có ảnh CCCD</span>}
+            <div className="pv-cccd-corner-caption">Ảnh CCCD (mặt trước)</div>
           </div>
 
           <h1 className="pv-title">HỒ SƠ CAN PHẠM</h1>

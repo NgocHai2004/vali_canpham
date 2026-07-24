@@ -172,7 +172,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
         <div className="session-detail-toolbar-actions">
           {isOpen ? (
             <>
-              <button className="btn-primary" onClick={() => onAddDetainee && onAddDetainee(session.id)}>+ Thêm hồ sơ mới</button>
+              <button className="btn-primary" onClick={() => onAddDetainee && onAddDetainee(session.id)}>+ Thu nhận hồ sơ mới</button>
               <button className="btn-danger-outline" onClick={doClose} disabled={closing}>
                 {closing ? "Đang đóng..." : "Đóng phiên"}
               </button>
@@ -204,7 +204,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
             {(session.detainees || []).length === 0 && (
               <tr>
                 <td colSpan={8} className="session-list-empty">
-                  {isOpen ? "Chưa có hồ sơ nào. Bấm '+ Thêm hồ sơ mới' để bắt đầu." : "Phiên không có hồ sơ."}
+                  {isOpen ? "Chưa có hồ sơ nào. Bấm '+ Thu nhận hồ sơ mới' để bắt đầu." : "Phiên không có hồ sơ."}
                 </td>
               </tr>
             )}

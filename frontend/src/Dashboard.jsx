@@ -66,7 +66,6 @@ const Icon = {
 const NAV_BASE = [
   { key: "dashboard", label: "Tổng quan", icon: Icon.dashboard },
   { key: "sessions", label: "Phiên làm việc", icon: Icon.clipboard },
-  { key: "import", label: "Thu nhận dữ liệu", icon: Icon.cloudUpload },
   { key: "detainees", label: "Hồ sơ can phạm", icon: Icon.folder },
   { key: "cells", label: "Đồng bộ dữ liệu", icon: Icon.sync },
   { key: "search", label: "Tra cứu", icon: Icon.search },
@@ -88,22 +87,9 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
   }, []);
 
   const goPage = async (key) => {
-    if (key !== "import" && key !== "session_capture") {
+    if (key !== "session_capture") {
       setEditingDetainee(null);
       setSessionCtx(null);
-    }
-    if (key === "import") {
-      try {
-        const cur = await api.getCurrentSession();
-        setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
-        setActiveSessionId(cur.id);
-        setPage("sessions_detail");
-        return;
-      } catch (ex) {
-        alert("Bạn cần mở một phiên làm việc trước khi thu nhận dữ liệu.");
-        setPage("sessions");
-        return;
-      }
     }
     if (key === "sessions") {
       setActiveSessionId(null);
@@ -112,10 +98,18 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
     setPage(key);
   };
 
-  const editDetainee = (detainee) => {
+  const editDetainee = async (detainee) => {
     setEditingDetainee(detainee);
-    setSessionCtx(null);
-    setPage("import");
+    try {
+      const cur = await api.getCurrentSession();
+      setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
+      setActiveSessionId(cur.id);
+      setPage("session_capture");
+    } catch (ex) {
+      alert("Bạn cần mở một phiên làm việc trước khi chỉnh sửa hồ sơ.");
+      setEditingDetainee(null);
+      setPage("sessions");
+    }
   };
 
   const openSession = (sessionId) => {
@@ -190,13 +184,6 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
           {page === "dashboard" && <DashboardHome go={goPage} />}
           {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
           {page === "cells" && <SyncPage />}
-          {page === "import" && (
-            <DataCapturePage
-              go={goPage}
-              initial={editingDetainee}
-              onDone={() => setEditingDetainee(null)}
-            />
-          )}
           {page === "sessions" && (
             <SessionListPage
               role={role}
@@ -379,7 +366,7 @@ function DashboardHome({ go }) {
               <strong className="mono">{openSession.code}</strong>
               <small>Đã nhập {openSession.detainee_count || 0} hồ sơ</small>
             </div>
-            <button className="button primary" onClick={() => go("import")}>
+            <button className="button primary" onClick={() => go("sessions")}>
               Vào phiên {Icon.arrow}
             </button>
           </div>
@@ -409,9 +396,10 @@ function DashboardHome({ go }) {
         <StatCard
           tone="blue"
           icon={Icon.folder}
-          label="Tổng hồ sơ"
+          label="Tổng hồ sơ can phạm"
           value={total.toLocaleString("vi-VN")}
           note="Đang quản lý toàn hệ thống"
+          onClick={() => go("detainees")}
         />
         <StatCard
           tone="purple"
@@ -869,7 +857,7 @@ function DetaineesPage({ onEdit }) {
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
 
-  const limit = 20;
+  const limit = 10;
 
   const load = async () => {
     setLoading(true);
@@ -914,19 +902,9 @@ function DetaineesPage({ onEdit }) {
   return (
     <div className="page">
       <PageHeader title="Danh sách can phạm" subtitle={`Tổng ${total} hồ sơ`}>
-        <button
-          className="button primary"
-          onClick={() => {
-            setEditing(null);
-            setShowForm(true);
-          }}
-        >
-          {Icon.plus}
-          Thêm hồ sơ mới
-        </button>
       </PageHeader>
 
-      <div className="table-card">
+      <div className="detainees-table-wrap">
         {loading ? (
           <StateBox>Đang tải...</StateBox>
         ) : error ? (
@@ -934,7 +912,7 @@ function DetaineesPage({ onEdit }) {
         ) : !items.length ? (
           <StateBox>Không có hồ sơ nào.</StateBox>
         ) : (
-          <table>
+          <table className="detainees-table">
             <thead>
               <tr>
                 <th>Ảnh</th>
@@ -988,15 +966,15 @@ function DetaineesPage({ onEdit }) {
             </tbody>
           </table>
         )}
-      </div>
-
-      {pages > 1 && (
-        <div className="pagination">
-          <button disabled={!skip} onClick={() => setSkip(Math.max(0, skip - limit))}>← Trước</button>
-          <span>Trang {currentPage} / {pages}</span>
-          <button disabled={currentPage >= pages} onClick={() => setSkip(skip + limit)}>Sau →</button>
+        <div className="session-list-toolbar">
+          <div className="session-list-total">Tổng: {total}</div>
+          <div className="pagination">
+            <button disabled={!skip || loading} onClick={() => setSkip(Math.max(0, skip - limit))}>← Trước</button>
+            <span>Trang {currentPage} / {pages}</span>
+            <button disabled={currentPage >= pages || loading} onClick={() => setSkip(skip + limit)}>Sau →</button>
+          </div>
         </div>
-      )}
+      </div>
 
       {showForm && (
         <DetaineeForm
@@ -1161,6 +1139,8 @@ function SyncPage() {
   const [selected, setSelected] = useState(() => new Set());
   const [syncingIds, setSyncingIds] = useState(() => new Set());
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const load = async () => {
     setLoading(true);
@@ -1179,6 +1159,7 @@ function SyncPage() {
   };
 
   useEffect(() => { load(); }, [statusFilter]);
+  useEffect(() => { setPage(1); }, [statusFilter, q]);
 
   const filtered = sessions.filter((s) => {
     if (!q.trim()) return true;
@@ -1190,6 +1171,9 @@ function SyncPage() {
       (s.location || "").toLowerCase().includes(kw)
     );
   });
+  const totalRows = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const allChecked = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
   const toggleOne = (id) => setSelected((prev) => {
@@ -1369,10 +1353,10 @@ function SyncPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && !loading && (
+            {pagedRows.length === 0 && !loading && (
               <tr><td colSpan={9} className="sync-empty">Không có phiên nào phù hợp.</td></tr>
             )}
-            {filtered.map((s) => {
+            {pagedRows.map((s) => {
               const busy = syncingIds.has(s.id);
               return (
                 <tr key={s.id} className={selected.has(s.id) ? "row-selected" : ""}>
@@ -1406,6 +1390,14 @@ function SyncPage() {
             })}
           </tbody>
         </table>
+        <div className="session-list-toolbar">
+          <div className="session-list-total">Tổng: {totalRows}</div>
+          <div className="pagination">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Trước</button>
+            <span>Trang {page} / {totalPages}</span>
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau →</button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2109,6 +2101,8 @@ function DetaineeHistoryPage({ onEdit }) {
   const [viewing, setViewing] = useState(null);
   const [busyRef, setBusyRef] = useState("");
   const [notice, setNotice] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const load = async () => {
     setLoading(true);
@@ -2132,6 +2126,7 @@ function DetaineeHistoryPage({ onEdit }) {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => { setPage(1); }, [q, dateFrom, dateTo, actionFilter, logs]);
 
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase();
@@ -2146,6 +2141,9 @@ function DetaineeHistoryPage({ onEdit }) {
       );
     });
   }, [logs, q]);
+  const totalRows = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const pagedLogs = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const labels = {
     create: "Đăng ký mới",
@@ -2271,8 +2269,8 @@ function DetaineeHistoryPage({ onEdit }) {
       </div>
 
       <div className="report-scroll">
-        <div className="table-card">
-          <table>
+        <div className="detainees-table-wrap">
+          <table className="detainees-table">
             <thead>
               <tr>
                 <th>Thời gian</th>
@@ -2285,7 +2283,7 @@ function DetaineeHistoryPage({ onEdit }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((log) => {
+              {pagedLogs.map((log) => {
                 const busy = busyRef === log.id;
                 const officer = log.officer || {};
                 const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
@@ -2336,11 +2334,19 @@ function DetaineeHistoryPage({ onEdit }) {
                   </tr>
                 );
               })}
-              {!filtered.length && (
+              {!pagedLogs.length && (
                 <tr><td colSpan={7}><div className="empty">Không có bản ghi phù hợp.</div></td></tr>
               )}
             </tbody>
           </table>
+          <div className="session-list-toolbar">
+            <div className="session-list-total">Tổng: {totalRows}</div>
+            <div className="pagination">
+              <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Trước</button>
+              <span>Trang {page} / {totalPages}</span>
+              <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau →</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2974,16 +2980,17 @@ const styles = `
     min-width: 0;
     min-height: 0;
     overflow: auto;
-    padding: 5px 5px;
+    padding: 6px 6px;
   }
 
   .page {
-    max-width: 1500px;
+    max-width: 1700px;
     margin: 0 auto;
-    min-height: 100%;
+    height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
   }
   .page-title {
     display: flex;
@@ -3861,7 +3868,8 @@ const styles = `
     align-items: center;
     justify-content: space-between;
     gap: 20px;
-    margin-bottom: 24px;
+    margin-bottom: 0;
+    flex: 0 0 auto;
   }
   .page-header-actions { display: flex; gap: 10px; }
 
@@ -3915,14 +3923,91 @@ const styles = `
     box-shadow: 0 0 0 3px rgba(34, 113, 236, .12);
   }
 
-  .table-card { overflow: auto; }
+  .table-card {
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* Danh sách can phạm — dùng cùng phong cách session-list */
+  .detainees-table-wrap {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .detainees-table-wrap .detainees-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .detainees-table th {
+    background: #f3f4f6;
+    padding: 9px 14px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 600;
+  }
+  .detainees-table td {
+    padding: 10px 14px;
+    border-top: 1px solid #f1f5f9;
+    font-size: 13.5px;
+    vertical-align: middle;
+  }
+  .detainees-table tbody tr {
+    cursor: default;
+    transition: background 0.1s;
+  }
+  .detainees-table tbody tr:hover { background: #fef2f2; }
+  .detainees-table-wrap .session-list-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: #f9fafb;
+    border-top: 1px solid #f1f5f9;
+  }
+  .detainees-table-wrap .session-list-total {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+  }
+  .detainees-table-wrap .pagination {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .detainees-table-wrap .pagination button {
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #374151;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .detainees-table-wrap .pagination button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+  .detainees-table-wrap .pagination span {
+    font-size: 13px;
+    color: #374151;
+    font-weight: 600;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
     min-width: 920px;
   }
   th, td {
-    padding: 15px 16px;
+    padding: 11px 14px;
     border-bottom: 1px solid #edf1f6;
     color: #344962;
     text-align: left;
@@ -5181,7 +5266,7 @@ const styles = `
   .case-preview {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 200px;
-    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1.1fr) minmax(0, 0.55fr) auto;
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 0.45fr) auto;
     grid-template-areas:
       "tier1  tier1"
       "tier2  verify"
@@ -5541,22 +5626,33 @@ const styles = `
   }
   .case-tier-3 .cap-block { min-height: 0; overflow: hidden; }
   .tier3-body {
-    padding: 8px 12px 10px;
+    padding: 6px 10px 8px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
+    min-height: 0;
+    overflow: auto;
   }
   .tier3-row {
     display: grid;
-    grid-template-columns: 18px 1fr auto;
+    grid-template-columns: 16px 1fr auto;
     align-items: center;
     gap: 6px;
-    font-size: 11.5px;
+    font-size: 11px;
+    line-height: 1.25;
+    min-height: 0;
   }
   .tier3-row .tier3-icon { color: #7f171e; }
-  .tier3-row .tier3-icon svg { width: 13px; height: 13px; }
-  .tier3-row .tier3-label { color: #7d8ca7; font-weight: 600; }
+  .tier3-row .tier3-icon svg { width: 12px; height: 12px; }
+  .tier3-row .tier3-label { color: #7d8ca7; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tier3-row .tier3-value { color: #0f2344; font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .tier3-row .tier3-input,
+  .tier3-row .control.tier3-input {
+    font-size: 11px;
+    padding: 2px 6px;
+    height: 22px;
+    min-width: 0;
+  }
 
   .timeline-body {
     padding: 8px 12px 10px;
