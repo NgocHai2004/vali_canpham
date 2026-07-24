@@ -5181,7 +5181,7 @@ const styles = `
   .case-preview {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 200px;
-    grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.9fr) minmax(0, 0.75fr) auto;
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1.1fr) minmax(0, 0.55fr) auto;
     grid-template-areas:
       "tier1  tier1"
       "tier2  verify"
