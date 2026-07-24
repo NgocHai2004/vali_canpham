@@ -1157,26 +1157,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         </div>
       </div>
 
-      {/* ================ Aside: Tóm tắt + Kiểm tra ================ */}
+      {/* ================ Aside: chỉ Kiểm tra dữ liệu ================ */}
       <aside className="case-aside">
-        <section className="cap-block case-summary">
-          <div className="cap-block-head">
-            <h2 className="cap-block-title">TÓM TẮT HỒ SƠ</h2>
-          </div>
-          <div className="summary-body">
-            <SummaryRow label="Mã hồ sơ" value={form.personal_id || "—"} />
-            <SummaryRow label="Thời gian" value={captureTimeStr} />
-            <SummaryRow label="Cán bộ" value={sessionCode ? "Đang trong phiên" : "—"} />
-            <SummaryRow label="Thiết bị" value="ZKFinger 4500" />
-            <SummaryRow label="Số vân tay" value={`${fpCount} / 10`} />
-            <SummaryRow label="Số ảnh" value={`${portraitCount} / 3`} />
-            <SummaryRow label="CCCD" value={photos.cccd_front ? "Đã có" : "Chưa có"} />
-          </div>
-          <div className={"summary-chip " + (readyState ? "" : "pending")}>
-            {readyState ? "SẴN SÀNG" : "CHƯA ĐỦ"}
-          </div>
-        </section>
-
         <section className="cap-block case-verify">
           <div className="cap-block-head">
             <h2 className="cap-block-title">KIỂM TRA DỮ LIỆU</h2>

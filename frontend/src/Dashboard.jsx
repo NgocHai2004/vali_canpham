@@ -431,7 +431,7 @@ function DashboardHome({ go }) {
         />
       </div>
 
-      <div className="dashboard-grid">
+      <div className="dashboard-body">
         <section className="panel">
           <PanelHeader title="Hoạt động 14 ngày qua" />
           <BarChart data={activity} />
@@ -441,9 +441,7 @@ function DashboardHome({ go }) {
           <PanelHeader title="Cơ cấu giới tính" />
           <DonutGender male={male} female={female} malePct={malePct} femalePct={femalePct} />
         </section>
-      </div>
 
-      <div className="dashboard-grid dashboard-grid-hw">
         <section className="panel">
           <PanelHeader title="Trạng thái vali thu nhận" />
           <HardwareStatus hw={hw} />
@@ -453,9 +451,7 @@ function DashboardHome({ go }) {
           <PanelHeader title="Thiết bị kết nối" />
           <DeviceStatus devices={devices} />
         </section>
-      </div>
 
-      <div className="dashboard-grid">
         <section className="panel">
           <PanelHeader
             title="5 phiên gần nhất"
@@ -5082,48 +5078,75 @@ const styles = `
     gap: 12px;
     margin-bottom: 0;
   }
-  .dashboard-page .stat-card { padding: 12px 14px; }
-  .dashboard-page .dashboard-grid {
+  .dashboard-page .stat-card { padding: 10px 12px; min-height: 74px; }
+  .dashboard-page .stat-content > span { font-size: 11.5px; }
+  .dashboard-page .stat-content strong { font-size: 20px; }
+  .dashboard-page .stat-content small { font-size: 11px; }
+  .dashboard-page .stat-icon { width: 42px; height: 42px; }
+  .dashboard-page .stat-icon svg { width: 18px; height: 18px; }
+
+  .dashboard-page .dashboard-body {
     flex: 1 1 auto;
     min-height: 0;
     display: grid;
-    grid-template-columns: 1.05fr .95fr;
-    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 10px;
   }
-  .dashboard-page .dashboard-grid:nth-of-type(3) { flex: 1 1 auto; }
-  .dashboard-page .panel {
+  .dashboard-page .dashboard-body > .panel {
+    min-height: 0;
     overflow: hidden;
-    height: auto;
     display: flex;
     flex-direction: column;
   }
-  .dashboard-page .panel-header { height: 42px; padding: 0 14px; }
+  .dashboard-page .panel-header { height: 40px; padding: 0 14px; flex: 0 0 auto; }
   .dashboard-page .panel-header h3 { font-size: 13.5px; }
-  .dashboard-page .bar-chart { padding: 8px 14px 10px; flex: 1 1 auto; min-height: 0; }
-  .dashboard-page .bar-chart-body { height: 100%; padding-top: 18px; padding-bottom: 18px; }
-  .dashboard-page .panel-donut { overflow: visible; }
+  .dashboard-page .bar-chart {
+    padding: 6px 14px 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-page .bar-chart-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    padding-top: 16px;
+    padding-bottom: 6px;
+  }
+  .dashboard-page .panel-donut { overflow: hidden; }
   .dashboard-page .donut-wrap {
-    grid-template-columns: 130px 1fr;
-    padding: 10px 14px 14px;
-    gap: 14px;
-    overflow: visible;
+    grid-template-columns: 120px 1fr;
+    padding: 6px 14px 10px;
+    gap: 12px;
+    align-items: center;
+    flex: 1 1 auto;
     min-height: 0;
   }
-  .dashboard-page .donut {
-    width: 130px;
-    height: 130px;
-    flex-shrink: 0;
-    overflow: visible;
-  }
-  .dashboard-page .donut-legend { gap: 8px; }
-  .dashboard-page .donut-legend-row { padding: 6px 10px; }
-  .dashboard-page .donut-legend-row strong { font-size: 14px; }
+  .dashboard-page .donut { width: 120px; height: 120px; flex-shrink: 0; }
+  .dashboard-page .donut-legend { gap: 6px; }
+  .dashboard-page .donut-legend-row { padding: 5px 10px; font-size: 12.5px; }
+  .dashboard-page .donut-legend-row strong { font-size: 13.5px; }
+
   .dashboard-page .session-list,
-  .dashboard-page .activity-feed {
+  .dashboard-page .activity-feed,
+  .dashboard-page .hw-status,
+  .dashboard-page .dev-list {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
   }
+  .dashboard-page .session-row { padding: 6px 12px; }
+  .dashboard-page .activity-row { padding: 6px 0; }
+  .dashboard-page .hw-status { padding: 8px 14px 10px; gap: 8px; }
+  .dashboard-page .hw-rings { gap: 6px; }
+  .dashboard-page .ring-gauge { padding: 4px 2px; }
+  .dashboard-page .hw-meta { grid-template-columns: repeat(4, 1fr); gap: 6px; padding-top: 6px; }
+  .dashboard-page .hw-meta-item strong { font-size: 12px; }
+  .dashboard-page .hw-meta-item span { font-size: 10px; }
+  .dashboard-page .dev-row { padding: 6px 6px; }
+  .dashboard-page .dev-status-summary { padding: 6px 16px; }
 
   /* Sticky header + scrollable body cho trang Báo cáo */
   .report-page {
@@ -5158,28 +5181,35 @@ const styles = `
   .case-preview {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 210px;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.9fr) minmax(0, 0.75fr) auto;
+    grid-template-areas:
+      "tier1  tier1"
+      "tier2  verify"
+      "tier3  verify"
+      "action action";
     gap: 6px;
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
     overflow: hidden;
   }
+  .case-tier-1 { grid-area: tier1; }
+  .case-tier-2 { grid-area: tier2; }
+  .case-tier-3 { grid-area: tier3; }
+  .case-aside  { grid-area: verify; }
+  .case-action-bar { grid-area: action; }
+
   .case-main {
-    display: grid;
-    grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.9fr) minmax(0, 0.75fr);
-    gap: 8px;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
+    display: contents;
   }
   .case-aside {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     gap: 8px;
     min-height: 0;
     overflow: hidden;
   }
+  .case-aside .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   .case-action-bar {
     grid-column: 1 / -1;
     display: grid;
@@ -5198,10 +5228,10 @@ const styles = `
   }
   .case-action-bar .button.danger:hover { background: #fff5f6; }
 
-  /* Tier 1: 3 cột — Body photos | Personal info | CCCD */
+  /* Tier 1: 3 cột bằng nhau — Body photos | Personal info | CCCD */
   .case-tier-1 {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.85fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     min-height: 0;
   }
@@ -5317,13 +5347,18 @@ const styles = `
 
   /* CCCD wrapper — bo hộp cho gọn */
   .cccd-preview-wrap {
-    display: grid;
-    place-items: center;
-    padding: 8px 10px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
   .cccd-preview-wrap .cccd-card-mock {
     width: 100%;
-    max-width: 300px;
+    height: auto;
+    max-width: 100%;
     box-shadow: 0 4px 14px rgba(74, 15, 20, .12);
     border-radius: 12px;
     overflow: hidden;
