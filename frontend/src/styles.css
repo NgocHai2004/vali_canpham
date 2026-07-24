@@ -5867,6 +5867,11 @@ textarea.input {
   margin-top: 4px;
 }
 
+/* Khi chỉ còn vân tay: chiếm hết chiều ngang, ô vuông */
+.pv-bio-row .pv-bio-col-wide {
+  grid-column: 1 / -1;
+}
+
 .pv-bio-title {
   font-weight: 600;
   font-size: 12px;
@@ -5898,6 +5903,11 @@ textarea.input {
   align-items: center;
   justify-content: center;
   color: #94a3b8;
+}
+
+/* Khi chỉ có vân tay (wide): ô vuông 1/1 */
+.pv-bio-col-wide .pv-fp-frame {
+  aspect-ratio: 1 / 1;
 }
 
 .pv-fp-frame img {

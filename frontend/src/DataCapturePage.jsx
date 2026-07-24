@@ -780,7 +780,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   };
 
   const fpCount = FINGERS.filter((f) => photos[f.key]).length;
-  const irisCount = ["iris_left", "iris_right"].filter((k) => photos[k]).length;
   const portraitCount = PORTRAITS.filter((p) => photos[p.key]).length;
 
   const checks = useMemo(() => {
@@ -793,11 +792,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       { key: "cccd", label: "Mã can phạm + Thông tin CCCD", ok: cccdOk, required: true },
       { key: "portrait", label: "Ảnh chân dung đa góc", ok: portraitCount === 3, required: false },
       { key: "fp", label: "Vân tay (10/10)", ok: fpCount === 10, required: false },
-      { key: "iris", label: "Mống mắt (2/2)", ok: irisCount === 2, required: false },
       { key: "extra", label: "Thông tin bổ sung", ok: !!form.height_cm && !!form.weight_kg, required: false },
       { key: "device", label: "Thiết bị & kết nối", ok: true, required: false },
     ];
-  }, [form, fpCount, irisCount, portraitCount]);
+  }, [form, fpCount, portraitCount]);
 
   const allRequiredValid = checks.filter((c) => c.required).every((c) => c.ok);
   const allValid = checks.every((c) => c.ok);
@@ -986,7 +984,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           <div className="cap-block-head">
             <h2 className="cap-block-title">DỮ LIỆU SINH TRẮC HỌC</h2>
           </div>
-          <div className="bio-body">
+          <div className="bio-body bio-body-fp-only">
             <div className="bio-fp">
               <div className="bio-sub-row">
                 <div className="bio-sub-title">Vân tay (10 ngón)</div>
@@ -1063,26 +1061,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <div className={"bio-status " + (fpCount === 10 ? "ok" : "warn")}>
                 <CheckDot ok={fpCount === 10} />
                 {fpCount === 10 ? `Đã thu thập đủ 10/10 vân tay` : `Đã thu thập ${fpCount}/10 vân tay`}
-              </div>
-            </div>
-
-            <div className="bio-iris">
-              <div className="bio-sub-title">Mống mắt (2 mắt)</div>
-              <div className="iris-grid">
-                <div className="iris-item">
-                  <PhotoSlot label="Mắt trái" value={photos.iris_left}
-                    onChange={(u) => setPhoto("iris_left", u)} aspect="1.4 / 1" />
-                  <span className="iris-item-label">Mắt trái</span>
-                </div>
-                <div className="iris-item">
-                  <PhotoSlot label="Mắt phải" value={photos.iris_right}
-                    onChange={(u) => setPhoto("iris_right", u)} aspect="1.4 / 1" />
-                  <span className="iris-item-label">Mắt phải</span>
-                </div>
-              </div>
-              <div className={"bio-status " + (irisCount === 2 ? "ok" : "warn")}>
-                <CheckDot ok={irisCount === 2} />
-                {irisCount === 2 ? `Đã thu thập đủ 2/2 mống mắt` : `Đã thu thập ${irisCount}/2 mống mắt`}
               </div>
             </div>
           </div>
@@ -1340,7 +1318,7 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
 
           <h3 className="pv-section">IV. DỮ LIỆU SINH TRẮC HỌC</h3>
           <div className="pv-bio-row">
-            <div className="pv-bio-col">
+            <div className="pv-bio-col pv-bio-col-wide">
               <div className="pv-bio-title">Vân tay 10 ngón</div>
               <div className="pv-fp-grid">
                 {FINGERS.map((f) => (
@@ -1353,27 +1331,6 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
                     <span>{f.label}</span>
                   </div>
                 ))}
-              </div>
-            </div>
-            <div className="pv-bio-col">
-              <div className="pv-bio-title">Mống mắt</div>
-              <div className="pv-iris-row">
-                <div className="pv-iris-item">
-                  <div className="pv-iris-frame">
-                    {photos.iris_left
-                      ? <img src={photos.iris_left} alt="Mắt trái" />
-                      : <span className="pv-empty">Chưa có</span>}
-                  </div>
-                  <span>Mắt trái</span>
-                </div>
-                <div className="pv-iris-item">
-                  <div className="pv-iris-frame">
-                    {photos.iris_right
-                      ? <img src={photos.iris_right} alt="Mắt phải" />
-                      : <span className="pv-empty">Chưa có</span>}
-                  </div>
-                  <span>Mắt phải</span>
-                </div>
               </div>
             </div>
           </div>

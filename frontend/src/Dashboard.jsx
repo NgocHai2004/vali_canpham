@@ -4168,6 +4168,28 @@ const styles = `
     flex: 1 1 0;
     overflow: hidden;
   }
+  /* Khi chỉ còn vân tay (đã bỏ mống mắt): vân tay chiếm toàn bộ, 2 tay xếp dọc */
+  .bio-body.bio-body-fp-only {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+  }
+  .bio-body.bio-body-fp-only .fp-hands {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    width: 100%;
+    max-width: none;
+  }
+  .bio-body.bio-body-fp-only .fp-hand-row {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+  /* Ô vân tay vuông: ép tỉ lệ 1/1 bằng aspect-ratio trên khung ảnh */
+  .bio-body.bio-body-fp-only .fp-item .photo-slot {
+    aspect-ratio: 1 / 1;
+    height: auto;
+    width: 100%;
+    max-width: none;
+  }
   .bio-sub-title {
     font-size: 10.5px; font-weight: 800; color: #0f2344;
     text-transform: uppercase; letter-spacing: .4px;
