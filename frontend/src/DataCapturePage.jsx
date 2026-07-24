@@ -1061,9 +1061,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       )}
                     </div>
                     <span className="fp-name">NGÓN {f.label.toUpperCase()}</span>
-                    <span className={"fp-quality-chip " + (filled ? "" : "none")}>
-                      {filled ? "Xuất sắc" : "Chưa có"}
-                    </span>
                   </div>
                 );
               })}
@@ -1085,9 +1082,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       )}
                     </div>
                     <span className="fp-name">NGÓN {f.label.toUpperCase()}</span>
-                    <span className={"fp-quality-chip " + (filled ? "" : "none")}>
-                      {filled ? "Xuất sắc" : "Chưa có"}
-                    </span>
                   </div>
                 );
               })}
@@ -1396,70 +1390,69 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
       </div>
 
       <div className="preview-scroll" onClick={onClose}>
-        <div className="preview-a4" onClick={(e) => e.stopPropagation()}>
-          <div className="pv-header">
+        <div className="preview-a4 preview-a4-portrait" onClick={(e) => e.stopPropagation()}>
+
+          {/* ===== Header: Quốc hiệu canh giữa ===== */}
+          <div className="pv-header-row">
             <div className="pv-header-left">
               <div className="pv-org1">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-              <div className="pv-org2">Độc lập - Tự do - Hạnh phúc</div>
+              <div className="pv-org2">Độc lập – Tự do – Hạnh phúc</div>
               <div className="pv-org-underline" />
             </div>
           </div>
 
-          <div className="pv-cccd-corner">
-            {photos.cccd_front
-              ? <img src={photos.cccd_front} alt="Ảnh CCCD" />
-              : <span>Chưa có ảnh CCCD</span>}
-            <div className="pv-cccd-corner-caption">Ảnh CCCD (mặt trước)</div>
+          {/* ===== Title ===== */}
+          <div className="pv-title-row">
+            <h1 className="pv-title">HỒ SƠ CAN PHẠM</h1>
+            <div className="pv-subtitle">
+              Số định danh: <b>{val(form.personal_id || form.cccd_number)}</b>
+            </div>
           </div>
 
-          <h1 className="pv-title">HỒ SƠ CAN PHẠM</h1>
-          <div className="pv-subtitle">Số định danh: <b>{val(form.personal_id || form.cccd_number)}</b></div>
-
-          <div className="pv-body">
-            <div className="pv-body-left">
-              <h3 className="pv-section">I. THÔNG TIN CÁ NHÂN</h3>
-              <table className="pv-table">
-                <tbody>
-                  <tr><td className="pv-label">Họ và tên</td><td>{val(form.full_name)}</td></tr>
-                  <tr><td className="pv-label">Ngày sinh</td><td>{val(form.dob)}</td></tr>
-                  <tr><td className="pv-label">Giới tính</td><td>{val(genderVi)}</td></tr>
-                  <tr><td className="pv-label">Số CCCD</td><td>{val(form.cccd_number)}</td></tr>
-                  <tr><td className="pv-label">Quốc tịch</td><td>{val(form.nationality)}</td></tr>
-                  <tr><td className="pv-label">Dân tộc</td><td>{val(form.ethnicity)}</td></tr>
-                  <tr><td className="pv-label">Tôn giáo</td><td>{val(form.religion)}</td></tr>
-                  <tr><td className="pv-label">Quê quán</td><td>{val(form.hometown)}</td></tr>
-                  <tr><td className="pv-label">Nơi thường trú</td><td>{val(form.address)}</td></tr>
-                  <tr><td className="pv-label">Ngày cấp CCCD</td><td>{val(form.issued_date)}</td></tr>
-                  <tr><td className="pv-label">Ngày hết hạn</td><td>{val(form.expiry_date)}</td></tr>
-                  <tr><td className="pv-label">Nơi cấp</td><td>{val(form.issued_place)}</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pv-body-right">
-              <div className="pv-photo-frame">
-                {photos.portrait_front
-                  ? <img src={photos.portrait_front} alt="Chân dung" />
-                  : <span>Ảnh 4x6</span>}
+          {/* ===== I. Thông tin cá nhân (2 cột: bảng + ảnh chân dung 4x6) ===== */}
+          <h3 className="pv-section">I. THÔNG TIN CÁ NHÂN</h3>
+          <div className="pv-info-row">
+            <table className="pv-table pv-info-table pv-info-single">
+              <tbody>
+                <tr><td className="pv-label">Họ và tên</td><td>{val(form.full_name)}</td></tr>
+                <tr><td className="pv-label">Ngày sinh</td><td>{val(form.dob)}</td></tr>
+                <tr><td className="pv-label">Giới tính</td><td>{val(genderVi)}</td></tr>
+                <tr><td className="pv-label">Số CCCD</td><td>{val(form.cccd_number)}</td></tr>
+                <tr><td className="pv-label">Quốc tịch</td><td>{val(form.nationality)}</td></tr>
+                <tr><td className="pv-label">Dân tộc</td><td>{val(form.ethnicity)}</td></tr>
+                <tr><td className="pv-label">Tôn giáo</td><td>{val(form.religion)}</td></tr>
+                <tr><td className="pv-label">Quê quán</td><td>{val(form.hometown)}</td></tr>
+                <tr><td className="pv-label">Nơi thường trú</td><td>{val(form.address)}</td></tr>
+                <tr><td className="pv-label">Ngày cấp CCCD</td><td>{val(form.issued_date)}</td></tr>
+                <tr><td className="pv-label">Ngày hết hạn</td><td>{val(form.expiry_date)}</td></tr>
+                <tr><td className="pv-label">Nơi cấp CCCD</td><td>{val(form.issued_place)}</td></tr>
+              </tbody>
+            </table>
+            <div className="pv-info-photo">
+              <div className="pv-portrait-4x6">
+                {(photos.portrait_front || photos.cccd_front)
+                  ? <img src={photos.portrait_front || photos.cccd_front} alt="Ảnh chân dung" />
+                  : <span>Ảnh chân dung</span>}
               </div>
-              <div className="pv-photo-caption">Ảnh chân dung</div>
+              <div className="pv-portrait-4x6-caption">Ảnh chân dung</div>
             </div>
           </div>
 
-          <h3 className="pv-section">II. CHỈ SỐ NHẬN DẠNG & THÔNG TIN GIAM GIỮ</h3>
-          <table className="pv-table pv-table-2col">
+          {/* ===== II. Chỉ số nhận dạng & thông tin giam giữ ===== */}
+          <h3 className="pv-section">II. CHỈ SỐ NHẬN DẠNG &amp; THÔNG TIN GIAM GIỮ</h3>
+          <table className="pv-table pv-info-table">
             <tbody>
               <tr>
                 <td className="pv-label">Chiều cao (cm)</td><td>{val(form.height_cm)}</td>
                 <td className="pv-label">Cân nặng (kg)</td><td>{val(form.weight_kg)}</td>
               </tr>
               <tr>
-                <td className="pv-label">Buồng giam</td>
-                <td colSpan={3}>{cell ? `${cell.code} — ${cell.name}` : val(form.cell_code)}</td>
-              </tr>
-              <tr>
                 <td className="pv-label">Tội danh</td>
                 <td colSpan={3}>{val(form.charge)}</td>
+              </tr>
+              <tr>
+                <td className="pv-label">Ngày vào buồng</td><td>{val(form.date_in)}</td>
+                <td className="pv-label">Mã hồ sơ</td><td>{val(form.personal_id)}</td>
               </tr>
               <tr>
                 <td className="pv-label">Ghi chú</td>
@@ -1468,7 +1461,8 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
             </tbody>
           </table>
 
-          <h3 className="pv-section">III. ẢNH CHÂN DUNG ĐA GÓC</h3>
+          {/* ===== III. Ảnh chân dung đa góc (3 khung ngang) ===== */}
+          <h3 className="pv-section">III. ẢNH CHÂN DUNG</h3>
           <div className="pv-portraits">
             {PORTRAITS.map((p) => (
               <div key={p.key} className="pv-portrait-item">
@@ -1482,12 +1476,28 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
             ))}
           </div>
 
-          <h3 className="pv-section">IV. DỮ LIỆU SINH TRẮC HỌC</h3>
-          <div className="pv-bio-row">
-            <div className="pv-bio-col pv-bio-col-wide">
-              <div className="pv-bio-title">Vân tay 10 ngón</div>
+          {/* ===== IV. Vân tay 10 ngón (2 hàng x 5 cột theo bàn tay) ===== */}
+          <h3 className="pv-section">IV. VÂN TAY 10 NGÓN</h3>
+          <div className="pv-fp-wrap">
+            <div className="pv-fp-hand">
+              <div className="pv-fp-row-label">Bàn tay TRÁI</div>
               <div className="pv-fp-grid">
-                {FINGERS.map((f) => (
+                {LEFT_HAND.map((f) => (
+                  <div key={f.key} className="pv-fp-item">
+                    <div className="pv-fp-frame">
+                      {photos[f.key]
+                        ? <img src={photos[f.key]} alt={f.label} />
+                        : <span className="pv-empty">—</span>}
+                    </div>
+                    <span>{f.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="pv-fp-hand">
+              <div className="pv-fp-row-label">Bàn tay PHẢI</div>
+              <div className="pv-fp-grid">
+                {RIGHT_HAND.map((f) => (
                   <div key={f.key} className="pv-fp-item">
                     <div className="pv-fp-frame">
                       {photos[f.key]
@@ -1501,18 +1511,19 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
             </div>
           </div>
 
+          {/* ===== Chữ ký ===== */}
           <div className="pv-signatures">
+            <div className="pv-sig-block">
+              <div className="pv-sig-place">&nbsp;</div>
+              <div className="pv-sig-role">NGƯỜI KHAI</div>
+              <div className="pv-sig-note">(Ký, ghi rõ họ tên)</div>
+              <div className="pv-sig-space" />
+            </div>
             <div className="pv-sig-block">
               <div className="pv-sig-place">
                 Ngày {dd} tháng {mm} năm {yyyy}
               </div>
               <div className="pv-sig-role">CÁN BỘ LẬP HỒ SƠ</div>
-              <div className="pv-sig-note">(Ký, ghi rõ họ tên)</div>
-              <div className="pv-sig-space" />
-            </div>
-            <div className="pv-sig-block">
-              <div className="pv-sig-place">&nbsp;</div>
-              <div className="pv-sig-role">NGƯỜI KHAI</div>
               <div className="pv-sig-note">(Ký, ghi rõ họ tên)</div>
               <div className="pv-sig-space" />
             </div>
