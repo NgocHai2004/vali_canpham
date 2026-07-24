@@ -5454,7 +5454,7 @@ textarea.input {
 .cccd-mf-no {
   left: 40%;
   right: 4%;
-  top: 39%;
+  top: 41%;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: clamp(13px, 2.35cqw, 17px);
   font-weight: 700;
@@ -5466,8 +5466,8 @@ textarea.input {
   left: 31%;
   right: 5%;
   top: 55%;
-  font-size: clamp(10px, 1.85cqw, 15px);
-  font-weight: 700;
+  font-size: clamp(9px, 1.85cqw, 15px);
+  font-weight: 400;
   text-transform: uppercase;
   line-height: 1.1;
   -webkit-line-clamp: 2;
@@ -5475,34 +5475,38 @@ textarea.input {
 }
 
 .cccd-mf-dob {
-  left: 55%;
+  left: 58%;
   right: 5%;
-  top: 65%;
-  font-size: clamp(9px, 1.55cqw, 13px);
+  top: 62%;
+  font-size: clamp(8px, 1.0cqw, 8px);
+  font-weight: 400;
   -webkit-line-clamp: 1;
 }
 
 .cccd-mf-sex {
-  left: 40%;
-  top: 71%;
+  left: 48%;
+  top: 66.5%;
   font-size: clamp(9px, 1.55cqw, 13px);
+  font-weight: 400;
   -webkit-line-clamp: 1;
 }
 
 .cccd-mf-nat {
-  left: 70%;
+  left: 81%;
   right: 5%;
-  top: 71%;
+  top: 66.5%;
   font-size: clamp(9px, 1.55cqw, 13px);
+  font-weight: 400;
   -webkit-line-clamp: 1;
 }
 
 .cccd-mf-origin {
   left: 31%;
   right: 4%;
-  top: 77%;
+  top: 79.5%;
   font-size: clamp(9px, 1.55cqw, 13px);
-  line-height: 1.15;
+  line-height: 1.0;
+  font-weight: 400;
   -webkit-line-clamp: 2;
   max-height: 2.4em;
 }
@@ -5510,19 +5514,20 @@ textarea.input {
 .cccd-mf-res {
   left: 31%;
   right: 4%;
-  top: 88%;
+  top: 89%;
   font-size: clamp(9px, 1.55cqw, 13px);
   line-height: 1.15;
+  font-weight: 400;
   -webkit-line-clamp: 2;
   max-height: 2.4em;
 }
 
 .cccd-mf-exp {
-  left: 15%;
+  left: 17%;
   right: 60%;
-  top: 92%;
+  top: 89%;
   font-size: clamp(8px, 1.4cqw, 11px);
-  font-weight: 600;
+  font-weight: 400;
   -webkit-line-clamp: 1;
 }
 

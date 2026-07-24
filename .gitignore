@@ -34,12 +34,30 @@ yarn-error.log*
 credentials.json
 secrets.json
 
-# ===== MongoDB runtime data =====
+# ===== MongoDB runtime data (nằm ngoài project, nhưng khoá đề phòng) =====
 mongodb/data/
 mongodb/logs/
+mongo_data/
+mongo-data/
+mongo_log/
+mongo_portable/
 
-# ===== Backend uploads (runtime user data) =====
+# ===== Backend runtime =====
 backend/uploads/
+backend/data_cccd/
+backend/*.log
+backend/*.log.*
+backend/uvicorn.*.log
+
+# ===== Frontend runtime =====
+frontend/*.log
+frontend/_vite.*.log
+frontend/vite.*.log
+frontend/frontend.log
+
+# ===== Fingerprint service runtime =====
+fingerprint_service/*.log
+fingerprint_service/__pycache__/
 
 # ===== IDE / Editor =====
 .vscode/
