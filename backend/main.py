@@ -455,6 +455,80 @@ async def check_duplicate(body: DetaineeIn, user: dict = Depends(get_current_use
     return {"count": len(dups), "duplicates": dups}
 
 
+# ---------- Fingerprint match (tra cứu can phạm bằng vân tay) ----------
+FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
+FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "50"))
+
+
+class MatchFingerprintReq(BaseModel):
+    template_b64: str
+
+
+@app.post("/api/detainees/match_fingerprint")
+async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_current_user)):
+    """Tra cứu can phạm bằng 1 template vân tay.
+
+    Nhận template_b64 (do FE quét live qua fingerprint_service port 8765),
+    duyệt tất cả detainee trong Mongo có trường photos.fp_templates,
+    proxy sang fingerprint_service /api/match_pair để lấy score cho từng ngón,
+    trả top 10 detainee có score >= FP_MATCH_THRESHOLD.
+    """
+    if not body.template_b64:
+        raise HTTPException(400, "Thiếu template vân tay.")
+
+    cursor = db.detainees.find(
+        {"photos.fp_templates": {"$exists": True, "$ne": {}}},
+        {
+            "personal_id": 1, "full_name": 1, "cccd_number": 1, "gender": 1, "dob": 1,
+            "cell_code": 1, "charge": 1, "hometown": 1, "address": 1,
+            "photos.fp_templates": 1, "photos.portrait_front": 1, "photos.cccd_front": 1,
+            "created_at": 1,
+        },
+    )
+
+    matches: list[dict] = []
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        async for det in cursor:
+            fp_templates = (det.get("photos") or {}).get("fp_templates") or {}
+            best_score = 0
+            best_finger = None
+            for code, tmpl_b64 in fp_templates.items():
+                if not tmpl_b64:
+                    continue
+                try:
+                    resp = await client.post(
+                        f"{FP_SERVICE_URL}/api/match_pair",
+                        json={"t1_b64": body.template_b64, "t2_b64": tmpl_b64},
+                    )
+                    if resp.status_code != 200:
+                        continue
+                    score = int(resp.json().get("score", 0))
+                except Exception:
+                    continue
+                if score > best_score:
+                    best_score = score
+                    best_finger = code
+            if best_score >= FP_MATCH_THRESHOLD:
+                matches.append({
+                    "detainee": _s(det),
+                    "score": best_score,
+                    "finger_code": best_finger,
+                })
+
+    matches.sort(key=lambda m: -m["score"])
+    top = matches[:10]
+
+    return {
+        "matched": len(top) > 0,
+        "total": len(top),
+        "items": [
+            {**m["detainee"], "match_score": m["score"], "match_finger": m["finger_code"]}
+            for m in top
+        ],
+        "score": top[0]["score"] / 100.0 if top else 0.0,
+    }
+
+
 @app.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
     if not body.session_id:

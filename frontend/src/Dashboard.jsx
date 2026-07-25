@@ -1,6 +1,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { api, fpApi } from "./api";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
@@ -1057,8 +1057,9 @@ const DetailIcon = {
 
 function DetailModal({ detainee, onClose }) {
   const d = detainee;
-  const dobText = d.dob ? new Date(d.dob).toLocaleDateString("vi-VN") : "—";
-  const dateInText = d.date_in ? new Date(d.date_in).toLocaleDateString("vi-VN") : "—";
+  const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("vi-VN") : "—");
+  const dobText = fmtDate(d.dob);
+  const dateInText = fmtDate(d.date_in);
   const genderText = d.gender === "female" ? "Nữ" : "Nam";
   const genderSymbol = d.gender === "female" ? "♀" : "♂";
   const avatar = d.photo_url || d.photos?.portrait_front;
@@ -1070,7 +1071,7 @@ function DetailModal({ detainee, onClose }) {
           <div className="detail-header-left">
             <span className="detail-header-icon">{DetailIcon.cccd}</span>
             <div>
-              <h3>Chi tiết hồ sơ {d.code}</h3>
+              <h3>Chi tiết hồ sơ {d.code || d.personal_id || ""}</h3>
               <small>Thông tin can phạm</small>
             </div>
           </div>
@@ -1082,7 +1083,7 @@ function DetailModal({ detainee, onClose }) {
         </div>
 
         <div className="detail-body">
-          <aside className="detail-card">
+          <aside className="detail-card detail-card-simple">
             <div className="detail-avatar">
               {avatar ? <img src={avatar} alt={d.full_name} /> : <span>Chưa có ảnh</span>}
             </div>
@@ -1092,26 +1093,17 @@ function DetailModal({ detainee, onClose }) {
                 <b>{genderSymbol}</b> {genderText}
               </span>
             </div>
-            <div className="detail-cccd-chip">
-              <span className="detail-cccd-icon">{DetailIcon.cccd}</span>
-              <div>
-                <small>Số CCCD</small>
-                <strong>{d.cccd_number || "—"}</strong>
-              </div>
-            </div>
           </aside>
 
-          <div className="detail-grid-v2">
+          <div className="detail-grid-v2 detail-grid-2x4">
+            <InfoTile icon={DetailIcon.cccd} label="Số CCCD" value={d.cccd_number || "—"} />
+            <InfoTile icon={DetailIcon.note} label="Mã can phạm" value={d.personal_id || "—"} />
             <InfoTile icon={DetailIcon.dob} label="Ngày sinh" value={dobText} />
-            <InfoTile icon={DetailIcon.gender} label="Giới tính" value={genderText} />
             <InfoTile icon={DetailIcon.ethnic} label="Dân tộc" value={d.ethnicity || "—"} />
-            <InfoTile icon={DetailIcon.religion} label="Tôn giáo" value={d.religion || "—"} />
-            <InfoTile icon={DetailIcon.home} label="Quê quán" value={d.hometown || "—"} />
-            <InfoTile icon={DetailIcon.pin} label="Địa chỉ" value={d.address || "—"} />
-            <InfoTile icon={DetailIcon.door} label="Buồng giam" value={d.cell_code || "—"} />
             <InfoTile icon={DetailIcon.scale} label="Tội danh" value={d.charge || "—"} />
-            <InfoTile icon={DetailIcon.clock} label="Ngày vào" value={dateInText} />
-            <InfoTile icon={DetailIcon.note} label="Ghi chú" value={d.note || "—"} />
+            <InfoTile icon={DetailIcon.door} label="Buồng giam" value={d.cell_code || "—"} />
+            <InfoTile icon={DetailIcon.pin} label="Nơi thường trú" value={d.address || "—"} />
+            <InfoTile icon={DetailIcon.clock} label="Ngày vào buồng" value={dateInText} />
           </div>
         </div>
       </div>
@@ -2362,8 +2354,10 @@ function SearchPage() {
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
   const [cccdNumber, setCccdNumber] = useState("");
-  const [fpFile, setFpFile] = useState(null);
-  const [fpPreview, setFpPreview] = useState("");
+  const [fpImageB64, setFpImageB64] = useState("");
+  const [fpTemplateB64, setFpTemplateB64] = useState("");
+  const [fpScanStatus, setFpScanStatus] = useState("");
+  const [fpScanning, setFpScanning] = useState(false);
   const [fpMatchScore, setFpMatchScore] = useState(null);
   const [cellCode, setCellCode] = useState("");
   const [gender, setGender] = useState("");
@@ -2371,7 +2365,6 @@ function SearchPage() {
   const [error, setError] = useState("");
   const [viewing, setViewing] = useState(null);
   const [searched, setSearched] = useState(false);
-  const fpInputRef = useRef(null);
 
   useEffect(() => {
     api.listCells().then(setCells).catch(() => { });
@@ -2388,6 +2381,9 @@ function SearchPage() {
   const switchMode = (m) => {
     setMode(m);
     resetResults();
+    setFpImageB64("");
+    setFpTemplateB64("");
+    setFpScanStatus("");
   };
 
   const doSearchText = async (e) => {
@@ -2436,31 +2432,42 @@ function SearchPage() {
     }
   };
 
-  const onFpPick = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFpFile(f);
-    const url = URL.createObjectURL(f);
-    setFpPreview(url);
-    setFpMatchScore(null);
-  };
-
-  const doSearchFingerprint = async (e) => {
-    if (e) e.preventDefault();
-    if (!fpFile) {
-      setError("Vui lòng chọn ảnh vân tay.");
-      return;
-    }
-    setLoading(true);
+  const doFpScanAndMatch = async () => {
+    if (fpScanning) return;
+    setFpScanning(true);
     setError("");
+    setFpScanStatus("Đang kiểm tra máy quét vân tay...");
+    setFpImageB64("");
+    setFpTemplateB64("");
+    setItems([]);
+    setSearched(false);
+    setFpMatchScore(null);
+
+    let sid = null;
     try {
-      const fd = new FormData();
-      fd.append("file", fpFile);
-      const res = await api.request(`/api/detainees/match_fingerprint`, {
-        method: "POST",
-        body: fd,
-      });
-      // Response kỳ vọng: { items: [...], score?: number } hoặc { detainee: {...}, score }
+      const h = await fpApi.health();
+      if (!h.ok) {
+        throw new Error(h.error || "Máy quét vân tay chưa sẵn sàng.");
+      }
+      const startResp = await fpApi.startSession("__search_query__");
+      sid = startResp.session_id;
+
+      setFpScanStatus("Đặt 1 ngón bất kỳ lên máy quét và giữ yên ~1 giây...");
+      const capRes = await fpApi.capture(sid);
+      const tmplB64 = capRes.finger?.template_b64;
+      const imgB64 = capRes.finger?.image_b64;
+      if (!tmplB64) throw new Error("Không lấy được template vân tay.");
+
+      setFpImageB64(imgB64 || "");
+      setFpTemplateB64(tmplB64);
+      setFpScanStatus("Đã thu được vân tay, đang so khớp với hệ thống...");
+
+      // Cleanup session ngay sau khi có template
+      try { await fpApi.cancel(sid); } catch { /* noop */ }
+      sid = null;
+
+      setLoading(true);
+      const res = await api.matchFingerprint(tmplB64);
       let list = [];
       if (Array.isArray(res.items)) list = res.items;
       else if (res.detainee) list = [res.detainee];
@@ -2469,18 +2476,25 @@ function SearchPage() {
       setTotal(list.length);
       if (typeof res.score === "number") setFpMatchScore(res.score);
       setSearched(true);
+      setFpScanStatus(list.length ? `Đã so khớp — tìm thấy ${list.length} hồ sơ.` : "Đã so khớp — không có hồ sơ phù hợp.");
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Không so khớp được vân tay.");
+      setFpScanStatus("");
     } finally {
+      if (sid) {
+        try { await fpApi.cancel(sid); } catch { /* noop */ }
+      }
+      setFpScanning(false);
       setLoading(false);
     }
   };
 
   const clearFp = () => {
-    setFpFile(null);
-    if (fpPreview) { URL.revokeObjectURL(fpPreview); setFpPreview(""); }
+    setFpImageB64("");
+    setFpTemplateB64("");
+    setFpScanStatus("");
     setFpMatchScore(null);
-    if (fpInputRef.current) fpInputRef.current.value = "";
+    resetResults();
   };
 
   const subtitle = searched
@@ -2566,19 +2580,21 @@ function SearchPage() {
       )}
 
       {mode === "fingerprint" && (
-        <form className="filter-bar filter-bar-fp" onSubmit={doSearchFingerprint}>
+        <div className="filter-bar filter-bar-fp">
           <div className="fp-search-slot">
-            {fpPreview ? (
+            {fpImageB64 ? (
               <div className="fp-search-preview">
-                <img src={fpPreview} alt="Vân tay" />
-                <button type="button" className="fp-search-clear" onClick={clearFp} aria-label="Xoá ảnh">×</button>
+                <img src={`data:image/png;base64,${fpImageB64}`} alt="Vân tay quét" />
+                <button
+                  type="button"
+                  className="fp-search-clear"
+                  onClick={clearFp}
+                  disabled={fpScanning}
+                  aria-label="Xoá ảnh vân tay"
+                >×</button>
               </div>
             ) : (
-              <button
-                type="button"
-                className="fp-search-drop"
-                onClick={() => fpInputRef.current?.click()}
-              >
+              <div className="fp-search-drop fp-search-drop--live" role="status" aria-live="polite">
                 <span className="fp-search-drop-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 11c0-4 3-7 7-7" />
@@ -2587,22 +2603,22 @@ function SearchPage() {
                     <path d="M12 15v1a3 3 0 0 0 3 3" />
                   </svg>
                 </span>
-                <span>Chọn ảnh vân tay</span>
-                <span className="fp-search-drop-hint">PNG / JPG</span>
-              </button>
+                <span>{fpScanStatus || "Nhấn nút bên phải để bắt đầu quét vân tay"}</span>
+                <span className="fp-search-drop-hint">
+                  {fpScanning ? "Đang chờ máy quét..." : "Đặt 1 ngón bất kỳ lên máy quét khi được yêu cầu"}
+                </span>
+              </div>
             )}
-            <input
-              ref={fpInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={onFpPick}
-            />
           </div>
-          <button className="button primary" type="submit" disabled={loading || !fpFile}>
-            {loading ? "Đang so khớp..." : "So khớp vân tay"}
+          <button
+            type="button"
+            className="button primary"
+            onClick={doFpScanAndMatch}
+            disabled={fpScanning || loading}
+          >
+            {fpScanning ? "Đang quét..." : (fpTemplateB64 ? "Quét lại" : "Bắt đầu quét")}
           </button>
-        </form>
+        </div>
       )}
 
       {error && <StateBox type="error">{error}</StateBox>}
@@ -4482,7 +4498,7 @@ const styles = `
     background: #f7f9fc;
   }
 
-  /* --- Left card --- */
+  /* --- Left card: chỉ ảnh + tên (chip đã chuyển sang grid 2x4 bên phải) --- */
   .detail-card {
     background: white;
     border: 1px solid #e5ebf4;
@@ -4495,16 +4511,36 @@ const styles = `
     box-shadow: 0 3px 10px rgba(18, 52, 97, .04);
     align-self: start;
   }
-  .detail-avatar {
+  .detail-card-simple .detail-avatar {
     width: 250px;
     height: 330px;
+  }
+  .detail-avatar {
     aspect-ratio: auto;
     border-radius: 12px;
     overflow: hidden;
     background: #eef3f9;
     display: grid; place-items: center;
     color: #8491a4; font-size: 13px;
-    margin: 0 auto;
+  }
+
+  /* --- Grid 2 cột 4 hàng bên phải --- */
+  .detail-grid-2x4 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 10px;
+  }
+  .detail-grid-2x4 .info-tile {
+    padding: 10px 12px;
+    font-size: 12.5px;
+  }
+  .detail-grid-2x4 .info-tile-label {
+    font-size: 11px;
+  }
+  .detail-grid-2x4 .info-tile-value {
+    font-size: 13px;
+    word-break: break-word;
   }
   .detail-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .detail-name-row {

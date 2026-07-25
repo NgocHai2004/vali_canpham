@@ -117,6 +117,11 @@ export const api = {
   }),
   checkDuplicate: (body) => request("/api/detainees/check-duplicate", { method: "POST", body: JSON.stringify(body) }),
 
+  matchFingerprint: (templateB64) => request("/api/detainees/match_fingerprint", {
+    method: "POST",
+    body: JSON.stringify({ template_b64: templateB64 }),
+  }),
+
   uploadPhoto: async (file) => {
     const fd = new FormData();
     fd.append("file", file);

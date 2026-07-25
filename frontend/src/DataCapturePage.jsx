@@ -1,6 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, cccdApi, b64PngToFile, weightApi } from "./api";
 import cccdTemplateBg from "./assets/cccd-template.png";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+
+function removeVietnameseDiacritics(str) {
+  if (!str) return "";
+  return String(str)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
+
+function makePdfFileName(personalId, fullName) {
+  const code = removeVietnameseDiacritics(personalId || "hoso")
+    .replace(/[^A-Za-z0-9_-]+/g, "")
+    .trim() || "hoso";
+  const name = removeVietnameseDiacritics(fullName || "")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .trim() || "khongten";
+  return `${code}_${name}.pdf`;
+}
 
 const FINGERS = [
   { key: "fp_l1", label: "T. cái trái" },
@@ -680,7 +702,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           try {
             const file = await b64PngToFile(capRes.finger.image_b64, `${key}.png`);
             const up = await api.uploadPhoto(file);
-            setPhoto(key, up.url);
+            const tmplB64 = capRes.finger.template_b64;
+            setPhotos((p) => {
+              const next = { ...p, [key]: up.url };
+              if (tmplB64) {
+                next.fp_templates = { ...(p.fp_templates || {}), [code]: tmplB64 };
+              }
+              return next;
+            });
           } catch (e) {
             setFpError("Không lưu được ảnh: " + e.message);
           }
@@ -1356,13 +1385,68 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
 
   const val = (v) => (v && String(v).trim() ? v : "…………………………");
 
-  const handlePrint = () => window.print();
+  const a4Ref = useRef(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handlePrint = async () => {
+    const node = a4Ref.current;
+    if (!node) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        windowWidth: node.scrollWidth,
+        windowHeight: node.scrollHeight,
+      });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = (canvas.height * pageW) / canvas.width;
+      if (imgH <= pageH) {
+        pdf.addImage(imgData, "JPEG", 0, 0, pageW, imgH);
+      } else {
+        // Chia trang: cắt canvas theo từng đoạn cao pageH
+        let remaining = imgH;
+        let y = 0;
+        const ratio = canvas.width / pageW;
+        const sliceHeightPx = pageH * ratio;
+        while (remaining > 0) {
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = Math.min(sliceHeightPx, canvas.height - y * ratio);
+          const ctx = sliceCanvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+          ctx.drawImage(
+            canvas,
+            0, y * ratio, canvas.width, sliceCanvas.height,
+            0, 0, canvas.width, sliceCanvas.height,
+          );
+          const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.95);
+          const sliceHmm = sliceCanvas.height / ratio;
+          if (y > 0) pdf.addPage();
+          pdf.addImage(sliceData, "JPEG", 0, 0, pageW, sliceHmm);
+          y += pageH;
+          remaining -= pageH;
+        }
+      }
+      pdf.save(makePdfFileName(form.personal_id || form.cccd_number, form.full_name));
+    } catch (ex) {
+      console.error("[Export PDF] error:", ex);
+      alert("Không xuất được PDF: " + (ex?.message || ex));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="preview-backdrop" onClick={onClose}>
       <div className="preview-toolbar no-print" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="preview-btn" onClick={handlePrint}>
-          In / Xuất PDF
+        <button type="button" className="preview-btn" onClick={handlePrint} disabled={exporting}>
+          {exporting ? "Đang xuất PDF..." : "Xuất PDF"}
         </button>
         <button type="button" className="preview-btn preview-close" onClick={onClose}>
           Đóng
@@ -1370,7 +1454,7 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
       </div>
 
       <div className="preview-scroll" onClick={onClose}>
-        <div className="preview-a4 preview-a4-portrait" onClick={(e) => e.stopPropagation()}>
+        <div ref={a4Ref} className="preview-a4 preview-a4-portrait" onClick={(e) => e.stopPropagation()}>
 
           {/* ===== Header: Quốc hiệu canh giữa ===== */}
           <div className="pv-header-row">
@@ -1410,11 +1494,11 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
             </table>
             <div className="pv-info-photo">
               <div className="pv-portrait-4x6">
-                {(photos.portrait_front || photos.cccd_front)
-                  ? <img src={photos.portrait_front || photos.cccd_front} alt="Ảnh chân dung" />
-                  : <span>Ảnh chân dung</span>}
+                {photos.cccd_front
+                  ? <img src={photos.cccd_front} alt="Ảnh CCCD" />
+                  : <span>Ảnh CCCD</span>}
               </div>
-              <div className="pv-portrait-4x6-caption">Ảnh chân dung</div>
+              <div className="pv-portrait-4x6-caption">Ảnh CCCD</div>
             </div>
           </div>
 

@@ -414,3 +414,33 @@ def identify() -> dict:
             "finger_code": code, "finger_name": FINGER_NAME.get(code, code),
             "score": score, "image_b64": img_b64,
             "message": f"Khop: {u['name']} - {FINGER_NAME.get(code, code)} (score={score})"}
+
+
+# ---------- Match pair (dung cho backend main.py tra cuu can pham) ----------
+class MatchPairReq(BaseModel):
+    t1_b64: str
+    t2_b64: str
+
+
+@app.post("/api/match_pair")
+def match_pair(body: MatchPairReq) -> dict:
+    """So khop 2 template. Tra score int (0 = khong khop, cao hon = khop tot hon).
+
+    Dung boi backend/main.py de match query_template voi tung template
+    da luu trong Mongo. Khong can capture live.
+    """
+    device.ensure_open()  # can device init de dung SDK match
+    dev = device._dev
+    if dev is None:
+        raise HTTPException(503, "Thiet bi van tay chua san sang.")
+    try:
+        t1 = base64.b64decode(body.t1_b64)
+        t2 = base64.b64decode(body.t2_b64)
+    except Exception:
+        raise HTTPException(400, "Template khong hop le (base64 sai).")
+    try:
+        with device._lock:
+            score = dev.match(t1, t2)
+    except zkfp.ZKFPError as e:
+        raise HTTPException(500, f"Loi SDK: {e}")
+    return {"score": int(score)}

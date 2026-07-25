@@ -5893,10 +5893,10 @@ textarea.input {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 16px 0;
+  padding: 16px;
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: safe center;
 }
 
 /* A4 portrait — 210 × 297 mm, đúng mockup */
@@ -5917,7 +5917,7 @@ textarea.input {
   display: flex;
   flex-direction: column;
   gap: 3mm;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* ---------- Header row: quốc hiệu canh giữa toàn trang ---------- */
@@ -6487,25 +6487,116 @@ textarea.input {
 .pv-sig-space { height: 18mm; }
 
 @media print {
-  body * { visibility: hidden !important; }
-  .preview-backdrop, .preview-backdrop * { visibility: visible !important; }
-  .preview-backdrop {
-    position: static !important;
-    background: #fff !important;
-  }
-  .no-print { display: none !important; }
-  .preview-scroll {
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-  .preview-a4 {
-    box-shadow: none !important;
-    margin: 0 !important;
-    padding: 12mm 14mm !important;
-  }
   @page {
     size: A4;
-    margin: 0;
+    margin: 8mm 8mm 8mm 8mm;
+  }
+
+  html, body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Ẩn toàn bộ giao diện, sau đó bật lại chỉ nội dung bản in */
+  body * {
+    visibility: hidden !important;
+  }
+  .preview-backdrop,
+  .preview-backdrop * {
+    visibility: visible !important;
+  }
+  .no-print,
+  .no-print * {
+    visibility: hidden !important;
+    display: none !important;
+  }
+
+  /* Đưa backdrop về flow tài liệu bình thường ở góc trang */
+  .preview-backdrop {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    background: #fff !important;
+    overflow: visible !important;
+    z-index: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+  .preview-scroll {
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    height: auto !important;
+    width: 100% !important;
+    background: #fff !important;
+  }
+  .preview-a4,
+  .preview-a4-portrait {
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 3mm 4mm !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    page-break-after: auto;
+  }
+  .preview-a4 *,
+  .preview-a4-portrait * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .preview-a4 table,
+  .preview-a4-portrait table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    word-break: break-word !important;
+  }
+  .preview-a4-portrait .pv-info-row {
+    grid-template-columns: minmax(0, 1fr) 45mm !important;
+    gap: 4mm !important;
+  }
+  .preview-a4-portrait .pv-info-row .pv-info-single {
+    max-width: 100% !important;
+  }
+  .preview-a4-portrait .pv-portrait-4x6 {
+    width: 40mm !important;
+    height: 54mm !important;
+  }
+  .preview-a4-portrait .pv-cccd-frame,
+  .pv-cccd-corner img,
+  .pv-cccd-corner span {
+    max-width: 100% !important;
+  }
+  .preview-a4 *,
+  .preview-a4-portrait * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  .preview-a4 img,
+  .preview-a4-portrait img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
   }
 }
 
