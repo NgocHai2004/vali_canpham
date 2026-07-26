@@ -303,6 +303,32 @@ async def me(user: dict = Depends(get_current_user)):
     return user
 
 
+# ==================== USB DONGLE ====================
+USB_SERVICE_URL = os.getenv("USB_SERVICE_URL", "http://127.0.0.1:8766")
+
+
+@app.get("/api/auth/dongle-verify")
+async def dongle_verify(user: dict = Depends(get_current_user)):
+    """Layer bảo mật thứ 2: kiểm USB dongle đang cắm không.
+    Frontend poll endpoint này mỗi 5s sau khi login. 401 → auto logout.
+
+    - 200 OK: {ok: true, drive} — có dongle hợp lệ
+    - 401  : không phát hiện USB dongle
+    - 503  : usb_service không phản hồi (không đủ căn cứ logout)
+    """
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{USB_SERVICE_URL}/api/usb/verify")
+    except httpx.RequestError as e:
+        raise HTTPException(503, f"Không kết nối được USB service: {e}")
+    if resp.status_code != 200:
+        raise HTTPException(503, f"USB service lỗi ({resp.status_code}).")
+    data = resp.json()
+    if not data.get("ok"):
+        raise HTTPException(401, "Không phát hiện USB dongle. Vui lòng cắm USB.")
+    return {"ok": True, "drive": data.get("drive"), "user": user["username"]}
+
+
 # ==================== CELLS ====================
 @app.get("/api/cells")
 async def list_cells(user: dict = Depends(get_current_user)):

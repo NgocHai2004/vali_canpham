@@ -97,6 +97,7 @@ export const api = {
     return data;
   },
   me: () => request("/api/auth/me"),
+  verifyDongle: () => request("/api/auth/dongle-verify"),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
 
   stats: () => request("/api/stats"),

@@ -657,6 +657,95 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setFpStatus("");
   };
 
+  // Double-click 1 ô vân tay để thu/thu lại ngón đó
+  const retryFingerprint = async (photoKey, fingerCode) => {
+    console.log("[retryFingerprint] called", { photoKey, fingerCode, fpRunning });
+    if (fpRunning) {
+      setFpError("Đang thu vân tay, vui lòng dừng trước.");
+      return;
+    }
+    if (!photoKey || !fingerCode) {
+      setFpError(`Không xác định được ngón (photoKey=${photoKey}, code=${fingerCode})`);
+      return;
+    }
+
+    // Xóa ảnh + template cũ
+    setPhotos((p) => {
+      const next = { ...p };
+      delete next[photoKey];
+      if (next.fp_templates) {
+        const tpls = { ...next.fp_templates };
+        delete tpls[fingerCode];
+        next.fp_templates = tpls;
+      }
+      return next;
+    });
+
+    setFpError("");
+    setFpStatus("Đang kiểm tra máy quét...");
+    fpAbortRef.current = false;
+
+    try {
+      const h = await fpApi.health();
+      if (!h.ok) {
+        setFpError(h.error || "Máy quét vân tay chưa sẵn sàng.");
+        setFpStatus("");
+        return;
+      }
+    } catch (e) {
+      setFpError(e.message);
+      setFpStatus("");
+      return;
+    }
+
+    setFpRunning(true);
+    setFpNextCode(fingerCode);
+    const targetName = FP_NAME_VI[fingerCode] || fingerCode;
+    setFpStatus(`Đặt ${targetName} lên máy quét và giữ yên ~1 giây...`);
+
+    let sid = null;
+    try {
+      const r = await fpApi.startSession("__retry__" + fingerCode);
+      sid = r.session_id;
+
+      // fp_service enroll tuần tự. Capture 1 lần, ép lưu vào slot ngón target (không quan tâm SDK trả code gì).
+      let capRes;
+      try {
+        capRes = await fpApi.capture(sid);
+      } catch (e) {
+        throw new Error(e.message + " — Đặt lại ngón tay để thử lại.");
+      }
+      if (fpAbortRef.current) return;
+
+      const key = photoKey;
+      const code = fingerCode; // ép lưu vào ngón target user đã chọn
+      try {
+        const file = await b64PngToFile(capRes.finger.image_b64, `${key}.png`);
+        const up = await api.uploadPhoto(file);
+        const tmplB64 = capRes.finger.template_b64;
+        setPhotos((p) => {
+          const next = { ...p, [key]: up.url };
+          if (tmplB64) {
+            next.fp_templates = { ...(p.fp_templates || {}), [code]: tmplB64 };
+          }
+          return next;
+        });
+        setFpStatus(`Đã thu lại ${targetName}.`);
+        setOk(`Đã cập nhật ${targetName}.`);
+      } catch (e) {
+        setFpError("Không lưu được ảnh: " + e.message);
+      }
+    } catch (e) {
+      setFpError(e.message);
+    } finally {
+      if (sid) {
+        try { await fpApi.cancel(sid); } catch { /* noop */ }
+      }
+      setFpRunning(false);
+      setFpNextCode(null);
+    }
+  };
+
   const startFpCollect = async () => {
     if (fpRunning) return;
     setFpError("");
@@ -1074,8 +1163,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="fp-preview-grid fp-preview-grid--single-row">
               {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {
                 const filled = !!photos[f.key];
+                const fpCode = Object.entries(FP_CODE_TO_KEY).find(([, k]) => k === f.key)?.[0];
                 return (
-                  <div key={f.key} className={"fp-preview-cell " + (filled ? "done" : "empty")}>
+                  <div
+                    key={f.key}
+                    className={"fp-preview-cell " + (filled ? "done" : "empty")}
+                    onDoubleClick={() => !fpRunning && retryFingerprint(f.key, fpCode)}
+                    title={filled ? "Nhấp đúp để thu lại ngón này" : "Nhấp đúp để thu ngón này"}
+                    style={{ cursor: fpRunning ? "default" : "pointer" }}
+                  >
                     <div className="fp-preview-thumb">
                       {filled ? (
                         <img src={photos[f.key]} alt={f.label} />
