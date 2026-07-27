@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, cccdApi, b64PngToFile, weightApi } from "./api";
+import { notify } from "./notifications";
 import cccdTemplateBg from "./assets/cccd-template.png";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -955,6 +956,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       };
       if (isEdit) {
         const updated = await api.updateDetainee(initial.id, body);
+        notify.add();
         setOk(`Đã cập nhật hồ sơ ${updated.code} — ${updated.full_name}`);
         if (onDone) onDone();
         if (sessionId && onSavedInSession) {
@@ -964,6 +966,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         }
       } else {
         const created = await api.createDetainee(body);
+        notify.add();
         setOk(`Đã lưu hồ sơ ${created.code} — ${created.full_name}`);
         setForm(EMPTY_FORM);
         setPhotos({});

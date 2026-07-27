@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import { notify } from "./notifications";
 
 function fmtDateTime(iso) {
   if (!iso) return "—";
@@ -64,12 +65,8 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     setClosing(true);
     setErr("");
     try {
-      const res = await api.closeSession(sessionId);
-      try {
-        await api.downloadSessionReport(sessionId, res.report_filename);
-      } catch (dlErr) {
-        console.warn("Auto-download report failed:", dlErr);
-      }
+      await api.closeSession(sessionId);
+      notify.add();
       if (onSessionClosed) onSessionClosed(session);
       await load();
     } catch (ex) {
@@ -90,6 +87,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     setErr("");
     try {
       await api.deleteSession(sessionId);
+      notify.add();
       if (onSessionClosed) onSessionClosed(session);
     } catch (ex) {
       setErr(ex.message || "Không xoá được phiên");
@@ -111,6 +109,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     if (!window.confirm(`Xoá hồ sơ ${d.code} — ${d.full_name}?`)) return;
     try {
       await api.deleteDetainee(d.id);
+      notify.add();
       await load();
     } catch (ex) {
       alert(ex.message || "Không xoá được hồ sơ");

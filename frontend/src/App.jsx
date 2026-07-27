@@ -20,6 +20,7 @@ export default function App() {
   }, []);
 
   const [role, setRole] = useState(auth.getRole ? auth.getRole() : "admin");
+  const [fullName, setFullName] = useState(auth.getFullName ? auth.getFullName() : "");
 
   useEffect(() => {
     if (!auth.getToken()) {
@@ -33,6 +34,10 @@ export default function App() {
         if (cancelled) return;
         setUser(data.username);
         setRole(data.role || "user");
+        if (data.full_name !== undefined) {
+          setFullName(data.full_name || "");
+          auth.setFullName(data.full_name || "");
+        }
         setChecking(false);
       })
       .catch(() => {
@@ -92,11 +97,16 @@ export default function App() {
     };
   }, [user]);
 
-  const handleLogin = (username, r = "user") => { setUser(username); setRole(r); };
+  const handleLogin = (username, r = "user", fn = "") => {
+    setUser(username);
+    setRole(r);
+    setFullName(fn || auth.getFullName() || "");
+  };
   const handleLogout = () => {
     auth.clear();
     setUser(null);
     setRole("user");
+    setFullName("");
   };
 
   if (checking) {
@@ -140,7 +150,7 @@ export default function App() {
             : `⚠ Không phát hiện USB dongle. Cắm USB ngay hoặc bị đăng xuất sau ${(DONGLE_MAX_FAIL - failCountRef.current) * 5}s`}
         </div>
       )}
-      <Dashboard username={user} role={role} onLogout={handleLogout} />
+      <Dashboard username={user} role={role} fullName={fullName} onLogout={handleLogout} />
     </>
   );
 }

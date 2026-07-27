@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, fpApi } from "./api";
+import { api, fpApi, cccdApi } from "./api";
+import { notify } from "./notifications";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
@@ -73,18 +74,15 @@ const NAV_BASE = [
 ];
 const NAV_ADMIN = [{ key: "users", label: "Quản lý tài khoản", icon: Icon.users }];
 
-export default function Dashboard({ username = "admin", role = "user", onLogout }) {
+export default function Dashboard({ username = "admin", role = "user", fullName = "", onLogout }) {
   const [page, setPage] = useState("dashboard");
-  const [dbOk, setDbOk] = useState(true);
   const [editingDetainee, setEditingDetainee] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [sessionCtx, setSessionCtx] = useState(null);
   const isAdmin = role === "admin";
   const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN] : NAV_BASE;
-
-  useEffect(() => {
-    api.health().then((r) => setDbOk(Boolean(r.ok))).catch(() => setDbOk(false));
-  }, []);
+  const deviceStatus = useDeviceConnections();
+  const notifCount = useNotifCount();
 
   const goPage = async (key) => {
     if (key !== "session_capture") {
@@ -153,7 +151,13 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
     <>
       <style>{styles}</style>
       <div className="app">
-        <Header username={username} dbOk={dbOk} onLogout={onLogout} isAdmin={isAdmin} />
+        <Header
+          username={username}
+          devices={deviceStatus}
+          notifCount={notifCount}
+          onLogout={onLogout}
+          isAdmin={isAdmin}
+        />
 
         <aside className="sidebar">
           <div className="sidebar-title">CHỨC NĂNG</div>
@@ -188,7 +192,7 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
             <SessionListPage
               role={role}
               username={username}
-              fullName=""
+              fullName={fullName}
               onOpenSession={openSession}
             />
           )}
@@ -222,7 +226,14 @@ export default function Dashboard({ username = "admin", role = "user", onLogout 
   );
 }
 
-function Header({ username, dbOk, onLogout, isAdmin }) {
+const DEVICE_CHIPS = [
+  { key: "camera", label: "Camera" },
+  { key: "cccd", label: "Quét CCCD" },
+  { key: "fp", label: "Vân tay" },
+  { key: "scale", label: "Cân điện tử" },
+];
+
+function Header({ username, devices, notifCount, onLogout, isAdmin }) {
   return (
     <header className="header">
       <div className="brand">
@@ -236,14 +247,30 @@ function Header({ username, dbOk, onLogout, isAdmin }) {
       </div>
 
       <div className="header-actions">
-        <div className={`server-status ${dbOk ? "online" : "offline"}`}>
-          <span />
-          {dbOk ? "Kết nối máy chủ" : "Mất kết nối"}
+        <div className="device-chips" role="group" aria-label="Trạng thái thiết bị">
+          {DEVICE_CHIPS.map((d) => {
+            const ok = Boolean(devices?.[d.key]);
+            return (
+              <div
+                key={d.key}
+                className={`device-chip ${ok ? "online" : "offline"}`}
+                title={`${d.label}: ${ok ? "Đã kết nối" : "Chưa kết nối"}`}
+              >
+                <span className="device-chip-dot" />
+                <span className="device-chip-label">{d.label}</span>
+              </div>
+            );
+          })}
         </div>
 
-        <button className="icon-button" aria-label="Thông báo">
+        <button
+          className="icon-button"
+          aria-label="Thông báo"
+          onClick={() => notify.reset()}
+          title={notifCount > 0 ? `${notifCount} thông báo mới - Bấm để xoá` : "Không có thông báo mới"}
+        >
           {Icon.bell}
-          <b>3</b>
+          {notifCount > 0 && <b>{notifCount > 99 ? "99+" : notifCount}</b>}
         </button>
 
         <div className="user-box">
@@ -261,6 +288,104 @@ function Header({ username, dbOk, onLogout, isAdmin }) {
       </div>
     </header>
   );
+}
+
+function useNotifCount() {
+  const [count, setCount] = useState(() => notify.count());
+  useEffect(() => {
+    return notify.subscribe(setCount);
+  }, []);
+  return count;
+}
+
+function useDeviceConnections() {
+  const [status, setStatus] = useState({ camera: false, cccd: false, fp: false, scale: false });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkCamera = async () => {
+      try {
+        if (!navigator.mediaDevices?.enumerateDevices) return false;
+        const list = await navigator.mediaDevices.enumerateDevices();
+        return list.some((d) => d.kind === "videoinput");
+      } catch {
+        return false;
+      }
+    };
+
+    const checkCccd = async () => {
+      try {
+        const r = await cccdApi.health();
+        return Boolean(r && (r.ok === true || r.status === "ok" || r.ready === true));
+      } catch {
+        return false;
+      }
+    };
+
+    const checkFp = async () => {
+      try {
+        const r = await fpApi.health();
+        return Boolean(r && (r.ok === true || r.status === "ok" || r.ready === true));
+      } catch {
+        return false;
+      }
+    };
+
+    const runAll = async () => {
+      const [camera, cccd, fp] = await Promise.all([checkCamera(), checkCccd(), checkFp()]);
+      if (cancelled) return;
+      setStatus((prev) => ({ ...prev, camera, cccd, fp }));
+    };
+
+    runAll();
+    const timer = setInterval(runAll, 5000);
+
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const host = location.port === "5173" ? `${location.hostname}:8000` : location.host;
+    const wsUrl = `${proto}//${host}/api/weight/ws`;
+    let ws = null;
+    let closed = false;
+    let retry = 0;
+    let retryTimer = null;
+
+    const openWs = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+      ws.onopen = () => {
+        retry = 0;
+        if (!cancelled) setStatus((prev) => ({ ...prev, scale: true }));
+      };
+      ws.onclose = () => {
+        if (!cancelled) setStatus((prev) => ({ ...prev, scale: false }));
+        if (closed) return;
+        scheduleReconnect();
+      };
+      ws.onerror = () => { /* handled in onclose */ };
+    };
+
+    const scheduleReconnect = () => {
+      retry = Math.min(retry + 1, 4);
+      const delay = Math.min(1000 * 2 ** (retry - 1), 10000);
+      retryTimer = setTimeout(openWs, delay);
+    };
+
+    openWs();
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      closed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      try { ws && ws.close(); } catch { /* noop */ }
+    };
+  }, []);
+
+  return status;
 }
 
 function jitter(base, spread, min = 0, max = 100) {
@@ -890,6 +1015,7 @@ function DetaineesPage({ onEdit }) {
     if (!window.confirm(`Xoá hồ sơ ${item.code} - ${item.full_name}?`)) return;
     try {
       await api.deleteDetainee(item.id);
+      notify.add();
       load();
     } catch (e) {
       window.alert(`Lỗi: ${e.message}`);
@@ -1265,6 +1391,7 @@ function SyncPage() {
         body: JSON.stringify(payload),
       });
       setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
+      notify.add();
     } catch (e) {
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
     } finally {
@@ -1699,7 +1826,9 @@ function ImportExportPage() {
     try {
       const data = new FormData();
       data.append("file", file);
-      setResult(await api.importXlsx(data));
+      const r = await api.importXlsx(data);
+      setResult(r);
+      notify.add();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1859,6 +1988,7 @@ function LogsPage() {
     try {
       const d = await resolveDetainee(log);
       await api.deleteDetainee(d.id);
+      notify.add();
       setNotice(`Đã xoá can phạm ${d.code}.`);
       load();
     } catch (e) {
@@ -2818,11 +2948,12 @@ function UserForm({ initial, onClose, onSaved }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!fullName.trim()) { setError("Vui lòng nhập họ và tên."); return; }
     setSaving(true);
     setError("");
     try {
       if (isEdit) {
-        const body = { full_name: fullName };
+        const body = { full_name: fullName.trim() };
         if (password) body.password = password;
         await api.updateUser(initial.id, body);
         onSaved(`Đã cập nhật ${initial.username}.`);
@@ -2831,7 +2962,7 @@ function UserForm({ initial, onClose, onSaved }) {
           username: username.trim(),
           password,
           role: "user",
-          full_name: fullName,
+          full_name: fullName.trim(),
         });
         onSaved(`Đã tạo tài khoản ${username}.`);
       }
@@ -2863,8 +2994,8 @@ function UserForm({ initial, onClose, onSaved }) {
               pattern="[a-zA-Z0-9_.\-]+"
             />
           </FieldRow>
-          <FieldRow label="Họ và tên">
-            <input className="control" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} />
+          <FieldRow label="Họ và tên *">
+            <input className="control" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} required />
           </FieldRow>
           <FieldRow label={isEdit ? "Đổi mật khẩu (bỏ trống nếu giữ nguyên)" : "Mật khẩu *"}>
             <input
@@ -3011,6 +3142,45 @@ const styles = `
   }
 
   .server-status.offline > span { background: #ff6b6b; }
+
+  .device-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    height: 44px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 14px;
+    background: rgba(2, 28, 79, .28);
+  }
+
+  .device-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #eaf1ff;
+    line-height: 1;
+  }
+
+  .device-chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff6b6b;
+    box-shadow: 0 0 0 3px rgba(255,107,107,.18);
+  }
+
+  .device-chip.online .device-chip-dot {
+    background: #24d777;
+    box-shadow: 0 0 0 3px rgba(36,215,119,.20);
+  }
+
+  .device-chip-label { white-space: nowrap; }
 
   .icon-button {
     position: relative;

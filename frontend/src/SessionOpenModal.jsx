@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "./api";
 
 function fmtNow() {
@@ -7,27 +7,25 @@ function fmtNow() {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function SessionOpenModal({ officerName, officerFullName, role, onCreated, onCancel }) {
+export default function SessionOpenModal({ officerName, officerFullName, onCreated, onCancel }) {
+  const [officer, setOfficer] = useState(officerFullName || officerName || "");
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const isAdmin = role === "admin";
-  const [officer, setOfficer] = useState(
-    officerFullName || officerName || ""
-  );
 
   const submit = async (e) => {
     e.preventDefault();
+    const name = officer.trim();
+    if (!name) { setErr("Vui lòng nhập tên cán bộ."); return; }
     setBusy(true);
     setErr("");
     try {
-      const body = { location: location.trim(), note: note.trim() };
-      if (isAdmin) {
-        const name = officer.trim();
-        if (!name) { setErr("Vui lòng nhập tên cán bộ."); setBusy(false); return; }
-        body.officer = name;
-      }
+      const body = {
+        location: location.trim(),
+        note: note.trim(),
+        officer_full_name: name,
+      };
       const s = await api.createSession(body);
       if (onCreated) onCreated(s);
     } catch (ex) {
@@ -47,19 +45,16 @@ export default function SessionOpenModal({ officerName, officerFullName, role, o
         <div className="session-modal-body">
           <div className="session-modal-row">
             <label htmlFor="sm-officer">Cán bộ</label>
-            {isAdmin ? (
-              <input
-                id="sm-officer"
-                className="control"
-                value={officer}
-                onChange={(e) => setOfficer(e.target.value)}
-                placeholder="Nhập tên cán bộ ghi vào phiên"
-                maxLength={64}
-                disabled={busy}
-              />
-            ) : (
-              <div className="session-modal-static">{officerName}{officerFullName ? ` (${officerFullName})` : ""}</div>
-            )}
+            <input
+              id="sm-officer"
+              className="control"
+              value={officer}
+              onChange={(e) => setOfficer(e.target.value)}
+              placeholder="Nhập tên cán bộ ghi vào phiên"
+              maxLength={100}
+              disabled={busy}
+              required
+            />
           </div>
           <div className="session-modal-row">
             <label>Thời điểm mở</label>

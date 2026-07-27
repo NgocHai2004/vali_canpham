@@ -1,20 +1,25 @@
 const TOKEN_KEY = "cccd_token";
 const USER_KEY = "cccd_user";
 const ROLE_KEY = "cccd_role";
+const FULL_NAME_KEY = "cccd_full_name";
 
 export const auth = {
   getToken: () => localStorage.getItem(TOKEN_KEY),
   getUser: () => localStorage.getItem(USER_KEY),
   getRole: () => localStorage.getItem(ROLE_KEY) || "user",
-  save: (token, username, role = "user") => {
+  getFullName: () => localStorage.getItem(FULL_NAME_KEY) || "",
+  save: (token, username, role = "user", fullName = "") => {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, username);
     localStorage.setItem(ROLE_KEY, role);
+    localStorage.setItem(FULL_NAME_KEY, fullName || "");
   },
+  setFullName: (fullName) => localStorage.setItem(FULL_NAME_KEY, fullName || ""),
   clear: () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(ROLE_KEY);
+    localStorage.removeItem(FULL_NAME_KEY);
   },
 };
 
@@ -93,7 +98,7 @@ export const api = {
     try { data = await res.json(); } catch { throw new Error("Máy chủ trả về không hợp lệ"); }
     if (!res.ok) throw new Error(data.detail || `Đăng nhập thất bại (${res.status})`);
     if (!data.access_token) throw new Error("Máy chủ không trả về token");
-    auth.save(data.access_token, data.username, data.role || "user");
+    auth.save(data.access_token, data.username, data.role || "user", data.full_name || "");
     return data;
   },
   me: () => request("/api/auth/me"),

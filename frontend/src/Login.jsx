@@ -72,7 +72,7 @@ export default function Login({ onLogin }) {
         }
         return;
       }
-      onLogin(data.username, data.role);
+      onLogin(data.username, data.role, data.full_name || "");
     } catch (ex) {
       setErr(ex.message || "Đăng nhập thất bại");
     } finally {

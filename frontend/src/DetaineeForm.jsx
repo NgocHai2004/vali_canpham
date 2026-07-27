@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, cccdApi, weightApi } from "./api";
+import { notify } from "./notifications";
 
 const emptyForm = {
   full_name: "",
@@ -156,6 +157,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
       } else {
         await api.createDetainee(body);
       }
+      notify.add();
       onSaved();
     } catch (e) {
       setErr(e.message);

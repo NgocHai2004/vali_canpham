@@ -86,13 +86,21 @@ async def lifespan(app: FastAPI):
 
 
 async def _ensure_admin():
-    if not await db.users.find_one({"username": ADMIN_USERNAME}):
+    existing = await db.users.find_one({"username": ADMIN_USERNAME})
+    if not existing:
         await db.users.insert_one({
             "username": ADMIN_USERNAME,
             "password_hash": hash_password(ADMIN_PASSWORD),
             "role": "admin",
+            "full_name": "Nguyễn Tuấn Anh",
             "created_at": datetime.utcnow(),
         })
+    else:
+        if not existing.get("full_name"):
+            await db.users.update_one(
+                {"_id": existing["_id"]},
+                {"$set": {"full_name": "Nguyễn Tuấn Anh"}},
+            )
 
 
 async def _ensure_default_cells():
@@ -122,19 +130,20 @@ class LoginResp(BaseModel):
     token_type: str = "bearer"
     username: str
     role: str = "admin"
+    full_name: str = ""
 
 
 class UserIn(BaseModel):
     username: str = Field(min_length=3, max_length=40, pattern=r"^[a-zA-Z0-9_.\-]+$")
     password: str = Field(min_length=6, max_length=100)
     role: str = Field(default="user", pattern=r"^(admin|user)$")
-    full_name: Optional[str] = None
+    full_name: str = Field(min_length=1, max_length=100)
 
 
 class UserPatch(BaseModel):
     password: Optional[str] = Field(None, min_length=6, max_length=100)
     role: Optional[str] = Field(None, pattern=r"^(admin|user)$")
-    full_name: Optional[str] = None
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100)
 
 
 class CellIn(BaseModel):
@@ -173,7 +182,7 @@ class DetaineeIn(BaseModel):
 class WorkSessionIn(BaseModel):
     location: str = Field(default="", max_length=200)
     note: str = Field(default="", max_length=500)
-    officer: Optional[str] = Field(default=None, max_length=64)
+    officer_full_name: Optional[str] = Field(default=None, max_length=100)
 
 
 async def _next_session_code() -> str:
@@ -233,7 +242,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     user = await db.users.find_one({"username": username})
     if not user:
         raise err
-    return {"username": username, "role": user.get("role", "admin")}
+    return {
+        "username": username,
+        "role": user.get("role", "admin"),
+        "full_name": user.get("full_name", "") or "",
+    }
 
 
 def require_admin(user: dict = Depends(get_current_user)) -> dict:
@@ -294,8 +307,14 @@ async def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
     if not user or not verify_password(form.password, user["password_hash"]):
         raise HTTPException(401, "Sai tài khoản hoặc mật khẩu")
     role = user.get("role", "admin")
+    full_name = user.get("full_name", "") or ""
     await _log(request, {"username": form.username}, "login", "auth")
-    return LoginResp(access_token=_make_token(form.username, role), username=form.username, role=role)
+    return LoginResp(
+        access_token=_make_token(form.username, role),
+        username=form.username,
+        role=role,
+        full_name=full_name,
+    )
 
 
 @app.get("/api/auth/me")
@@ -693,25 +712,19 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
 # ==================== WORK SESSIONS ====================
 @app.post("/api/sessions")
 async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
-    is_admin = user.get("role") == "admin"
     officer_username = user["username"]
-    officer_full_name_override: Optional[str] = None
-    if body.officer and body.officer.strip() and body.officer.strip() != user["username"]:
-        if not is_admin:
-            raise HTTPException(403, "Chỉ admin mới có thể mở phiên thay cho cán bộ khác.")
-        # Admin nhập tên tự do: giữ chủ sở hữu phiên là admin (để phân quyền không đổi),
-        # còn "tên cán bộ" hiển thị trên phiên/báo cáo là tên tự do admin nhập.
-        officer_full_name_override = body.officer.strip()
     existing = await _get_open_session_or_none(officer_username)
     if existing:
         raise HTTPException(409, f"Bạn đang có 1 phiên đang mở ({existing.get('code','?')}). Đóng phiên đó trước khi mở phiên mới.")
-    officer_doc = await db.users.find_one({"username": officer_username})
+    officer_doc = await db.users.find_one({"username": officer_username}) or {}
+    default_full_name = officer_doc.get("full_name", "") or officer_username
+    override = (body.officer_full_name or "").strip()
     now = datetime.utcnow()
     doc = {
         "code": await _next_session_code(),
         "status": "open",
         "officer": officer_username,
-        "officer_full_name": officer_full_name_override or (officer_doc or {}).get("full_name", "") or officer_username,
+        "officer_full_name": override or default_full_name,
         "location": body.location.strip(),
         "note": body.note.strip(),
         "opened_at": now,
@@ -872,7 +885,7 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
         ["PHIẾU BÁO CÁO PHIÊN LÀM VIỆC"],
         [],
         ["Mã phiên:", session_doc.get("code", "")],
-        ["Cán bộ:", f"{session_doc.get('officer','')} ({session_doc.get('officer_full_name','')})"],
+        ["Cán bộ:", session_doc.get("officer_full_name", "") or session_doc.get("officer", "")],
         ["Địa điểm:", session_doc.get("location", "") or ""],
         ["Ghi chú:", session_doc.get("note", "") or ""],
         ["Mở lúc:", _fmt_dt(opened)],
@@ -948,17 +961,11 @@ async def close_session(session_id: str, request: Request, user: dict = Depends(
     if doc.get("status") != "open":
         raise HTTPException(409, "Phiên này đã đóng.")
     now = datetime.utcnow()
-    doc["closed_at"] = now
-    doc["status"] = "closed"
-    filepath, filename = await _build_session_report_xlsx(doc)
-    report_url = f"/uploads/reports/{filename}"
     await db.work_sessions.update_one(
         {"_id": doc["_id"]},
         {"$set": {
             "status": "closed",
             "closed_at": now,
-            "report_url": report_url,
-            "report_filename": filename,
         }},
     )
     await _log(
@@ -966,7 +973,7 @@ async def close_session(session_id: str, request: Request, user: dict = Depends(
         {"action": "close", "detainee_count": doc.get("detainee_count", 0)},
         ref_id=session_id, session_id=doc["_id"],
     )
-    return {"ok": True, "closed_at": now.isoformat(), "report_url": report_url, "report_filename": filename}
+    return {"ok": True, "closed_at": now.isoformat()}
 
 
 @app.get("/api/sessions/{session_id}/report")
@@ -976,17 +983,16 @@ async def download_session_report(session_id: str, user: dict = Depends(get_curr
         raise HTTPException(404, "Không tìm thấy phiên làm việc.")
     if doc.get("officer") != user["username"] and user.get("role") != "admin":
         raise HTTPException(403, "Bạn không có quyền tải báo cáo phiên này.")
-    if doc.get("status") != "closed" or not doc.get("report_filename"):
-        raise HTTPException(404, "Phiên chưa được đóng hoặc chưa có báo cáo.")
-    filepath = os.path.join(REPORTS_DIR, doc["report_filename"])
+    _, filename = await _build_session_report_xlsx(doc)
+    filepath = os.path.join(REPORTS_DIR, filename)
     if not os.path.exists(filepath):
-        raise HTTPException(404, "File báo cáo không còn tồn tại trên máy chủ.")
+        raise HTTPException(500, "Tạo báo cáo thất bại.")
     with open(filepath, "rb") as f:
         data = f.read()
     return StreamingResponse(
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{doc["report_filename"]}"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

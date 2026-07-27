@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import { notify } from "./notifications";
 import SessionOpenModal from "./SessionOpenModal";
 
 const STAT_ICONS = {
@@ -59,6 +60,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [current, setCurrent] = useState(null);
   const [stats, setStats] = useState({ create: 0, update: 0, delete: 0, import: 0 });
   const [deletingId, setDeletingId] = useState(null);
+  const [exportingId, setExportingId] = useState(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -71,6 +73,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
     setDeletingId(s.id);
     try {
       await api.deleteSession(s.id);
+      notify.add();
       await load();
     } catch (ex) {
       alert(ex.message || "Không xoá được phiên");
@@ -127,14 +130,19 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const handleCreated = (s) => {
     setModalOpen(false);
     setCurrent(s);
+    notify.add();
     if (onOpenSession) onOpenSession(s.id);
   };
 
   const downloadReport = async (s) => {
+    setExportingId(s.id);
     try {
       await api.downloadSessionReport(s.id, s.report_filename || `session_${s.code}.xlsx`);
+      notify.add();
     } catch (ex) {
       alert(ex.message || "Không tải được báo cáo");
+    } finally {
+      setExportingId(null);
     }
   };
 
@@ -152,8 +160,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           <span className="badge badge-open">● Đang mở</span>
           <span className="mono">{current.code}</span>
           <span style={{ color: "#6b7280", fontSize: 13 }}>
-            · Cán bộ {current.officer}
-            {current.officer_full_name ? ` (${current.officer_full_name})` : ""}
+            · Cán bộ {current.officer_full_name || current.officer}
             · {current.detainee_count || 0} hồ sơ
           </span>
           <button
@@ -240,6 +247,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
             )}
             {!loading && items.map((s) => {
               const canDelete = s.status === "open" && (role === "admin" || s.officer === username);
+              const exporting = exportingId === s.id;
               return (
                 <tr key={s.id} onClick={() => onOpenSession && onOpenSession(s.id)} className="session-list-row">
                   <td>
@@ -248,23 +256,34 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                       : <span className="badge badge-closed">✓ Đã đóng</span>}
                   </td>
                   <td className="mono">{s.code}</td>
-                  <td>{s.officer}{s.officer_full_name ? ` (${s.officer_full_name})` : ""}</td>
+                  <td>{s.officer_full_name || s.officer}</td>
                   <td>{fmtDateTime(s.opened_at)}</td>
                   <td>{fmtDateTime(s.closed_at)}</td>
                   <td>{s.location || "—"}</td>
                   <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
                   <td style={{ textAlign: "right" }}>
-                    {canDelete && (
+                    <div style={{ display: "inline-flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
                       <button
                         type="button"
-                        className="btn-link btn-link-danger"
-                        disabled={deletingId === s.id}
-                        onClick={(e) => { e.stopPropagation(); removeSession(s); }}
-                        title={s.detainee_count ? `Xoá phiên (sẽ xoá ${s.detainee_count} hồ sơ)` : "Xoá phiên"}
+                        className="btn-link"
+                        disabled={exporting}
+                        onClick={(e) => { e.stopPropagation(); downloadReport(s); }}
+                        title="Xuất báo cáo phiên (.xlsx)"
                       >
-                        {deletingId === s.id ? "Đang xoá..." : "Xoá"}
+                        {exporting ? "Đang xuất..." : "Xuất báo cáo"}
                       </button>
-                    )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="btn-link btn-link-danger"
+                          disabled={deletingId === s.id}
+                          onClick={(e) => { e.stopPropagation(); removeSession(s); }}
+                          title={s.detainee_count ? `Xoá phiên (sẽ xoá ${s.detainee_count} hồ sơ)` : "Xoá phiên"}
+                        >
+                          {deletingId === s.id ? "Đang xoá..." : "Xoá"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
