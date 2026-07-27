@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "./api";
+import { api, auth } from "./api";
 
 /* ---------- Lucide-style icons (thin 2px, round caps) ---------- */
 const IconUser = ({ s = 20 }) => (
@@ -60,7 +60,19 @@ export default function Login({ onLogin }) {
     setLoading(true);
     try {
       const data = await api.login(username.trim(), password);
-      onLogin(data.username);
+      try {
+        await api.verifyDongle();
+      } catch (dongleEx) {
+        auth.clear();
+        const msg = dongleEx?.message || "";
+        if (/USB service|Không kết nối được USB/i.test(msg)) {
+          setErr("Chưa đủ điều kiện đăng nhập — USB service chưa chạy (port 8766)");
+        } else {
+          setErr("Chưa đủ điều kiện đăng nhập — cần cắm USB dongle");
+        }
+        return;
+      }
+      onLogin(data.username, data.role);
     } catch (ex) {
       setErr(ex.message || "Đăng nhập thất bại");
     } finally {

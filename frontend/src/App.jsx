@@ -73,7 +73,6 @@ export default function App() {
         // 401 hoặc lỗi khác = coi như dongle không có → tăng fail counter
         failCountRef.current += 1;
         if (failCountRef.current >= DONGLE_MAX_FAIL) {
-          alert("Không phát hiện USB dongle. Bạn sẽ bị đăng xuất.");
           auth.clear();
           setUser(null);
           setRole("user");

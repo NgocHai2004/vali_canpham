@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+tests/
+_verify_err.log
+_verify_out.log
+data_cccd/
+uploads/
+fp/
