@@ -152,7 +152,17 @@ export default function App() {
             : t("app.dongle.warning", { sec: (DONGLE_MAX_FAIL - failCountRef.current) * 5 })}
         </div>
       )}
-      <Dashboard username={user} role={role} fullName={fullName} onLogout={handleLogout} />
+      <Dashboard
+        username={user}
+        role={role}
+        fullName={fullName}
+        onFullNameChange={(fn) => {
+          const v = fn || "";
+          setFullName(v);
+          auth.setFullName(v);
+        }}
+        onLogout={handleLogout}
+      />
     </>
   );
 }

@@ -146,6 +146,12 @@ class UserPatch(BaseModel):
     full_name: Optional[str] = Field(None, min_length=1, max_length=100)
 
 
+class MePatch(BaseModel):
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    password: Optional[str] = Field(None, min_length=6, max_length=100)
+    current_password: Optional[str] = Field(None, min_length=1, max_length=100)
+
+
 class CellIn(BaseModel):
     code: str = Field(min_length=1, max_length=20)
     name: str = Field(min_length=1, max_length=100)
@@ -320,6 +326,41 @@ async def login(request: Request, form: OAuth2PasswordRequestForm = Depends()):
 @app.get("/api/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return user
+
+
+@app.patch("/api/auth/me")
+async def update_me(body: MePatch, request: Request, user: dict = Depends(get_current_user)):
+    target = await db.users.find_one({"username": user["username"]})
+    if not target:
+        raise HTTPException(404, "Không tìm thấy tài khoản")
+    upd: dict = {}
+    wants_name = body.full_name is not None
+    wants_pw = bool(body.password)
+    if not wants_name and not wants_pw:
+        return {
+            "username": user["username"],
+            "role": user["role"],
+            "full_name": target.get("full_name", "") or "",
+        }
+    if not body.current_password or not verify_password(body.current_password, target["password_hash"]):
+        raise HTTPException(400, "Mật khẩu hiện tại không đúng")
+    if wants_name:
+        upd["full_name"] = body.full_name.strip()
+    if wants_pw:
+        upd["password_hash"] = hash_password(body.password)
+    doc = await db.users.find_one_and_update(
+        {"username": user["username"]},
+        {"$set": upd},
+        return_document=True,
+    )
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy tài khoản")
+    await _log(request, user, "update", "user", user["username"], {"fields": list(upd.keys()), "self": True})
+    return {
+        "username": doc["username"],
+        "role": doc.get("role", "user"),
+        "full_name": doc.get("full_name", "") or "",
+    }
 
 
 # ==================== USB DONGLE ====================

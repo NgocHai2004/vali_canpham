@@ -104,6 +104,7 @@ export const api = {
     return data;
   },
   me: () => request("/api/auth/me"),
+  updateMe: (body) => request("/api/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
   verifyDongle: () => request("/api/auth/dongle-verify"),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
 

@@ -1171,11 +1171,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       {filled ? (
                         <img src={photos[f.key]} alt={label} />
                       ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M12 11c0-4 3-7 7-7" />
-                          <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
-                          <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
-                          <path d="M12 15v1a3 3 0 0 0 3 3" />
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 10.5c-.9 0-1.6.7-1.6 1.6v2.4c0 1.7.4 3.4 1.1 5" />
+                          <path d="M9.2 8.5A4 4 0 0 1 16 11v3.4c0 1.4.2 2.7.6 4" />
+                          <path d="M7 7.6A6 6 0 0 1 18 11v3.3c0 1 .1 2 .4 3" />
+                          <path d="M5.2 9.8A8 8 0 0 1 20 11" />
+                          <path d="M4.5 13.5c-.1-.9-.1-1.8 0-2.7" />
+                          <path d="M6 18.5c-.5-1-.8-2.1-.9-3.2" />
+                          <path d="M8.7 20.6c-.6-1-1-2-1.3-3.1" />
+                          <path d="M15.7 20.7c.7-1.4 1-2.9 1.1-4.4" />
                         </svg>
                       )}
                     </div>
@@ -1192,11 +1196,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             </div>
             <div className="fp-kpi">
               <div className="fp-kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 11c0-4 3-7 7-7" />
-                  <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
-                  <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
-                  <path d="M12 15v1a3 3 0 0 0 3 3" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 10.5c-.9 0-1.6.7-1.6 1.6v2.4c0 1.7.4 3.4 1.1 5" />
+                  <path d="M9.2 8.5A4 4 0 0 1 16 11v3.4c0 1.4.2 2.7.6 4" />
+                  <path d="M7 7.6A6 6 0 0 1 18 11v3.3c0 1 .1 2 .4 3" />
+                  <path d="M5.2 9.8A8 8 0 0 1 20 11" />
+                  <path d="M4.5 13.5c-.1-.9-.1-1.8 0-2.7" />
+                  <path d="M6 18.5c-.5-1-.8-2.1-.9-3.2" />
+                  <path d="M8.7 20.6c-.6-1-1-2-1.3-3.1" />
+                  <path d="M15.7 20.7c.7-1.4 1-2.9 1.1-4.4" />
                 </svg>
               </div>
               <div className="fp-kpi-count">{t("capture.quality.collected", { n: fpCount })}</div>

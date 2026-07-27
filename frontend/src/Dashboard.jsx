@@ -76,13 +76,14 @@ const NAV_BASE = [
 ];
 const NAV_ADMIN = [{ key: "users", labelKey: "nav.users", icon: Icon.users }];
 
-export default function Dashboard({ username = "admin", role = "user", fullName = "", onLogout }) {
+export default function Dashboard({ username = "admin", role = "user", fullName = "", onFullNameChange, onLogout }) {
   const { t, locale } = useI18n();
   useEffect(() => { setLastLocale(locale); }, [locale]);
   const [page, setPage] = useState("dashboard");
   const [editingDetainee, setEditingDetainee] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [sessionCtx, setSessionCtx] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const isAdmin = role === "admin";
   const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN] : NAV_BASE;
   const deviceStatus = useDeviceConnections();
@@ -157,11 +158,24 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
       <div className="app">
         <Header
           username={username}
+          fullName={fullName}
           devices={deviceStatus}
           notif={notifState}
           onLogout={onLogout}
           isAdmin={isAdmin}
+          onEditProfile={() => setShowProfileModal(true)}
         />
+        {showProfileModal && (
+          <ProfileEditModal
+            username={username}
+            fullName={fullName}
+            onClose={() => setShowProfileModal(false)}
+            onSaved={(newName) => {
+              setShowProfileModal(false);
+              onFullNameChange && onFullNameChange(newName);
+            }}
+          />
+        )}
 
         <aside className="sidebar">
           <div className="sidebar-title">{t("nav.function_group")}</div>
@@ -237,10 +251,12 @@ const DEVICE_CHIPS = [
   { key: "scale", labelKey: "header.device.scale" },
 ];
 
-function Header({ username, devices, notif, onLogout, isAdmin }) {
+function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile }) {
   const { t } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const notifRef = useRef(null);
+  const userMenuRef = useRef(null);
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -252,6 +268,17 @@ function Header({ username, devices, notif, onLogout, isAdmin }) {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [notifOpen]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onClick = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [userMenuOpen]);
 
   const toggleNotif = () => {
     const nextOpen = !notifOpen;
@@ -333,12 +360,46 @@ function Header({ username, devices, notif, onLogout, isAdmin }) {
           )}
         </div>
 
-        <div className="user-box">
-          <div className="avatar">{username.slice(0, 1).toUpperCase()}</div>
-          <div className="user-info">
-            <strong>{username}</strong>
-            <span>{isAdmin ? t("common.role.admin") : t("common.role.officer")}</span>
-          </div>
+        <div className="user-box-wrap" ref={userMenuRef} style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="user-box"
+            onClick={() => setUserMenuOpen((v) => !v)}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
+          >
+            <div className="avatar">{(fullName || username).slice(0, 1).toUpperCase()}</div>
+            <div className="user-info">
+              <strong>{fullName || username}</strong>
+              <span>{isAdmin ? t("common.role.admin") : t("common.role.officer")}</span>
+            </div>
+          </button>
+          {userMenuOpen && (
+            <div
+              role="menu"
+              style={{
+                position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 200,
+                background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
+                boxShadow: "0 8px 24px rgba(15,35,68,.12)", zIndex: 100, padding: 6,
+              }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { setUserMenuOpen(false); onEditProfile && onEditProfile(); }}
+                style={{
+                  display: "block", width: "100%", textAlign: "left",
+                  padding: "8px 12px", border: "none", background: "none",
+                  borderRadius: 6, cursor: "pointer", fontSize: 14, color: "#0f2344",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#f5f8fd"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+              >
+                {t("profile.edit_menu")}
+              </button>
+            </div>
+          )}
         </div>
 
         <button className="logout-button" onClick={onLogout}>
@@ -1277,9 +1338,6 @@ function DetailModal({ detainee, onClose }) {
             </div>
             <div className="detail-name-row">
               <span className="detail-name">{d.full_name || "—"}</span>
-              <span className={"detail-gender-chip " + (d.gender === "female" ? "female" : "male")}>
-                <b>{genderSymbol}</b> {genderText}
-              </span>
             </div>
           </aside>
 
@@ -1290,7 +1348,8 @@ function DetailModal({ detainee, onClose }) {
             <InfoTile icon={DetailIcon.ethnic} label={t("detainee.field.ethnicity")} value={d.ethnicity || "—"} />
             <InfoTile icon={DetailIcon.door} label={t("detainee.field.cell")} value={d.cell_code || "—"} />
             <InfoTile icon={DetailIcon.pin} label={t("detainee.field.address")} value={d.address || "—"} />
-            <InfoTile icon={DetailIcon.clock} label={t("detainee.field.date_in")} value={dateInText} />
+            <InfoTile icon={DetailIcon.gender} label={t("detainee.field.gender")} value={<span><b>{genderSymbol}</b> {genderText}</span>} />
+            <InfoTile icon={DetailIcon.flag} label={t("detainee.field.nationality")} value={d.nationality || "—"} />
           </div>
         </div>
       </div>
@@ -2226,7 +2285,6 @@ function LogsPage() {
               <th>{t("logs.col.action")}</th>
               <th>{t("logs.col.resource")}</th>
               <th>{t("logs.col.ref")}</th>
-              <th>{t("logs.col.ip")}</th>
               <th>{t("logs.col.actions")}</th>
             </tr>
           </thead>
@@ -2267,7 +2325,6 @@ function LogsPage() {
                   <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
                   <td>{log.resource}</td>
                   <td>{log.ref}</td>
-                  <td>{log.ip}</td>
                   <td>
                     {canAct ? (
                       <div className="row-actions">
@@ -2283,7 +2340,7 @@ function LogsPage() {
               );
             })}
             {!logs.length && (
-              <tr><td colSpan={8}><div className="empty">{t("common.empty")}</div></td></tr>
+              <tr><td colSpan={7}><div className="empty">{t("common.empty")}</div></td></tr>
             )}
           </tbody>
         </table>
@@ -2512,13 +2569,12 @@ function DetaineeHistoryPage({ onEdit }) {
           <table className="detainees-table">
             <thead>
               <tr>
-                <th>{t("logs.col.time")}</th>
-                <th>{t("logs.col.session")}</th>
-                <th>{t("logs.col.officer")}</th>
-                <th>{t("logs.col.action")}</th>
-                <th>{t("history.col.code")}</th>
-                <th>{t("logs.col.ip")}</th>
-                <th>{t("logs.col.actions")}</th>
+                <th style={{ width: "18%" }}>{t("logs.col.time")}</th>
+                <th style={{ width: "14%" }}>{t("logs.col.session")}</th>
+                <th style={{ width: "22%" }}>{t("logs.col.officer")}</th>
+                <th style={{ width: "14%" }}>{t("logs.col.action")}</th>
+                <th style={{ width: "16%" }}>{t("history.col.code")}</th>
+                <th style={{ width: "16%" }}>{t("logs.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -2557,7 +2613,6 @@ function DetaineeHistoryPage({ onEdit }) {
                     </td>
                     <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
                     <td>{log.ref || "—"}</td>
-                    <td>{log.ip || "—"}</td>
                     <td>
                       {canAct ? (
                         <div className="row-actions">
@@ -2574,7 +2629,7 @@ function DetaineeHistoryPage({ onEdit }) {
                 );
               })}
               {!pagedLogs.length && (
-                <tr><td colSpan={7}><div className="empty">{t("common.empty")}</div></td></tr>
+                <tr><td colSpan={6}><div className="empty">{t("common.empty")}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -3169,6 +3224,129 @@ export function FieldRow({ label, children }) {
   );
 }
 
+function ProfileEditModal({ username, fullName, onClose, onSaved }) {
+  const { t } = useI18n();
+  const [name, setName] = useState(fullName || "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+  const [showPwFields, setShowPwFields] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const trimmed = name.trim();
+    if (!trimmed) { setError(t("profile.err.name_required")); return; }
+    const nameChanged = trimmed !== (fullName || "").trim();
+    const wantsPw = showPwFields && (password || password2);
+    if (!nameChanged && !wantsPw) {
+      onClose();
+      return;
+    }
+    if (!currentPassword) { setError(t("profile.err.current_required")); return; }
+    if (wantsPw) {
+      if (password.length < 6) { setError(t("profile.err.password_short")); return; }
+      if (password !== password2) { setError(t("profile.err.password_mismatch")); return; }
+    }
+    setSaving(true);
+    try {
+      const body = { current_password: currentPassword };
+      if (nameChanged) body.full_name = trimmed;
+      if (wantsPw) body.password = password;
+      const res = await api.updateMe(body);
+      onSaved(res.full_name ?? trimmed);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{t("profile.title")}</h3>
+          <button onClick={onClose}>×</button>
+        </div>
+        <form className="form" onSubmit={submit}>
+          {error && <div className="error-box">{error}</div>}
+          <FieldRow label={t("profile.field.username")}>
+            <input className="control" value={username} disabled readOnly />
+          </FieldRow>
+          <FieldRow label={t("profile.field.full_name")}>
+            <input
+              className="control"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={100}
+              required
+              autoFocus
+            />
+          </FieldRow>
+          <FieldRow label={t("profile.field.current_password")}>
+            <input
+              className="control"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+              maxLength={100}
+              placeholder={t("profile.current_password_ph")}
+              required
+            />
+          </FieldRow>
+          {!showPwFields ? (
+            <div style={{ margin: "4px 0 8px" }}>
+              <button
+                type="button"
+                onClick={() => setShowPwFields(true)}
+                style={{
+                  background: "none", border: "none", padding: 0,
+                  color: "#2563eb", cursor: "pointer", fontSize: 13, textDecoration: "underline",
+                }}
+              >
+                {t("profile.change_password_toggle")}
+              </button>
+            </div>
+          ) : (
+            <>
+              <FieldRow label={t("profile.field.new_password")}>
+                <input
+                  className="control"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  maxLength={100}
+                />
+              </FieldRow>
+              <FieldRow label={t("profile.field.confirm_password")}>
+                <input
+                  className="control"
+                  type="password"
+                  value={password2}
+                  onChange={(e) => setPassword2(e.target.value)}
+                  autoComplete="new-password"
+                  maxLength={100}
+                />
+              </FieldRow>
+            </>
+          )}
+          <div className="modal-actions">
+            <button type="button" className="button secondary" onClick={onClose}>{t("common.cancel")}</button>
+            <button type="submit" className="button primary" disabled={saving}>
+              {saving ? t("common.saving") : t("common.save")}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 const styles = `
   :root {
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -3483,12 +3661,13 @@ const styles = `
     place-items: center;
     border-radius: 50%;
     background: linear-gradient(145deg, #4c85e9, #2c5fb7);
+    color: #fff;
     font-size: 18px;
     font-weight: 800;
   }
 
   .user-info { display: flex; flex-direction: column; min-width: 100px; }
-  .user-info strong { font-size: 15px; }
+  .user-info strong { font-size: 15px; color: #fff; }
   .user-info span { color: #ccdefd; font-size: 12px; margin-top: 3px; }
 
   .logout-button {
@@ -6469,6 +6648,9 @@ const styles = `
     grid-template-rows: auto auto;
     gap: 6px;
     padding: 8px 10px 10px;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
   }
   .fp-preview-grid.fp-preview-grid--single-row .fp-preview-cell {
     grid-row: 1;
@@ -6521,7 +6703,7 @@ const styles = `
     width: 100%; height: 100%; object-fit: cover;
     filter: grayscale(1) contrast(1.1);
   }
-  .fp-preview-thumb svg { width: 20px; height: 20px; }
+  .fp-preview-thumb svg { width: 40px; height: 40px; }
   .fp-preview-cell .fp-name {
     font-size: 9.5px;
     font-weight: 800;
@@ -6545,30 +6727,38 @@ const styles = `
 
   .fp-kpi {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: row;
     align-items: center;
-    justify-content: space-around;
-    gap: 20px;
-    padding: 6px 20px;
+    justify-content: space-evenly;
+    gap: 18px;
+    padding: 12px 18px;
     text-align: center;
-    line-height: 1;
+    line-height: 1.1;
+    min-height: 0;
   }
   .fp-kpi > * { flex-shrink: 0; }
   .fp-kpi-icon {
-    width: 32px; height: 32px;
+    width: 52px; height: 52px;
     border-radius: 50%;
     display: grid; place-items: center;
     background: #fde8ea;
     color: #7f171e;
   }
-  .fp-kpi-icon svg { width: 18px; height: 18px; }
-  .fp-kpi-count { color: #7f171e; font-size: 12px; font-weight: 800; }
+  .fp-kpi-icon svg { width: 30px; height: 30px; }
+  .fp-kpi-count {
+    color: #7f171e;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: .2px;
+    line-height: 1.15;
+  }
   .fp-kpi-big {
     color: #7f171e;
-    font-size: 24px;
+    font-size: 38px;
     font-weight: 800;
     line-height: 1;
-    letter-spacing: -0.5px;
+    letter-spacing: -.5px;
   }
   .fp-kpi-caption {
     color: #7d8ca7;
