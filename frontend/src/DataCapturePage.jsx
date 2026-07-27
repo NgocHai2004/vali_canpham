@@ -101,7 +101,6 @@ const EMPTY_FORM = {
   issued_place: "",
   height_cm: "",
   weight_kg: "",
-  charge: "",
   cell_code: "",
   note: "",
 };
@@ -527,7 +526,6 @@ function normalizeInitial(initial) {
       issued_place: initial.issued_place || "",
       height_cm: initial.height_cm != null ? String(initial.height_cm) : "",
       weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
-      charge: initial.charge || "",
       cell_code: initial.cell_code || "",
       note: initial.note || "",
     },
@@ -901,14 +899,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const portraitCount = PORTRAITS.filter((p) => photos[p.key]).length;
 
   const checks = useMemo(() => {
+    const personalOk = !!(form.personal_id || "").trim();
     const cccdOk =
-      !!(form.personal_id || "").trim() &&
       !!form.full_name.trim() &&
       /^\d{12}$/.test(form.cccd_number || "") &&
       !!form.dob;
     return [
-      { key: "cccd", label: "Mã can phạm + Thông tin CCCD", ok: cccdOk, required: true },
-      { key: "portrait", label: "Ảnh chân dung đa góc", ok: portraitCount === 3, required: false },
+      { key: "personal_id", label: "Mã can phạm", ok: personalOk, required: true },
+      { key: "cccd", label: "Thông tin CCCD", ok: cccdOk, required: true },
+      { key: "portrait", label: "Ảnh chân dung", ok: portraitCount === 3, required: false },
       { key: "fp", label: "Vân tay (10/10)", ok: fpCount === 10, required: false },
       { key: "extra", label: "Thông tin bổ sung", ok: !!form.height_cm && !!form.weight_kg, required: false },
       { key: "device", label: "Thiết bị & kết nối", ok: true, required: false },
@@ -949,7 +948,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         issued_place: strOrNull(form.issued_place),
         height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
         weight_kg: form.weight_kg ? Math.round(Number(form.weight_kg)) : null,
-        charge: strOrNull(form.charge),
         cell_code: strOrNull(form.cell_code),
         note: strOrNull(form.note),
         photo_url: photos.portrait_front || null,
@@ -1164,10 +1162,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {
                 const filled = !!photos[f.key];
                 const fpCode = Object.entries(FP_CODE_TO_KEY).find(([, k]) => k === f.key)?.[0];
+                const isActive = fpRunning && fpNextCode === fpCode;
                 return (
                   <div
                     key={f.key}
-                    className={"fp-preview-cell " + (filled ? "done" : "empty")}
+                    className={"fp-preview-cell " + (filled ? "done" : "empty") + (isActive ? " active" : "")}
                     onDoubleClick={() => !fpRunning && retryFingerprint(f.key, fpCode)}
                     title={filled ? "Nhấp đúp để thu lại ngón này" : "Nhấp đúp để thu ngón này"}
                     style={{ cursor: fpRunning ? "default" : "pointer" }}
@@ -1207,8 +1206,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 </svg>
               </div>
               <div className="fp-kpi-count">{fpCount} / 10 — Đã thu thập</div>
-              <div className="fp-kpi-big">{fpCount === 10 ? "98%" : `${Math.round(fpCount * 10)}%`}</div>
-              <div className="fp-kpi-caption">Chất lượng trung bình — {fpCount === 10 ? "Xuất sắc" : "Chưa đủ"}</div>
+              <div className="fp-kpi-big">{fpCount === 10 ? "100%" : `${Math.round(fpCount * 10)}%`}</div>
             </div>
           </section>
         </div>
@@ -1221,21 +1219,33 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             </div>
             <div className="tier3-body">
               <Tier3Row label="Chiều cao">
-                <input className="control tier3-input" type="number" min="50" max="250" value={form.height_cm}
-                  onChange={(e) => setField("height_cm", e.target.value)} placeholder="cm" />
+                <div className="tier3-input-unit">
+                  <input className="control tier3-input" type="number" min="50" max="250" value={form.height_cm}
+                    onChange={(e) => setField("height_cm", e.target.value)} placeholder="---" />
+                  <span className="tier3-unit">cm</span>
+                </div>
               </Tier3Row>
               <Tier3Row label="Cân nặng">
-                <input className="control tier3-input" type="number" min="20" max="200" value={form.weight_kg}
-                  onChange={(e) => setField("weight_kg", e.target.value)} placeholder="kg" />
+                <div className="tier3-input-unit">
+                  <input className="control tier3-input" type="number" min="20" max="200" value={form.weight_kg}
+                    onChange={(e) => setField("weight_kg", e.target.value)} placeholder="---" />
+                  <span className="tier3-unit">kg</span>
+                </div>
               </Tier3Row>
               <Tier3Row label="Buồng giam">
-                <select className="control tier3-input" value={form.cell_code}
-                  onChange={(e) => setField("cell_code", e.target.value)}>
-                  <option value="">--</option>
+                <input
+                  className="control tier3-input"
+                  type="text"
+                  list="cell-code-suggestions"
+                  value={form.cell_code}
+                  onChange={(e) => setField("cell_code", e.target.value)}
+                  placeholder="Nhập hoặc chọn"
+                />
+                <datalist id="cell-code-suggestions">
                   {cells.map((c) => (
-                    <option key={c.code} value={c.code}>{c.code}</option>
+                    <option key={c.code} value={c.code}>{c.name || c.code}</option>
                   ))}
-                </select>
+                </datalist>
               </Tier3Row>
             </div>
           </section>
@@ -1245,9 +1255,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <h2 className="cap-block-title">THIẾT BỊ THU NHẬN</h2>
             </div>
             <div className="tier3-body">
-              <Tier3Static label="Thiết bị" value="ZKFinger 4500" />
+              <Tier3Static label="Thiết bị" value="Vali" />
               <Tier3Static label="Số seri" value="ZKF-4500-2401" />
-              <Tier3Static label="Phần mềm" value="v1.0" />
+              <Tier3Static label="Phần mềm" value="v5.3.4.1" />
               <Tier3Static label="Phương thức" value="Live Scan" />
               <Tier3Static label="Máy trạm" value={typeof window !== "undefined" ? window.location.hostname : "-"} />
             </div>
@@ -1257,8 +1267,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="cap-block-head">
               <h2 className="cap-block-title">GHI CHÚ</h2>
             </div>
-            <div className={"notes-body " + (form.note ? "" : "empty")}>
-              {form.note || "Không có ghi chú."}
+            <div className="notes-body">
+              <textarea
+                className="control notes-input"
+                value={form.note}
+                onChange={(e) => setField("note", e.target.value)}
+                placeholder="Nhập ghi chú về can phạm..."
+                rows={4}
+              />
             </div>
           </section>
 
@@ -1678,14 +1694,16 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
           {/* ===== II. Chỉ số nhận dạng & thông tin giam giữ ===== */}
           <h3 className="pv-section">II. CHỈ SỐ NHẬN DẠNG &amp; THÔNG TIN GIAM GIỮ</h3>
           <table className="pv-table pv-info-table">
+            <colgroup>
+              <col style={{ width: "28%" }} />
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "28%" }} />
+              <col style={{ width: "22%" }} />
+            </colgroup>
             <tbody>
               <tr>
                 <td className="pv-label">Chiều cao (cm)</td><td>{val(form.height_cm)}</td>
                 <td className="pv-label">Cân nặng (kg)</td><td>{val(form.weight_kg)}</td>
-              </tr>
-              <tr>
-                <td className="pv-label">Tội danh</td>
-                <td colSpan={3}>{val(form.charge)}</td>
               </tr>
               <tr>
                 <td className="pv-label">Ngày vào buồng</td><td>{val(form.date_in)}</td>

@@ -11,7 +11,6 @@ const emptyForm = {
   ethnicity: "",
   religion: "",
   cell_code: "",
-  charge: "",
   date_in: "",
   note: "",
   photo_url: "",
@@ -286,10 +285,6 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                   <input className="input" value={form.date_in || ""} onChange={set("date_in")} placeholder="01/01/2026" />
                 </Field>
               </div>
-
-              <Field label="Tội danh">
-                <input className="input" value={form.charge || ""} onChange={set("charge")} />
-              </Field>
 
               <Field label="Ghi chú">
                 <textarea className="input" rows={2} value={form.note || ""} onChange={set("note")} />

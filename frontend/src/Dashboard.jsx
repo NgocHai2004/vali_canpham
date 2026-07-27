@@ -922,7 +922,6 @@ function DetaineesPage({ onEdit }) {
                 <th>Ngày sinh</th>
                 <th>Số CCCD</th>
                 <th>Buồng</th>
-                <th>Tội danh</th>
                 <th>Thao tác</th>
               </tr>
             </thead>
@@ -944,7 +943,6 @@ function DetaineesPage({ onEdit }) {
                   <td>{item.dob ? new Date(item.dob).toLocaleDateString("vi-VN") : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
                   <td>{item.cell_code || "-"}</td>
-                  <td className="ellipsis">{item.charge || "-"}</td>
                   <td>
                     <div className="row-actions">
                       <button onClick={() => setViewing(item)}>Xem</button>
@@ -1100,7 +1098,6 @@ function DetailModal({ detainee, onClose }) {
             <InfoTile icon={DetailIcon.note} label="Mã can phạm" value={d.personal_id || "—"} />
             <InfoTile icon={DetailIcon.dob} label="Ngày sinh" value={dobText} />
             <InfoTile icon={DetailIcon.ethnic} label="Dân tộc" value={d.ethnicity || "—"} />
-            <InfoTile icon={DetailIcon.scale} label="Tội danh" value={d.charge || "—"} />
             <InfoTile icon={DetailIcon.door} label="Buồng giam" value={d.cell_code || "—"} />
             <InfoTile icon={DetailIcon.pin} label="Nơi thường trú" value={d.address || "—"} />
             <InfoTile icon={DetailIcon.clock} label="Ngày vào buồng" value={dateInText} />
@@ -1246,7 +1243,6 @@ function SyncPage() {
           height_cm: d.height_cm || null,
           weight_kg: d.weight_kg || null,
           cell_code: d.cell_code || "",
-          charge: d.charge || "",
           date_in: d.date_in || null,
           note: d.note || "",
           created_by: d.created_by || "",
@@ -1576,7 +1572,6 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                   <th>Mã hồ sơ</th>
                   <th>Họ và tên</th>
                   <th>Giới tính</th>
-                  <th>Tội danh</th>
                   <th>Chuyển sang buồng</th>
                 </tr>
               </thead>
@@ -1586,7 +1581,6 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                     <td><strong>{item.personal_id || item.code}</strong></td>
                     <td>{item.full_name}</td>
                     <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
-                    <td className="ellipsis">{item.charge || "-"}</td>
                     <td>
                       <select
                         className="control"
@@ -2641,7 +2635,6 @@ function SearchPage() {
                 <th>Ngày sinh</th>
                 <th>Số CCCD</th>
                 <th>Buồng</th>
-                <th>Tội danh</th>
                 <th>Thao tác</th>
               </tr>
             </thead>
@@ -2659,7 +2652,6 @@ function SearchPage() {
                   <td>{item.dob ? new Date(item.dob).toLocaleDateString("vi-VN") : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
                   <td>{item.cell_code || "-"}</td>
-                  <td className="ellipsis">{item.charge || "-"}</td>
                   <td>
                     <div className="row-actions">
                       <button onClick={() => setViewing(item)}>Xem</button>
@@ -6043,6 +6035,24 @@ const styles = `
     padding: 2px 6px;
     height: 22px;
     min-width: 0;
+  }
+  .tier3-row .tier3-input-unit {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .tier3-row .tier3-input-unit .tier3-input {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+  }
+  .tier3-row .tier3-unit {
+    flex: 0 0 auto;
+    color: #7f171e;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .3px;
   }
 
   .timeline-body {
