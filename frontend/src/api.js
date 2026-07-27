@@ -1,3 +1,5 @@
+import { apiT } from "./i18n";
+
 const TOKEN_KEY = "cccd_token";
 const USER_KEY = "cccd_user";
 const ROLE_KEY = "cccd_role";
@@ -37,12 +39,12 @@ async function request(path, opts = {}) {
   try {
     res = await fetch(path, { ...opts, headers });
   } catch (netErr) {
-    throw new Error("Không kết nối được máy chủ (" + netErr.message + ")");
+    throw new Error(apiT("api.error.network", { message: netErr.message }));
   }
   if (res.status === 401) {
     auth.clear();
     if (onAuthExpired) onAuthExpired();
-    throw new Error("Phiên đăng nhập đã hết hạn");
+    throw new Error(apiT("api.error.auth_expired"));
   }
   const ct = res.headers.get("content-type") || "";
   const data = ct.includes("application/json") ? await res.json() : await res.text();
@@ -52,7 +54,7 @@ async function request(path, opts = {}) {
     if (Array.isArray(data?.detail)) {
       msg = data.detail.map((e) => `${e.loc ? e.loc.join(".") : "?"}: ${e.msg}`).join("; ");
     } else {
-      msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy chủ");
+      msg = (data && data.detail) || (typeof data === "string" ? data : apiT("api.error.server"));
     }
     throw new Error(msg);
   }
@@ -62,7 +64,7 @@ async function request(path, opts = {}) {
 async function downloadFile(path, defaultName) {
   const token = auth.getToken();
   const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-  if (!res.ok) throw new Error("Tải file thất bại (" + res.status + ")");
+  if (!res.ok) throw new Error(apiT("api.error.download_failed", { status: res.status }));
   const blob = await res.blob();
   const cd = res.headers.get("Content-Disposition") || "";
   const m = /filename="?([^"]+)"?/.exec(cd);
@@ -92,12 +94,12 @@ export const api = {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
     } catch (netErr) {
-      throw new Error("Không kết nối được máy chủ (" + netErr.message + ")");
+      throw new Error(apiT("api.error.network", { message: netErr.message }));
     }
     let data;
-    try { data = await res.json(); } catch { throw new Error("Máy chủ trả về không hợp lệ"); }
-    if (!res.ok) throw new Error(data.detail || `Đăng nhập thất bại (${res.status})`);
-    if (!data.access_token) throw new Error("Máy chủ không trả về token");
+    try { data = await res.json(); } catch { throw new Error(apiT("api.error.login_bad_response")); }
+    if (!res.ok) throw new Error(data.detail || apiT("api.error.login_failed", { status: res.status }));
+    if (!data.access_token) throw new Error(apiT("api.error.login_no_token"));
     auth.save(data.access_token, data.username, data.role || "user", data.full_name || "");
     return data;
   },
@@ -182,12 +184,12 @@ async function fpRequest(path, opts = {}) {
   try {
     res = await fetch(path, { ...opts, headers });
   } catch (netErr) {
-    throw new Error("Không kết nối được máy quét vân tay (" + netErr.message + ")");
+    throw new Error(apiT("api.error.fp_network", { message: netErr.message }));
   }
   const ct = res.headers.get("content-type") || "";
   const data = ct.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
-    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy quét vân tay");
+    const msg = (data && data.detail) || (typeof data === "string" ? data : apiT("api.error.fp_server"));
     throw new Error(msg);
   }
   return data;
@@ -219,18 +221,18 @@ async function cccdRequest(path, opts = {}, signal) {
     res = await fetch(path, { ...opts, headers, signal });
   } catch (netErr) {
     if (netErr.name === "AbortError") throw netErr;
-    throw new Error("Không kết nối được máy chủ CCCD (" + netErr.message + ")");
+    throw new Error(apiT("api.error.cccd_network", { message: netErr.message }));
   }
   if (res.status === 204) return { status: "timeout" };
   if (res.status === 401) {
     auth.clear();
     if (onAuthExpired) onAuthExpired();
-    throw new Error("Phiên đăng nhập đã hết hạn");
+    throw new Error(apiT("api.error.auth_expired"));
   }
   const ct = res.headers.get("content-type") || "";
   const data = ct.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
-    const msg = (data && data.detail) || (typeof data === "string" ? data : "Lỗi máy chủ CCCD");
+    const msg = (data && data.detail) || (typeof data === "string" ? data : apiT("api.error.cccd_server"));
     throw new Error(msg);
   }
   return data;

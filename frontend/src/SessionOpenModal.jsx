@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "./api";
+import { useI18n } from "./i18n";
 
 function fmtNow() {
   const d = new Date();
@@ -8,6 +9,7 @@ function fmtNow() {
 }
 
 export default function SessionOpenModal({ officerName, officerFullName, onCreated, onCancel }) {
+  const { t } = useI18n();
   const [officer, setOfficer] = useState(officerFullName || officerName || "");
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
@@ -17,7 +19,7 @@ export default function SessionOpenModal({ officerName, officerFullName, onCreat
   const submit = async (e) => {
     e.preventDefault();
     const name = officer.trim();
-    if (!name) { setErr("Vui lòng nhập tên cán bộ."); return; }
+    if (!name) { setErr(t("session.open.err.officer_required")); return; }
     setBusy(true);
     setErr("");
     try {
@@ -29,7 +31,7 @@ export default function SessionOpenModal({ officerName, officerFullName, onCreat
       const s = await api.createSession(body);
       if (onCreated) onCreated(s);
     } catch (ex) {
-      setErr(ex.message || "Không thể mở phiên");
+      setErr(ex.message || t("session.open.err.failed"));
     } finally {
       setBusy(false);
     }
@@ -39,45 +41,45 @@ export default function SessionOpenModal({ officerName, officerFullName, onCreat
     <div className="session-modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onCancel && onCancel()}>
       <form className="session-modal" onSubmit={submit}>
         <div className="session-modal-head">
-          <h3>MỞ PHIÊN LÀM VIỆC MỚI</h3>
-          <button type="button" className="session-modal-close" onClick={onCancel} aria-label="Đóng">×</button>
+          <h3>{t("session.open.title")}</h3>
+          <button type="button" className="session-modal-close" onClick={onCancel} aria-label={t("common.close")}>×</button>
         </div>
         <div className="session-modal-body">
           <div className="session-modal-row">
-            <label htmlFor="sm-officer">Cán bộ</label>
+            <label htmlFor="sm-officer">{t("session.open.officer")}</label>
             <input
               id="sm-officer"
               className="control"
               value={officer}
               onChange={(e) => setOfficer(e.target.value)}
-              placeholder="Nhập tên cán bộ ghi vào phiên"
+              placeholder={t("session.open.officer_ph")}
               maxLength={100}
               disabled={busy}
               required
             />
           </div>
           <div className="session-modal-row">
-            <label>Thời điểm mở</label>
+            <label>{t("session.open.time_open")}</label>
             <div className="session-modal-static">{fmtNow()}</div>
           </div>
           <div className="session-modal-row">
-            <label htmlFor="sm-location">Địa điểm</label>
+            <label htmlFor="sm-location">{t("session.open.location")}</label>
             <input id="sm-location" className="control" value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="VD: Buồng tiếp nhận 2" maxLength={200} />
+              placeholder={t("session.open.location_ph")} maxLength={200} />
           </div>
           <div className="session-modal-row">
-            <label htmlFor="sm-note">Ghi chú</label>
+            <label htmlFor="sm-note">{t("session.open.note")}</label>
             <textarea id="sm-note" className="control" value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="(tuỳ chọn)" rows={3} maxLength={500} />
+              placeholder={t("common.optional")} rows={3} maxLength={500} />
           </div>
           {err && <div className="error-box">{err}</div>}
         </div>
         <div className="session-modal-actions">
-          <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>Huỷ</button>
+          <button type="button" className="btn-secondary" onClick={onCancel} disabled={busy}>{t("common.cancel")}</button>
           <button type="submit" className="btn-primary" disabled={busy}>
-            {busy ? "Đang mở..." : "Mở phiên"}
+            {busy ? t("session.open.opening") : t("session.open.submit")}
           </button>
         </div>
       </form>

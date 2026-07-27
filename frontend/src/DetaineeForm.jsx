@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, cccdApi, weightApi } from "./api";
 import { notify } from "./notifications";
+import { useI18n } from "./i18n";
 
 const emptyForm = {
   full_name: "",
@@ -27,6 +28,7 @@ function isoToDMY(iso) {
 }
 
 export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
+  const { t, formatDate } = useI18n();
   const [form, setForm] = useState(() => {
     if (!initial) return { ...emptyForm };
     return {
@@ -72,7 +74,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
     cccdAbortRef.current = ac;
     try {
       const h = await cccdApi.health();
-      if (!h.ok) throw new Error("Thư mục dữ liệu CCCD chưa sẵn sàng: " + (h.data_dir || ""));
+      if (!h.ok) throw new Error(t("detainee.form.cccd_dir_not_ready", { dir: h.data_dir || "" }));
       const s = await cccdApi.startSession();
       cccdSidRef.current = s.session_id;
       while (!ac.signal.aborted) {
@@ -119,7 +121,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
       const { url } = await api.uploadPhoto(file);
       setForm((f) => ({ ...f, photo_url: url }));
     } catch (e) {
-      setErr("Upload thất bại: " + e.message);
+      setErr(t("detainee.form.upload_failed", { message: e.message }));
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -142,7 +144,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
           return;
         }
       } catch {
-        // bỏ qua lỗi check trùng, cho lưu bình thường
+        // skip duplicate-check errors
       }
     }
 
@@ -154,10 +156,11 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
       }
       if (initial) {
         await api.updateDetainee(initial.id, body);
+        notify.add();
       } else {
         await api.createDetainee(body);
+        notify.add();
       }
-      notify.add();
       onSaved();
     } catch (e) {
       setErr(e.message);
@@ -170,7 +173,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal form-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h3>{initial ? "Sửa hồ sơ can phạm" : "Thêm hồ sơ can phạm mới"}</h3>
+          <h3>{initial ? t("detainee.form.title.edit") : t("detainee.form.title.new")}</h3>
           <button className="close-x" onClick={onClose}>×</button>
         </div>
 
@@ -181,13 +184,13 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
             <div className="col-photo">
               <div className="photo-preview">
                 {form.photo_url ? (
-                  <img src={form.photo_url} alt="Ảnh can phạm" />
+                  <img src={form.photo_url} alt={t("detainee.form.photo_alt")} />
                 ) : (
-                  <div className="photo-empty">Chưa có ảnh</div>
+                  <div className="photo-empty">{t("detainee.detail.no_photo")}</div>
                 )}
               </div>
               <label className="btn-ghost photo-upload">
-                {uploading ? "Đang upload..." : "📷 Tải ảnh lên"}
+                {uploading ? t("detainee.form.photo_uploading") : t("detainee.form.photo_upload")}
                 <input
                   type="file"
                   accept="image/*"
@@ -202,54 +205,54 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                   className="btn-cccd-reader"
                   onClick={readCCCD}
                   disabled={reading}
-                  title="Đọc CCCD từ folder HANEL eKYC"
+                  title={t("detainee.form.read_cccd_title")}
                 >
-                  {reading ? "Đang chờ thẻ..." : "📄 Đọc CCCD"}
+                  {reading ? t("detainee.form.reading_cccd") : t("detainee.form.read_cccd")}
                 </button>
               )}
             </div>
 
             <div className="col-fields">
               <div className="row-2">
-                <Field label="Họ và tên *">
+                <Field label={t("detainee.field.full_name") + " *"}>
                   <input className="input" value={form.full_name} onChange={set("full_name")} required maxLength={100} />
                 </Field>
-                <Field label="Giới tính *">
+                <Field label={t("detainee.field.gender") + " *"}>
                   <select className="input" value={form.gender} onChange={set("gender")}>
-                    <option value="male">Nam</option>
-                    <option value="female">Nữ</option>
+                    <option value="male">{t("common.male")}</option>
+                    <option value="female">{t("common.female")}</option>
                   </select>
                 </Field>
               </div>
 
               <div className="row-2">
-                <Field label="Ngày sinh (dd/mm/yyyy)">
-                  <input className="input" value={form.dob} onChange={set("dob")} placeholder="15/03/1990" />
+                <Field label={t("detainee.form.dob_label")}>
+                  <input className="input" value={form.dob} onChange={set("dob")} placeholder={t("detainee.form.dob_ph")} />
                 </Field>
-                <Field label="Số CCCD">
+                <Field label={t("detainee.field.cccd")}>
                   <input className="input" value={form.cccd_number || ""} onChange={set("cccd_number")} maxLength={20} />
                 </Field>
               </div>
 
               <div className="row-2">
-                <Field label="Dân tộc">
+                <Field label={t("detainee.field.ethnicity")}>
                   <input className="input" value={form.ethnicity || ""} onChange={set("ethnicity")} />
                 </Field>
-                <Field label="Tôn giáo">
+                <Field label={t("detainee.field.religion")}>
                   <input className="input" value={form.religion || ""} onChange={set("religion")} />
                 </Field>
               </div>
 
-              <Field label="Quê quán">
+              <Field label={t("detainee.field.hometown")}>
                 <input className="input" value={form.hometown || ""} onChange={set("hometown")} />
               </Field>
 
-              <Field label="Địa chỉ thường trú">
+              <Field label={t("detainee.field.address_short")}>
                 <input className="input" value={form.address || ""} onChange={set("address")} />
               </Field>
 
               <div className="row-2">
-                <Field label="Chiều cao (cm)">
+                <Field label={t("detainee.field.height_cm")}>
                   <input
                     className="input"
                     type="number"
@@ -259,7 +262,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                     onChange={set("height_cm")}
                   />
                 </Field>
-                <Field label="Cân nặng (kg)">
+                <Field label={t("detainee.field.weight_kg")}>
                   <input
                     className={"input" + (weightFlash ? " weight-flash" : "")}
                     type="number"
@@ -267,37 +270,37 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                     max={200}
                     value={form.weight_kg ?? ""}
                     onChange={set("weight_kg")}
-                    title="Máy cân bắn về sẽ tự điền vào đây"
+                    title={t("detainee.form.weight_title")}
                   />
                 </Field>
               </div>
 
               <div className="row-2">
-                <Field label="Buồng giam">
+                <Field label={t("detainee.field.cell")}>
                   <select className="input" value={form.cell_code || ""} onChange={set("cell_code")}>
-                    <option value="">-- Chọn buồng --</option>
+                    <option value="">{t("detainee.form.select_cell")}</option>
                     {cells.map((c) => (
                       <option key={c.code} value={c.code}>
-                        {c.code} - {c.name} ({c.current}/{c.capacity})
+                        {t("detainee.form.cell_option", { code: c.code, name: c.name, current: c.current, capacity: c.capacity })}
                       </option>
                     ))}
                   </select>
                 </Field>
-                <Field label="Ngày vào (dd/mm/yyyy)">
-                  <input className="input" value={form.date_in || ""} onChange={set("date_in")} placeholder="01/01/2026" />
+                <Field label={t("detainee.form.date_in_label")}>
+                  <input className="input" value={form.date_in || ""} onChange={set("date_in")} placeholder={t("detainee.form.date_in_ph")} />
                 </Field>
               </div>
 
-              <Field label="Ghi chú">
+              <Field label={t("detainee.field.note")}>
                 <textarea className="input" rows={2} value={form.note || ""} onChange={set("note")} />
               </Field>
             </div>
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="btn-ghost" onClick={onClose}>Huỷ</button>
+            <button type="button" className="btn-ghost" onClick={onClose}>{t("common.cancel")}</button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Đang lưu..." : initial ? "Cập nhật" : "Lưu hồ sơ"}
+              {saving ? t("common.saving") : initial ? t("detainee.form.update") : t("detainee.form.save")}
             </button>
           </div>
         </form>
@@ -307,24 +310,25 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
             <div className="dup-card" onClick={(e) => e.stopPropagation()}>
               <div className="dup-head">
                 <span className="dup-icon">⚠</span>
-                <h4>Phát hiện hồ sơ trùng khớp</h4>
+                <h4>{t("detainee.dup.title")}</h4>
               </div>
-              <p>
-                Hệ thống phát hiện <strong>{dupCheck.count}</strong> hồ sơ có
-                Họ tên + Ngày sinh + Giới tính khớp với bản ghi mới:
-              </p>
+              <p>{t("detainee.dup.desc", { n: dupCheck.count })}</p>
               <ul className="dup-list">
                 {dupCheck.duplicates.map((d) => (
                   <li key={d.id}>
-                    <strong>{d.code}</strong> - {d.full_name} ({d.gender === "female" ? "Nữ" : "Nam"})
-                    {d.dob && ` - sinh ${new Date(d.dob).toLocaleDateString("vi-VN")}`}
-                    {d.cell_code && ` - buồng ${d.cell_code}`}
+                    {t("detainee.dup.row", {
+                      code: d.code,
+                      name: d.full_name,
+                      gender: d.gender === "female" ? t("common.female") : t("common.male"),
+                      dob: d.dob ? formatDate(d.dob) : "—",
+                      cell: d.cell_code || "—",
+                    })}
                   </li>
                 ))}
               </ul>
               <div className="dup-actions">
                 <button className="btn-ghost" onClick={() => setDupCheck(null)}>
-                  Xem lại
+                  {t("detainee.dup.review")}
                 </button>
                 <button
                   className="btn-primary"
@@ -334,7 +338,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                     setTimeout(() => document.querySelector(".form-modal form").requestSubmit(), 50);
                   }}
                 >
-                  Vẫn lưu (khác người)
+                  {t("detainee.dup.save_anyway")}
                 </button>
               </div>
             </div>

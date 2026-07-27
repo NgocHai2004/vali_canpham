@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { auth, api, setOnAuthExpired } from "./api";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
+import { useI18n } from "./i18n";
 
 const DONGLE_POLL_MS = 5000;
 const DONGLE_MAX_FAIL = 1;   // 1 poll fail = 5s → logout (chống clone + rút USB tức thì)
 
 export default function App() {
+  const { t } = useI18n();
   const [user, setUser] = useState(auth.getUser());
   const [checking, setChecking] = useState(!!auth.getToken());
   const [dongleOk, setDongleOk] = useState(true);
@@ -121,7 +123,7 @@ export default function App() {
         fontFamily: "Inter, system-ui, sans-serif",
         fontSize: 14,
       }}>
-        Đang kiểm tra phiên đăng nhập...
+        {t("app.checking_session")}
       </div>
     );
   }
@@ -146,8 +148,8 @@ export default function App() {
           }}
         >
           {dongleWarn === "service_down"
-            ? "⚠ USB service không phản hồi — kiểm tra service dongle đã chạy chưa (port 8766)"
-            : `⚠ Không phát hiện USB dongle. Cắm USB ngay hoặc bị đăng xuất sau ${(DONGLE_MAX_FAIL - failCountRef.current) * 5}s`}
+            ? t("app.dongle.service_down")
+            : t("app.dongle.warning", { sec: (DONGLE_MAX_FAIL - failCountRef.current) * 5 })}
         </div>
       )}
       <Dashboard username={user} role={role} fullName={fullName} onLogout={handleLogout} />

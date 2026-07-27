@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { notify } from "./notifications";
 import SessionOpenModal from "./SessionOpenModal";
+import { useI18n } from "./i18n";
 
 const STAT_ICONS = {
   blue: (
@@ -39,15 +40,8 @@ function StatCard({ tone, label, value, note }) {
   );
 }
 
-function fmtDateTime(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export default function SessionListPage({ role, username, fullName, onOpenSession }) {
+  const { t, formatDateTime } = useI18n();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -67,8 +61,8 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const removeSession = async (s) => {
     const n = s.detainee_count || 0;
     const warn = n > 0
-      ? `⚠ Xoá phiên ${s.code} sẽ XOÁ VĨNH VIỄN ${n} hồ sơ can phạm trong phiên.\n\nKhông thể hoàn tác. Bạn chắc chắn?`
-      : `Xoá phiên ${s.code}?`;
+      ? t("session.delete.confirm_multi", { code: s.code, n })
+      : t("session.delete.confirm_empty", { code: s.code });
     if (!window.confirm(warn)) return;
     setDeletingId(s.id);
     try {
@@ -76,7 +70,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
       notify.add();
       await load();
     } catch (ex) {
-      alert(ex.message || "Không xoá được phiên");
+      alert(ex.message || t("session.err.delete"));
     } finally {
       setDeletingId(null);
     }
@@ -109,7 +103,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
         import: c.import || 0,
       });
     } catch (ex) {
-      setErr(ex.message || "Không tải được danh sách phiên");
+      setErr(ex.message || t("session.err.load"));
     } finally {
       setLoading(false);
     }
@@ -140,7 +134,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
       await api.downloadSessionReport(s.id, s.report_filename || `session_${s.code}.xlsx`);
       notify.add();
     } catch (ex) {
-      alert(ex.message || "Không tải được báo cáo");
+      alert(ex.message || t("session.err.report"));
     } finally {
       setExportingId(null);
     }
@@ -149,19 +143,18 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   return (
     <div className="session-list-page">
       <div className="report-stat-grid session-list-stats">
-        <StatCard tone="blue" label="Đăng ký mới" value={stats.create} note="Can phạm được tạo" />
-        <StatCard tone="orange" label="Đã sửa" value={stats.update} note="Lượt cập nhật" />
-        <StatCard tone="purple" label="Đã xoá" value={stats.delete} note="Hồ sơ đã xoá" />
-        <StatCard tone="green" label="Nhập Excel" value={stats.import} note="Lượt import" />
+        <StatCard tone="blue" label={t("session.stat.create")} value={stats.create} note={t("session.stat.create_note")} />
+        <StatCard tone="orange" label={t("session.stat.update")} value={stats.update} note={t("session.stat.update_note")} />
+        <StatCard tone="purple" label={t("session.stat.delete")} value={stats.delete} note={t("session.stat.delete_note")} />
+        <StatCard tone="green" label={t("session.stat.import")} value={stats.import} note={t("session.stat.import_note")} />
       </div>
 
       {current && (
         <div className="session-list-current">
-          <span className="badge badge-open">● Đang mở</span>
+          <span className="badge badge-open">{t("session.status.open_dot")}</span>
           <span className="mono">{current.code}</span>
           <span style={{ color: "#6b7280", fontSize: 13 }}>
-            · Cán bộ {current.officer_full_name || current.officer}
-            · {current.detainee_count || 0} hồ sơ
+            {t("session.banner.current", { officer: current.officer_full_name || current.officer, n: current.detainee_count || 0 })}
           </span>
           <button
             type="button"
@@ -169,16 +162,16 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
             style={{ marginLeft: "auto" }}
             onClick={() => onOpenSession && onOpenSession(current.id)}
           >
-            Vào phiên →
+            {t("session.banner.enter")}
           </button>
         </div>
       )}
 
       <div className="session-list-head">
-        <h2>PHIÊN LÀM VIỆC</h2>
+        <h2>{t("session.title")}</h2>
         <div
           className="session-list-newwrap"
-          title={hasOpenSession ? `Bạn đang có phiên ${current.code} đang mở` : ""}
+          title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
         >
           <button
             type="button"
@@ -186,18 +179,18 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
             onClick={openNew}
             disabled={hasOpenSession}
           >
-            + Mở phiên mới
+            {t("session.new")}
           </button>
         </div>
       </div>
 
       <div className="session-list-filters">
         <label>
-          Trạng thái
+          {t("session.status")}
           <select className="control" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">Tất cả</option>
-            <option value="open">Đang mở</option>
-            <option value="closed">Đã đóng</option>
+            <option value="">{t("common.all")}</option>
+            <option value="open">{t("session.status.open")}</option>
+            <option value="closed">{t("session.status.closed")}</option>
           </select>
         </label>
         <label className="chk">
@@ -207,19 +200,19 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
             onChange={(e) => setMineOnly(e.target.checked)}
             disabled={role !== "admin"}
           />
-          Của tôi
+          {t("session.filter.mine")}
         </label>
         <label>
-          Từ
+          {t("common.from")}
           <input type="date" className="control" value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)} />
         </label>
         <label>
-          Đến
+          {t("common.to")}
           <input type="date" className="control" value={dateTo}
             onChange={(e) => setDateTo(e.target.value)} />
         </label>
-        <button type="button" className="btn-secondary" onClick={load}>Làm mới</button>
+        <button type="button" className="btn-secondary" onClick={load}>{t("common.refresh")}</button>
       </div>
 
       {err && <div className="error-box">{err}</div>}
@@ -228,22 +221,22 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
         <table className="session-list-table">
           <thead>
             <tr>
-              <th>Trạng thái</th>
-              <th>Mã phiên</th>
-              <th>Cán bộ</th>
-              <th>Mở lúc</th>
-              <th>Đóng lúc</th>
-              <th>Địa điểm</th>
-              <th style={{ textAlign: "right" }}>Hồ sơ</th>
+              <th>{t("session.status")}</th>
+              <th>{t("session.col.code")}</th>
+              <th>{t("session.col.officer")}</th>
+              <th>{t("session.col.opened_at")}</th>
+              <th>{t("session.col.closed_at")}</th>
+              <th>{t("session.col.location")}</th>
+              <th style={{ textAlign: "right" }}>{t("session.col.detainees")}</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={8} className="session-list-empty">Đang tải...</td></tr>
+              <tr><td colSpan={8} className="session-list-empty">{t("common.loading")}</td></tr>
             )}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={8} className="session-list-empty">Chưa có phiên nào.</td></tr>
+              <tr><td colSpan={8} className="session-list-empty">{t("session.empty")}</td></tr>
             )}
             {!loading && items.map((s) => {
               const canDelete = s.status === "open" && (role === "admin" || s.officer === username);
@@ -252,13 +245,13 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                 <tr key={s.id} onClick={() => onOpenSession && onOpenSession(s.id)} className="session-list-row">
                   <td>
                     {s.status === "open"
-                      ? <span className="badge badge-open">● Đang mở</span>
-                      : <span className="badge badge-closed">✓ Đã đóng</span>}
+                      ? <span className="badge badge-open">{t("session.status.open_dot")}</span>
+                      : <span className="badge badge-closed">{t("session.status.closed_dot")}</span>}
                   </td>
                   <td className="mono">{s.code}</td>
                   <td>{s.officer_full_name || s.officer}</td>
-                  <td>{fmtDateTime(s.opened_at)}</td>
-                  <td>{fmtDateTime(s.closed_at)}</td>
+                  <td>{formatDateTime(s.opened_at)}</td>
+                  <td>{formatDateTime(s.closed_at)}</td>
                   <td>{s.location || "—"}</td>
                   <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
                   <td style={{ textAlign: "right" }}>
@@ -268,9 +261,9 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                         className="btn-link"
                         disabled={exporting}
                         onClick={(e) => { e.stopPropagation(); downloadReport(s); }}
-                        title="Xuất báo cáo phiên (.xlsx)"
+                        title={t("session.export.title")}
                       >
-                        {exporting ? "Đang xuất..." : "Xuất báo cáo"}
+                        {exporting ? t("session.exporting") : t("session.export")}
                       </button>
                       {canDelete && (
                         <button
@@ -278,9 +271,9 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                           className="btn-link btn-link-danger"
                           disabled={deletingId === s.id}
                           onClick={(e) => { e.stopPropagation(); removeSession(s); }}
-                          title={s.detainee_count ? `Xoá phiên (sẽ xoá ${s.detainee_count} hồ sơ)` : "Xoá phiên"}
+                          title={s.detainee_count ? t("session.delete.title", { n: s.detainee_count }) : t("session.delete.title_simple")}
                         >
-                          {deletingId === s.id ? "Đang xoá..." : "Xoá"}
+                          {deletingId === s.id ? t("common.deleting") : t("common.delete")}
                         </button>
                       )}
                     </div>
@@ -291,11 +284,11 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           </tbody>
         </table>
         <div className="session-list-toolbar">
-          <div className="session-list-total">Tổng: {total}</div>
+          <div className="session-list-total">{t("common.total", { n: total })}</div>
           <div className="pagination">
-            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Trước</button>
-            <span>Trang {page} / {totalPages}</span>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau →</button>
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t("common.prev")}</button>
+            <span>{t("common.page_of", { page, total: totalPages })}</span>
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t("common.next")}</button>
           </div>
         </div>
       </div>

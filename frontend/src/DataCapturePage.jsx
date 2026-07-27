@@ -956,7 +956,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       };
       if (isEdit) {
         const updated = await api.updateDetainee(initial.id, body);
-        notify.add();
+        notify.add(`Đã cập nhật hồ sơ ${updated.code} - ${updated.full_name}`);
         setOk(`Đã cập nhật hồ sơ ${updated.code} — ${updated.full_name}`);
         if (onDone) onDone();
         if (sessionId && onSavedInSession) {
@@ -966,7 +966,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         }
       } else {
         const created = await api.createDetainee(body);
-        notify.add();
+        notify.add(`Đã thêm hồ sơ mới ${created.code} - ${created.full_name}`);
         setOk(`Đã lưu hồ sơ ${created.code} — ${created.full_name}`);
         setForm(EMPTY_FORM);
         setPhotos({});

@@ -1,43 +1,62 @@
-const STORAGE_KEY = "notif_count_v1";
+const STORAGE_KEY = "notif_items_v1";
 const EVENT_NAME = "notif:changed";
+const MAX_ITEMS = 50;
 
-function readCount() {
+function readItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    const n = Number.parseInt(raw || "0", 10);
-    return Number.isFinite(n) && n >= 0 ? n : 0;
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
   } catch {
-    return 0;
+    return [];
   }
 }
 
-function writeCount(n) {
+function writeItems(items) {
   try {
-    localStorage.setItem(STORAGE_KEY, String(n));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   } catch {
     /* noop */
   }
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { count: n } }));
+  window.dispatchEvent(new CustomEvent(EVENT_NAME));
 }
 
 export const notify = {
-  add() {
-    const next = readCount() + 1;
-    writeCount(next);
-    return next;
+  add(message) {
+    const items = readItems();
+    const item = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      message: String(message || "Thao tác thành công"),
+      at: new Date().toISOString(),
+      read: false,
+    };
+    const next = [item, ...items].slice(0, MAX_ITEMS);
+    writeItems(next);
+    return item;
   },
-  reset() {
-    writeCount(0);
+  list() {
+    return readItems();
   },
-  count() {
-    return readCount();
+  unreadCount() {
+    return readItems().filter((x) => !x.read).length;
+  },
+  markAllRead() {
+    const items = readItems();
+    if (items.every((x) => x.read)) return;
+    writeItems(items.map((x) => ({ ...x, read: true })));
+  },
+  clearAll() {
+    writeItems([]);
   },
   subscribe(fn) {
-    const handler = () => fn(readCount());
+    const handler = () => fn();
     window.addEventListener(EVENT_NAME, handler);
-    window.addEventListener("storage", (e) => {
-      if (e.key === STORAGE_KEY) fn(readCount());
-    });
-    return () => window.removeEventListener(EVENT_NAME, handler);
+    const storageHandler = (e) => { if (e.key === STORAGE_KEY) fn(); };
+    window.addEventListener("storage", storageHandler);
+    return () => {
+      window.removeEventListener(EVENT_NAME, handler);
+      window.removeEventListener("storage", storageHandler);
+    };
   },
 };

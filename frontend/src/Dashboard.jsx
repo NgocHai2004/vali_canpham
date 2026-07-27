@@ -6,6 +6,7 @@ import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
+import { useI18n, LanguageSwitch } from "./i18n";
 
 const Icon = {
   dashboard: (
@@ -82,7 +83,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   const isAdmin = role === "admin";
   const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN] : NAV_BASE;
   const deviceStatus = useDeviceConnections();
-  const notifCount = useNotifCount();
+  const notifState = useNotifState();
 
   const goPage = async (key) => {
     if (key !== "session_capture") {
@@ -154,7 +155,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
         <Header
           username={username}
           devices={deviceStatus}
-          notifCount={notifCount}
+          notif={notifState}
           onLogout={onLogout}
           isAdmin={isAdmin}
         />
@@ -233,7 +234,26 @@ const DEVICE_CHIPS = [
   { key: "scale", label: "Cân điện tử" },
 ];
 
-function Header({ username, devices, notifCount, onLogout, isAdmin }) {
+function Header({ username, devices, notif, onLogout, isAdmin }) {
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef(null);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const onClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [notifOpen]);
+
+  const toggleNotif = () => {
+    const nextOpen = !notifOpen;
+    setNotifOpen(nextOpen);
+    if (nextOpen && notif.unread > 0) notify.markAllRead();
+  };
   return (
     <header className="header">
       <div className="brand">
@@ -263,15 +283,48 @@ function Header({ username, devices, notifCount, onLogout, isAdmin }) {
           })}
         </div>
 
-        <button
-          className="icon-button"
-          aria-label="Thông báo"
-          onClick={() => notify.reset()}
-          title={notifCount > 0 ? `${notifCount} thông báo mới - Bấm để xoá` : "Không có thông báo mới"}
-        >
-          {Icon.bell}
-          {notifCount > 0 && <b>{notifCount > 99 ? "99+" : notifCount}</b>}
-        </button>
+        <div className="notif-wrap" ref={notifRef}>
+          <button
+            className="icon-button"
+            aria-label="Thông báo"
+            onClick={toggleNotif}
+            title={notif.unread > 0 ? `${notif.unread} thông báo mới` : "Thông báo"}
+          >
+            {Icon.bell}
+            {notif.unread > 0 && <b>{notif.unread > 99 ? "99+" : notif.unread}</b>}
+          </button>
+          {notifOpen && (
+            <div className="notif-panel">
+              <div className="notif-panel-head">
+                <strong>Thông báo</strong>
+                {notif.items.length > 0 && (
+                  <button
+                    type="button"
+                    className="notif-clear"
+                    onClick={() => notify.clearAll()}
+                  >
+                    Xoá tất cả
+                  </button>
+                )}
+              </div>
+              <div className="notif-panel-list">
+                {notif.items.length === 0 ? (
+                  <div className="notif-empty">Chưa có thông báo</div>
+                ) : (
+                  notif.items.map((it) => (
+                    <div className="notif-item" key={it.id}>
+                      <div className="notif-item-dot" />
+                      <div className="notif-item-body">
+                        <div className="notif-item-msg">{it.message}</div>
+                        <div className="notif-item-time">{formatDateTime(it.at)}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="user-box">
           <div className="avatar">{username.slice(0, 1).toUpperCase()}</div>
@@ -290,12 +343,17 @@ function Header({ username, devices, notifCount, onLogout, isAdmin }) {
   );
 }
 
-function useNotifCount() {
-  const [count, setCount] = useState(() => notify.count());
+function useNotifState() {
+  const [state, setState] = useState(() => ({
+    items: notify.list(),
+    unread: notify.unreadCount(),
+  }));
   useEffect(() => {
-    return notify.subscribe(setCount);
+    return notify.subscribe(() => {
+      setState({ items: notify.list(), unread: notify.unreadCount() });
+    });
   }, []);
-  return count;
+  return state;
 }
 
 function useDeviceConnections() {
@@ -1015,7 +1073,7 @@ function DetaineesPage({ onEdit }) {
     if (!window.confirm(`Xoá hồ sơ ${item.code} - ${item.full_name}?`)) return;
     try {
       await api.deleteDetainee(item.id);
-      notify.add();
+      notify.add(`Đã xoá hồ sơ ${item.code} - ${item.full_name}`);
       load();
     } catch (e) {
       window.alert(`Lỗi: ${e.message}`);
@@ -1391,7 +1449,7 @@ function SyncPage() {
         body: JSON.stringify(payload),
       });
       setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
-      notify.add();
+      notify.add(`Đã đồng bộ phiên ${session.code}`);
     } catch (e) {
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
     } finally {
@@ -1828,7 +1886,7 @@ function ImportExportPage() {
       data.append("file", file);
       const r = await api.importXlsx(data);
       setResult(r);
-      notify.add();
+      notify.add(`Đã nhập Excel: ${r.inserted || 0} hồ sơ`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1988,7 +2046,7 @@ function LogsPage() {
     try {
       const d = await resolveDetainee(log);
       await api.deleteDetainee(d.id);
-      notify.add();
+      notify.add(`Đã xoá can phạm ${d.code}`);
       setNotice(`Đã xoá can phạm ${d.code}.`);
       load();
     } catch (e) {
@@ -3181,6 +3239,91 @@ const styles = `
   }
 
   .device-chip-label { white-space: nowrap; }
+
+  .notif-wrap { position: relative; }
+
+  .notif-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 340px;
+    max-height: 420px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(15, 25, 50, .28);
+    border: 1px solid #e6ecf5;
+    display: flex;
+    flex-direction: column;
+    z-index: 60;
+    color: #0f1a32;
+    overflow: hidden;
+  }
+
+  .notif-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #eef2f8;
+    font-size: 14px;
+  }
+
+  .notif-clear {
+    background: transparent;
+    border: 0;
+    color: #b91c26;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+  }
+  .notif-clear:hover { background: #fdecec; }
+
+  .notif-panel-list {
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .notif-empty {
+    padding: 28px 16px;
+    text-align: center;
+    color: #6b7a95;
+    font-size: 13px;
+  }
+
+  .notif-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #f2f5fa;
+    align-items: flex-start;
+  }
+  .notif-item:last-child { border-bottom: 0; }
+
+  .notif-item-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #12af64;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+
+  .notif-item-body { flex: 1; min-width: 0; }
+
+  .notif-item-msg {
+    font-size: 13.5px;
+    color: #0f1a32;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .notif-item-time {
+    font-size: 11.5px;
+    color: #6b7a95;
+    margin-top: 2px;
+  }
 
   .icon-button {
     position: relative;

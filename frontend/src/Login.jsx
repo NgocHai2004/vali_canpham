@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, auth } from "./api";
+import { useI18n, LanguageSwitch } from "./i18n";
 
 /* ---------- Lucide-style icons (thin 2px, round caps) ---------- */
 const IconUser = ({ s = 20 }) => (
@@ -47,6 +48,7 @@ const IconAlert = ({ s = 16 }) => (
 
 /* ---------- Login screen ---------- */
 export default function Login({ onLogin }) {
+  const { t } = useI18n();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -65,16 +67,16 @@ export default function Login({ onLogin }) {
       } catch (dongleEx) {
         auth.clear();
         const msg = dongleEx?.message || "";
-        if (/USB service|Không kết nối được USB/i.test(msg)) {
-          setErr("Chưa đủ điều kiện đăng nhập — USB service chưa chạy (port 8766)");
+        if (/USB service|Không kết nối được USB|Cannot reach the fingerprint|USB service is not/i.test(msg)) {
+          setErr(t("login.err.usb_down"));
         } else {
-          setErr("Chưa đủ điều kiện đăng nhập — cần cắm USB dongle");
+          setErr(t("login.err.no_dongle"));
         }
         return;
       }
       onLogin(data.username, data.role, data.full_name || "");
     } catch (ex) {
-      setErr(ex.message || "Đăng nhập thất bại");
+      setErr(ex.message || t("login.err.failed"));
     } finally {
       setLoading(false);
     }
@@ -82,17 +84,18 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="lg-wrap">
+      <div className="lg-lang-corner"><LanguageSwitch /></div>
 
       <div className="lg-inner">
         <div className="lg-card" role="dialog" aria-labelledby="lg-title">
           <div className="lg-emblem">
-            <img src="/emblem-cand.png" alt="Huy hiệu Công an nhân dân" />
+            <img src="/emblem-cand.png" alt={t("login.emblem_alt")} />
           </div>
 
           <h1 id="lg-title" className="lg-title">
-            Phần mềm Đăng ký Can phạm
+            {t("login.title")}
           </h1>
-          <p className="lg-subtitle">Cổng nội bộ &middot; Đăng nhập quản trị</p>
+          <p className="lg-subtitle">{t("login.subtitle")}</p>
           <div className="lg-divider" aria-hidden="true" />
 
           <form onSubmit={submit} autoComplete="off" noValidate>
@@ -104,7 +107,7 @@ export default function Login({ onLogin }) {
             )}
 
             <div className="lg-field">
-              <label htmlFor="fld-user">Tên đăng nhập</label>
+              <label htmlFor="fld-user">{t("login.username")}</label>
               <div className="lg-input">
                 <span className="lg-lead"><IconUser /></span>
                 <input
@@ -113,7 +116,7 @@ export default function Login({ onLogin }) {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Nhập tên đăng nhập"
+                  placeholder={t("login.username_ph")}
                   autoComplete="username"
                   autoFocus={!username}
                   required
@@ -122,7 +125,7 @@ export default function Login({ onLogin }) {
             </div>
 
             <div className="lg-field">
-              <label htmlFor="fld-pw">Mật khẩu</label>
+              <label htmlFor="fld-pw">{t("login.password")}</label>
               <div className="lg-input">
                 <span className="lg-lead"><IconLock /></span>
                 <input
@@ -131,7 +134,7 @@ export default function Login({ onLogin }) {
                   type={showPw ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu"
+                  placeholder={t("login.password_ph")}
                   autoComplete="current-password"
                   autoFocus={!!username && !password}
                   required
@@ -140,7 +143,7 @@ export default function Login({ onLogin }) {
                   type="button"
                   className="lg-trail"
                   onClick={() => setShowPw((v) => !v)}
-                  aria-label={showPw ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  aria-label={showPw ? t("login.hide_pw") : t("login.show_pw")}
                 >
                   <IconEye off={showPw} />
                 </button>
@@ -159,53 +162,53 @@ export default function Login({ onLogin }) {
                     <path d="M3 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </span>
-                <span>Ghi nhớ đăng nhập</span>
+                <span>{t("login.remember")}</span>
               </label>
               <button
                 type="button"
                 className="lg-link"
-                onClick={() => alert("Vui lòng liên hệ quản trị viên hệ thống")}
+                onClick={() => alert(t("login.forgot_alert"))}
               >
-                Quên mật khẩu?
+                {t("login.forgot")}
               </button>
             </div>
 
             <button type="submit" className="lg-submit" disabled={loading}>
               {loading ? (
                 <>
-                  <span className="lg-spin" aria-hidden="true" /> Đang đăng nhập&hellip;
+                  <span className="lg-spin" aria-hidden="true" /> {t("login.submitting")}
                 </>
               ) : (
                 <>
-                  Đăng nhập <IconArrow />
+                  {t("login.submit")} <IconArrow />
                 </>
               )}
             </button>
 
             <div className="lg-or">
-              <span>hoặc đăng nhập với</span>
+              <span>{t("login.or_login_with")}</span>
             </div>
 
             <div className="lg-alt">
               <button
                 type="button"
                 className="lg-shield"
-                aria-label="Đăng nhập bằng tài khoản nội bộ"
-                onClick={() => alert("Tính năng đăng nhập nội bộ đang phát triển")}
+                aria-label={t("login.internal_aria")}
+                onClick={() => alert(t("login.internal_alert"))}
               >
                 <IconShieldCheck s={24} />
               </button>
-              <div className="lg-alt-label">Tài khoản nội bộ</div>
+              <div className="lg-alt-label">{t("login.internal_account")}</div>
             </div>
           </form>
         </div>
 
         <div className="lg-footer">
-          <div>© {new Date().getFullYear()} · Dự án CCCD lưu động</div>
+          <div>{t("login.footer", { year: new Date().getFullYear() })}</div>
           <div className="lg-meta">
             <span>v1.0.0</span>
             <span className="lg-dot" aria-hidden="true">•</span>
-            <span>Demo: admin / admin123</span>
+            <span>{t("login.demo")}</span>
           </div>
         </div>
       </div>
