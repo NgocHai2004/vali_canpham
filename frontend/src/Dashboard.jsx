@@ -5726,6 +5726,13 @@ const styles = `
     min-height: 0;
   }
   .body-shot-frame img { width: 100%; height: 100%; object-fit: cover; }
+  .body-shot-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+    display: block;
+  }
   .body-shot-placeholder {
     display: flex;
     flex-direction: column;
@@ -5767,6 +5774,12 @@ const styles = `
   .body-shot-btn:hover:not(:disabled) { background: #7f171e; }
   .body-shot-btn:disabled { opacity: .5; cursor: not-allowed; }
   .body-shot-btn svg { width: 10px; height: 10px; }
+  .body-shot-btn--done {
+    background: #12af64 !important;
+  }
+  .body-shot-btn--done:hover:not(:disabled) {
+    background: #0d8f52 !important;
+  }
   .body-shot-err {
     padding: 8px;
     color: #b91c26;
