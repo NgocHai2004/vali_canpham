@@ -1585,3 +1585,12 @@ async def proxy_sync_detainee(request: Request, user: dict = Depends(get_current
     if not res.is_success:
         raise HTTPException(res.status_code, res.text)
     return res.json()
+
+
+@app.get("/api/proxy/pham-nhan")
+async def proxy_pham_nhan(user: dict = Depends(get_current_user)):
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.get(f"{SYNC_REMOTE}/api/pham-nhan", params={"limit": 1000})
+    if not res.is_success:
+        raise HTTPException(res.status_code, res.text)
+    return res.json()

@@ -4,6 +4,7 @@ import { notify } from "./notifications";
 import cccdTemplateBg from "./assets/cccd-template.png";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { useI18n, apiT } from "./i18n";
 
 function removeVietnameseDiacritics(str) {
   if (!str) return "";
@@ -26,32 +27,32 @@ function makePdfFileName(personalId, fullName) {
 }
 
 const FINGERS = [
-  { key: "fp_l1", label: "T. cái trái" },
-  { key: "fp_l2", label: "T. trỏ trái" },
-  { key: "fp_l3", label: "T. giữa trái" },
-  { key: "fp_l4", label: "T. áp út trái" },
-  { key: "fp_l5", label: "T. út trái" },
-  { key: "fp_r1", label: "T. cái phải" },
-  { key: "fp_r2", label: "T. trỏ phải" },
-  { key: "fp_r3", label: "T. giữa phải" },
-  { key: "fp_r4", label: "T. áp út phải" },
-  { key: "fp_r5", label: "T. út phải" },
+  { key: "fp_l1", code: "left_thumb" },
+  { key: "fp_l2", code: "left_index" },
+  { key: "fp_l3", code: "left_middle" },
+  { key: "fp_l4", code: "left_ring" },
+  { key: "fp_l5", code: "left_little" },
+  { key: "fp_r1", code: "right_thumb" },
+  { key: "fp_r2", code: "right_index" },
+  { key: "fp_r3", code: "right_middle" },
+  { key: "fp_r4", code: "right_ring" },
+  { key: "fp_r5", code: "right_little" },
 ];
 
-// Sắp xếp theo hình bàn tay: út → áp út → giữa → trỏ → cái (ngón cái sát giữa)
+// Hand layout: little → ring → middle → index → thumb (thumb near middle)
 const LEFT_HAND = [
-  { key: "fp_l5", label: "Út" },
-  { key: "fp_l4", label: "Áp út" },
-  { key: "fp_l3", label: "Giữa" },
-  { key: "fp_l2", label: "Trỏ" },
-  { key: "fp_l1", label: "Cái" },
+  { key: "fp_l5", code: "left_little" },
+  { key: "fp_l4", code: "left_ring" },
+  { key: "fp_l3", code: "left_middle" },
+  { key: "fp_l2", code: "left_index" },
+  { key: "fp_l1", code: "left_thumb" },
 ];
 const RIGHT_HAND = [
-  { key: "fp_r1", label: "Cái" },
-  { key: "fp_r2", label: "Trỏ" },
-  { key: "fp_r3", label: "Giữa" },
-  { key: "fp_r4", label: "Áp út" },
-  { key: "fp_r5", label: "Út" },
+  { key: "fp_r1", code: "right_thumb" },
+  { key: "fp_r2", code: "right_index" },
+  { key: "fp_r3", code: "right_middle" },
+  { key: "fp_r4", code: "right_ring" },
+  { key: "fp_r5", code: "right_little" },
 ];
 
 const FP_CODE_TO_KEY = {
@@ -67,23 +68,10 @@ const FP_CODE_TO_KEY = {
   right_little: "fp_r5",
 };
 
-const FP_NAME_VI = {
-  left_thumb: "ngón cái trái",
-  left_index: "ngón trỏ trái",
-  left_middle: "ngón giữa trái",
-  left_ring: "ngón áp út trái",
-  left_little: "ngón út trái",
-  right_thumb: "ngón cái phải",
-  right_index: "ngón trỏ phải",
-  right_middle: "ngón giữa phải",
-  right_ring: "ngón áp út phải",
-  right_little: "ngón út phải",
-};
-
 const PORTRAITS = [
-  { key: "portrait_front", label: "Ảnh thẳng" },
-  { key: "portrait_left", label: "Ảnh trái" },
-  { key: "portrait_right", label: "Ảnh phải" },
+  { key: "portrait_front", labelKey: "capture.portrait.front" },
+  { key: "portrait_left", labelKey: "capture.portrait.left" },
+  { key: "portrait_right", labelKey: "capture.portrait.right" },
 ];
 
 const EMPTY_FORM = {
@@ -92,7 +80,7 @@ const EMPTY_FORM = {
   personal_id: "",
   dob: "",
   gender: "",
-  nationality: "Việt Nam",
+  nationality: "",
   ethnicity: "",
   religion: "",
   hometown: "",
@@ -110,13 +98,13 @@ async function cropPortraitFromCCCD(file) {
   const dataUrl = await new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result);
-    r.onerror = () => reject(new Error("Không đọc được file"));
+    r.onerror = () => reject(new Error(apiT("capture.err.no_file")));
     r.readAsDataURL(file);
   });
   const img = await new Promise((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error("Ảnh không hợp lệ"));
+    i.onerror = () => reject(new Error(apiT("capture.err.bad_image")));
     i.src = dataUrl;
   });
   const targetRatio = (22.5 * 1024) / (55 * 596);
@@ -143,6 +131,7 @@ async function cropPortraitFromCCCD(file) {
 }
 
 function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardPortraitPreview }) {
+  const { t } = useI18n();
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
@@ -191,7 +180,7 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
         <div className="cccd-mf cccd-mf-no">{form.cccd_number || ""}</div>
         <div className="cccd-mf cccd-mf-name">{form.full_name || ""}</div>
         <div className="cccd-mf cccd-mf-dob">{form.dob || ""}</div>
-        <div className="cccd-mf cccd-mf-sex">{form.gender ? (form.gender === "female" ? "Nữ" : "Nam") : ""}</div>
+        <div className="cccd-mf cccd-mf-sex">{form.gender ? (form.gender === "female" ? t("common.female") : t("common.male")) : ""}</div>
         <div className="cccd-mf cccd-mf-nat">{form.nationality || ""}</div>
         <div className="cccd-mf cccd-mf-origin">{form.hometown || ""}</div>
         <div className="cccd-mf cccd-mf-res">{form.address || ""}</div>
@@ -202,12 +191,12 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
           type="button"
           className="cccd-card-mock-clear"
           onClick={(e) => { e.stopPropagation(); onClear(); }}
-          aria-label="Xoá ảnh CCCD"
+          aria-label={t("capture.cccd.aria_delete")}
         >×</button>
       )}
       {(uploading || err) && (
         <div className="cccd-card-mock-hint">
-          {uploading ? "Đang tải & cắt ảnh..." : err}
+          {uploading ? t("capture.cccd.loading") : err}
         </div>
       )}
       <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
@@ -219,13 +208,13 @@ async function resizeImageFile(file, maxW, maxH, mime = "image/jpeg", quality = 
   const dataUrl = await new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result);
-    r.onerror = () => reject(new Error("Không đọc được file ảnh"));
+    r.onerror = () => reject(new Error(apiT("capture.err.read_file")));
     r.readAsDataURL(file);
   });
   const img = await new Promise((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error("Ảnh không hợp lệ"));
+    i.onerror = () => reject(new Error(apiT("capture.err.bad_image")));
     i.src = dataUrl;
   });
   const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
@@ -257,6 +246,7 @@ async function pickPreferredCamera() {
 }
 
 function CameraCaptureModal({ open, label, onCapture, onClose }) {
+  const { t } = useI18n();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [err, setErr] = useState("");
@@ -306,7 +296,7 @@ function CameraCaptureModal({ open, label, onCapture, onClose }) {
           videoRef.current.onloadedmetadata = () => setReady(true);
         }
       } catch (e) {
-        if (!cancelled) setErr(e.message || "Không mở được camera. Kiểm tra quyền truy cập.");
+        if (!cancelled) setErr(e.message || apiT("capture.err.camera_open"));
       }
     })();
     return () => {
@@ -330,7 +320,7 @@ function CameraCaptureModal({ open, label, onCapture, onClose }) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((blob) => {
         if (!blob) {
-          setErr("Không tạo được ảnh từ camera.");
+          setErr(t("capture.err.camera_capture"));
           setBusy(false);
           return;
         }
@@ -349,8 +339,8 @@ function CameraCaptureModal({ open, label, onCapture, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal camera-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h3>Chụp {label || "ảnh chân dung"}</h3>
-          <button className="close-x" onClick={onClose} aria-label="Đóng">×</button>
+          <h3>{t("capture.camera.title", { label: label || t("capture.camera.default_title") })}</h3>
+          <button className="close-x" onClick={onClose} aria-label={t("capture.camera.close_aria")}>×</button>
         </div>
         <div className="camera-body">
           {err ? (
@@ -366,9 +356,9 @@ function CameraCaptureModal({ open, label, onCapture, onClose }) {
           )}
         </div>
         <div className="camera-actions">
-          <button className="btn-ghost" onClick={onClose} disabled={busy}>Huỷ</button>
+          <button className="btn-ghost" onClick={onClose} disabled={busy}>{t("common.cancel")}</button>
           <button className="btn-primary" onClick={snap} disabled={!ready || busy || !!err}>
-            {busy ? "Đang xử lý..." : "📸 Chụp"}
+            {busy ? t("common.processing") : t("capture.camera.take")}
           </button>
         </div>
       </div>
@@ -377,6 +367,7 @@ function CameraCaptureModal({ open, label, onCapture, onClose }) {
 }
 
 function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, disabled, resize, useCamera }) {
+  const { t } = useI18n();
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
@@ -437,7 +428,7 @@ function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, di
               type="button"
               className="photo-slot-clear"
               onClick={(e) => { e.stopPropagation(); onChange(""); }}
-              aria-label="Xoá ảnh"
+              aria-label={t("capture.photo.delete_aria")}
             >×</button>
           )}
         </>
@@ -463,8 +454,8 @@ function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, di
               </svg>
             )}
           </span>
-          {!compact && <span className="photo-slot-label">{useCamera ? `📷 Chụp ${label}` : label}</span>}
-          {!compact && uploading && <span className="photo-slot-hint">Đang tải...</span>}
+          {!compact && <span className="photo-slot-label">{useCamera ? t("capture.photo.take", { label }) : label}</span>}
+          {!compact && uploading && <span className="photo-slot-hint">{t("common.loading")}</span>}
           {!compact && err && <span className="photo-slot-err">{err}</span>}
         </button>
       )}
@@ -517,7 +508,7 @@ function normalizeInitial(initial) {
       personal_id: initial.personal_id || "",
       dob: toDobInput(initial.dob),
       gender: initial.gender || "",
-      nationality: initial.nationality || "Việt Nam",
+      nationality: initial.nationality || "",
       ethnicity: initial.ethnicity || "",
       religion: initial.religion || "",
       hometown: initial.hometown || "",
@@ -535,6 +526,7 @@ function normalizeInitial(initial) {
 }
 
 export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession }) {
+  const { t, formatDateLong } = useI18n();
   const isEdit = Boolean(initial && initial.id);
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
@@ -574,7 +566,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         const img = await new Promise((resolve, reject) => {
           const i = new Image();
           i.onload = () => resolve(i);
-          i.onerror = () => reject(new Error("Không tải được ảnh CCCD đã lưu"));
+          i.onerror = () => reject(new Error(apiT("capture.err.load_cccd_photo")));
           i.src = savedUrl;
         });
         const targetRatio = (22.5 * 1024) / (55 * 596);
@@ -660,11 +652,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const retryFingerprint = async (photoKey, fingerCode) => {
     console.log("[retryFingerprint] called", { photoKey, fingerCode, fpRunning });
     if (fpRunning) {
-      setFpError("Đang thu vân tay, vui lòng dừng trước.");
+      setFpError(t("capture.err.fp_running"));
       return;
     }
     if (!photoKey || !fingerCode) {
-      setFpError(`Không xác định được ngón (photoKey=${photoKey}, code=${fingerCode})`);
+      setFpError(t("capture.err.unknown_finger", { key: photoKey, code: fingerCode }));
       return;
     }
 
@@ -681,13 +673,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     });
 
     setFpError("");
-    setFpStatus("Đang kiểm tra máy quét...");
+    setFpStatus(t("capture.status.check_scanner"));
     fpAbortRef.current = false;
 
     try {
       const h = await fpApi.health();
       if (!h.ok) {
-        setFpError(h.error || "Máy quét vân tay chưa sẵn sàng.");
+        setFpError(h.error || t("capture.err.fp_not_ready"));
         setFpStatus("");
         return;
       }
@@ -699,25 +691,25 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
     setFpRunning(true);
     setFpNextCode(fingerCode);
-    const targetName = FP_NAME_VI[fingerCode] || fingerCode;
-    setFpStatus(`Đặt ${targetName} lên máy quét và giữ yên ~1 giây...`);
+    const targetName = t(`fp.finger.${fingerCode}.lower`);
+    setFpStatus(t("capture.status.place_finger", { name: targetName }));
 
     let sid = null;
     try {
       const r = await fpApi.startSession("__retry__" + fingerCode);
       sid = r.session_id;
 
-      // fp_service enroll tuần tự. Capture 1 lần, ép lưu vào slot ngón target (không quan tâm SDK trả code gì).
+      // fp_service enrolls sequentially. Capture once, force-save into the target finger's slot (ignore whatever code the SDK returns).
       let capRes;
       try {
         capRes = await fpApi.capture(sid);
       } catch (e) {
-        throw new Error(e.message + " — Đặt lại ngón tay để thử lại.");
+        throw new Error(e.message + " " + t("capture.err.retry_finger"));
       }
       if (fpAbortRef.current) return;
 
       const key = photoKey;
-      const code = fingerCode; // ép lưu vào ngón target user đã chọn
+      const code = fingerCode; // force-save into the user-selected target finger
       try {
         const file = await b64PngToFile(capRes.finger.image_b64, `${key}.png`);
         const up = await api.uploadPhoto(file);
@@ -729,10 +721,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           }
           return next;
         });
-        setFpStatus(`Đã thu lại ${targetName}.`);
-        setOk(`Đã cập nhật ${targetName}.`);
+        setFpStatus(t("capture.status.retook", { name: targetName }));
+        setOk(t("capture.status.updated", { name: targetName }));
       } catch (e) {
-        setFpError("Không lưu được ảnh: " + e.message);
+        setFpError(t("capture.err.save_photo", { message: e.message }));
       }
     } catch (e) {
       setFpError(e.message);
@@ -748,13 +740,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const startFpCollect = async () => {
     if (fpRunning) return;
     setFpError("");
-    setFpStatus("Đang kiểm tra máy quét...");
+    setFpStatus(t("capture.status.check_scanner"));
     fpAbortRef.current = false;
 
     try {
       const h = await fpApi.health();
       if (!h.ok) {
-        setFpError(h.error || "Máy quét vân tay chưa sẵn sàng.");
+        setFpError(h.error || t("capture.err.fp_not_ready"));
         setFpStatus("");
         return;
       }
@@ -767,19 +759,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setFpRunning(true);
     let sid = null;
     try {
-      const r = await fpApi.startSession(form.full_name.trim() || "Ẩn danh");
+      const r = await fpApi.startSession(form.full_name.trim() || t("fpenroll.anon"));
       sid = r.session_id;
       let next = r.next_finger;
 
       while (next && !fpAbortRef.current) {
         setFpNextCode(next.code);
-        setFpStatus(`Đặt ${FP_NAME_VI[next.code] || next.code} lên máy quét và giữ yên ~1 giây...`);
+        setFpStatus(t("capture.status.place_finger", { name: t(`fp.finger.${next.code}.lower`) }));
         let capRes;
         try {
           capRes = await fpApi.capture(sid);
         } catch (e) {
           if (fpAbortRef.current) break;
-          setFpError(e.message + " — Đặt lại ngón tay để thử lại.");
+          setFpError(e.message + " " + t("capture.err.retry_finger"));
           continue;
         }
         if (fpAbortRef.current) break;
@@ -792,23 +784,23 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             const up = await api.uploadPhoto(file);
             const tmplB64 = capRes.finger.template_b64;
             setPhotos((p) => {
-              const next = { ...p, [key]: up.url };
+              const np = { ...p, [key]: up.url };
               if (tmplB64) {
-                next.fp_templates = { ...(p.fp_templates || {}), [code]: tmplB64 };
+                np.fp_templates = { ...(p.fp_templates || {}), [code]: tmplB64 };
               }
-              return next;
+              return np;
             });
           } catch (e) {
-            setFpError("Không lưu được ảnh: " + e.message);
+            setFpError(t("capture.err.save_photo", { message: e.message }));
           }
         }
-        setFpStatus(capRes.message || `Đã thu ${FP_NAME_VI[code] || code}.`);
+        setFpStatus(capRes.message || t("capture.status.collected", { name: t(`fp.finger.${code}.lower`) }));
         next = capRes.next_finger;
       }
 
       if (!fpAbortRef.current) {
-        setFpStatus("Đã thu đủ 10 ngón vân tay.");
-        setOk("Đã thu thập đủ 10/10 vân tay từ máy quét.");
+        setFpStatus(t("capture.status.done_10"));
+        setOk(t("capture.status.done_10_full"));
       }
     } catch (e) {
       setFpError(e.message);
@@ -848,8 +840,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         const res = await api.uploadPhoto(jpgFile);
         setPhoto("cccd_front", res.url);
       } catch (uploadEx) {
-        console.error("[CCCD] Không upload được ảnh chân dung:", uploadEx);
-        setErr("Đọc CCCD thành công nhưng không lưu được ảnh: " + uploadEx.message);
+        console.error("[CCCD] portrait upload failed:", uploadEx);
+        setErr(t("capture.err.cccd_saved_photo", { message: uploadEx.message }));
       }
     }
   };
@@ -864,7 +856,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     try {
       const h = await cccdApi.health();
       if (!h.ok) {
-        throw new Error("Thư mục dữ liệu CCCD chưa sẵn sàng: " + (h.data_dir || ""));
+        throw new Error(apiT("capture.err.cccd_dir", { dir: h.data_dir || "" }));
       }
       const s = await cccdApi.startSession();
       cccdSidRef.current = s.session_id;
@@ -873,7 +865,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         if (ac.signal.aborted) break;
         if (r && r.status === "ok" && r.data) {
           applyCccdData(r.data);
-          setOk("Đã đọc dữ liệu CCCD từ HANEL eKYC.");
+          setOk(t("capture.status.cccd_read"));
           break;
         }
       }
@@ -906,14 +898,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       /^\d{12}$/.test(form.cccd_number || "") &&
       !!form.dob;
     return [
-      { key: "personal_id", label: "Mã can phạm", ok: personalOk, required: true },
-      { key: "cccd", label: "Thông tin CCCD", ok: cccdOk, required: true },
-      { key: "portrait", label: "Ảnh chân dung", ok: portraitCount === 3, required: false },
-      { key: "fp", label: "Vân tay (10/10)", ok: fpCount === 10, required: false },
-      { key: "extra", label: "Thông tin bổ sung", ok: !!form.height_cm && !!form.weight_kg, required: false },
-      { key: "device", label: "Thiết bị & kết nối", ok: true, required: false },
+      { key: "personal_id", label: t("capture.verify.item.code"), ok: personalOk, required: true },
+      { key: "cccd", label: t("capture.verify.item.cccd"), ok: cccdOk, required: true },
+      { key: "portrait", label: t("capture.verify.item.portrait"), ok: portraitCount === 3, required: false },
+      { key: "fp", label: t("capture.verify.item.fp"), ok: fpCount === 10, required: false },
+      { key: "extra", label: t("capture.verify.item.extra"), ok: !!form.height_cm && !!form.weight_kg, required: false },
+      { key: "device", label: t("capture.verify.item.devices"), ok: true, required: false },
     ];
-  }, [form, fpCount, portraitCount]);
+  }, [form, fpCount, portraitCount, t]);
 
   const allRequiredValid = checks.filter((c) => c.required).every((c) => c.ok);
   const allValid = checks.every((c) => c.ok);
@@ -956,8 +948,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       };
       if (isEdit) {
         const updated = await api.updateDetainee(initial.id, body);
-        notify.add(`Đã cập nhật hồ sơ ${updated.code} - ${updated.full_name}`);
-        setOk(`Đã cập nhật hồ sơ ${updated.code} — ${updated.full_name}`);
+        notify.add();
+        setOk(t("capture.updated", { code: updated.code, name: updated.full_name }));
         if (onDone) onDone();
         if (sessionId && onSavedInSession) {
           setTimeout(() => onSavedInSession(), 600);
@@ -966,8 +958,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         }
       } else {
         const created = await api.createDetainee(body);
-        notify.add(`Đã thêm hồ sơ mới ${created.code} - ${created.full_name}`);
-        setOk(`Đã lưu hồ sơ ${created.code} — ${created.full_name}`);
+        notify.add();
+        setOk(t("capture.saved", { code: created.code, name: created.full_name }));
         setForm(EMPTY_FORM);
         setPhotos({});
         if (sessionId && onSavedInSession) {
@@ -982,7 +974,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   };
 
   const resetAll = () => {
-    if (!window.confirm(isEdit ? "Huỷ chỉnh sửa và xoá dữ liệu đang nhập?" : "Xoá toàn bộ dữ liệu đã nhập?")) return;
+    if (!window.confirm(isEdit ? t("capture.confirm.cancel_edit") : t("capture.confirm.clear_all"))) return;
     if (isEdit && onDone) onDone();
     setForm(EMPTY_FORM);
     setPhotos({});
@@ -1014,7 +1006,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="success-box">
               {ok}
               <button type="button" className="banner-link" onClick={backToList}>
-                Xem danh sách →
+                {t("capture.view_list")}
               </button>
             </div>
           )}
@@ -1022,11 +1014,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       )}
 
       <div className="case-main">
-        {/* ================ Tier 1: 3 cột — Ảnh + Thông tin + CCCD ================ */}
+        {/* ================ Tier 1: 3 cols — Photo + Personal info + CCCD ================ */}
         <div className="case-tier-1">
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">ẢNH CHỤP TOÀN THÂN</h2>
+              <h2 className="cap-block-title">{t("capture.section.body_photo")}</h2>
             </div>
             <div className="body-shots">
               {PORTRAITS.map((p) => (
@@ -1035,7 +1027,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     {p.key === "portrait_front" ? "FRONT" : p.key === "portrait_left" ? "LEFT" : "RIGHT"}
                   </span>
                   <LiveCamShot
-                    label={p.label}
+                    label={t(p.labelKey)}
                     shortLabel={p.key === "portrait_front" ? "FRONT" : p.key === "portrait_left" ? "LEFT" : "RIGHT"}
                     value={photos[p.key]}
                     onCapture={(u) => setPhoto(p.key, u)}
@@ -1048,89 +1040,89 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">THÔNG TIN CÁ NHÂN</h2>
+              <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
             </div>
             <div className="personal-info">
-              {/* Cột 1 */}
-              <InfoField label="Mã can phạm *">
+              {/* Col 1 */}
+              <InfoField label={t("capture.form.personal_id")}>
                 <input className="control control-sm" value={form.personal_id}
                   onChange={(e) => setField("personal_id", e.target.value)}
-                  placeholder="VD: CP2026-001 hoặc số CCCD" />
+                  placeholder={t("capture.form.personal_id_ph")} />
               </InfoField>
-              {/* Cột 2 */}
-              <InfoField label="Quê quán">
+              {/* Col 2 */}
+              <InfoField label={t("detainee.field.hometown")}>
                 <input className="control control-sm" value={form.hometown}
                   onChange={(e) => setField("hometown", e.target.value)}
-                  placeholder="Xã ..., Huyện ..., Tỉnh ..." />
+                  placeholder={t("capture.form.hometown_ph")} />
               </InfoField>
 
-              <InfoField label="Họ và tên">
+              <InfoField label={t("detainee.field.full_name")}>
                 <input className="control control-sm" value={form.full_name}
                   onChange={(e) => setField("full_name", e.target.value)}
-                  placeholder="Nguyễn Văn A" />
+                  placeholder={t("capture.form.full_name_ph")} />
               </InfoField>
-              <InfoField label="Nơi thường trú">
+              <InfoField label={t("detainee.field.address")}>
                 <input className="control control-sm" value={form.address}
                   onChange={(e) => setField("address", e.target.value)}
-                  placeholder="Số nhà, phường, quận, TP" />
+                  placeholder={t("capture.form.address_ph")} />
               </InfoField>
 
-              <InfoField label="Số CCCD">
+              <InfoField label={t("detainee.field.cccd")}>
                 <input className="control control-sm" value={form.cccd_number}
                   onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
-                  placeholder="079204012345" inputMode="numeric" />
+                  placeholder={t("capture.form.cccd_ph")} inputMode="numeric" />
               </InfoField>
-              <InfoField label="Ngày cấp">
+              <InfoField label={t("detainee.field.issued_date")}>
                 <input className="control control-sm" value={form.issued_date}
                   onChange={(e) => setField("issued_date", e.target.value)}
-                  placeholder="dd/mm/yyyy" />
+                  placeholder={t("capture.form.date_ph")} />
               </InfoField>
 
-              <InfoField label="Ngày sinh">
+              <InfoField label={t("detainee.field.dob")}>
                 <input className="control control-sm" value={form.dob}
                   onChange={(e) => setField("dob", e.target.value)}
-                  placeholder="dd/mm/yyyy" />
+                  placeholder={t("capture.form.date_ph")} />
               </InfoField>
-              <InfoField label="Có giá trị đến">
+              <InfoField label={t("detainee.field.expiry_date")}>
                 <input className="control control-sm" value={form.expiry_date}
                   onChange={(e) => setField("expiry_date", e.target.value)}
-                  placeholder="dd/mm/yyyy" />
+                  placeholder={t("capture.form.date_ph")} />
               </InfoField>
 
-              <InfoField label="Giới tính">
+              <InfoField label={t("detainee.field.gender")}>
                 <select className="control control-sm" value={form.gender}
                   onChange={(e) => setField("gender", e.target.value)}>
-                  <option value="">-- Chọn --</option>
-                  <option value="male">Nam</option>
-                  <option value="female">Nữ</option>
+                  <option value="">{t("common.select")}</option>
+                  <option value="male">{t("common.male")}</option>
+                  <option value="female">{t("common.female")}</option>
                 </select>
               </InfoField>
-              <InfoField label="Dân tộc">
+              <InfoField label={t("detainee.field.ethnicity")}>
                 <input className="control control-sm" value={form.ethnicity}
                   onChange={(e) => setField("ethnicity", e.target.value)}
-                  placeholder="Kinh" />
+                  placeholder={t("capture.form.ethnicity_ph")} />
               </InfoField>
 
-              <InfoField label="Quốc tịch">
+              <InfoField label={t("detainee.field.nationality")}>
                 <input className="control control-sm" value={form.nationality}
                   onChange={(e) => setField("nationality", e.target.value)} />
               </InfoField>
-              <InfoField label="Tôn giáo">
+              <InfoField label={t("detainee.field.religion")}>
                 <input className="control control-sm" value={form.religion}
                   onChange={(e) => setField("religion", e.target.value)}
-                  placeholder="Không" />
+                  placeholder={t("capture.form.religion_ph")} />
               </InfoField>
             </div>
           </section>
 
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">THẺ CĂN CƯỚC CÔNG DÂN</h2>
+              <h2 className="cap-block-title">{t("capture.section.cccd_card")}</h2>
               <button type="button" className="btn-cccd-scan" onClick={readCCCD} disabled={reading}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="5" width="5" height="5" rx="2" /><path d="M3 10h18" />
                 </svg>
-                {reading ? "Đang đọc..." : "Đọc CCCD"}
+                {reading ? t("capture.toolbar.reading") : t("capture.toolbar.read_cccd")}
               </button>
             </div>
             <div className="cccd-preview-wrap">
@@ -1146,23 +1138,24 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </section>
         </div>
 
-        {/* ================ Tier 2: Vân tay + KPI tròn ================ */}
+        {/* ================ Tier 2: Fingerprint + KPI ================ */}
         <div className="case-tier-2">
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">DẤU VÂN TAY ({fpCount} / 10)</h2>
+              <h2 className="cap-block-title">{t("capture.section.fp", { n: fpCount })}</h2>
               {!fpRunning ? (
                 <button type="button" className="btn-cccd-scan" onClick={startFpCollect}>
-                  Thu thập
+                  {t("capture.toolbar.enroll")}
                 </button>
               ) : (
                 <button type="button" className="btn-cccd-scan" onClick={stopFpCollect}>
-                  Dừng
+                  {t("capture.toolbar.stop")}
                 </button>
               )}
             </div>
             <div className="fp-preview-grid fp-preview-grid--single-row">
               {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {
+                const label = t(`fp.finger.${f.code}.long`);
                 const filled = !!photos[f.key];
                 const fpCode = Object.entries(FP_CODE_TO_KEY).find(([, k]) => k === f.key)?.[0];
                 const isActive = fpRunning && fpNextCode === fpCode;
@@ -1171,12 +1164,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     key={f.key}
                     className={"fp-preview-cell " + (filled ? "done" : "empty") + (isActive ? " active" : "")}
                     onDoubleClick={() => !fpRunning && retryFingerprint(f.key, fpCode)}
-                    title={filled ? "Nhấp đúp để thu lại ngón này" : "Nhấp đúp để thu ngón này"}
+                    title={filled ? t("capture.fp.dbl_retake") : t("capture.fp.dbl_take")}
                     style={{ cursor: fpRunning ? "default" : "pointer" }}
                   >
                     <div className="fp-preview-thumb">
                       {filled ? (
-                        <img src={photos[f.key]} alt={f.label} />
+                        <img src={photos[f.key]} alt={label} />
                       ) : (
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                           <path d="M12 11c0-4 3-7 7-7" />
@@ -1186,18 +1179,16 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                         </svg>
                       )}
                     </div>
-                    <span className="fp-name">NGÓN {f.label.toUpperCase()}</span>
+                    <span className="fp-name">{label}</span>
                   </div>
                 );
               })}
-              <div className="fp-hand-label fp-hand-below fp-hand-below-left">BÀN TAY TRÁI</div>
-              <div className="fp-hand-label fp-hand-below fp-hand-below-right">BÀN TAY PHẢI</div>
             </div>
           </section>
 
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">CHẤT LƯỢNG</h2>
+              <h2 className="cap-block-title">{t("capture.section.quality")}</h2>
             </div>
             <div className="fp-kpi">
               <div className="fp-kpi-icon">
@@ -1208,41 +1199,41 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   <path d="M12 15v1a3 3 0 0 0 3 3" />
                 </svg>
               </div>
-              <div className="fp-kpi-count">{fpCount} / 10 — Đã thu thập</div>
+              <div className="fp-kpi-count">{t("capture.quality.collected", { n: fpCount })}</div>
               <div className="fp-kpi-big">{fpCount === 10 ? "100%" : `${Math.round(fpCount * 10)}%`}</div>
             </div>
           </section>
         </div>
 
-        {/* ================ Tier 3: 4 cột phụ ================ */}
+        {/* ================ Tier 3: 4 side cols ================ */}
         <div className="case-tier-3">
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">THÔNG TIN BỔ SUNG</h2>
+              <h2 className="cap-block-title">{t("capture.section.extra")}</h2>
             </div>
             <div className="tier3-body">
-              <Tier3Row label="Chiều cao">
+              <Tier3Row label={t("capture.field.height_cm")}>
                 <div className="tier3-input-unit">
                   <input className="control tier3-input" type="number" min="50" max="250" value={form.height_cm}
                     onChange={(e) => setField("height_cm", e.target.value)} placeholder="---" />
                   <span className="tier3-unit">cm</span>
                 </div>
               </Tier3Row>
-              <Tier3Row label="Cân nặng">
+              <Tier3Row label={t("capture.field.weight_kg")}>
                 <div className="tier3-input-unit">
                   <input className="control tier3-input" type="number" min="20" max="200" value={form.weight_kg}
                     onChange={(e) => setField("weight_kg", e.target.value)} placeholder="---" />
                   <span className="tier3-unit">kg</span>
                 </div>
               </Tier3Row>
-              <Tier3Row label="Buồng giam">
+              <Tier3Row label={t("capture.field.cell")}>
                 <input
                   className="control tier3-input"
                   type="text"
                   list="cell-code-suggestions"
                   value={form.cell_code}
                   onChange={(e) => setField("cell_code", e.target.value)}
-                  placeholder="Nhập hoặc chọn"
+                  placeholder={t("capture.field.cell_ph")}
                 />
                 <datalist id="cell-code-suggestions">
                   {cells.map((c) => (
@@ -1255,27 +1246,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">THIẾT BỊ THU NHẬN</h2>
+              <h2 className="cap-block-title">{t("capture.section.devices")}</h2>
             </div>
             <div className="tier3-body">
-              <Tier3Static label="Thiết bị" value="Vali" />
-              <Tier3Static label="Số seri" value="ZKF-4500-2401" />
-              <Tier3Static label="Phần mềm" value="v5.3.4.1" />
-              <Tier3Static label="Phương thức" value="Live Scan" />
-              <Tier3Static label="Máy trạm" value={typeof window !== "undefined" ? window.location.hostname : "-"} />
+              <Tier3Static label={t("capture.field.device")} value="Vali" />
+              <Tier3Static label={t("capture.field.serial")} value="ZKF-4500-2401" />
+              <Tier3Static label={t("capture.field.software")} value="v5.3.4.1" />
+              <Tier3Static label={t("capture.field.method")} value="Live Scan" />
+              <Tier3Static label={t("capture.field.workstation")} value={typeof window !== "undefined" ? window.location.hostname : "-"} />
             </div>
           </section>
 
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">GHI CHÚ</h2>
+              <h2 className="cap-block-title">{t("capture.section.note")}</h2>
             </div>
             <div className="notes-body">
               <textarea
                 className="control notes-input"
                 value={form.note}
                 onChange={(e) => setField("note", e.target.value)}
-                placeholder="Nhập ghi chú về can phạm..."
+                placeholder={t("capture.field.note_ph")}
                 rows={4}
               />
             </div>
@@ -1283,27 +1274,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">LỊCH SỬ HỒ SƠ</h2>
+              <h2 className="cap-block-title">{t("capture.section.history")}</h2>
             </div>
             <div className="timeline-body">
-              <TimelineItem time={captureTimeStr} desc="Thu nhận dữ liệu" />
-              <TimelineItem time={captureTimeStr} desc="Kiểm tra & xác minh" />
-              {readyState && <TimelineItem time={captureTimeStr} desc="Sẵn sàng lưu vào hệ thống" />}
+              <TimelineItem time={captureTimeStr} desc={t("capture.timeline.capture")} />
+              <TimelineItem time={captureTimeStr} desc={t("capture.timeline.verify")} />
+              {readyState && <TimelineItem time={captureTimeStr} desc={t("capture.timeline.ready")} />}
             </div>
           </section>
         </div>
       </div>
 
-      {/* ================ Aside: chỉ Kiểm tra dữ liệu ================ */}
+      {/* ================ Aside: Data verification only ================ */}
       <aside className="case-aside">
         <section className="cap-block case-verify">
           <div className="cap-block-head">
-            <h2 className="cap-block-title">KIỂM TRA DỮ LIỆU</h2>
+            <h2 className="cap-block-title">{t("capture.section.verify")}</h2>
           </div>
           <div className="verify-body">
             <div>
               <div className="verify-progress-label">
-                <span>Tiến độ tổng thể</span>
+                <span>{t("capture.verify.overall")}</span>
                 <span>{overallProgress}%</span>
               </div>
               <div className="verify-progress-bar">
@@ -1312,14 +1303,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             </div>
             <div className="verify-list">
               <div className="verify-item verify-head">
-                <span className="v-label">HẠNG MỤC</span>
-                <span className="v-label">TRẠNG THÁI</span>
+                <span className="v-label">{t("capture.verify.col.item")}</span>
+                <span className="v-label">{t("capture.verify.col.status")}</span>
               </div>
               {checks.map((c) => (
                 <div key={c.key} className="verify-item">
                   <span className="v-label">{c.label}</span>
                   <span className={"verify-chip " + (c.ok ? "ok" : c.required ? "miss" : "ok")}>
-                    {c.ok ? "Đã xác minh" : c.required ? "Thiếu" : "Tuỳ chọn"}
+                    {c.ok ? t("capture.verify.status.ok") : c.required ? t("capture.verify.status.missing") : t("capture.verify.status.optional")}
                   </span>
                 </div>
               ))}
@@ -1328,13 +1319,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="12 2 15 8.5 22 9.3 17 14.1 18.5 21 12 17.5 5.5 21 7 14.1 2 9.3 9 8.5 12 2" />
               </svg>
-              {allRequiredValid ? "Không phát hiện vấn đề." : "Còn thông tin bắt buộc chưa đủ."}
+              {allRequiredValid ? t("capture.verify.no_issue") : t("capture.verify.missing_required")}
             </div>
           </div>
         </section>
       </aside>
 
-      {/* ================ Thanh hành động ================ */}
+      {/* ================ Action bar ================ */}
       <div className="case-action-bar">
         <button type="button" className="button primary"
           disabled={!allRequiredValid || saving} onClick={submit}>
@@ -1342,7 +1333,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
             <path d="M17 21v-8H7v8M7 3v5h8" />
           </svg>
-          {saving ? "Đang lưu..." : isEdit ? "Cập nhật hồ sơ" : "Lưu dữ liệu vào hồ sơ"}
+          {saving ? t("common.saving") : isEdit ? t("capture.actions.update") : t("capture.actions.save")}
         </button>
         <button type="button" className="button secondary" disabled={saving}
           onClick={() => setPreviewOpen(true)}>
@@ -1350,13 +1341,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <path d="M14 2v6h6M8 13h8M8 17h6" />
           </svg>
-          Xem trước hồ sơ
+          {t("capture.actions.preview")}
         </button>
         <button type="button" className="button danger" disabled={saving} onClick={resetAll}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
           </svg>
-          Xoá dữ liệu
+          {t("capture.actions.clear")}
         </button>
       </div>
 
@@ -1382,6 +1373,7 @@ function InfoField({ label, children }) {
 }
 
 function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
+  const { t } = useI18n();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -1423,7 +1415,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
           videoRef.current.onloadedmetadata = () => setReady(true);
         }
       } catch (e) {
-        if (!cancelled) setErr(e.message || "Không mở được camera. Kiểm tra quyền truy cập.");
+        if (!cancelled) setErr(e.message || apiT("capture.err.camera_open"));
       }
     })();
     return () => {
@@ -1447,7 +1439,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Không tạo được ảnh."))), "image/jpeg", 0.92);
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(apiT("capture.err.camera_create")))), "image/jpeg", 0.92);
       });
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -1474,14 +1466,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
 
   return (
     <>
-      <div className={"body-shot-body" + (showRuler ? " body-shot-body--ruler" : "")}>
-        {showRuler && (
-          <div className="ruler ruler--external">
-            {[200, 190, 180, 170, 160, 150, 140, 130, 120, 110, 100].map((n) => (
-              <span key={n}>{n}</span>
-            ))}
-          </div>
-        )}
+      <div className="body-shot-body">
         <div className="body-shot-frame">
           {captured ? (
             <img src={value} alt={label} />
@@ -1516,7 +1501,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
             </>
           )}
         </svg>
-        {busy ? "Đang lưu..." : captured ? "Đã chụp — Chụp lại" : ready ? "Chụp" : "Đang bật camera..."}
+        {busy ? t("capture.liveshot.saving") : captured ? t("capture.liveshot.captured") : ready ? t("capture.liveshot.capture") : t("capture.liveshot.opening")}
       </button>
     </>
   );
@@ -1568,14 +1553,16 @@ function TimelineItem({ time, desc }) {
 }
 
 function ProfilePreviewModal({ form, photos, cells, onClose }) {
+  const { t, formatDateLong } = useI18n();
   const cell = cells.find((c) => c.code === form.cell_code);
-  const genderVi = form.gender === "female" ? "Nữ" : "Nam";
+  const genderVi = form.gender === "female" ? t("common.female") : t("common.male");
   const today = new Date();
   const dd = String(today.getDate()).padStart(2, "0");
   const mm = String(today.getMonth() + 1).padStart(2, "0");
   const yyyy = today.getFullYear();
+  const dateLong = formatDateLong(today);
 
-  const val = (v) => (v && String(v).trim() ? v : "…………………………");
+  const val = (v) => (v && String(v).trim() ? v : t("pdf.blank"));
 
   const a4Ref = useRef(null);
   const [exporting, setExporting] = useState(false);
@@ -1600,7 +1587,7 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
       if (imgH <= pageH) {
         pdf.addImage(imgData, "JPEG", 0, 0, pageW, imgH);
       } else {
-        // Chia trang: cắt canvas theo từng đoạn cao pageH
+        // Paginate: slice canvas into pageH-tall chunks
         let remaining = imgH;
         let y = 0;
         const ratio = canvas.width / pageW;
@@ -1628,7 +1615,7 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
       pdf.save(makePdfFileName(form.personal_id || form.cccd_number, form.full_name));
     } catch (ex) {
       console.error("[Export PDF] error:", ex);
-      alert("Không xuất được PDF: " + (ex?.message || ex));
+      alert(t("capture.pdf.err_export", { message: ex?.message || ex }));
     } finally {
       setExporting(false);
     }
@@ -1638,64 +1625,64 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
     <div className="preview-backdrop" onClick={onClose}>
       <div className="preview-toolbar no-print" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="preview-btn" onClick={handlePrint} disabled={exporting}>
-          {exporting ? "Đang xuất PDF..." : "Xuất PDF"}
+          {exporting ? t("capture.pdf.exporting") : t("capture.pdf.export")}
         </button>
         <button type="button" className="preview-btn preview-close" onClick={onClose}>
-          Đóng
+          {t("common.close")}
         </button>
       </div>
 
       <div className="preview-scroll" onClick={onClose}>
         <div ref={a4Ref} className="preview-a4 preview-a4-portrait" onClick={(e) => e.stopPropagation()}>
 
-          {/* ===== Header: Quốc hiệu canh giữa ===== */}
+          {/* ===== Header: national emblem centered ===== */}
           <div className="pv-header-row">
             <div className="pv-header-left">
-              <div className="pv-org1">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-              <div className="pv-org2">Độc lập – Tự do – Hạnh phúc</div>
+              <div className="pv-org1">{t("pdf.emblem")}</div>
+              <div className="pv-org2">{t("pdf.motto")}</div>
               <div className="pv-org-underline" />
             </div>
           </div>
 
           {/* ===== Title ===== */}
           <div className="pv-title-row">
-            <h1 className="pv-title">HỒ SƠ CAN PHẠM</h1>
+            <h1 className="pv-title">{t("pdf.title")}</h1>
             <div className="pv-subtitle">
-              Số định danh: <b>{val(form.personal_id || form.cccd_number)}</b>
+              {t("pdf.record_id")} <b>{val(form.personal_id || form.cccd_number)}</b>
             </div>
           </div>
 
-          {/* ===== I. Thông tin cá nhân (2 cột: bảng + ảnh chân dung 4x6) ===== */}
-          <h3 className="pv-section">I. THÔNG TIN CÁ NHÂN</h3>
+          {/* ===== I. Personal info (2 cols: table + 4x6 portrait) ===== */}
+          <h3 className="pv-section">{t("pdf.section1")}</h3>
           <div className="pv-info-row">
             <table className="pv-table pv-info-table pv-info-single">
               <tbody>
-                <tr><td className="pv-label">Họ và tên</td><td>{val(form.full_name)}</td></tr>
-                <tr><td className="pv-label">Ngày sinh</td><td>{val(form.dob)}</td></tr>
-                <tr><td className="pv-label">Giới tính</td><td>{val(genderVi)}</td></tr>
-                <tr><td className="pv-label">Số CCCD</td><td>{val(form.cccd_number)}</td></tr>
-                <tr><td className="pv-label">Quốc tịch</td><td>{val(form.nationality)}</td></tr>
-                <tr><td className="pv-label">Dân tộc</td><td>{val(form.ethnicity)}</td></tr>
-                <tr><td className="pv-label">Tôn giáo</td><td>{val(form.religion)}</td></tr>
-                <tr><td className="pv-label">Quê quán</td><td>{val(form.hometown)}</td></tr>
-                <tr><td className="pv-label">Nơi thường trú</td><td>{val(form.address)}</td></tr>
-                <tr><td className="pv-label">Ngày cấp CCCD</td><td>{val(form.issued_date)}</td></tr>
-                <tr><td className="pv-label">Ngày hết hạn</td><td>{val(form.expiry_date)}</td></tr>
-                <tr><td className="pv-label">Nơi cấp CCCD</td><td>{val(form.issued_place)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.full_name")}</td><td>{val(form.full_name)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.dob")}</td><td>{val(form.dob)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.gender")}</td><td>{val(genderVi)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.cccd")}</td><td>{val(form.cccd_number)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.nationality")}</td><td>{val(form.nationality)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.ethnicity")}</td><td>{val(form.ethnicity)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.religion")}</td><td>{val(form.religion)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.hometown")}</td><td>{val(form.hometown)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.address")}</td><td>{val(form.address)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.issued_date")}</td><td>{val(form.issued_date)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.expiry")}</td><td>{val(form.expiry_date)}</td></tr>
+                <tr><td className="pv-label">{t("pdf.field.issued_place")}</td><td>{val(form.issued_place)}</td></tr>
               </tbody>
             </table>
             <div className="pv-info-photo">
               <div className="pv-portrait-4x6">
                 {photos.cccd_front
-                  ? <img src={photos.cccd_front} alt="Ảnh CCCD" />
-                  : <span>Ảnh CCCD</span>}
+                  ? <img src={photos.cccd_front} alt={t("pdf.cccd_photo")} />
+                  : <span>{t("pdf.cccd_photo")}</span>}
               </div>
-              <div className="pv-portrait-4x6-caption">Ảnh CCCD</div>
+              <div className="pv-portrait-4x6-caption">{t("pdf.cccd_photo")}</div>
             </div>
           </div>
 
-          {/* ===== II. Chỉ số nhận dạng & thông tin giam giữ ===== */}
-          <h3 className="pv-section">II. CHỈ SỐ NHẬN DẠNG &amp; THÔNG TIN GIAM GIỮ</h3>
+          {/* ===== II. Biometric & custody info ===== */}
+          <h3 className="pv-section">{t("pdf.section2")}</h3>
           <table className="pv-table pv-info-table">
             <colgroup>
               <col style={{ width: "28%" }} />
@@ -1705,84 +1692,88 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
             </colgroup>
             <tbody>
               <tr>
-                <td className="pv-label">Chiều cao (cm)</td><td>{val(form.height_cm)}</td>
-                <td className="pv-label">Cân nặng (kg)</td><td>{val(form.weight_kg)}</td>
+                <td className="pv-label">{t("pdf.field.height")}</td><td>{val(form.height_cm)}</td>
+                <td className="pv-label">{t("pdf.field.weight")}</td><td>{val(form.weight_kg)}</td>
               </tr>
               <tr>
-                <td className="pv-label">Ngày vào buồng</td><td>{val(form.date_in)}</td>
-                <td className="pv-label">Mã hồ sơ</td><td>{val(form.personal_id)}</td>
+                <td className="pv-label">{t("pdf.field.date_in")}</td><td>{val(form.date_in)}</td>
+                <td className="pv-label">{t("pdf.field.cell")}</td><td>{val(form.cell_code)}</td>
               </tr>
               <tr>
-                <td className="pv-label">Ghi chú</td>
+                <td className="pv-label">{t("pdf.field.note")}</td>
                 <td colSpan={3}>{val(form.note)}</td>
               </tr>
             </tbody>
           </table>
 
-          {/* ===== III. Ảnh chân dung đa góc (3 khung ngang) ===== */}
-          <h3 className="pv-section">III. ẢNH CHÂN DUNG</h3>
+          {/* ===== III. Portrait photos (3 frames) ===== */}
+          <h3 className="pv-section">{t("pdf.section3")}</h3>
           <div className="pv-portraits">
             {PORTRAITS.map((p) => (
               <div key={p.key} className="pv-portrait-item">
                 <div className="pv-portrait-frame">
                   {photos[p.key]
-                    ? <img src={photos[p.key]} alt={p.label} />
-                    : <span className="pv-empty">Chưa có</span>}
+                    ? <img src={photos[p.key]} alt={t(p.labelKey)} />
+                    : <span className="pv-empty">{t("pdf.no_photo")}</span>}
                 </div>
-                <span>{p.label}</span>
+                <span>{t(p.labelKey)}</span>
               </div>
             ))}
           </div>
 
-          {/* ===== IV. Vân tay 10 ngón (2 hàng x 5 cột theo bàn tay) ===== */}
-          <h3 className="pv-section">IV. VÂN TAY 10 NGÓN</h3>
+          {/* ===== IV. Ten-finger prints (2 rows x 5 cols by hand) ===== */}
+          <h3 className="pv-section">{t("pdf.section4")}</h3>
           <div className="pv-fp-wrap">
             <div className="pv-fp-hand">
-              <div className="pv-fp-row-label">Bàn tay TRÁI</div>
               <div className="pv-fp-grid">
-                {LEFT_HAND.map((f) => (
-                  <div key={f.key} className="pv-fp-item">
-                    <div className="pv-fp-frame">
-                      {photos[f.key]
-                        ? <img src={photos[f.key]} alt={f.label} />
-                        : <span className="pv-empty">—</span>}
+                {LEFT_HAND.map((f) => {
+                  const label = t(`fp.finger.${f.code}.long`);
+                  return (
+                    <div key={f.key} className="pv-fp-item">
+                      <div className="pv-fp-frame">
+                        {photos[f.key]
+                          ? <img src={photos[f.key]} alt={label} />
+                          : <span className="pv-empty">—</span>}
+                      </div>
+                      <span>{label}</span>
                     </div>
-                    <span>{f.label}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div className="pv-fp-hand">
-              <div className="pv-fp-row-label">Bàn tay PHẢI</div>
               <div className="pv-fp-grid">
-                {RIGHT_HAND.map((f) => (
-                  <div key={f.key} className="pv-fp-item">
-                    <div className="pv-fp-frame">
-                      {photos[f.key]
-                        ? <img src={photos[f.key]} alt={f.label} />
-                        : <span className="pv-empty">—</span>}
+                {RIGHT_HAND.map((f) => {
+                  const label = t(`fp.finger.${f.code}.long`);
+                  return (
+                    <div key={f.key} className="pv-fp-item">
+                      <div className="pv-fp-frame">
+                        {photos[f.key]
+                          ? <img src={photos[f.key]} alt={label} />
+                          : <span className="pv-empty">—</span>}
+                      </div>
+                      <span>{label}</span>
                     </div>
-                    <span>{f.label}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          {/* ===== Chữ ký ===== */}
+          {/* ===== Signatures ===== */}
           <div className="pv-signatures">
             <div className="pv-sig-block">
               <div className="pv-sig-place">&nbsp;</div>
-              <div className="pv-sig-role">NGƯỜI KHAI</div>
-              <div className="pv-sig-note">(Ký, ghi rõ họ tên)</div>
+              <div className="pv-sig-role">{t("pdf.declarant")}</div>
+              <div className="pv-sig-note">{t("pdf.sign_note")}</div>
               <div className="pv-sig-space" />
             </div>
             <div className="pv-sig-block">
               <div className="pv-sig-place">
-                Ngày {dd} tháng {mm} năm {yyyy}
+                {dateLong}
               </div>
-              <div className="pv-sig-role">CÁN BỘ LẬP HỒ SƠ</div>
-              <div className="pv-sig-note">(Ký, ghi rõ họ tên)</div>
+              <div className="pv-sig-role">{t("pdf.officer")}</div>
+              <div className="pv-sig-note">{t("pdf.sign_note")}</div>
               <div className="pv-sig-space" />
             </div>
           </div>

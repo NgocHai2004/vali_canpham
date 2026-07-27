@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, cccdApi } from "./api";
 import { notify } from "./notifications";
+import SyncDiffModal, { buildSyncDiff } from "./SyncDiffModal";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
@@ -66,16 +67,18 @@ const Icon = {
 };
 
 const NAV_BASE = [
-  { key: "dashboard", label: "Tổng quan", icon: Icon.dashboard },
-  { key: "sessions", label: "Phiên làm việc", icon: Icon.clipboard },
-  { key: "detainees", label: "Hồ sơ can phạm", icon: Icon.folder },
-  { key: "cells", label: "Đồng bộ dữ liệu", icon: Icon.sync },
-  { key: "search", label: "Tra cứu", icon: Icon.search },
-  { key: "detainee_history", label: "Lịch sử", icon: Icon.log },
+  { key: "dashboard", labelKey: "nav.dashboard", icon: Icon.dashboard },
+  { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
+  { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
+  { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
+  { key: "search", labelKey: "nav.search", icon: Icon.search },
+  { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
 ];
-const NAV_ADMIN = [{ key: "users", label: "Quản lý tài khoản", icon: Icon.users }];
+const NAV_ADMIN = [{ key: "users", labelKey: "nav.users", icon: Icon.users }];
 
 export default function Dashboard({ username = "admin", role = "user", fullName = "", onLogout }) {
+  const { t, locale } = useI18n();
+  useEffect(() => { setLastLocale(locale); }, [locale]);
   const [page, setPage] = useState("dashboard");
   const [editingDetainee, setEditingDetainee] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null);
@@ -105,7 +108,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
       setActiveSessionId(cur.id);
       setPage("session_capture");
     } catch (ex) {
-      alert("Bạn cần mở một phiên làm việc trước khi chỉnh sửa hồ sơ.");
+      alert(t("session.open.err.officer_required_alt") || t("session.open.err.officer_required"));
       setEditingDetainee(null);
       setPage("sessions");
     }
@@ -161,7 +164,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
         />
 
         <aside className="sidebar">
-          <div className="sidebar-title">CHỨC NĂNG</div>
+          <div className="sidebar-title">{t("nav.function_group")}</div>
 
           <nav className="nav">
             {NAV.map((item) => (
@@ -171,7 +174,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
                 onClick={() => goPage(item.key)}
               >
                 <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </button>
             ))}
           </nav>
@@ -179,8 +182,8 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           <div className="security-card">
             <div className="security-icon">{Icon.shield}</div>
             <div>
-              <strong>Bảo mật & an toàn</strong>
-              <p>Hệ thống nội bộ được giám sát và bảo vệ liên tục.</p>
+              <strong>{t("nav.security_title")}</strong>
+              <p>{t("nav.security_desc")}</p>
             </div>
           </div>
         </aside>
@@ -228,13 +231,14 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
 }
 
 const DEVICE_CHIPS = [
-  { key: "camera", label: "Camera" },
-  { key: "cccd", label: "Quét CCCD" },
-  { key: "fp", label: "Vân tay" },
-  { key: "scale", label: "Cân điện tử" },
+  { key: "camera", labelKey: "header.device.camera" },
+  { key: "cccd", labelKey: "header.device.cccd" },
+  { key: "fp", labelKey: "header.device.fp" },
+  { key: "scale", labelKey: "header.device.scale" },
 ];
 
 function Header({ username, devices, notif, onLogout, isAdmin }) {
+  const { t } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef(null);
 
@@ -258,37 +262,40 @@ function Header({ username, devices, notif, onLogout, isAdmin }) {
     <header className="header">
       <div className="brand">
         <div className="brand-logo">
-          <img src="/brand-logo.png" alt="Công an Nhân dân Việt Nam" />
+          <img src="/brand-logo.png" alt={t("header.brand_logo_alt")} />
         </div>
         <div>
-          <div className="brand-title">PHẦN MỀM ĐĂNG KÝ CAN PHẠM</div>
-          <div className="brand-subtitle">Cổng nội bộ • Phiên bản 1.0</div>
+          <div className="brand-title">{t("header.brand_title")}</div>
+          <div className="brand-subtitle">{t("header.brand_subtitle")}</div>
         </div>
       </div>
 
       <div className="header-actions">
-        <div className="device-chips" role="group" aria-label="Trạng thái thiết bị">
+        <div className="device-chips" role="group" aria-label={t("header.device_group")}>
           {DEVICE_CHIPS.map((d) => {
             const ok = Boolean(devices?.[d.key]);
+            const label = t(d.labelKey);
             return (
               <div
                 key={d.key}
                 className={`device-chip ${ok ? "online" : "offline"}`}
-                title={`${d.label}: ${ok ? "Đã kết nối" : "Chưa kết nối"}`}
+                title={`${label}: ${ok ? t("header.device.connected") : t("header.device.disconnected")}`}
               >
                 <span className="device-chip-dot" />
-                <span className="device-chip-label">{d.label}</span>
+                <span className="device-chip-label">{label}</span>
               </div>
             );
           })}
         </div>
 
+        <LanguageSwitch />
+
         <div className="notif-wrap" ref={notifRef}>
           <button
             className="icon-button"
-            aria-label="Thông báo"
+            aria-label={t("header.notif.aria")}
             onClick={toggleNotif}
-            title={notif.unread > 0 ? `${notif.unread} thông báo mới` : "Thông báo"}
+            title={notif.unread > 0 ? t("header.notif.new", { n: notif.unread }) : t("header.notif.none")}
           >
             {Icon.bell}
             {notif.unread > 0 && <b>{notif.unread > 99 ? "99+" : notif.unread}</b>}
@@ -296,20 +303,20 @@ function Header({ username, devices, notif, onLogout, isAdmin }) {
           {notifOpen && (
             <div className="notif-panel">
               <div className="notif-panel-head">
-                <strong>Thông báo</strong>
+                <strong>{t("header.notif.aria")}</strong>
                 {notif.items.length > 0 && (
                   <button
                     type="button"
                     className="notif-clear"
                     onClick={() => notify.clearAll()}
                   >
-                    Xoá tất cả
+                    {t("common.delete")} {t("common.all").toLowerCase()}
                   </button>
                 )}
               </div>
               <div className="notif-panel-list">
                 {notif.items.length === 0 ? (
-                  <div className="notif-empty">Chưa có thông báo</div>
+                  <div className="notif-empty">{t("header.notif.none")}</div>
                 ) : (
                   notif.items.map((it) => (
                     <div className="notif-item" key={it.id}>
@@ -330,13 +337,13 @@ function Header({ username, devices, notif, onLogout, isAdmin }) {
           <div className="avatar">{username.slice(0, 1).toUpperCase()}</div>
           <div className="user-info">
             <strong>{username}</strong>
-            <span>{isAdmin ? "Quản trị viên" : "Cán bộ"}</span>
+            <span>{isAdmin ? t("common.role.admin") : t("common.role.officer")}</span>
           </div>
         </div>
 
         <button className="logout-button" onClick={onLogout}>
           {Icon.logout}
-          Đăng xuất
+          {t("header.logout")}
         </button>
       </div>
     </header>
@@ -466,14 +473,14 @@ function makeHwSample() {
 }
 
 const DEVICE_TEMPLATE = [
-  { id: "cccd", label: "Đầu đọc CCCD", note: "CardReader ACR39U", port: "USB 3.0 · Port 1" },
-  { id: "fp", label: "Máy quét vân tay", note: "Live Scan L-Scan Guardian", port: "USB 3.0 · Port 2" },
-  { id: "cam", label: "Camera chân dung", note: "Sony IMX415 · 4K", port: "USB 3.0 · Port 3" },
-  { id: "iris", label: "Camera mống mắt", note: "IriShield MK2120U", port: "USB 3.0 · Port 4" },
-  { id: "sign", label: "Bảng ký số", note: "Wacom STU-540", port: "USB 2.0 · Port 5" },
-  { id: "lan", label: "Kết nối mạng LAN", note: "Gigabit · 1 Gbps", port: "RJ45" },
-  { id: "printer", label: "Máy in nhiệt", note: "Zebra ZD421", port: "USB 2.0 · Port 6" },
-  { id: "hub", label: "USB Hub nội bộ", note: "7 cổng · 5 Gbps", port: "PCIe Bus 0" },
+  { id: "cccd", labelKey: "device.reader", note: "CardReader ACR39U", port: "USB 3.0 · Port 1" },
+  { id: "fp", labelKey: "device.fp", note: "Live Scan L-Scan Guardian", port: "USB 3.0 · Port 2" },
+  { id: "cam", labelKey: "device.cam", note: "Sony IMX415 · 4K", port: "USB 3.0 · Port 3" },
+  { id: "iris", labelKey: "device.iris", note: "IriShield MK2120U", port: "USB 3.0 · Port 4" },
+  { id: "sign", labelKey: "device.sign", note: "Wacom STU-540", port: "USB 2.0 · Port 5" },
+  { id: "lan", labelKey: "device.lan", note: "Gigabit · 1 Gbps", port: "RJ45" },
+  { id: "printer", labelKey: "device.printer", note: "Zebra ZD421", port: "USB 2.0 · Port 6" },
+  { id: "hub", labelKey: "device.hub", note: "7-port · 5 Gbps", port: "PCIe Bus 0" },
 ];
 
 function makeDeviceList() {
@@ -497,6 +504,7 @@ function tickDevices(prev) {
 }
 
 function DashboardHome({ go }) {
+  const { t, greeting, dayNames, formatNumber } = useI18n();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
@@ -505,14 +513,14 @@ function DashboardHome({ go }) {
 
   useEffect(() => {
     api.stats().then(setStats).catch((e) => setError(e.message));
-    const t = setInterval(() => setNow(new Date()), 30_000);
+    const tmr = setInterval(() => setNow(new Date()), 30_000);
     const th = setInterval(() => setHw(makeHwSample()), 2500);
     const td = setInterval(() => setDevices((prev) => tickDevices(prev)), 4000);
-    return () => { clearInterval(t); clearInterval(th); clearInterval(td); };
+    return () => { clearInterval(tmr); clearInterval(th); clearInterval(td); };
   }, []);
 
-  if (error) return <StateBox type="error">Lỗi: {error}</StateBox>;
-  if (!stats) return <StateBox>Đang tải dữ liệu...</StateBox>;
+  if (error) return <StateBox type="error">{t("common.error_prefix", { message: error })}</StateBox>;
+  if (!stats) return <StateBox>{t("dashboard.loading")}</StateBox>;
 
   const total = stats.total || 0;
   const male = stats.male || 0;
@@ -528,8 +536,7 @@ function DashboardHome({ go }) {
   const missing = stats.missing_data_count || 0;
 
   const hour = now.getHours();
-  const greet = hour < 11 ? "Chào buổi sáng" : hour < 14 ? "Chào buổi trưa" : hour < 18 ? "Chào buổi chiều" : "Chào buổi tối";
-  const dayNames = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+  const greet = greeting(hour);
   const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const dateStr = `${dayNames[now.getDay()]}, ${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
 
@@ -539,28 +546,28 @@ function DashboardHome({ go }) {
     <div className="page dashboard-page">
       <div className="dash-hero">
         <div>
-          <h1>{greet}, {stats.open_session?.officer_full_name || "cán bộ"}</h1>
+          <h1>{greet}, {stats.open_session?.officer_full_name || t("dashboard.greet_officer_default")}</h1>
           <p>{timeStr} • {dateStr}</p>
         </div>
         {openSession ? (
           <div className="dash-hero-session">
             <div className="dash-hero-session-info">
-              <span className="dash-hero-badge">● Phiên đang mở</span>
+              <span className="dash-hero-badge">{t("dashboard.session.open_badge")}</span>
               <strong className="mono">{openSession.code}</strong>
-              <small>Đã nhập {openSession.detainee_count || 0} hồ sơ</small>
+              <small>{t("dashboard.session.detainee_count", { n: openSession.detainee_count || 0 })}</small>
             </div>
             <button className="button primary" onClick={() => go("sessions")}>
-              Vào phiên {Icon.arrow}
+              {t("dashboard.session.enter")} {Icon.arrow}
             </button>
           </div>
         ) : (
           <div className="dash-hero-session dash-hero-session-empty">
             <div className="dash-hero-session-info">
-              <span className="dash-hero-badge dash-hero-badge-idle">○ Chưa có phiên</span>
-              <small>Mở phiên mới để bắt đầu thu nhận dữ liệu</small>
+              <span className="dash-hero-badge dash-hero-badge-idle">{t("dashboard.session.idle_badge")}</span>
+              <small>{t("dashboard.session.idle_hint")}</small>
             </div>
             <button className="button primary" onClick={() => go("sessions")}>
-              {Icon.plus} Mở phiên mới
+              {Icon.plus} {t("dashboard.session.new")}
             </button>
           </div>
         )}
@@ -570,33 +577,33 @@ function DashboardHome({ go }) {
         <StatCard
           tone="green"
           icon={Icon.file}
-          label="Hồ sơ hôm nay"
+          label={t("dashboard.stat.today")}
           value={stats.today}
-          note={todayDelta === 0 ? "Bằng hôm qua" : todayDelta > 0 ? `↑ ${todayDelta} vs hôm qua` : `↓ ${Math.abs(todayDelta)} vs hôm qua`}
+          note={todayDelta === 0 ? t("dashboard.stat.today.same") : todayDelta > 0 ? t("dashboard.stat.today.up", { n: todayDelta }) : t("dashboard.stat.today.down", { n: Math.abs(todayDelta) })}
           delta={todayDelta}
           extra={<Sparkline data={activity.map((a) => a.count)} color="#12af64" />}
         />
         <StatCard
           tone="blue"
           icon={Icon.folder}
-          label="Tổng hồ sơ can phạm"
-          value={total.toLocaleString("vi-VN")}
-          note="Đang quản lý toàn hệ thống"
+          label={t("dashboard.stat.total")}
+          value={formatNumber(total)}
+          note={t("dashboard.stat.total.note")}
           onClick={() => go("detainees")}
         />
         <StatCard
           tone="purple"
           icon={Icon.clipboard}
-          label="Phiên đang mở"
+          label={t("dashboard.stat.open_session")}
           value={openSession ? 1 : 0}
-          note={openSession ? openSession.code : "Chưa có phiên nào"}
+          note={openSession ? openSession.code : t("dashboard.stat.open_session.none")}
         />
         <StatCard
           tone={missing > 0 ? "orange" : "green"}
           icon={Icon.shield}
-          label="Hồ sơ thiếu dữ liệu"
+          label={t("dashboard.stat.missing")}
           value={missing}
-          note={missing > 0 ? "Cần bổ sung ảnh/CCCD" : "Đầy đủ"}
+          note={missing > 0 ? t("dashboard.stat.missing.need") : t("dashboard.stat.missing.ok")}
           alert={missing > 0}
           onClick={() => go("detainees")}
         />
@@ -604,29 +611,29 @@ function DashboardHome({ go }) {
 
       <div className="dashboard-body">
         <section className="panel">
-          <PanelHeader title="Hoạt động 14 ngày qua" />
+          <PanelHeader title={t("dashboard.panel.activity14")} />
           <BarChart data={activity} />
         </section>
 
         <section className="panel panel-donut">
-          <PanelHeader title="Cơ cấu giới tính" />
+          <PanelHeader title={t("dashboard.panel.gender")} />
           <DonutGender male={male} female={female} malePct={malePct} femalePct={femalePct} />
         </section>
 
         <section className="panel">
-          <PanelHeader title="Trạng thái vali thu nhận" />
+          <PanelHeader title={t("dashboard.panel.hardware")} />
           <HardwareStatus hw={hw} />
         </section>
 
         <section className="panel">
-          <PanelHeader title="Thiết bị kết nối" />
+          <PanelHeader title={t("dashboard.panel.devices")} />
           <DeviceStatus devices={devices} />
         </section>
 
         <section className="panel">
           <PanelHeader
-            title="5 phiên gần nhất"
-            action="Xem tất cả"
+            title={t("dashboard.panel.recent_sessions")}
+            action={t("dashboard.panel.view_all")}
             onAction={() => go("sessions")}
           />
           <div className="session-list">
@@ -639,22 +646,22 @@ function DashboardHome({ go }) {
                     <small>{s.officer_full_name || s.officer}</small>
                   </div>
                   <div className="session-meta">
-                    {s.detainee_count || 0} hồ sơ • {formatDateTime(s.opened_at)}
+                    {t("dashboard.session.detainee_count", { n: s.detainee_count || 0 }).replace(/^.*? /, "")} • {formatDateTime(s.opened_at)}
                   </div>
                 </div>
                 <span className={`session-status ${s.status}`}>
-                  {s.status === "open" ? "Đang mở" : "Đã đóng"}
+                  {s.status === "open" ? t("dashboard.session.status.open") : t("dashboard.session.status.closed")}
                 </span>
               </div>
             ))}
-            {!recentSessions.length && <div className="empty">Chưa có phiên nào.</div>}
+            {!recentSessions.length && <div className="empty">{t("dashboard.session.list.empty")}</div>}
           </div>
         </section>
 
         <section className="panel">
           <PanelHeader
-            title="Nhật ký hoạt động"
-            action="Xem báo cáo"
+            title={t("dashboard.panel.logs")}
+            action={t("dashboard.panel.view_report")}
             onAction={() => go("logs")}
           />
           <div className="activity-feed">
@@ -663,28 +670,20 @@ function DashboardHome({ go }) {
                 <span className={`activity-dot ${a.action}`} />
                 <div className="activity-main">
                   <div className="activity-line">
-                    <strong>{a.actor_full_name}</strong> {ACTIVITY_LABEL[a.action] || a.action}{" "}
+                    <strong>{a.actor_full_name}</strong> {t(`activity.${a.action}`, undefined) || a.action}{" "}
                     <span className="mono">{a.ref || a.resource}</span>
                   </div>
                   <div className="activity-time">{formatDateTime(a.at)}</div>
                 </div>
               </div>
             ))}
-            {!recentActivity.length && <div className="empty">Chưa có hoạt động.</div>}
+            {!recentActivity.length && <div className="empty">{t("dashboard.activity.empty")}</div>}
           </div>
         </section>
       </div>
     </div>
   );
 }
-
-const ACTIVITY_LABEL = {
-  create: "đã tạo",
-  update: "đã sửa",
-  delete: "đã xoá",
-  import: "đã nhập Excel",
-  login: "đã đăng nhập",
-};
 
 function Sparkline({ data = [], color = "#2371f4" }) {
   if (!data.length) return null;
@@ -703,7 +702,8 @@ function Sparkline({ data = [], color = "#2371f4" }) {
 }
 
 function BarChart({ data = [] }) {
-  if (!data.length) return <div className="empty">Không có dữ liệu.</div>;
+  const { t } = useI18n();
+  if (!data.length) return <div className="empty">{t("dashboard.no_data")}</div>;
   const max = Math.max(1, ...data.map((d) => d.count));
   return (
     <div className="bar-chart">
@@ -713,7 +713,7 @@ function BarChart({ data = [] }) {
           const day = new Date(d.date);
           const label = `${day.getDate()}/${day.getMonth() + 1}`;
           return (
-            <div className="bar-col" key={d.date} title={`${label}: ${d.count} hồ sơ`}>
+            <div className="bar-col" key={d.date} title={t("dashboard.hoso.for_day", { label, n: d.count })}>
               <span className="bar-count">{d.count || ""}</span>
               <span className="bar-fill" style={{ height: `${pct}%` }} />
               <span className="bar-label">{label}</span>
@@ -726,6 +726,7 @@ function BarChart({ data = [] }) {
 }
 
 function DonutGender({ male, female, malePct, femalePct }) {
+  const { t, formatNumber } = useI18n();
   const total = male + female;
   const r = 52;
   const c = 2 * Math.PI * r;
@@ -751,19 +752,19 @@ function DonutGender({ male, female, malePct, femalePct }) {
           transform="rotate(-90 70 70)"
         />
         <text x="70" y="66" textAnchor="middle" className="donut-value">{malePct}%</text>
-        <text x="70" y="86" textAnchor="middle" className="donut-label">Nam</text>
+        <text x="70" y="86" textAnchor="middle" className="donut-label">{t("dashboard.donut.male")}</text>
       </svg>
       <div className="donut-legend">
         <div className="donut-legend-row">
           <span className="donut-dot" style={{ background: MALE_COLOR }} />
-          <span>Nam</span>
-          <strong>{male.toLocaleString("vi-VN")}</strong>
+          <span>{t("dashboard.donut.male")}</span>
+          <strong>{formatNumber(male)}</strong>
           <small>{malePct}%</small>
         </div>
         <div className="donut-legend-row">
           <span className="donut-dot" style={{ background: FEMALE_COLOR }} />
-          <span>Nữ</span>
-          <strong>{female.toLocaleString("vi-VN")}</strong>
+          <span>{t("dashboard.donut.female")}</span>
+          <strong>{formatNumber(female)}</strong>
           <small>{femalePct}%</small>
         </div>
       </div>
@@ -826,36 +827,37 @@ function HardwareBar({ label, value, unit = "%", tone = "red" }) {
 }
 
 function HardwareStatus({ hw }) {
+  const { t, formatNumber } = useI18n();
   const uptimeH = Math.floor(hw.uptime / 3600);
   const uptimeM = Math.floor((hw.uptime % 3600) / 60);
   return (
     <div className="hw-status">
       <div className="hw-rings">
-        <RingGauge value={hw.cpu} label="CPU" tone={hw.cpu > 80 ? "red" : hw.cpu > 60 ? "orange" : "green"} />
-        <RingGauge value={hw.ram} label="RAM" tone={hw.ram > 80 ? "red" : hw.ram > 60 ? "orange" : "green"} />
-        <RingGauge value={hw.disk} label="Ổ đĩa" tone={hw.disk > 85 ? "red" : "blue"} />
-        <RingGauge value={hw.gpu} label="Chip AI" tone="purple" />
+        <RingGauge value={hw.cpu} label={t("hw.cpu")} tone={hw.cpu > 80 ? "red" : hw.cpu > 60 ? "orange" : "green"} />
+        <RingGauge value={hw.ram} label={t("hw.ram")} tone={hw.ram > 80 ? "red" : hw.ram > 60 ? "orange" : "green"} />
+        <RingGauge value={hw.disk} label={t("hw.disk")} tone={hw.disk > 85 ? "red" : "blue"} />
+        <RingGauge value={hw.gpu} label={t("hw.chip")} tone="purple" />
       </div>
       <div className="hw-bars">
-        <HardwareBar label="Nhiệt độ hệ thống" value={hw.temp} unit="°C" tone={hw.temp > 70 ? "red" : hw.temp > 55 ? "orange" : "green"} />
-        <HardwareBar label="Nguồn (pin dự phòng)" value={hw.battery} tone={hw.battery < 20 ? "red" : "green"} />
+        <HardwareBar label={t("hw.temp")} value={hw.temp} unit="°C" tone={hw.temp > 70 ? "red" : hw.temp > 55 ? "orange" : "green"} />
+        <HardwareBar label={t("hw.battery")} value={hw.battery} tone={hw.battery < 20 ? "red" : "green"} />
       </div>
       <div className="hw-meta">
         <div className="hw-meta-item">
-          <span>Điện áp vào</span>
+          <span>{t("hw.power_in")}</span>
           <strong>{hw.powerIn} V</strong>
         </div>
         <div className="hw-meta-item">
-          <span>Quạt tản</span>
-          <strong>{hw.fan.toLocaleString("vi-VN")} rpm</strong>
+          <span>{t("hw.fan")}</span>
+          <strong>{formatNumber(hw.fan)} rpm</strong>
         </div>
         <div className="hw-meta-item">
-          <span>Thời gian chạy</span>
+          <span>{t("hw.uptime")}</span>
           <strong>{uptimeH}h {String(uptimeM).padStart(2, "0")}m</strong>
         </div>
         <div className="hw-meta-item">
-          <span>Trạng thái</span>
-          <strong className="hw-meta-ok">● Vali sẵn sàng</strong>
+          <span>{t("hw.status")}</span>
+          <strong className="hw-meta-ok">{t("hw.ready")}</strong>
         </div>
       </div>
     </div>
@@ -863,11 +865,12 @@ function HardwareStatus({ hw }) {
 }
 
 function DeviceStatus({ devices = [] }) {
+  const { t } = useI18n();
   const okCount = devices.filter((d) => d.status === "ok").length;
   return (
     <div className="dev-status">
       <div className="dev-status-summary">
-        <span>Đã kết nối</span>
+        <span>{t("device.connected")}</span>
         <strong>{okCount}/{devices.length}</strong>
       </div>
       <div className="dev-list">
@@ -876,9 +879,9 @@ function DeviceStatus({ devices = [] }) {
             <span className="dev-dot" />
             <div className="dev-main">
               <div className="dev-line">
-                <strong>{d.label}</strong>
+                <strong>{t(d.labelKey)}</strong>
                 <span className={`dev-badge dev-badge-${d.status}`}>
-                  {d.status === "ok" ? "Hoạt động" : "Cảnh báo"}
+                  {d.status === "ok" ? t("device.status.ok") : t("device.status.warn")}
                 </span>
               </div>
               <div className="dev-meta">
@@ -904,7 +907,8 @@ function DeviceStatus({ devices = [] }) {
 }
 
 function HBarList({ items = [], empty, color = "#2371f4" }) {
-  if (!items.length) return <div className="empty">{empty || "Không có dữ liệu."}</div>;
+  const { t } = useI18n();
+  if (!items.length) return <div className="empty">{empty || t("dashboard.no_data")}</div>;
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
     <div className="hbar-list">
@@ -925,7 +929,8 @@ function HBarList({ items = [], empty, color = "#2371f4" }) {
 }
 
 function OfficerList({ officers = [] }) {
-  if (!officers.length) return <div className="empty">Chưa có hoạt động trong 7 ngày.</div>;
+  const { t } = useI18n();
+  if (!officers.length) return <div className="empty">{t("dashboard.activity.empty")}</div>;
   const max = Math.max(1, ...officers.map((o) => o.count));
   return (
     <div className="officer-list">
@@ -1030,6 +1035,7 @@ function PageTitle({ title, subtitle, icon }) {
 }
 
 function DetaineesPage({ onEdit }) {
+  const { t, formatDate } = useI18n();
   const [items, setItems] = useState([]);
   const [cells, setCells] = useState([]);
   const [total, setTotal] = useState(0);
@@ -1070,13 +1076,13 @@ function DetaineesPage({ onEdit }) {
   }, [skip]);
 
   const deleteItem = async (item) => {
-    if (!window.confirm(`Xoá hồ sơ ${item.code} - ${item.full_name}?`)) return;
+    if (!window.confirm(t("detainee.confirm.delete", { code: item.code, name: item.full_name }))) return;
     try {
       await api.deleteDetainee(item.id);
-      notify.add(`Đã xoá hồ sơ ${item.code} - ${item.full_name}`);
+      notify.add();
       load();
     } catch (e) {
-      window.alert(`Lỗi: ${e.message}`);
+      window.alert(t("common.error_prefix", { message: e.message }));
     }
   };
 
@@ -1085,28 +1091,28 @@ function DetaineesPage({ onEdit }) {
 
   return (
     <div className="page">
-      <PageHeader title="Danh sách can phạm" subtitle={`Tổng ${total} hồ sơ`}>
+      <PageHeader title={t("detainee.list.title")} subtitle={t("detainee.list.total", { n: total })}>
       </PageHeader>
 
       <div className="detainees-table-wrap">
         {loading ? (
-          <StateBox>Đang tải...</StateBox>
+          <StateBox>{t("common.loading")}</StateBox>
         ) : error ? (
           <StateBox type="error">{error}</StateBox>
         ) : !items.length ? (
-          <StateBox>Không có hồ sơ nào.</StateBox>
+          <StateBox>{t("detainee.empty")}</StateBox>
         ) : (
           <table className="detainees-table">
             <thead>
               <tr>
-                <th>Ảnh</th>
-                <th>Mã hồ sơ</th>
-                <th>Họ và tên</th>
-                <th>Giới tính</th>
-                <th>Ngày sinh</th>
-                <th>Số CCCD</th>
-                <th>Buồng</th>
-                <th>Thao tác</th>
+                <th>{t("detainee.col.photo")}</th>
+                <th>{t("detainee.col.code")}</th>
+                <th>{t("detainee.col.name")}</th>
+                <th>{t("detainee.col.gender")}</th>
+                <th>{t("detainee.col.dob")}</th>
+                <th>{t("detainee.col.cccd")}</th>
+                <th>{t("detainee.col.cell")}</th>
+                <th>{t("detainee.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1123,13 +1129,13 @@ function DetaineesPage({ onEdit }) {
                   </td>
                   <td><strong>{item.personal_id || item.code}</strong></td>
                   <td>{item.full_name}</td>
-                  <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
-                  <td>{item.dob ? new Date(item.dob).toLocaleDateString("vi-VN") : "-"}</td>
+                  <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
+                  <td>{item.dob ? formatDate(item.dob) : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
                   <td>{item.cell_code || "-"}</td>
                   <td>
                     <div className="row-actions">
-                      <button onClick={() => setViewing(item)}>Xem</button>
+                      <button onClick={() => setViewing(item)}>{t("detainee.action.view")}</button>
                       <button
                         onClick={async () => {
                           try {
@@ -1139,8 +1145,8 @@ function DetaineesPage({ onEdit }) {
                             onEdit?.(item);
                           }
                         }}
-                      >Sửa</button>
-                      <button className="danger-text" onClick={() => deleteItem(item)}>Xoá</button>
+                      >{t("detainee.action.edit")}</button>
+                      <button className="danger-text" onClick={() => deleteItem(item)}>{t("detainee.action.delete")}</button>
                     </div>
                   </td>
                 </tr>
@@ -1149,11 +1155,11 @@ function DetaineesPage({ onEdit }) {
           </table>
         )}
         <div className="session-list-toolbar">
-          <div className="session-list-total">Tổng: {total}</div>
+          <div className="session-list-total">{t("common.total", { n: total })}</div>
           <div className="pagination">
-            <button disabled={!skip || loading} onClick={() => setSkip(Math.max(0, skip - limit))}>← Trước</button>
-            <span>Trang {currentPage} / {pages}</span>
-            <button disabled={currentPage >= pages || loading} onClick={() => setSkip(skip + limit)}>Sau →</button>
+            <button disabled={!skip || loading} onClick={() => setSkip(Math.max(0, skip - limit))}>{t("common.prev")}</button>
+            <span>{t("common.page_of", { page: currentPage, total: pages })}</span>
+            <button disabled={currentPage >= pages || loading} onClick={() => setSkip(skip + limit)}>{t("common.next")}</button>
           </div>
         </div>
       </div>
@@ -1238,11 +1244,11 @@ const DetailIcon = {
 };
 
 function DetailModal({ detainee, onClose }) {
+  const { t, formatDate } = useI18n();
   const d = detainee;
-  const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("vi-VN") : "—");
-  const dobText = fmtDate(d.dob);
-  const dateInText = fmtDate(d.date_in);
-  const genderText = d.gender === "female" ? "Nữ" : "Nam";
+  const dobText = formatDate(d.dob);
+  const dateInText = formatDate(d.date_in);
+  const genderText = d.gender === "female" ? t("common.female") : t("common.male");
   const genderSymbol = d.gender === "female" ? "♀" : "♂";
   const avatar = d.photo_url || d.photos?.portrait_front;
 
@@ -1253,11 +1259,11 @@ function DetailModal({ detainee, onClose }) {
           <div className="detail-header-left">
             <span className="detail-header-icon">{DetailIcon.cccd}</span>
             <div>
-              <h3>Chi tiết hồ sơ {d.code || d.personal_id || ""}</h3>
-              <small>Thông tin can phạm</small>
+              <h3>{t("detainee.detail.title", { code: d.code || d.personal_id || "" })}</h3>
+              <small>{t("detainee.detail.subtitle")}</small>
             </div>
           </div>
-          <button className="detail-close" onClick={onClose} aria-label="Đóng">
+          <button className="detail-close" onClick={onClose} aria-label={t("detainee.detail.close_aria")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
@@ -1267,7 +1273,7 @@ function DetailModal({ detainee, onClose }) {
         <div className="detail-body">
           <aside className="detail-card detail-card-simple">
             <div className="detail-avatar">
-              {avatar ? <img src={avatar} alt={d.full_name} /> : <span>Chưa có ảnh</span>}
+              {avatar ? <img src={avatar} alt={d.full_name} /> : <span>{t("detainee.detail.no_photo")}</span>}
             </div>
             <div className="detail-name-row">
               <span className="detail-name">{d.full_name || "—"}</span>
@@ -1278,13 +1284,13 @@ function DetailModal({ detainee, onClose }) {
           </aside>
 
           <div className="detail-grid-v2 detail-grid-2x4">
-            <InfoTile icon={DetailIcon.cccd} label="Số CCCD" value={d.cccd_number || "—"} />
-            <InfoTile icon={DetailIcon.note} label="Mã can phạm" value={d.personal_id || "—"} />
-            <InfoTile icon={DetailIcon.dob} label="Ngày sinh" value={dobText} />
-            <InfoTile icon={DetailIcon.ethnic} label="Dân tộc" value={d.ethnicity || "—"} />
-            <InfoTile icon={DetailIcon.door} label="Buồng giam" value={d.cell_code || "—"} />
-            <InfoTile icon={DetailIcon.pin} label="Nơi thường trú" value={d.address || "—"} />
-            <InfoTile icon={DetailIcon.clock} label="Ngày vào buồng" value={dateInText} />
+            <InfoTile icon={DetailIcon.cccd} label={t("detainee.field.cccd")} value={d.cccd_number || "—"} />
+            <InfoTile icon={DetailIcon.note} label={t("detainee.field.personal_id")} value={d.personal_id || "—"} />
+            <InfoTile icon={DetailIcon.dob} label={t("detainee.field.dob")} value={dobText} />
+            <InfoTile icon={DetailIcon.ethnic} label={t("detainee.field.ethnicity")} value={d.ethnicity || "—"} />
+            <InfoTile icon={DetailIcon.door} label={t("detainee.field.cell")} value={d.cell_code || "—"} />
+            <InfoTile icon={DetailIcon.pin} label={t("detainee.field.address")} value={d.address || "—"} />
+            <InfoTile icon={DetailIcon.clock} label={t("detainee.field.date_in")} value={dateInText} />
           </div>
         </div>
       </div>
@@ -1305,6 +1311,7 @@ function InfoTile({ icon, label, value }) {
 }
 
 function SyncPage() {
+  const { t, formatDateTime } = useI18n();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1362,94 +1369,115 @@ function SyncPage() {
 
   const [syncErrors, setSyncErrors] = useState({});
   const [syncSuccess, setSyncSuccess] = useState({});
+  const [diffState, setDiffState] = useState(null); // { session, loading, diff }
 
-  const syncOne = async (session) => {
-    setSyncingIds((prev) => new Set(prev).add(session.id));
+  const REMOTE = "/api/proxy"; // proxy qua backend để tránh CORS
+
+  const uploadPhoto = async (url) => {
+    if (!url) return "";
+    try {
+      const absUrl = url.startsWith("http") ? url : url;
+      const imgRes = await fetch(absUrl);
+      if (!imgRes.ok) return "";
+      const blob = await imgRes.blob();
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      const form = new FormData();
+      form.append("file", blob, `photo.${ext}`);
+      const j = await api.request(`${REMOTE}/upload-image`, { method: "POST", body: form });
+      return j.url || "";
+    } catch { return ""; }
+  };
+
+  // Tải full detainee của 1 phiên
+  const loadSessionDetainees = async (sessionId) => {
+    const detail = await api.request(`/api/sessions/${sessionId}`);
+    return Promise.all(
+      (detail.detainees || []).map((d) => api.getDetainee(d.id).catch(() => d))
+    );
+  };
+
+  const mapOneToPayload = async (d) => {
+    const p = d.photos || {};
+    const keys = ["cccd_front", "cccd_back", "portrait_front", "portrait_left", "portrait_right",
+      "fp_l1", "fp_l2", "fp_l3", "fp_l4", "fp_l5",
+      "fp_r1", "fp_r2", "fp_r3", "fp_r4", "fp_r5",
+      "iris_left", "iris_right"];
+    const source = {
+      cccd_front: p.cccd_front,
+      cccd_back: p.cccd_back,
+      portrait_front: p.portrait_front || d.photo_url,
+      portrait_left: p.portrait_left,
+      portrait_right: p.portrait_right,
+      fp_l1: p.fp_l1, fp_l2: p.fp_l2, fp_l3: p.fp_l3, fp_l4: p.fp_l4, fp_l5: p.fp_l5,
+      fp_r1: p.fp_r1, fp_r2: p.fp_r2, fp_r3: p.fp_r3, fp_r4: p.fp_r4, fp_r5: p.fp_r5,
+      iris_left: p.iris_left, iris_right: p.iris_right,
+    };
+    const uploaded = {};
+    await Promise.all(keys.map(async (k) => { uploaded[k] = await uploadPhoto(source[k]); }));
+    return {
+      personal_id: d.personal_id || d.code || "",
+      full_name: d.full_name || "",
+      gender: d.gender || "male",
+      dob: d.dob || null,
+      cccd_number: d.cccd_number || "",
+      nationality: d.nationality || "Việt Nam",
+      ethnicity: d.ethnicity || "",
+      religion: d.religion || "",
+      hometown: d.hometown || "",
+      address: d.address || "",
+      issued_date: d.issued_date || null,
+      expiry_date: d.expiry_date || null,
+      issued_place: d.issued_place || "",
+      height_cm: d.height_cm || null,
+      weight_kg: d.weight_kg || null,
+      cell_code: d.cell_code || "",
+      date_in: d.date_in || null,
+      note: d.note || "",
+      created_by: d.created_by || "",
+      photos: uploaded,
+    };
+  };
+
+  // Bước 1: so sánh + mở modal xác nhận
+  const prepareSync = async (session) => {
     setSyncErrors((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
     setSyncSuccess((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
+    setDiffState({ session, loading: true, diff: null });
     try {
-      const REMOTE = "/api/proxy";  // proxy qua backend để tránh CORS
+      const [localDetainees, remoteResp] = await Promise.all([
+        loadSessionDetainees(session.id),
+        api.request(`${REMOTE}/pham-nhan`),
+      ]);
+      const remoteList = Array.isArray(remoteResp?.data) ? remoteResp.data : [];
+      const diff = buildSyncDiff(localDetainees, remoteList);
+      setDiffState({ session, loading: false, diff });
+    } catch (e) {
+      setDiffState(null);
+      setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
+    }
+  };
 
-      // Upload 1 ảnh lên server bên kia qua proxy, trả về URL bên kia
-      const uploadPhoto = async (url) => {
-        if (!url) return "";
-        try {
-          const absUrl = url.startsWith("http") ? url : url;
-          const imgRes = await fetch(absUrl);
-          if (!imgRes.ok) return "";
-          const blob = await imgRes.blob();
-          const ext = blob.type.includes("png") ? "png" : "jpg";
-          const form = new FormData();
-          form.append("file", blob, `photo.${ext}`);
-          const j = await api.request(`${REMOTE}/upload-image`, { method: "POST", body: form });
-          return j.url || "";
-        } catch { return ""; }
-      };
-
-      // Lấy danh sách can phạm đầy đủ trong phiên
-      const detail = await api.request(`/api/sessions/${session.id}`);
-      const detaineeFull = await Promise.all(
-        (detail.detainees || []).map((d) => api.getDetainee(d.id).catch(() => d))
-      );
-
-      // Upload ảnh từng can phạm sang bên kia rồi map payload
-      const mappedDetainees = await Promise.all(detaineeFull.map(async (d) => {
-        const p = d.photos || {};
-        const [cccd_front, cccd_back, portrait_front, portrait_left, portrait_right,
-          fp_l1, fp_l2, fp_l3, fp_l4, fp_l5,
-          fp_r1, fp_r2, fp_r3, fp_r4, fp_r5,
-          iris_left, iris_right] = await Promise.all([
-          uploadPhoto(p.cccd_front),
-          uploadPhoto(p.cccd_back),
-          uploadPhoto(p.portrait_front || d.photo_url),
-          uploadPhoto(p.portrait_left),
-          uploadPhoto(p.portrait_right),
-          uploadPhoto(p.fp_l1), uploadPhoto(p.fp_l2), uploadPhoto(p.fp_l3),
-          uploadPhoto(p.fp_l4), uploadPhoto(p.fp_l5),
-          uploadPhoto(p.fp_r1), uploadPhoto(p.fp_r2), uploadPhoto(p.fp_r3),
-          uploadPhoto(p.fp_r4), uploadPhoto(p.fp_r5),
-          uploadPhoto(p.iris_left), uploadPhoto(p.iris_right),
-        ]);
-        return {
-          personal_id: d.personal_id || d.code || "",
-          full_name: d.full_name || "",
-          gender: d.gender || "male",
-          dob: d.dob || null,
-          cccd_number: d.cccd_number || "",
-          nationality: d.nationality || "Việt Nam",
-          ethnicity: d.ethnicity || "",
-          religion: d.religion || "",
-          hometown: d.hometown || "",
-          address: d.address || "",
-          issued_date: d.issued_date || null,
-          expiry_date: d.expiry_date || null,
-          issued_place: d.issued_place || "",
-          height_cm: d.height_cm || null,
-          weight_kg: d.weight_kg || null,
-          cell_code: d.cell_code || "",
-          date_in: d.date_in || null,
-          note: d.note || "",
-          created_by: d.created_by || "",
-          photos: {
-            cccd_front, cccd_back, portrait_front, portrait_left, portrait_right,
-            fp_l1, fp_l2, fp_l3, fp_l4, fp_l5,
-            fp_r1, fp_r2, fp_r3, fp_r4, fp_r5,
-            iris_left, iris_right,
-          },
-        };
-      }));
-
+  // Bước 2: sau khi user xác nhận trong modal -> đẩy thật
+  const doSync = async (selectedTargets) => {
+    const session = diffState?.session;
+    if (!session || !selectedTargets.length) {
+      setDiffState(null);
+      return;
+    }
+    setDiffState(null);
+    setSyncingIds((prev) => new Set(prev).add(session.id));
+    try {
+      const mappedDetainees = await Promise.all(selectedTargets.map((t) => mapOneToPayload(t.local)));
       const payload = {
         total: mappedDetainees.length,
         items: [{ detainees: mappedDetainees }],
       };
-
       await api.request(`${REMOTE}/sync-detainee`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
       setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
-      notify.add(`Đã đồng bộ phiên ${session.code}`);
+      notify.add();
     } catch (e) {
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
     } finally {
@@ -1465,44 +1493,40 @@ function SyncPage() {
     const targets = filtered.filter((s) => selected.has(s.id));
     for (const s of targets) {
       // eslint-disable-next-line no-await-in-loop
-      await syncOne(s);
+      await prepareSync(s);
+      // prepareSync opens a modal -> wait for the user to resolve it before continuing.
+      // Since the modal is interactive, we stop the chain here; the user clicks each session.
+      break;
     }
   };
 
-  const fmtDT = (iso) => {
-    if (!iso) return "—";
-    try {
-      const d = new Date(iso);
-      if (isNaN(d)) return "—";
-      return d.toLocaleString("vi-VN");
-    } catch { return "—"; }
-  };
+  const fmtDT = (iso) => formatDateTime(iso);
 
   return (
     <div className="page">
-      <PageHeader title="Đồng bộ dữ liệu" subtitle="Chọn các phiên làm việc để đồng bộ sang hệ thống bên khác" />
+      <PageHeader title={t("sync.title")} subtitle={t("sync.subtitle")} />
 
       <div className="sync-toolbar">
         <input
           className="control sync-search"
-          placeholder="Tìm theo mã phiên, cán bộ, địa điểm..."
+          placeholder={t("sync.search_ph")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
         <select className="control" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">Tất cả trạng thái</option>
-          <option value="open">Đang mở</option>
-          <option value="closed">Đã đóng</option>
+          <option value="">{t("sync.status.all")}</option>
+          <option value="open">{t("sync.status.open")}</option>
+          <option value="closed">{t("sync.status.closed")}</option>
         </select>
-        <button className="button" onClick={load} disabled={loading}>{loading ? "Đang tải..." : "Làm mới"}</button>
+        <button className="button" onClick={load} disabled={loading}>{loading ? t("sync.loading") : t("common.refresh")}</button>
         <div className="sync-toolbar-spacer" />
         <button
           className="button primary"
           disabled={selected.size === 0 || syncingIds.size > 0}
           onClick={syncSelected}
-          title={selected.size === 0 ? "Chọn ít nhất 1 phiên" : `Đồng bộ ${selected.size} phiên đã chọn`}
+          title={selected.size === 0 ? t("sync.tip.select") : t("sync.tip.selected", { n: selected.size })}
         >
-          Đồng bộ {selected.size > 0 ? `(${selected.size})` : ""}
+          {selected.size > 0 ? t("sync.action_count", { n: selected.size }) : t("sync.action")}
         </button>
       </div>
 
@@ -1513,21 +1537,21 @@ function SyncPage() {
           <thead>
             <tr>
               <th style={{ width: 40 }}>
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Chọn tất cả" />
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label={t("sync.select_all_aria")} />
               </th>
-              <th>Mã phiên</th>
-              <th>Trạng thái</th>
-              <th>Cán bộ</th>
-              <th>Địa điểm</th>
-              <th>Mở lúc</th>
-              <th>Đóng lúc</th>
-              <th style={{ textAlign: "center" }}>Số HS</th>
-              <th style={{ width: 140 }}>Hành động</th>
+              <th>{t("sync.col.code")}</th>
+              <th>{t("sync.col.status")}</th>
+              <th>{t("sync.col.officer")}</th>
+              <th>{t("sync.col.location")}</th>
+              <th>{t("sync.col.opened")}</th>
+              <th>{t("sync.col.closed")}</th>
+              <th style={{ textAlign: "center" }}>{t("sync.col.count")}</th>
+              <th style={{ width: 140 }}>{t("sync.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {pagedRows.length === 0 && !loading && (
-              <tr><td colSpan={9} className="sync-empty">Không có phiên nào phù hợp.</td></tr>
+              <tr><td colSpan={9} className="sync-empty">{t("sync.empty")}</td></tr>
             )}
             {pagedRows.map((s) => {
               const busy = syncingIds.has(s.id);
@@ -1537,7 +1561,7 @@ function SyncPage() {
                   <td><strong>{s.code}</strong></td>
                   <td>
                     <span className={"sync-badge " + (s.status === "open" ? "open" : "closed")}>
-                      {s.status === "open" ? "Đang mở" : "Đã đóng"}
+                      {s.status === "open" ? t("sync.status.open") : t("sync.status.closed")}
                     </span>
                   </td>
                   <td>{s.officer_full_name || s.officer}</td>
@@ -1547,14 +1571,14 @@ function SyncPage() {
                   <td style={{ textAlign: "center" }}>{s.detainee_count || 0}</td>
                   <td>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <button className="button small" disabled={busy} onClick={() => syncOne(s)}>
-                        {busy ? "Đang đồng bộ..." : "Đồng bộ"}
+                      <button className="button small" disabled={busy} onClick={() => prepareSync(s)}>
+                        {busy ? t("sync.syncing") : t("sync.action")}
                       </button>
                       {syncErrors[s.id] && (
-                        <span style={{ fontSize: 11, color: "#e53e3e" }}>✗ {syncErrors[s.id]}</span>
+                        <span style={{ fontSize: 11, color: "#e53e3e" }}>{t("sync.err_prefix", { message: syncErrors[s.id] })}</span>
                       )}
                       {syncSuccess[s.id] && !syncErrors[s.id] && (
-                        <span style={{ fontSize: 11, color: "#12af64" }}>✓ Đồng bộ thành công</span>
+                        <span style={{ fontSize: 11, color: "#12af64" }}>{t("sync.success")}</span>
                       )}
                     </div>
                   </td>
@@ -1564,19 +1588,30 @@ function SyncPage() {
           </tbody>
         </table>
         <div className="session-list-toolbar">
-          <div className="session-list-total">Tổng: {totalRows}</div>
+          <div className="session-list-total">{t("common.total", { n: totalRows })}</div>
           <div className="pagination">
-            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Trước</button>
-            <span>Trang {page} / {totalPages}</span>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau →</button>
+            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t("common.prev")}</button>
+            <span>{t("common.page_of", { page, total: totalPages })}</span>
+            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t("common.next")}</button>
           </div>
         </div>
       </div>
+
+      {diffState && (
+        <SyncDiffModal
+          session={diffState.session}
+          diff={diffState.diff}
+          loading={diffState.loading}
+          onConfirm={doSync}
+          onCancel={() => setDiffState(null)}
+        />
+      )}
     </div>
   );
 }
 
 function CellsPage() {
+  const { t } = useI18n();
   const [cells, setCells] = useState([]);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -1596,18 +1631,18 @@ function CellsPage() {
   }, []);
 
   const deleteCell = async (cell) => {
-    if (!window.confirm(`Xoá buồng ${cell.code}?`)) return;
+    if (!window.confirm(t("cells.confirm_delete", { code: cell.code }))) return;
     try {
       await api.deleteCell(cell.id);
       load();
     } catch (e) {
-      window.alert(`Lỗi: ${e.message}`);
+      window.alert(t("common.error_prefix", { message: e.message }));
     }
   };
 
   return (
     <div className="page">
-      <PageHeader title="Quản lý buồng giam" subtitle={`${cells.length} buồng`}>
+      <PageHeader title={t("cells.title")} subtitle={t("cells.subtitle", { n: cells.length })}>
         <button
           className="button primary"
           onClick={() => {
@@ -1616,7 +1651,7 @@ function CellsPage() {
           }}
         >
           {Icon.plus}
-          Thêm buồng
+          {t("cells.add")}
         </button>
       </PageHeader>
 
@@ -1626,13 +1661,13 @@ function CellsPage() {
         <table>
           <thead>
             <tr>
-              <th>Mã</th>
-              <th>Tên buồng</th>
-              <th>Sức chứa</th>
-              <th>Hiện tại</th>
-              <th>Tỉ lệ</th>
-              <th>Ghi chú</th>
-              <th>Thao tác</th>
+              <th>{t("cells.col.code")}</th>
+              <th>{t("cells.col.name")}</th>
+              <th>{t("cells.col.capacity")}</th>
+              <th>{t("cells.col.current")}</th>
+              <th>{t("cells.col.percent")}</th>
+              <th>{t("cells.col.note")}</th>
+              <th>{t("cells.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -1654,9 +1689,9 @@ function CellsPage() {
                   <td>{cell.note || "-"}</td>
                   <td>
                     <div className="row-actions">
-                      <button onClick={() => setViewingCell(cell)}>Xem can phạm</button>
-                      <button onClick={() => { setEditing(cell); setShowForm(true); }}>Sửa</button>
-                      <button className="danger-text" onClick={() => deleteCell(cell)}>Xoá</button>
+                      <button onClick={() => setViewingCell(cell)}>{t("cells.view_detainees")}</button>
+                      <button onClick={() => { setEditing(cell); setShowForm(true); }}>{t("common.edit")}</button>
+                      <button className="danger-text" onClick={() => deleteCell(cell)}>{t("common.delete")}</button>
                     </div>
                   </td>
                 </tr>
@@ -1694,10 +1729,12 @@ function CellsPage() {
 }
 
 function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
+  const { t } = useI18n();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeOk, setNoticeOk] = useState(false);
   const [transferring, setTransferring] = useState(null);
 
   const load = async () => {
@@ -1718,15 +1755,18 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
 
   const doTransfer = async (item, newCode) => {
     if (newCode === item.cell_code) return;
-    if (!window.confirm(`Chuyển ${item.full_name} sang buồng ${newCode || "(bỏ trống)"}?`)) return;
+    const target = newCode || t("cells.transfer.target_empty");
+    if (!window.confirm(t("cells.transfer.confirm", { name: item.full_name, target }))) return;
     setTransferring(item.id);
     try {
       await api.transferDetainee(item.id, newCode);
-      setNotice(`Đã chuyển ${item.full_name}.`);
+      setNotice(t("cells.transfer.done", { name: item.full_name }));
+      setNoticeOk(true);
       load();
       onChanged && onChanged();
     } catch (e) {
-      setNotice(`Lỗi: ${e.message}`);
+      setNotice(t("common.error_prefix", { message: e.message }));
+      setNoticeOk(false);
     } finally {
       setTransferring(null);
     }
@@ -1738,26 +1778,26 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>Can phạm buồng {cell.code} - {cell.name}</h3>
+          <h3>{t("cells.transfer.title", { code: cell.code, name: cell.name })}</h3>
           <button onClick={onClose}>×</button>
         </div>
 
         <div style={{ padding: "16px 24px" }}>
-          {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+          {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
           {error && <StateBox type="error">{error}</StateBox>}
 
           {loading ? (
-            <StateBox>Đang tải...</StateBox>
+            <StateBox>{t("common.loading")}</StateBox>
           ) : !items.length ? (
-            <StateBox>Buồng này chưa có can phạm.</StateBox>
+            <StateBox>{t("cells.transfer.empty")}</StateBox>
           ) : (
             <table>
               <thead>
                 <tr>
-                  <th>Mã hồ sơ</th>
-                  <th>Họ và tên</th>
-                  <th>Giới tính</th>
-                  <th>Chuyển sang buồng</th>
+                  <th>{t("cells.transfer.col.code")}</th>
+                  <th>{t("cells.transfer.col.name")}</th>
+                  <th>{t("cells.transfer.col.gender")}</th>
+                  <th>{t("cells.transfer.col.action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1765,7 +1805,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                   <tr key={item.id}>
                     <td><strong>{item.personal_id || item.code}</strong></td>
                     <td>{item.full_name}</td>
-                    <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
+                    <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
                     <td>
                       <select
                         className="control"
@@ -1777,13 +1817,13 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                           if (v !== "") doTransfer(item, v);
                         }}
                       >
-                        <option value="">-- Chọn buồng --</option>
+                        <option value="">{t("cells.transfer.select")}</option>
                         {otherCells.map((c) => (
                           <option key={c.code} value={c.code}>
-                            {c.code} - {c.name} ({c.current}/{c.capacity})
+                            {t("cells.transfer.opt", { code: c.code, name: c.name, current: c.current, capacity: c.capacity })}
                           </option>
                         ))}
-                        <option value="">(Bỏ khỏi buồng)</option>
+                        <option value="">{t("cells.transfer.remove")}</option>
                       </select>
                     </td>
                   </tr>
@@ -1798,6 +1838,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
 }
 
 function CellForm({ initial, onClose, onSaved }) {
+  const { t } = useI18n();
   const [code, setCode] = useState(initial?.code || "");
   const [name, setName] = useState(initial?.name || "");
   const [capacity, setCapacity] = useState(initial?.capacity ?? 20);
@@ -1833,33 +1874,33 @@ function CellForm({ initial, onClose, onSaved }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{initial ? "Sửa buồng giam" : "Thêm buồng giam"}</h3>
+          <h3>{initial ? t("cells.form.title.edit") : t("cells.form.title.new")}</h3>
           <button onClick={onClose}>×</button>
         </div>
 
         <form className="form" onSubmit={submit}>
           {error && <div className="error-box">{error}</div>}
 
-          <FieldRow label="Mã buồng *">
+          <FieldRow label={t("cells.form.code")}>
             <input className="control" value={code} onChange={(e) => setCode(e.target.value)} required disabled={Boolean(initial)} />
           </FieldRow>
 
-          <FieldRow label="Tên buồng *">
+          <FieldRow label={t("cells.form.name")}>
             <input className="control" value={name} onChange={(e) => setName(e.target.value)} required />
           </FieldRow>
 
-          <FieldRow label="Sức chứa *">
+          <FieldRow label={t("cells.form.capacity")}>
             <input className="control" type="number" min="0" max="500" value={capacity} onChange={(e) => setCapacity(e.target.value)} required />
           </FieldRow>
 
-          <FieldRow label="Ghi chú">
+          <FieldRow label={t("cells.form.note")}>
             <input className="control" value={note} onChange={(e) => setNote(e.target.value)} />
           </FieldRow>
 
           <div className="modal-actions">
-            <button type="button" className="button secondary" onClick={onClose}>Huỷ</button>
+            <button type="button" className="button secondary" onClick={onClose}>{t("common.cancel")}</button>
             <button type="submit" className="button primary" disabled={saving}>
-              {saving ? "Đang lưu..." : "Lưu"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </form>
@@ -1869,6 +1910,7 @@ function CellForm({ initial, onClose, onSaved }) {
 }
 
 function ImportExportPage() {
+  const { t } = useI18n();
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -1886,7 +1928,7 @@ function ImportExportPage() {
       data.append("file", file);
       const r = await api.importXlsx(data);
       setResult(r);
-      notify.add(`Đã nhập Excel: ${r.inserted || 0} hồ sơ`);
+      notify.add(t("import.notify_done", { n: r.inserted || 0 }));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1897,30 +1939,30 @@ function ImportExportPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Nhập / Xuất Excel" subtitle="Quản lý dữ liệu hồ sơ bằng file Excel" />
+      <PageHeader title={t("import.title")} subtitle={t("import.subtitle")} />
 
       <div className="feature-grid">
         <section className="feature-card">
           <div className="feature-icon">{Icon.file}</div>
-          <h3>Xuất dữ liệu</h3>
-          <p>Tải toàn bộ hồ sơ hiện có trong hệ thống ra file Excel.</p>
+          <h3>{t("import.export_title")}</h3>
+          <p>{t("import.export_desc")}</p>
           <button className="button primary" onClick={() => api.downloadExport()}>
-            Xuất Excel
+            {t("import.export_btn")}
           </button>
         </section>
 
         <section className="feature-card">
           <div className="feature-icon">{Icon.file}</div>
-          <h3>Nhập dữ liệu</h3>
-          <p>Tải file mẫu hoặc chọn file .xlsx để nhập dữ liệu hàng loạt.</p>
+          <h3>{t("import.import_title")}</h3>
+          <p>{t("import.import_desc")}</p>
 
           <div className="feature-actions">
             <button className="button secondary" onClick={() => api.downloadTemplate()}>
-              Tải file mẫu
+              {t("import.template")}
             </button>
 
             <label className="button primary">
-              {uploading ? "Đang nhập..." : "Chọn file"}
+              {uploading ? t("import.importing") : t("import.choose")}
               <input type="file" accept=".xlsx" onChange={importFile} hidden disabled={uploading} />
             </label>
           </div>
@@ -1928,8 +1970,8 @@ function ImportExportPage() {
           {error && <div className="error-box">{error}</div>}
           {result && (
             <div className="success-box">
-              Nhập thành công {result.inserted} hồ sơ.
-              {result.errors?.length ? ` Có ${result.errors.length} dòng lỗi.` : ""}
+              {t("import.done", { n: result.inserted })}
+              {result.errors?.length ? t("import.done_err", { n: result.errors.length }) : ""}
             </div>
           )}
         </section>
@@ -1943,10 +1985,23 @@ function formatDateTime(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return iso;
   const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const { locale } = useI18nLastLocale();
+  const date = locale === "en"
+    ? `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`
+    : `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  return `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+// shared mutable locale getter for the module-level formatDateTime helper
+let _lastLocale = "vi";
+function useI18nLastLocale() {
+  // best-effort: components update this via setLastLocale() calls below
+  return { locale: _lastLocale };
+}
+function setLastLocale(v) { _lastLocale = v; }
+
 function LogsPage() {
+  const { t } = useI18n();
   const [logs, setLogs] = useState([]);
   const [counts, setCounts] = useState({ create: 0, update: 0, delete: 0, login: 0, import: 0 });
   const [cells, setCells] = useState([]);
@@ -1961,6 +2016,7 @@ function LogsPage() {
   const [editing, setEditing] = useState(null);
   const [busyRef, setBusyRef] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeOk, setNoticeOk] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -1989,11 +2045,11 @@ function LogsPage() {
   }, []);
 
   const labels = {
-    login: "Đăng nhập",
-    create: "Tạo mới",
-    update: "Cập nhật",
-    delete: "Xoá",
-    import: "Nhập Excel",
+    login: t("logs.action.login"),
+    create: t("logs.action.create"),
+    update: t("logs.action.update"),
+    delete: t("logs.action.delete"),
+    import: t("logs.action.import"),
   };
 
   const resolveDetainee = async (log) => {
@@ -2005,7 +2061,7 @@ function LogsPage() {
       }
     }
     if (log.ref) return await api.getDetaineeByPersonalId(log.ref);
-    throw new Error("Log không có tham chiếu can phạm");
+    throw new Error(t("logs.err.no_ref"));
   };
 
   const isDetaineeLog = (log) =>
@@ -2020,7 +2076,8 @@ function LogsPage() {
       const d = await resolveDetainee(log);
       setViewing(d);
     } catch (e) {
-      setNotice(`Không mở được hồ sơ: ${e.message}`);
+      setNotice(t("logs.err.open", { message: e.message }));
+      setNoticeOk(false);
     } finally {
       setBusyRef("");
     }
@@ -2033,24 +2090,27 @@ function LogsPage() {
       const d = await resolveDetainee(log);
       setEditing(d);
     } catch (e) {
-      setNotice(`Không mở được hồ sơ: ${e.message}`);
+      setNotice(t("logs.err.open", { message: e.message }));
+      setNoticeOk(false);
     } finally {
       setBusyRef("");
     }
   };
 
   const onDelete = async (log) => {
-    if (!window.confirm(`Xoá can phạm ${log.ref || ""}?`)) return;
+    if (!window.confirm(t("logs.confirm_delete", { ref: log.ref || "" }))) return;
     setBusyRef(log.id);
     setNotice("");
     try {
       const d = await resolveDetainee(log);
       await api.deleteDetainee(d.id);
-      notify.add(`Đã xoá can phạm ${d.code}`);
-      setNotice(`Đã xoá can phạm ${d.code}.`);
+      notify.add(t("logs.notify.deleted", { code: d.code }));
+      setNotice(t("logs.deleted", { code: d.code }));
+      setNoticeOk(true);
       load();
     } catch (e) {
-      setNotice(`Xoá thất bại: ${e.message}`);
+      setNotice(t("logs.err.delete", { message: e.message }));
+      setNoticeOk(false);
     } finally {
       setBusyRef("");
     }
@@ -2068,20 +2128,20 @@ function LogsPage() {
     <div className="page report-page">
       <div className="report-fixed">
       <PageHeader
-        title="Báo cáo nhập liệu can phạm"
-        subtitle={`Thống kê thao tác theo ngày giờ. Tổng ${logs.length} bản ghi trong khoảng lọc.`}
+        title={t("logs.title")}
+        subtitle={t("logs.subtitle", { n: logs.length })}
       >
         <button className="button secondary" onClick={load} disabled={loading}>
           {Icon.refresh}
-          {loading ? "Đang tải..." : "Làm mới"}
+          {loading ? t("common.loading") : t("common.refresh")}
         </button>
       </PageHeader>
 
       <div className="report-stat-grid">
-        <ReportStat tone="blue" icon={Icon.file} label="Đăng ký mới" value={counts.create || 0} note="Can phạm được tạo" />
-        <ReportStat tone="orange" icon={Icon.sync} label="Đã sửa" value={counts.update || 0} note="Lượt cập nhật" />
-        <ReportStat tone="purple" icon={Icon.log} label="Đã xoá" value={counts.delete || 0} note="Hồ sơ đã xoá" />
-        <ReportStat tone="green" icon={Icon.cloudUpload} label="Nhập Excel" value={counts.import || 0} note="Lượt import" />
+        <ReportStat tone="blue" icon={Icon.file} label={t("logs.action.create")} value={counts.create || 0} note={t("logs.stat.note.create")} />
+        <ReportStat tone="orange" icon={Icon.sync} label={t("session.stat.update")} value={counts.update || 0} note={t("logs.stat.note.update")} />
+        <ReportStat tone="purple" icon={Icon.log} label={t("session.stat.delete")} value={counts.delete || 0} note={t("logs.stat.note.delete")} />
+        <ReportStat tone="green" icon={Icon.cloudUpload} label={t("logs.action.import")} value={counts.import || 0} note={t("logs.stat.note.import")} />
       </div>
 
       <form
@@ -2089,12 +2149,12 @@ function LogsPage() {
         onSubmit={(e) => { e.preventDefault(); load(); }}
       >
         <div className="report-filter-head">
-          <span className="report-filter-title">Bộ lọc báo cáo</span>
-          <span className="report-filter-hint">Chọn khoảng thời gian, loại hành động và đối tượng để lọc</span>
+          <span className="report-filter-title">{t("logs.filter.title")}</span>
+          <span className="report-filter-hint">{t("logs.filter.desc")}</span>
         </div>
         <div className="report-filter-grid">
           <label className="report-field">
-            <span>Từ</span>
+            <span>{t("common.from")}</span>
             <input
               className="control"
               type="datetime-local"
@@ -2103,7 +2163,7 @@ function LogsPage() {
             />
           </label>
           <label className="report-field">
-            <span>Đến</span>
+            <span>{t("common.to")}</span>
             <input
               className="control"
               type="datetime-local"
@@ -2112,47 +2172,47 @@ function LogsPage() {
             />
           </label>
           <label className="report-field">
-            <span>Hành động</span>
+            <span>{t("logs.field.action")}</span>
             <select className="control" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-              <option value="">Tất cả hành động</option>
-              <option value="create">Đăng ký mới</option>
-              <option value="update">Sửa</option>
-              <option value="delete">Xoá</option>
-              <option value="import">Nhập Excel</option>
-              <option value="login">Đăng nhập</option>
+              <option value="">{t("logs.action.all")}</option>
+              <option value="create">{t("logs.action.create")}</option>
+              <option value="update">{t("logs.action.update")}</option>
+              <option value="delete">{t("logs.action.delete")}</option>
+              <option value="import">{t("logs.action.import")}</option>
+              <option value="login">{t("logs.action.login")}</option>
             </select>
           </label>
           <label className="report-field">
-            <span>Đối tượng</span>
+            <span>{t("logs.field.resource")}</span>
             <select className="control" value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)}>
-              <option value="detainee">Can phạm</option>
-              <option value="work_session">Phiên làm việc</option>
-              <option value="cell">Buồng giam</option>
-              <option value="auth">Tài khoản</option>
-              <option value="">Tất cả đối tượng</option>
+              <option value="detainee">{t("logs.resource.detainee")}</option>
+              <option value="work_session">{t("logs.resource.session")}</option>
+              <option value="cell">{t("logs.resource.cell")}</option>
+              <option value="auth">{t("logs.resource.auth")}</option>
+              <option value="">{t("logs.resource.all")}</option>
             </select>
           </label>
           <label className="report-field">
-            <span>Mã phiên</span>
+            <span>{t("logs.field.session")}</span>
             <input
               className="control"
               type="text"
-              placeholder="S20260713-0001"
+              placeholder={t("logs.field.session_ph")}
               value={sessionFilter}
               onChange={(e) => setSessionFilter(e.target.value)}
             />
           </label>
           <div className="report-filter-actions report-filter-actions-inline">
-            <button type="button" className="button secondary" onClick={clearFilters}>Xoá lọc</button>
+            <button type="button" className="button secondary" onClick={clearFilters}>{t("common.clear_filter")}</button>
             <button type="submit" className="button primary" disabled={loading}>
-              {loading ? "Đang lọc..." : "Áp dụng"}
+              {loading ? t("common.applying") : t("common.apply")}
             </button>
           </div>
         </div>
       </form>
 
       {error && <StateBox type="error">{error}</StateBox>}
-      {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+      {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
       </div>
 
       <div className="report-scroll">
@@ -2160,14 +2220,14 @@ function LogsPage() {
         <table>
           <thead>
             <tr>
-              <th>Thời gian</th>
-              <th>Phiên</th>
-              <th>Cán bộ</th>
-              <th>Hành động</th>
-              <th>Đối tượng</th>
-              <th>Tham chiếu</th>
-              <th>IP</th>
-              <th>Thao tác</th>
+              <th>{t("logs.col.time")}</th>
+              <th>{t("logs.col.session")}</th>
+              <th>{t("logs.col.officer")}</th>
+              <th>{t("logs.col.action")}</th>
+              <th>{t("logs.col.resource")}</th>
+              <th>{t("logs.col.ref")}</th>
+              <th>{t("logs.col.ip")}</th>
+              <th>{t("logs.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -2211,9 +2271,9 @@ function LogsPage() {
                   <td>
                     {canAct ? (
                       <div className="row-actions">
-                        <button disabled={busy} onClick={() => onView(log)}>Xem</button>
-                        <button disabled={busy} onClick={() => onEdit(log)}>Sửa</button>
-                        <button className="danger-text" disabled={busy} onClick={() => onDelete(log)}>Xoá</button>
+                        <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
+                        <button disabled={busy} onClick={() => onEdit(log)}>{t("common.edit")}</button>
+                        <button className="danger-text" disabled={busy} onClick={() => onDelete(log)}>{t("common.delete")}</button>
                       </div>
                     ) : (
                       <span style={{ color: "#98a4b8" }}>-</span>
@@ -2223,7 +2283,7 @@ function LogsPage() {
               );
             })}
             {!logs.length && (
-              <tr><td colSpan={8}><div className="empty">Không có bản ghi phù hợp.</div></td></tr>
+              <tr><td colSpan={8}><div className="empty">{t("common.empty")}</div></td></tr>
             )}
           </tbody>
         </table>
@@ -2238,7 +2298,8 @@ function LogsPage() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
-            setNotice("Đã cập nhật hồ sơ.");
+            setNotice(t("logs.notice.updated"));
+            setNoticeOk(true);
             load();
           }}
         />
@@ -2264,6 +2325,7 @@ function StateBox({ type = "", children }) {
 }
 
 function DetaineeHistoryPage({ onEdit }) {
+  const { t } = useI18n();
   const [logs, setLogs] = useState([]);
   const [counts, setCounts] = useState({ create: 0, update: 0, delete: 0, import: 0 });
   const [loading, setLoading] = useState(false);
@@ -2275,6 +2337,7 @@ function DetaineeHistoryPage({ onEdit }) {
   const [viewing, setViewing] = useState(null);
   const [busyRef, setBusyRef] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeOk, setNoticeOk] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -2320,10 +2383,10 @@ function DetaineeHistoryPage({ onEdit }) {
   const pagedLogs = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const labels = {
-    create: "Đăng ký mới",
-    update: "Cập nhật",
-    delete: "Xoá",
-    import: "Nhập Excel",
+    create: t("history.action.create"),
+    update: t("history.action.update"),
+    delete: t("history.action.delete"),
+    import: t("history.action.import"),
   };
 
   const resolveDetainee = async (log) => {
@@ -2331,7 +2394,7 @@ function DetaineeHistoryPage({ onEdit }) {
       try { return await api.getDetainee(log.ref_id); } catch { /* fallback */ }
     }
     if (log.ref) return await api.getDetaineeByPersonalId(log.ref);
-    throw new Error("Log không có tham chiếu can phạm");
+    throw new Error(t("logs.err.no_ref"));
   };
 
   const onView = async (log) => {
@@ -2341,7 +2404,8 @@ function DetaineeHistoryPage({ onEdit }) {
       const d = await resolveDetainee(log);
       setViewing(d);
     } catch (e) {
-      setNotice(`Không mở được hồ sơ: ${e.message}`);
+      setNotice(t("logs.err.open", { message: e.message }));
+      setNoticeOk(false);
     } finally {
       setBusyRef("");
     }
@@ -2354,7 +2418,8 @@ function DetaineeHistoryPage({ onEdit }) {
       const d = await resolveDetainee(log);
       if (onEdit) onEdit(d);
     } catch (e) {
-      setNotice(`Không mở được hồ sơ: ${e.message}`);
+      setNotice(t("logs.err.open", { message: e.message }));
+      setNoticeOk(false);
     } finally {
       setBusyRef("");
     }
@@ -2373,20 +2438,20 @@ function DetaineeHistoryPage({ onEdit }) {
     <div className="page report-page">
       <div className="report-fixed">
         <PageHeader
-          title="Lịch sử"
-          subtitle={`Nhật ký các thao tác đăng ký, cập nhật, xoá hồ sơ can phạm. Tổng ${filtered.length} bản ghi.`}
+          title={t("history.title")}
+          subtitle={t("history.subtitle", { n: filtered.length })}
         >
           <button className="button secondary" onClick={load} disabled={loading}>
             {Icon.refresh}
-            {loading ? "Đang tải..." : "Làm mới"}
+            {loading ? t("common.loading") : t("common.refresh")}
           </button>
         </PageHeader>
 
         <div className="report-stat-grid">
-          <ReportStat tone="blue" icon={Icon.file} label="Đăng ký mới" value={counts.create || 0} note="Hồ sơ được tạo" />
-          <ReportStat tone="orange" icon={Icon.sync} label="Đã sửa" value={counts.update || 0} note="Lượt cập nhật" />
-          <ReportStat tone="purple" icon={Icon.log} label="Đã xoá" value={counts.delete || 0} note="Hồ sơ đã xoá" />
-          <ReportStat tone="green" icon={Icon.cloudUpload} label="Nhập Excel" value={counts.import || 0} note="Lượt import" />
+          <ReportStat tone="blue" icon={Icon.file} label={t("history.action.create")} value={counts.create || 0} note={t("history.stat.note.create")} />
+          <ReportStat tone="orange" icon={Icon.sync} label={t("session.stat.update")} value={counts.update || 0} note={t("logs.stat.note.update")} />
+          <ReportStat tone="purple" icon={Icon.log} label={t("session.stat.delete")} value={counts.delete || 0} note={t("logs.stat.note.delete")} />
+          <ReportStat tone="green" icon={Icon.cloudUpload} label={t("history.action.import")} value={counts.import || 0} note={t("logs.stat.note.import")} />
         </div>
 
         <form
@@ -2394,52 +2459,52 @@ function DetaineeHistoryPage({ onEdit }) {
           onSubmit={(e) => { e.preventDefault(); load(); }}
         >
           <div className="report-filter-head">
-            <span className="report-filter-title">Bộ lọc lịch sử</span>
-            <span className="report-filter-hint">Lọc theo thời gian, hành động hoặc từ khoá</span>
+            <span className="report-filter-title">{t("history.filter.title")}</span>
+            <span className="report-filter-hint">{t("history.filter.desc")}</span>
           </div>
           <div className="report-filter-grid">
             <label className="report-field">
-              <span>Từ</span>
+              <span>{t("common.from")}</span>
               <input className="control" type="datetime-local"
                 value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </label>
             <label className="report-field">
-              <span>Đến</span>
+              <span>{t("common.to")}</span>
               <input className="control" type="datetime-local"
                 value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </label>
             <label className="report-field">
-              <span>Hành động</span>
+              <span>{t("logs.field.action")}</span>
               <select className="control" value={actionFilter}
                 onChange={(e) => setActionFilter(e.target.value)}>
-                <option value="">Tất cả</option>
-                <option value="create">Đăng ký mới</option>
-                <option value="update">Cập nhật</option>
-                <option value="delete">Xoá</option>
-                <option value="import">Nhập Excel</option>
+                <option value="">{t("common.all")}</option>
+                <option value="create">{t("history.action.create")}</option>
+                <option value="update">{t("history.action.update")}</option>
+                <option value="delete">{t("history.action.delete")}</option>
+                <option value="import">{t("history.action.import")}</option>
               </select>
             </label>
             <label className="report-field">
-              <span>Từ khoá</span>
+              <span>{t("common.keyword")}</span>
               <input
                 className="control"
                 type="text"
-                placeholder="Mã hồ sơ, cán bộ, mã phiên..."
+                placeholder={t("history.search_ph")}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
             </label>
             <div className="report-filter-actions report-filter-actions-inline">
-              <button type="button" className="button secondary" onClick={clearFilters}>Xoá lọc</button>
+              <button type="button" className="button secondary" onClick={clearFilters}>{t("common.clear_filter")}</button>
               <button type="submit" className="button primary" disabled={loading}>
-                {loading ? "Đang lọc..." : "Áp dụng"}
+                {loading ? t("common.applying") : t("common.apply")}
               </button>
             </div>
           </div>
         </form>
 
         {error && <StateBox type="error">{error}</StateBox>}
-        {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+        {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
       </div>
 
       <div className="report-scroll">
@@ -2447,13 +2512,13 @@ function DetaineeHistoryPage({ onEdit }) {
           <table className="detainees-table">
             <thead>
               <tr>
-                <th>Thời gian</th>
-                <th>Phiên</th>
-                <th>Cán bộ</th>
-                <th>Hành động</th>
-                <th>Mã hồ sơ</th>
-                <th>IP</th>
-                <th>Thao tác</th>
+                <th>{t("logs.col.time")}</th>
+                <th>{t("logs.col.session")}</th>
+                <th>{t("logs.col.officer")}</th>
+                <th>{t("logs.col.action")}</th>
+                <th>{t("history.col.code")}</th>
+                <th>{t("logs.col.ip")}</th>
+                <th>{t("logs.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -2496,9 +2561,9 @@ function DetaineeHistoryPage({ onEdit }) {
                     <td>
                       {canAct ? (
                         <div className="row-actions">
-                          <button disabled={busy} onClick={() => onView(log)}>Xem</button>
+                          <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
                           {onEdit && (
-                            <button disabled={busy} onClick={() => onEditLog(log)}>Mở sửa</button>
+                            <button disabled={busy} onClick={() => onEditLog(log)}>{t("history.open_edit")}</button>
                           )}
                         </div>
                       ) : (
@@ -2509,16 +2574,16 @@ function DetaineeHistoryPage({ onEdit }) {
                 );
               })}
               {!pagedLogs.length && (
-                <tr><td colSpan={7}><div className="empty">Không có bản ghi phù hợp.</div></td></tr>
+                <tr><td colSpan={7}><div className="empty">{t("common.empty")}</div></td></tr>
               )}
             </tbody>
           </table>
           <div className="session-list-toolbar">
-            <div className="session-list-total">Tổng: {totalRows}</div>
+            <div className="session-list-total">{t("common.total", { n: totalRows })}</div>
             <div className="pagination">
-              <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Trước</button>
-              <span>Trang {page} / {totalPages}</span>
-              <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Sau →</button>
+              <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t("common.prev")}</button>
+              <span>{t("common.page_of", { page, total: totalPages })}</span>
+              <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t("common.next")}</button>
             </div>
           </div>
         </div>
@@ -2530,6 +2595,7 @@ function DetaineeHistoryPage({ onEdit }) {
 }
 
 function SearchPage() {
+  const { t, formatDate } = useI18n();
   const [mode, setMode] = useState("text"); // "text" | "cccd" | "fingerprint"
   const [items, setItems] = useState([]);
   const [cells, setCells] = useState([]);
@@ -2592,7 +2658,7 @@ function SearchPage() {
     if (e) e.preventDefault();
     const num = cccdNumber.trim();
     if (!num) {
-      setError("Vui lòng nhập số CCCD.");
+      setError(t("search.err.empty_cccd"));
       return;
     }
     setLoading(true);
@@ -2618,7 +2684,7 @@ function SearchPage() {
     if (fpScanning) return;
     setFpScanning(true);
     setError("");
-    setFpScanStatus("Đang kiểm tra máy quét vân tay...");
+    setFpScanStatus(t("search.status.check_fp"));
     setFpImageB64("");
     setFpTemplateB64("");
     setItems([]);
@@ -2629,20 +2695,20 @@ function SearchPage() {
     try {
       const h = await fpApi.health();
       if (!h.ok) {
-        throw new Error(h.error || "Máy quét vân tay chưa sẵn sàng.");
+        throw new Error(h.error || t("search.status.check_fp"));
       }
       const startResp = await fpApi.startSession("__search_query__");
       sid = startResp.session_id;
 
-      setFpScanStatus("Đặt 1 ngón bất kỳ lên máy quét và giữ yên ~1 giây...");
+      setFpScanStatus(t("search.status.place_any"));
       const capRes = await fpApi.capture(sid);
       const tmplB64 = capRes.finger?.template_b64;
       const imgB64 = capRes.finger?.image_b64;
-      if (!tmplB64) throw new Error("Không lấy được template vân tay.");
+      if (!tmplB64) throw new Error(t("search.err.no_template"));
 
       setFpImageB64(imgB64 || "");
       setFpTemplateB64(tmplB64);
-      setFpScanStatus("Đã thu được vân tay, đang so khớp với hệ thống...");
+      setFpScanStatus(t("search.status.matching"));
 
       // Cleanup session ngay sau khi có template
       try { await fpApi.cancel(sid); } catch { /* noop */ }
@@ -2658,9 +2724,9 @@ function SearchPage() {
       setTotal(list.length);
       if (typeof res.score === "number") setFpMatchScore(res.score);
       setSearched(true);
-      setFpScanStatus(list.length ? `Đã so khớp — tìm thấy ${list.length} hồ sơ.` : "Đã so khớp — không có hồ sơ phù hợp.");
+      setFpScanStatus(list.length ? t("search.status.matched", { n: list.length }) : t("search.status.no_match"));
     } catch (err) {
-      setError(err.message || "Không so khớp được vân tay.");
+      setError(err.message || t("search.err.match_fail"));
       setFpScanStatus("");
     } finally {
       if (sid) {
@@ -2680,14 +2746,14 @@ function SearchPage() {
   };
 
   const subtitle = searched
-    ? `Tìm thấy ${total} hồ sơ${fpMatchScore != null ? ` · Độ khớp: ${(fpMatchScore * 100).toFixed(1)}%` : ""}`
-    : "Chọn phương thức tra cứu: theo tên, số CCCD, hoặc vân tay";
+    ? t("search.subtitle.results", { n: total, pct: fpMatchScore != null ? (fpMatchScore * 100).toFixed(1) : "-" })
+    : t("search.subtitle.desc");
 
   return (
     <div className="page">
-      <PageHeader title="Tra cứu can phạm" subtitle={subtitle} />
+      <PageHeader title={t("search.title")} subtitle={subtitle} />
 
-      <div className="search-tabs" role="tablist" aria-label="Phương thức tra cứu">
+      <div className="search-tabs" role="tablist" aria-label={t("search.tab.aria")}>
         <button
           type="button"
           role="tab"
@@ -2695,7 +2761,7 @@ function SearchPage() {
           className={"search-tab " + (mode === "text" ? "active" : "")}
           onClick={() => switchMode("text")}
         >
-          Tìm nâng cao
+          {t("search.tab.text")}
         </button>
         <button
           type="button"
@@ -2704,7 +2770,7 @@ function SearchPage() {
           className={"search-tab " + (mode === "cccd" ? "active" : "")}
           onClick={() => switchMode("cccd")}
         >
-          Theo số CCCD
+          {t("search.tab.cccd")}
         </button>
         <button
           type="button"
@@ -2713,7 +2779,7 @@ function SearchPage() {
           className={"search-tab " + (mode === "fingerprint" ? "active" : "")}
           onClick={() => switchMode("fingerprint")}
         >
-          Theo vân tay
+          {t("search.tab.fp")}
         </button>
       </div>
 
@@ -2721,12 +2787,12 @@ function SearchPage() {
         <form className="filter-bar" onSubmit={doSearchText}>
           <input
             className="control search-control"
-            placeholder="Tìm theo tên, số CCCD, mã hồ sơ..."
+            placeholder={t("search.ph.text")}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
           <select className="control" value={cellCode} onChange={(e) => setCellCode(e.target.value)}>
-            <option value="">Tất cả buồng</option>
+            <option value="">{t("search.cell.all")}</option>
             {cells.map((cell) => (
               <option key={cell.code} value={cell.code}>
                 {cell.code} - {cell.name}
@@ -2734,12 +2800,12 @@ function SearchPage() {
             ))}
           </select>
           <select className="control" value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="">Tất cả giới tính</option>
-            <option value="male">Nam</option>
-            <option value="female">Nữ</option>
+            <option value="">{t("search.gender.all")}</option>
+            <option value="male">{t("search.gender.male")}</option>
+            <option value="female">{t("search.gender.female")}</option>
           </select>
           <button className="button primary" type="submit" disabled={loading}>
-            {loading ? "Đang tìm..." : "Tìm kiếm"}
+            {loading ? t("search.searching") : t("search.submit")}
           </button>
         </form>
       )}
@@ -2748,7 +2814,7 @@ function SearchPage() {
         <form className="filter-bar" onSubmit={doSearchCccd}>
           <input
             className="control search-control"
-            placeholder="Nhập số CCCD (12 chữ số)..."
+            placeholder={t("search.cccd_ph")}
             value={cccdNumber}
             onChange={(e) => setCccdNumber(e.target.value.replace(/\D/g, "").slice(0, 12))}
             inputMode="numeric"
@@ -2756,7 +2822,7 @@ function SearchPage() {
             autoFocus
           />
           <button className="button primary" type="submit" disabled={loading || cccdNumber.length < 6}>
-            {loading ? "Đang tìm..." : "Tìm theo CCCD"}
+            {loading ? t("search.searching") : t("search.by_cccd")}
           </button>
         </form>
       )}
@@ -2766,13 +2832,13 @@ function SearchPage() {
           <div className="fp-search-slot">
             {fpImageB64 ? (
               <div className="fp-search-preview">
-                <img src={`data:image/png;base64,${fpImageB64}`} alt="Vân tay quét" />
+                <img src={`data:image/png;base64,${fpImageB64}`} alt={t("search.fp.alt")} />
                 <button
                   type="button"
                   className="fp-search-clear"
                   onClick={clearFp}
                   disabled={fpScanning}
-                  aria-label="Xoá ảnh vân tay"
+                  aria-label={t("search.fp.aria_delete")}
                 >×</button>
               </div>
             ) : (
@@ -2785,9 +2851,9 @@ function SearchPage() {
                     <path d="M12 15v1a3 3 0 0 0 3 3" />
                   </svg>
                 </span>
-                <span>{fpScanStatus || "Nhấn nút bên phải để bắt đầu quét vân tay"}</span>
+                <span>{fpScanStatus || t("search.fp.hint_click")}</span>
                 <span className="fp-search-drop-hint">
-                  {fpScanning ? "Đang chờ máy quét..." : "Đặt 1 ngón bất kỳ lên máy quét khi được yêu cầu"}
+                  {fpScanning ? t("search.fp.waiting") : t("search.fp.hint_place")}
                 </span>
               </div>
             )}
@@ -2798,7 +2864,7 @@ function SearchPage() {
             onClick={doFpScanAndMatch}
             disabled={fpScanning || loading}
           >
-            {fpScanning ? "Đang quét..." : (fpTemplateB64 ? "Quét lại" : "Bắt đầu quét")}
+            {fpScanning ? t("search.scanning") : (fpTemplateB64 ? t("search.rescan") : t("search.start_scan"))}
           </button>
         </div>
       )}
@@ -2807,23 +2873,23 @@ function SearchPage() {
 
       <div className="table-card">
         {!searched ? (
-          <StateBox>Nhập điều kiện và bấm "Tìm kiếm" để tra cứu.</StateBox>
+          <StateBox>{t("search.hint_empty")}</StateBox>
         ) : loading ? (
-          <StateBox>Đang tải...</StateBox>
+          <StateBox>{t("common.loading")}</StateBox>
         ) : !items.length ? (
-          <StateBox>Không tìm thấy hồ sơ phù hợp.</StateBox>
+          <StateBox>{t("search.empty")}</StateBox>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>Ảnh</th>
-                <th>Mã hồ sơ</th>
-                <th>Họ và tên</th>
-                <th>Giới tính</th>
-                <th>Ngày sinh</th>
-                <th>Số CCCD</th>
-                <th>Buồng</th>
-                <th>Thao tác</th>
+                <th>{t("search.col.photo")}</th>
+                <th>{t("search.col.code")}</th>
+                <th>{t("search.col.name")}</th>
+                <th>{t("search.col.gender")}</th>
+                <th>{t("search.col.dob")}</th>
+                <th>{t("search.col.cccd")}</th>
+                <th>{t("search.col.cell")}</th>
+                <th>{t("search.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -2836,13 +2902,13 @@ function SearchPage() {
                   </td>
                   <td><strong>{item.personal_id || item.code}</strong></td>
                   <td>{item.full_name}</td>
-                  <td>{item.gender === "female" ? "Nữ" : "Nam"}</td>
-                  <td>{item.dob ? new Date(item.dob).toLocaleDateString("vi-VN") : "-"}</td>
+                  <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
+                  <td>{item.dob ? formatDate(item.dob) : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
                   <td>{item.cell_code || "-"}</td>
                   <td>
                     <div className="row-actions">
-                      <button onClick={() => setViewing(item)}>Xem</button>
+                      <button onClick={() => setViewing(item)}>{t("common.view")}</button>
                     </div>
                   </td>
                 </tr>
@@ -2858,9 +2924,11 @@ function SearchPage() {
 }
 
 function UsersPage({ currentUser }) {
+  const { t } = useI18n();
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeOk, setNoticeOk] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -2880,13 +2948,15 @@ function UsersPage({ currentUser }) {
   useEffect(() => { load(); }, []);
 
   const onDelete = async (u) => {
-    if (!window.confirm(`Xoá tài khoản "${u.username}"?`)) return;
+    if (!window.confirm(t("users.confirm_delete", { u: u.username }))) return;
     try {
       await api.deleteUser(u.id);
-      setNotice(`Đã xoá tài khoản ${u.username}.`);
+      setNotice(t("users.deleted", { u: u.username }));
+      setNoticeOk(true);
       load();
     } catch (e) {
-      setNotice(`Lỗi: ${e.message}`);
+      setNotice(t("common.error_prefix", { message: e.message }));
+      setNoticeOk(false);
     }
   };
 
@@ -2894,36 +2964,38 @@ function UsersPage({ currentUser }) {
     if (!file) return;
     try {
       await api.uploadUserAvatar(u.id, file);
-      setNotice(`Đã cập nhật ảnh cho ${u.username}.`);
+      setNotice(t("users.avatar_updated", { u: u.username }));
+      setNoticeOk(true);
       load();
     } catch (e) {
-      setNotice(`Lỗi: ${e.message}`);
+      setNotice(t("common.error_prefix", { message: e.message }));
+      setNoticeOk(false);
     }
   };
 
   return (
     <div className="page">
-      <PageHeader title="Quản lý tài khoản" subtitle={`${users.length} tài khoản`}>
+      <PageHeader title={t("users.title")} subtitle={t("users.subtitle", { n: users.length })}>
         <button className="button primary" onClick={() => { setEditing(null); setShowForm(true); }}>
           {Icon.plus}
-          Thêm tài khoản
+          {t("users.add")}
         </button>
       </PageHeader>
 
       {error && <StateBox type="error">{error}</StateBox>}
-      {notice && <div className={notice.startsWith("Đã") ? "success-box" : "error-box"}>{notice}</div>}
+      {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
 
       <div className="table-card">
-        {loading ? <StateBox>Đang tải...</StateBox> : (
+        {loading ? <StateBox>{t("common.loading")}</StateBox> : (
           <table>
             <thead>
               <tr>
-                <th>Ảnh</th>
-                <th>Tên đăng nhập</th>
-                <th>Họ tên</th>
-                <th>Vai trò</th>
-                <th>Ngày tạo</th>
-                <th>Thao tác</th>
+                <th>{t("users.col.photo")}</th>
+                <th>{t("users.col.username")}</th>
+                <th>{t("users.col.full_name")}</th>
+                <th>{t("users.col.role")}</th>
+                <th>{t("users.col.created")}</th>
+                <th>{t("users.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -2938,8 +3010,8 @@ function UsersPage({ currentUser }) {
                       ) : (
                         <span className="officer-avatar officer-avatar-fallback">{initials}</span>
                       )}
-                      <label className="avatar-upload-btn" title="Cập nhật ảnh">
-                        Đổi
+                      <label className="avatar-upload-btn" title={t("users.avatar_title")}>
+                        {t("users.change")}
                         <input
                           type="file"
                           accept="image/*"
@@ -2953,20 +3025,20 @@ function UsersPage({ currentUser }) {
                   <td>{u.full_name || "-"}</td>
                   <td>
                     <span className={`status-badge ${u.role === "admin" ? "delete" : "create"}`}>
-                      {u.role === "admin" ? "Quản trị" : "Cán bộ"}
+                      {u.role === "admin" ? t("common.role.admin") : t("common.role.officer")}
                     </span>
                   </td>
                   <td>{u.created_at ? formatDateTime(u.created_at) : "-"}</td>
                   <td>
                     <div className="row-actions">
-                      <button onClick={() => { setEditing(u); setShowForm(true); }}>Sửa</button>
+                      <button onClick={() => { setEditing(u); setShowForm(true); }}>{t("common.edit")}</button>
                       <button
                         className="danger-text"
                         disabled={u.username === "admin" || u.username === currentUser}
                         onClick={() => onDelete(u)}
-                        title={u.username === "admin" ? "Không thể xoá admin gốc" : u.username === currentUser ? "Không thể tự xoá" : ""}
+                        title={u.username === "admin" ? t("users.cannot_delete_admin") : u.username === currentUser ? t("users.cannot_delete_self") : ""}
                       >
-                        Xoá
+                        {t("common.delete")}
                       </button>
                     </div>
                   </td>
@@ -2974,7 +3046,7 @@ function UsersPage({ currentUser }) {
                 );
               })}
               {!users.length && (
-                <tr><td colSpan={6}><div className="empty">Chưa có tài khoản.</div></td></tr>
+                <tr><td colSpan={6}><div className="empty">{t("users.empty")}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -2987,7 +3059,8 @@ function UsersPage({ currentUser }) {
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSaved={(msg) => {
             setShowForm(false); setEditing(null);
-            setNotice(msg || "Đã lưu tài khoản.");
+            setNotice(msg || t("users.saved"));
+            setNoticeOk(true);
             load();
           }}
         />
@@ -2997,6 +3070,7 @@ function UsersPage({ currentUser }) {
 }
 
 function UserForm({ initial, onClose, onSaved }) {
+  const { t } = useI18n();
   const isEdit = Boolean(initial);
   const [username, setUsername] = useState(initial?.username || "");
   const [fullName, setFullName] = useState(initial?.full_name || "");
@@ -3006,7 +3080,7 @@ function UserForm({ initial, onClose, onSaved }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!fullName.trim()) { setError("Vui lòng nhập họ và tên."); return; }
+    if (!fullName.trim()) { setError(t("userform.err.name_required")); return; }
     setSaving(true);
     setError("");
     try {
@@ -3014,7 +3088,7 @@ function UserForm({ initial, onClose, onSaved }) {
         const body = { full_name: fullName.trim() };
         if (password) body.password = password;
         await api.updateUser(initial.id, body);
-        onSaved(`Đã cập nhật ${initial.username}.`);
+        onSaved(t("userform.updated", { u: initial.username }));
       } else {
         await api.createUser({
           username: username.trim(),
@@ -3022,7 +3096,7 @@ function UserForm({ initial, onClose, onSaved }) {
           role: "user",
           full_name: fullName.trim(),
         });
-        onSaved(`Đã tạo tài khoản ${username}.`);
+        onSaved(t("userform.created", { u: username }));
       }
     } catch (e) {
       setError(e.message);
@@ -3035,12 +3109,12 @@ function UserForm({ initial, onClose, onSaved }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>{isEdit ? `Sửa tài khoản ${initial.username}` : "Thêm tài khoản"}</h3>
+          <h3>{isEdit ? t("userform.title.edit", { u: initial.username }) : t("userform.title.new")}</h3>
           <button onClick={onClose}>×</button>
         </div>
         <form className="form" onSubmit={submit}>
           {error && <div className="error-box">{error}</div>}
-          <FieldRow label="Tên đăng nhập *">
+          <FieldRow label={t("userform.field.username")}>
             <input
               className="control"
               value={username}
@@ -3052,10 +3126,10 @@ function UserForm({ initial, onClose, onSaved }) {
               pattern="[a-zA-Z0-9_.\-]+"
             />
           </FieldRow>
-          <FieldRow label="Họ và tên *">
+          <FieldRow label={t("userform.field.full_name")}>
             <input className="control" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} required />
           </FieldRow>
-          <FieldRow label={isEdit ? "Đổi mật khẩu (bỏ trống nếu giữ nguyên)" : "Mật khẩu *"}>
+          <FieldRow label={isEdit ? t("userform.field.pw_change") : t("userform.field.pw")}>
             <input
               className="control"
               type="password"
@@ -3066,18 +3140,18 @@ function UserForm({ initial, onClose, onSaved }) {
               maxLength={100}
             />
           </FieldRow>
-          <FieldRow label="Vai trò">
+          <FieldRow label={t("userform.field.role")}>
             <input
               className="control"
-              value={isEdit ? (initial.role === "admin" ? "Quản trị" : "Cán bộ") : "Cán bộ"}
+              value={isEdit ? (initial.role === "admin" ? t("userform.role.admin") : t("userform.role.user")) : t("userform.role.user")}
               disabled
               readOnly
             />
           </FieldRow>
           <div className="modal-actions">
-            <button type="button" className="button secondary" onClick={onClose}>Huỷ</button>
+            <button type="button" className="button secondary" onClick={onClose}>{t("common.cancel")}</button>
             <button type="submit" className="button primary" disabled={saving}>
-              {saving ? "Đang lưu..." : "Lưu"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </form>
@@ -3239,6 +3313,55 @@ const styles = `
   }
 
   .device-chip-label { white-space: nowrap; }
+
+  /* Language switch — dark header override (Globe + full names) */
+  .header-actions .lang-switch {
+    height: 44px;
+    padding: 4px 8px 4px 12px;
+    border-radius: 14px;
+    background: rgba(2, 28, 79, .28);
+    border: 1px solid rgba(255,255,255,.18);
+    box-shadow: none;
+    color: #d9e8ff;
+  }
+  .header-actions .lang-switch-globe {
+    color: #cfe0ff;
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+  }
+  .header-actions .lang-switch-sep {
+    color: rgba(255,255,255,.32);
+  }
+  .header-actions .lang-switch button {
+    height: 36px;
+    padding: 0 12px;
+    color: #d9e8ff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    border-radius: 10px;
+    gap: 6px;
+  }
+  .header-actions .lang-switch button:hover {
+    color: #ffffff;
+    background: rgba(255,255,255,.08);
+  }
+  .header-actions .lang-switch button.active {
+    background: #ffffff;
+    color: #0d2b6b;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  }
+  .header-actions .lang-switch button:focus-visible {
+    outline: 2px solid #ffd166;
+    outline-offset: 2px;
+  }
+  /* Hide long labels on narrower header widths, fall back to flag+short */
+  @media (max-width: 1180px) {
+    .header-actions .lang-switch .lang-switch-label { display: none; }
+    .header-actions .lang-switch .lang-switch-short { display: inline; }
+    .header-actions .lang-switch button { padding: 0 10px; }
+  }
 
   .notif-wrap { position: relative; }
 
@@ -4728,6 +4851,146 @@ const styles = `
     box-shadow: 0 30px 80px rgba(0,0,0,.28);
   }
   .small-modal { width: min(520px, 100%); }
+
+  .sync-diff-modal {
+    width: min(720px, 100%);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .sync-diff-modal .modal-header { flex-shrink: 0; }
+  .sync-diff-sub {
+    padding: 10px 24px;
+    color: #4a5b78;
+    font-size: 13.5px;
+    border-bottom: 1px solid #eef2f8;
+    flex-shrink: 0;
+  }
+  .sync-diff-loading {
+    padding: 40px;
+    text-align: center;
+    color: #6b7a95;
+  }
+  .sync-diff-summary {
+    display: flex;
+    gap: 14px;
+    padding: 14px 24px;
+    background: #f8fafd;
+    border-bottom: 1px solid #eef2f8;
+    flex-shrink: 0;
+  }
+  .sd-sum { font-size: 13.5px; font-weight: 600; }
+  .sd-sum.add { color: #12af64; }
+  .sd-sum.upd { color: #c47a00; }
+  .sd-sum.dup { color: #6b7a95; }
+
+  .sync-diff-body {
+    overflow-y: auto;
+    flex: 1;
+    padding: 12px 24px;
+  }
+  .sync-diff-empty {
+    padding: 32px;
+    text-align: center;
+    color: #6b7a95;
+  }
+  .sd-group { margin-bottom: 18px; }
+  .sd-group-head {
+    padding: 6px 0 8px;
+    border-bottom: 1px solid #eef2f8;
+    margin-bottom: 8px;
+  }
+  .sd-checkall {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 14px;
+    color: #102441;
+  }
+  .sd-list { display: flex; flex-direction: column; gap: 4px; }
+  .sd-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f8fafd;
+  }
+  .sd-row-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .sd-row-line { flex: 1; color: #0f1a32; }
+  .sd-diff-toggle {
+    background: transparent;
+    border: 1px solid #d0d9ea;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    color: #4a5b78;
+    cursor: pointer;
+  }
+  .sd-diff-toggle:hover { background: #eef2f8; }
+  .sd-diff-list {
+    padding-left: 30px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .sd-diff-field {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #fdeec8;
+    color: #8a5a00;
+    font-size: 11.5px;
+  }
+  .sd-row-dup { opacity: .65; }
+  .sync-diff-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 24px;
+    border-top: 1px solid #eef2f8;
+    flex-shrink: 0;
+  }
+  .sync-diff-actions .btn-primary {
+    background: #2371f4;
+    color: #fff;
+    border: 0;
+    border-radius: 9px;
+    padding: 9px 18px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .sync-diff-actions .btn-primary:disabled {
+    background: #b8c5db;
+    cursor: not-allowed;
+  }
+  .sync-diff-actions .btn-secondary {
+    background: #eef2f8;
+    color: #0f1a32;
+    border: 0;
+    border-radius: 9px;
+    padding: 9px 18px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .sync-diff-modal .close-x {
+    background: transparent;
+    border: 0;
+    font-size: 22px;
+    color: #6b7a95;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+  }
+
   .modal-header {
     height: 68px;
     display: flex;
