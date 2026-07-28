@@ -89,7 +89,7 @@ export default function Login({ onLogin }) {
       <div className="lg-inner">
         <div className="lg-card" role="dialog" aria-labelledby="lg-title">
           <div className="lg-emblem">
-            <img src="/emblem-cand.png" alt={t("login.emblem_alt")} />
+            <img src="/pyxis-logo.png" alt={t("login.emblem_alt")} />
           </div>
 
           <h1 id="lg-title" className="lg-title">

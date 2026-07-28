@@ -290,7 +290,7 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
     <header className="header">
       <div className="brand">
         <div className="brand-logo">
-          <img src="/brand-logo.png" alt={t("header.brand_logo_alt")} />
+          <img src="/pyxis-logo.png" alt={t("header.brand_logo_alt")} />
         </div>
         <div>
           <div className="brand-title">{t("header.brand_title")}</div>
