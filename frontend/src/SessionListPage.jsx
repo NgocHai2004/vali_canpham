@@ -46,6 +46,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [confirmDel, setConfirmDel] = useState(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [mineOnly, setMineOnly] = useState(role !== "admin");
   const [dateFrom, setDateFrom] = useState("");
@@ -58,13 +59,13 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const removeSession = async (s) => {
-    const n = s.detainee_count || 0;
-    const warn = n > 0
-      ? t("session.delete.confirm_multi", { code: s.code, n })
-      : t("session.delete.confirm_empty", { code: s.code });
-    if (!window.confirm(warn)) return;
+  const removeSession = (s) => setConfirmDel(s);
+
+  const doDeleteSession = async () => {
+    const s = confirmDel;
+    if (!s) return;
     setDeletingId(s.id);
+    setConfirmDel(null);
     try {
       await api.deleteSession(s.id);
       notify.add();
@@ -239,7 +240,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
               <tr><td colSpan={8} className="session-list-empty">{t("session.empty")}</td></tr>
             )}
             {!loading && items.map((s) => {
-              const canDelete = s.status === "open" && (role === "admin" || s.officer === username);
+              const canDelete = role === "admin" || s.officer === username;
               const exporting = exportingId === s.id;
               return (
                 <tr key={s.id} onClick={() => onOpenSession && onOpenSession(s.id)} className="session-list-row">
@@ -256,6 +257,17 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                   <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
                   <td style={{ textAlign: "right" }}>
                     <div style={{ display: "inline-flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="btn-link btn-link-danger"
+                          disabled={deletingId === s.id}
+                          onClick={(e) => { e.stopPropagation(); removeSession(s); }}
+                          title={s.detainee_count ? t("session.delete.title", { n: s.detainee_count }) : t("session.delete.title_simple")}
+                        >
+                          {deletingId === s.id ? t("common.deleting") : t("session.delete.title_simple")}
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn-link"
@@ -265,17 +277,6 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                       >
                         {exporting ? t("session.exporting") : t("session.export")}
                       </button>
-                      {canDelete && (
-                        <button
-                          type="button"
-                          className="btn-link btn-link-danger"
-                          disabled={deletingId === s.id}
-                          onClick={(e) => { e.stopPropagation(); removeSession(s); }}
-                          title={s.detainee_count ? t("session.delete.title", { n: s.detainee_count }) : t("session.delete.title_simple")}
-                        >
-                          {deletingId === s.id ? t("common.deleting") : t("common.delete")}
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -301,6 +302,32 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           onCancel={() => setModalOpen(false)}
           onCreated={handleCreated}
         />
+      )}
+
+      {confirmDel && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => e.target === e.currentTarget && setConfirmDel(null)}
+        >
+          <div className="modal-panel confirm-del-modal">
+            <div className="modal-head">
+              <h3>{t("session.delete.title_simple")}</h3>
+            </div>
+            <div style={{ padding: "14px 20px", whiteSpace: "pre-line", lineHeight: 1.5 }}>
+              {(confirmDel.detainee_count || 0) > 0
+                ? t("session.delete.confirm_multi", { code: confirmDel.code, n: confirmDel.detainee_count })
+                : t("session.delete.confirm_empty", { code: confirmDel.code })}
+            </div>
+            <div className="modal-actions" style={{ padding: "10px 20px 16px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button type="button" className="btn-secondary" onClick={() => setConfirmDel(null)}>
+                {t("common.cancel")}
+              </button>
+              <button type="button" className="btn-danger" onClick={doDeleteSession}>
+                {t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

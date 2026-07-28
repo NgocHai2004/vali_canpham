@@ -1711,22 +1711,20 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
 
           {/* ===== II. Biometric & custody info ===== */}
           <h3 className="pv-section">{t("pdf.section2")}</h3>
-          <table className="pv-table pv-info-table pv-info-2x2">
-            <tbody>
-              <tr>
-                <td className="pv-label">{t("pdf.field.height")}</td><td className="pv-value">{val(form.height_cm)}</td>
-                <td className="pv-label">{t("pdf.field.weight")}</td><td className="pv-value">{val(form.weight_kg)}</td>
-              </tr>
-              <tr>
-                <td className="pv-label">{t("pdf.field.date_in")}</td><td className="pv-value">{val(form.date_in)}</td>
-                <td className="pv-label">{t("pdf.field.cell")}</td><td className="pv-value">{val(form.cell_code)}</td>
-              </tr>
-              <tr>
-                <td className="pv-label">{t("pdf.field.note")}</td>
-                <td colSpan={3}>{val(form.note)}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="pv-info-grid">
+            <div className="pv-g-label">{t("pdf.field.height")}</div>
+            <div className="pv-g-value">{val(form.height_cm)}</div>
+            <div className="pv-g-label">{t("pdf.field.weight")}</div>
+            <div className="pv-g-value">{val(form.weight_kg)}</div>
+
+            <div className="pv-g-label">{t("pdf.field.date_in")}</div>
+            <div className="pv-g-value">{val(form.date_in)}</div>
+            <div className="pv-g-label">{t("pdf.field.cell")}</div>
+            <div className="pv-g-value">{val(form.cell_code)}</div>
+
+            <div className="pv-g-label">{t("pdf.field.note")}</div>
+            <div className="pv-g-value pv-g-note">{val(form.note)}</div>
+          </div>
 
           {/* ===== III. Portrait photos (3 frames) ===== */}
           <h3 className="pv-section">{t("pdf.section3")}</h3>

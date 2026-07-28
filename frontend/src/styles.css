@@ -1775,6 +1775,63 @@ textarea.input {
   max-width: 720px;
 }
 
+.modal-panel {
+  width: min(480px, 100%);
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #d9dfea;
+  box-shadow: 0 30px 80px rgba(6, 21, 44, 0.35), 0 10px 24px rgba(6, 21, 44, 0.18);
+  overflow: hidden;
+  color: #0a2540;
+  font-size: 14px;
+  animation: modalPanelIn .18s ease-out;
+}
+
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: translateY(-8px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.confirm-del-modal {
+  width: min(440px, 100%);
+}
+.confirm-del-modal .modal-head {
+  background: linear-gradient(135deg, #fff5f6 0%, #ffe9ec 100%);
+  border-bottom: 1px solid #f5c8ce;
+  padding: 14px 20px;
+}
+.confirm-del-modal .modal-head h3 {
+  color: #7a1520;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+.confirm-del-modal .modal-actions {
+  border-top: 1px solid #eef2f7;
+  background: #fbfcfe;
+}
+.confirm-del-modal .btn-secondary,
+.confirm-del-modal .btn-danger {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: .15s;
+}
+.confirm-del-modal .btn-secondary {
+  background: #fff;
+  border-color: #d0d7e2;
+  color: #3a4a63;
+}
+.confirm-del-modal .btn-secondary:hover { background: #f2f5fa; }
+.confirm-del-modal .btn-danger {
+  background: #b91c26;
+  color: #fff;
+}
+.confirm-del-modal .btn-danger:hover { background: #7f171e; }
+
 .modal-head {
   padding: 18px 22px;
   border-bottom: 1px solid #eef2f7;
@@ -5940,7 +5997,8 @@ textarea.input {
   display: flex;
   flex-direction: column;
   gap: 3mm;
-  overflow: visible;
+  /* Safety net per design.md §10 — chặn mọi phần tử con vô tình tràn ngang. */
+  overflow: hidden;
 }
 
 /* ---------- Header row: quốc hiệu canh giữa toàn trang ---------- */
@@ -6102,23 +6160,42 @@ textarea.input {
 .preview-a4-portrait .pv-info-single .pv-label {
   width: 38mm;
 }
-.preview-a4-portrait .pv-info-2x2 {
-  width: 100%;
-  table-layout: fixed;
+/*
+ * Section II — Nhận dạng & giam giữ.
+ * Dùng CSS Grid thay <table>: grid tracks đo bằng mm cứng, KHÔNG bị hiện tượng
+ * "table-layout: fixed + chuỗi không break point" đẩy cột tràn ngang.
+ * Vùng nội dung A4 = 180mm (210mm - 15mm padding * 2).
+ * Track: 30mm label + 60mm value + 30mm label + 60mm value = 180mm — vừa khít.
+ */
+.preview-a4-portrait .pv-info-grid {
+  display: grid;
+  grid-template-columns: 30mm 60mm 30mm 60mm;
+  width: 180mm;
+  max-width: 180mm;
+  border: 0.8px solid #94a3b8;
+  border-right: 0;
+  border-bottom: 0;
+  font-size: 11px;
+  color: #000;
 }
-.preview-a4-portrait .pv-info-2x2 .pv-label {
-  width: 26mm;
+.preview-a4-portrait .pv-info-grid > div {
+  border-right: 0.8px solid #94a3b8;
+  border-bottom: 0.8px solid #94a3b8;
+  padding: 3px 6px;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: normal;
+  vertical-align: top;
 }
-/* Thu hẹp ô giá trị "………………" để không đẩy cột phải tràn ra ngoài */
-.preview-a4-portrait .pv-info-2x2 .pv-value {
-  width: 20mm;
+.preview-a4-portrait .pv-info-grid .pv-g-label {
+  background: #f1f5f9;
+  font-weight: 600;
+  font-size: 10.5px;
 }
-.preview-a4-portrait .pv-info-2x2 td {
-  white-space: normal;
-  overflow-wrap: break-word;
+.preview-a4-portrait .pv-info-grid .pv-g-note {
+  grid-column: span 3;
 }
 
 /* ---------- III. Ảnh chân dung — 3 khung ngang ---------- */

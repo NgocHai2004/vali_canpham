@@ -1112,7 +1112,7 @@ async def delete_session(session_id: str, request: Request, user: dict = Depends
         raise HTTPException(404, "Không tìm thấy phiên làm việc.")
     if doc.get("officer") != user["username"] and user.get("role") != "admin":
         raise HTTPException(403, "Bạn không có quyền xoá phiên này.")
-    if doc.get("status") != "open":
+    if doc.get("status") != "open" and user.get("role") != "admin":
         raise HTTPException(400, "Chỉ có thể xoá phiên đang mở, chưa đóng.")
     # Xoá toàn bộ hồ sơ can phạm thuộc phiên này
     cursor = db.detainees.find({"session_id": doc["_id"]}, {"personal_id": 1})

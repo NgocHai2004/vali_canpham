@@ -27,6 +27,9 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [closing, setClosing] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmDeleteSess, setConfirmDeleteSess] = useState(false);
+  const [confirmDelRow, setConfirmDelRow] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -51,11 +54,10 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
 
   useEffect(() => { load(); }, [sessionId]);
 
-  const doClose = async () => {
+  const doClose = () => setConfirmClose(true);
+  const runClose = async () => {
+    setConfirmClose(false);
     if (!session) return;
-    const n = session.detainee_count || 0;
-    const msg = t("session.detail.confirm.close", { code: session.code, n });
-    if (!window.confirm(msg)) return;
     setClosing(true);
     setErr("");
     try {
@@ -70,13 +72,10 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     }
   };
 
-  const doDelete = async () => {
+  const doDelete = () => setConfirmDeleteSess(true);
+  const runDelete = async () => {
+    setConfirmDeleteSess(false);
     if (!session) return;
-    const n = session.detainee_count || 0;
-    const warn = n > 0
-      ? t("session.detail.confirm.delete_warn", { code: session.code, n })
-      : t("session.detail.confirm.delete_empty", { code: session.code });
-    if (!window.confirm(warn)) return;
     setClosing(true);
     setErr("");
     try {
@@ -99,8 +98,11 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     }
   };
 
-  const removeDetainee = async (d) => {
-    if (!window.confirm(t("session.detail.confirm.delete_row", { code: d.code, name: d.full_name }))) return;
+  const removeDetainee = (d) => setConfirmDelRow(d);
+  const runRemoveDetainee = async () => {
+    const d = confirmDelRow;
+    setConfirmDelRow(null);
+    if (!d) return;
     try {
       await api.deleteDetainee(d.id);
       notify.add();
@@ -174,7 +176,12 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
               </button>
             </>
           ) : (
-            <button className="btn-primary" onClick={doDownload}>{t("session.detail.download_report")}</button>
+            <>
+              <button className="btn-danger-outline" onClick={doDelete} disabled={closing}>
+                {closing ? t("session.detail.deleting") : t("session.detail.delete")}
+              </button>
+              <button className="btn-primary" onClick={doDownload}>{t("session.detail.download_report")}</button>
+            </>
           )}
         </div>
       </div>
@@ -220,6 +227,53 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
           </tbody>
         </table>
       </div>
+
+      {confirmClose && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setConfirmClose(false)}>
+          <div className="modal-panel confirm-del-modal">
+            <div className="modal-head"><h3>{t("session.detail.close")}</h3></div>
+            <div style={{ padding: "14px 20px", whiteSpace: "pre-line", lineHeight: 1.5 }}>
+              {t("session.detail.confirm.close", { code: session.code, n: session.detainee_count || 0 })}
+            </div>
+            <div className="modal-actions" style={{ padding: "10px 20px 16px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button type="button" className="btn-secondary" onClick={() => setConfirmClose(false)}>{t("common.cancel")}</button>
+              <button type="button" className="btn-danger" onClick={runClose}>{t("common.confirm")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteSess && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setConfirmDeleteSess(false)}>
+          <div className="modal-panel confirm-del-modal">
+            <div className="modal-head"><h3>{t("session.detail.delete")}</h3></div>
+            <div style={{ padding: "14px 20px", whiteSpace: "pre-line", lineHeight: 1.5 }}>
+              {(session.detainee_count || 0) > 0
+                ? t("session.detail.confirm.delete_warn", { code: session.code, n: session.detainee_count })
+                : t("session.detail.confirm.delete_empty", { code: session.code })}
+            </div>
+            <div className="modal-actions" style={{ padding: "10px 20px 16px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button type="button" className="btn-secondary" onClick={() => setConfirmDeleteSess(false)}>{t("common.cancel")}</button>
+              <button type="button" className="btn-danger" onClick={runDelete}>{t("common.delete")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDelRow && (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setConfirmDelRow(null)}>
+          <div className="modal-panel confirm-del-modal">
+            <div className="modal-head"><h3>{t("common.delete")}</h3></div>
+            <div style={{ padding: "14px 20px", whiteSpace: "pre-line", lineHeight: 1.5 }}>
+              {t("session.detail.confirm.delete_row", { code: confirmDelRow.code, name: confirmDelRow.full_name })}
+            </div>
+            <div className="modal-actions" style={{ padding: "10px 20px 16px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button type="button" className="btn-secondary" onClick={() => setConfirmDelRow(null)}>{t("common.cancel")}</button>
+              <button type="button" className="btn-danger" onClick={runRemoveDetainee}>{t("common.delete")}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
