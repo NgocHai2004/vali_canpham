@@ -73,6 +73,7 @@ const NAV_BASE = [
   { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
   { key: "search", labelKey: "nav.search", icon: Icon.search },
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
+  { key: "logs", labelKey: "nav.logs", icon: Icon.clipboard },
 ];
 const NAV_ADMIN = [{ key: "users", labelKey: "nav.users", icon: Icon.users }];
 
@@ -1519,12 +1520,20 @@ function SyncPage() {
   // Bước 2: sau khi user xác nhận trong modal -> đẩy thật
   const doSync = async (selectedTargets) => {
     const session = diffState?.session;
+    const diff = diffState?.diff;
     if (!session || !selectedTargets.length) {
       setDiffState(null);
       return;
     }
     setDiffState(null);
     setSyncingIds((prev) => new Set(prev).add(session.id));
+    const pickEntry = (x) => ({
+      code: x.code || "",
+      full_name: x.full_name || "",
+      cccd_number: x.cccd_number || "",
+    });
+    const addSel = selectedTargets.filter((x) => (diff?.toAdd || []).some((a) => a.id === x.id));
+    const updSel = selectedTargets.filter((x) => (diff?.toUpdate || []).some((u) => u.id === x.id));
     try {
       const mappedDetainees = await Promise.all(selectedTargets.map((t) => mapOneToPayload(t.local)));
       const payload = {
@@ -1537,8 +1546,33 @@ function SyncPage() {
       });
       setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
       notify.add();
+      try {
+        await api.logSessionSync(session.id, {
+          added: addSel.length,
+          updated: updSel.length,
+          duplicated: (diff?.duplicates || []).length,
+          failed: 0,
+          added_items: addSel.map(pickEntry),
+          updated_items: updSel.map(pickEntry),
+          duplicate_items: (diff?.duplicates || []).map(pickEntry),
+          failed_items: [],
+        });
+      } catch { /* log-only; không chặn UX */ }
     } catch (e) {
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
+      try {
+        await api.logSessionSync(session.id, {
+          added: 0,
+          updated: 0,
+          duplicated: (diff?.duplicates || []).length,
+          failed: addSel.length + updSel.length,
+          added_items: [],
+          updated_items: [],
+          duplicate_items: (diff?.duplicates || []).map(pickEntry),
+          failed_items: [...addSel, ...updSel].map(pickEntry),
+          error: e.message,
+        });
+      } catch { /* noop */ }
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev);
@@ -2069,8 +2103,10 @@ function LogsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [actionFilter, setActionFilter] = useState("");
-  const [resourceFilter, setResourceFilter] = useState("detainee");
+  const [resourceFilter, setResourceFilter] = useState("");
   const [sessionFilter, setSessionFilter] = useState("");
+  const [actorFilter, setActorFilter] = useState("");
+  const [users, setUsers] = useState([]);
   const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null);
   const [busyRef, setBusyRef] = useState("");
@@ -2080,15 +2116,14 @@ function LogsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = { action: "sync", resource: "work_session" };
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
-      if (actionFilter) params.action = actionFilter;
-      if (resourceFilter) params.resource = resourceFilter;
       if (sessionFilter.trim()) params.session_code = sessionFilter.trim();
+      if (actorFilter) params.actor = actorFilter;
       const res = await api.listLogs(params);
       setLogs(res.items || []);
-      setCounts(res.counts || { create: 0, update: 0, delete: 0, login: 0, import: 0 });
+      setCounts(res.counts || { sync: 0 });
       setError("");
     } catch (e) {
       setError(e.message);
@@ -2100,6 +2135,7 @@ function LogsPage() {
   useEffect(() => {
     load();
     api.listCells().then(setCells).catch(() => { });
+    api.listUsers().then(setUsers).catch(() => { });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2109,6 +2145,7 @@ function LogsPage() {
     update: t("logs.action.update"),
     delete: t("logs.action.delete"),
     import: t("logs.action.import"),
+    sync: t("logs.action.sync"),
   };
 
   const resolveDetainee = async (log) => {
@@ -2128,7 +2165,14 @@ function LogsPage() {
     (log.ref || log.ref_id) &&
     log.action !== "delete";
 
+  const isSyncLog = (log) => log.action === "sync";
+  const [syncViewing, setSyncViewing] = useState(null);
+
   const onView = async (log) => {
+    if (isSyncLog(log)) {
+      setSyncViewing(log);
+      return;
+    }
     setBusyRef(log.id);
     setNotice("");
     try {
@@ -2178,17 +2222,16 @@ function LogsPage() {
   const clearFilters = () => {
     setDateFrom("");
     setDateTo("");
-    setActionFilter("");
-    setResourceFilter("detainee");
     setSessionFilter("");
+    setActorFilter("");
   };
 
   return (
     <div className="page report-page">
       <div className="report-fixed">
       <PageHeader
-        title={t("logs.title")}
-        subtitle={t("logs.subtitle", { n: logs.length })}
+        title={t("logs.title_sync")}
+        subtitle={t("logs.subtitle_sync", { n: logs.length })}
       >
         <button className="button secondary" onClick={load} disabled={loading}>
           {Icon.refresh}
@@ -2197,10 +2240,7 @@ function LogsPage() {
       </PageHeader>
 
       <div className="report-stat-grid">
-        <ReportStat tone="blue" icon={Icon.file} label={t("logs.action.create")} value={counts.create || 0} note={t("logs.stat.note.create")} />
-        <ReportStat tone="orange" icon={Icon.sync} label={t("session.stat.update")} value={counts.update || 0} note={t("logs.stat.note.update")} />
-        <ReportStat tone="purple" icon={Icon.log} label={t("session.stat.delete")} value={counts.delete || 0} note={t("logs.stat.note.delete")} />
-        <ReportStat tone="green" icon={Icon.cloudUpload} label={t("logs.action.import")} value={counts.import || 0} note={t("logs.stat.note.import")} />
+        <ReportStat tone="orange" icon={Icon.sync} label={t("logs.stat.sync_total")} value={counts.sync || 0} note={t("logs.stat.note.sync")} />
       </div>
 
       <form
@@ -2231,27 +2271,6 @@ function LogsPage() {
             />
           </label>
           <label className="report-field">
-            <span>{t("logs.field.action")}</span>
-            <select className="control" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-              <option value="">{t("logs.action.all")}</option>
-              <option value="create">{t("logs.action.create")}</option>
-              <option value="update">{t("logs.action.update")}</option>
-              <option value="delete">{t("logs.action.delete")}</option>
-              <option value="import">{t("logs.action.import")}</option>
-              <option value="login">{t("logs.action.login")}</option>
-            </select>
-          </label>
-          <label className="report-field">
-            <span>{t("logs.field.resource")}</span>
-            <select className="control" value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)}>
-              <option value="detainee">{t("logs.resource.detainee")}</option>
-              <option value="work_session">{t("logs.resource.session")}</option>
-              <option value="cell">{t("logs.resource.cell")}</option>
-              <option value="auth">{t("logs.resource.auth")}</option>
-              <option value="">{t("logs.resource.all")}</option>
-            </select>
-          </label>
-          <label className="report-field">
             <span>{t("logs.field.session")}</span>
             <input
               className="control"
@@ -2260,6 +2279,17 @@ function LogsPage() {
               value={sessionFilter}
               onChange={(e) => setSessionFilter(e.target.value)}
             />
+          </label>
+          <label className="report-field">
+            <span>{t("logs.field.officer")}</span>
+            <select className="control" value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
+              <option value="">{t("logs.field.officer_all")}</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.username}>
+                  {u.full_name ? `${u.full_name} (@${u.username})` : u.username}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="report-filter-actions report-filter-actions-inline">
             <button type="button" className="button secondary" onClick={clearFilters}>{t("common.clear_filter")}</button>
@@ -2279,21 +2309,19 @@ function LogsPage() {
         <table>
           <thead>
             <tr>
-              <th>{t("logs.col.time")}</th>
-              <th>{t("logs.col.session")}</th>
-              <th>{t("logs.col.officer")}</th>
-              <th>{t("logs.col.action")}</th>
-              <th>{t("logs.col.resource")}</th>
-              <th>{t("logs.col.ref")}</th>
-              <th>{t("logs.col.actions")}</th>
+              <th style={{ width: "18%" }}>{t("logs.col.time")}</th>
+              <th style={{ width: "16%" }}>{t("logs.col.session")}</th>
+              <th style={{ width: "22%" }}>{t("logs.col.officer")}</th>
+              <th style={{ width: "32%" }}>{t("logs.sync.result")}</th>
+              <th style={{ width: "12%" }}>{t("logs.col.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {logs.map((log) => {
-              const canAct = isDetaineeLog(log);
               const busy = busyRef === log.id;
               const officer = log.officer || {};
               const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
+              const d = log.data || {};
               return (
                 <tr key={log.id}>
                   <td>{formatDateTime(log.at)}</td>
@@ -2306,7 +2334,7 @@ function LogsPage() {
                         <span className="mono">{log.session.code}</span>
                       </span>
                     ) : (
-                      <span style={{ color: "#98a4b8" }}>—</span>
+                      <span className="mono">{log.ref || "—"}</span>
                     )}
                   </td>
                   <td>
@@ -2322,25 +2350,26 @@ function LogsPage() {
                       </div>
                     </div>
                   </td>
-                  <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
-                  <td>{log.resource}</td>
-                  <td>{log.ref}</td>
                   <td>
-                    {canAct ? (
-                      <div className="row-actions">
-                        <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
-                        <button disabled={busy} onClick={() => onEdit(log)}>{t("common.edit")}</button>
-                        <button className="danger-text" disabled={busy} onClick={() => onDelete(log)}>{t("common.delete")}</button>
-                      </div>
-                    ) : (
-                      <span style={{ color: "#98a4b8" }}>-</span>
-                    )}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
+                      <span className="status-badge create">{t("logs.sync.added")}: {d.added || 0}</span>
+                      <span className="status-badge update">{t("logs.sync.updated")}: {d.updated || 0}</span>
+                      <span className="status-badge delete">{t("logs.sync.duplicated")}: {d.duplicated || 0}</span>
+                      {Number(d.failed || 0) > 0 && (
+                        <span className="status-badge delete">{t("logs.sync.failed")}: {d.failed}</span>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
+                    </div>
                   </td>
                 </tr>
               );
             })}
             {!logs.length && (
-              <tr><td colSpan={7}><div className="empty">{t("common.empty")}</div></td></tr>
+              <tr><td colSpan={5}><div className="empty">{t("common.empty")}</div></td></tr>
             )}
           </tbody>
         </table>
@@ -2348,6 +2377,7 @@ function LogsPage() {
       </div>
 
       {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
+      {syncViewing && <SyncLogDetailModal log={syncViewing} onClose={() => setSyncViewing(null)} />}
       {editing && (
         <DetaineeForm
           initial={editing}
@@ -3221,6 +3251,127 @@ export function FieldRow({ label, children }) {
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+function SyncLogDetailModal({ log, onClose }) {
+  const { t, formatDateTime } = useI18n();
+  const d = log?.data || {};
+  const officer = log?.officer || {};
+  const items = {
+    added: Array.isArray(d.added_items) ? d.added_items : [],
+    updated: Array.isArray(d.updated_items) ? d.updated_items : [],
+    duplicated: Array.isArray(d.duplicate_items) ? d.duplicate_items : [],
+    failed: Array.isArray(d.failed_items) ? d.failed_items : [],
+  };
+  const counts = {
+    added: Number(d.added || 0),
+    updated: Number(d.updated || 0),
+    duplicated: Number(d.duplicated || 0),
+    failed: Number(d.failed || 0),
+  };
+
+  const List = ({ title, tone, list }) => (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <span
+          className={`status-badge ${tone}`}
+          style={{ minWidth: 26, textAlign: "center" }}
+        >{list.length}</span>
+        <strong style={{ fontSize: 13 }}>{title}</strong>
+      </div>
+      {list.length === 0 ? (
+        <div style={{ color: "#98a4b8", fontSize: 12, paddingLeft: 8 }}>—</div>
+      ) : (
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
+          {list.map((x, i) => (
+            <li key={i}>
+              <span className="mono">{x.code || "—"}</span>
+              {x.full_name ? <> · {x.full_name}</> : null}
+              {x.cccd_number ? <> · CCCD {x.cccd_number}</> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+        <div className="modal-header">
+          <h3>{t("logs.sync.title")}</h3>
+          <button onClick={onClose}>×</button>
+        </div>
+        <div className="form" style={{ paddingTop: 4 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+            <div>
+              <div style={{ color: "#5b6b85", fontSize: 12 }}>{t("logs.col.time")}</div>
+              <div>{formatDateTime(log.at)}</div>
+            </div>
+            <div>
+              <div style={{ color: "#5b6b85", fontSize: 12 }}>{t("logs.col.officer")}</div>
+              <div><strong>{officer.full_name || log.actor}</strong> {officer.full_name ? <small style={{ color: "#98a4b8" }}>@{log.actor}</small> : null}</div>
+            </div>
+            <div>
+              <div style={{ color: "#5b6b85", fontSize: 12 }}>{t("logs.col.session")}</div>
+              <div className="mono">{log.session?.code || log.ref || "—"}</div>
+            </div>
+            <div>
+              <div style={{ color: "#5b6b85", fontSize: 12 }}>{t("logs.sync.remote")}</div>
+              <div style={{ wordBreak: "break-all" }}>{d.remote || "—"}</div>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: 14,
+            display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10,
+          }}>
+            <div className="report-stat blue" style={{ padding: 12 }}>
+              <div className="report-stat-body">
+                <span className="report-stat-label">{t("logs.sync.added")}</span>
+                <strong className="report-stat-value">{counts.added}</strong>
+              </div>
+            </div>
+            <div className="report-stat orange" style={{ padding: 12 }}>
+              <div className="report-stat-body">
+                <span className="report-stat-label">{t("logs.sync.updated")}</span>
+                <strong className="report-stat-value">{counts.updated}</strong>
+              </div>
+            </div>
+            <div className="report-stat purple" style={{ padding: 12 }}>
+              <div className="report-stat-body">
+                <span className="report-stat-label">{t("logs.sync.duplicated")}</span>
+                <strong className="report-stat-value">{counts.duplicated}</strong>
+              </div>
+            </div>
+            <div className="report-stat green" style={{ padding: 12 }}>
+              <div className="report-stat-body">
+                <span className="report-stat-label">{t("logs.sync.failed")}</span>
+                <strong className="report-stat-value">{counts.failed}</strong>
+              </div>
+            </div>
+          </div>
+
+          {d.error && (
+            <div className="error-box" style={{ marginTop: 12 }}>
+              {t("logs.sync.error_prefix")} {d.error}
+            </div>
+          )}
+
+          <List title={t("logs.sync.added_list")} tone="create" list={items.added} />
+          <List title={t("logs.sync.updated_list")} tone="update" list={items.updated} />
+          <List title={t("logs.sync.duplicated_list")} tone="delete" list={items.duplicated} />
+          {items.failed.length > 0 && (
+            <List title={t("logs.sync.failed_list")} tone="delete" list={items.failed} />
+          )}
+
+          <div className="modal-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="button primary" onClick={onClose}>{t("common.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

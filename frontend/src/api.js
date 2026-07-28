@@ -173,6 +173,10 @@ export const api = {
   closeSession: (id) => request(`/api/sessions/${id}/close`, { method: "POST" }),
   deleteSession: (id) => request(`/api/sessions/${id}`, { method: "DELETE" }),
   downloadSessionReport: (id, filename) => downloadFile(`/api/sessions/${id}/report`, filename || `session_report.xlsx`),
+  logSessionSync: (id, summary) => request(`/api/sessions/${id}/sync-log`, {
+    method: "POST",
+    body: JSON.stringify(summary || {}),
+  }),
 };
 
 // ============ ZKFinger fingerprint sensor API (python service :8765) ============

@@ -152,6 +152,25 @@ class MePatch(BaseModel):
     current_password: Optional[str] = Field(None, min_length=1, max_length=100)
 
 
+class SyncLogEntry(BaseModel):
+    code: str = ""
+    full_name: str = ""
+    cccd_number: str = ""
+
+
+class SyncLogBody(BaseModel):
+    added: int = 0
+    updated: int = 0
+    duplicated: int = 0
+    failed: int = 0
+    added_items: List[SyncLogEntry] = Field(default_factory=list)
+    updated_items: List[SyncLogEntry] = Field(default_factory=list)
+    duplicate_items: List[SyncLogEntry] = Field(default_factory=list)
+    failed_items: List[SyncLogEntry] = Field(default_factory=list)
+    error: Optional[str] = None
+    remote: Optional[str] = None
+
+
 class CellIn(BaseModel):
     code: str = Field(min_length=1, max_length=20)
     name: str = Field(min_length=1, max_length=100)
@@ -992,6 +1011,55 @@ async def get_session_detail(session_id: str, user: dict = Depends(get_current_u
     return out
 
 
+@app.post("/api/sessions/{session_id}/sync-log")
+async def log_session_sync(
+    session_id: str,
+    body: SyncLogBody,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiên làm việc")
+    if doc.get("officer") != user["username"] and user.get("role") != "admin":
+        raise HTTPException(403, "Bạn không có quyền ghi log cho phiên này.")
+
+    def _pack(items):
+        return [
+            {
+                "code": it.code,
+                "full_name": it.full_name,
+                "cccd_number": it.cccd_number,
+            }
+            for it in items
+        ]
+
+    data = {
+        "added": int(body.added or 0),
+        "updated": int(body.updated or 0),
+        "duplicated": int(body.duplicated or 0),
+        "failed": int(body.failed or 0),
+        "added_items": _pack(body.added_items),
+        "updated_items": _pack(body.updated_items),
+        "duplicate_items": _pack(body.duplicate_items),
+        "failed_items": _pack(body.failed_items),
+        "remote": body.remote or SYNC_REMOTE,
+    }
+    if body.error:
+        data["error"] = body.error
+    await _log(
+        request,
+        user,
+        "sync",
+        "work_session",
+        doc.get("code", ""),
+        data,
+        ref_id=session_id,
+        session_id=doc["_id"],
+    )
+    return {"ok": True}
+
+
 @app.post("/api/sessions/{session_id}/close")
 async def close_session(session_id: str, request: Request, user: dict = Depends(get_current_user)):
     doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
@@ -1428,6 +1496,7 @@ async def list_logs(
     action: Optional[str] = Query(None),
     resource: Optional[str] = Query(None),
     session_code: Optional[str] = Query(None),
+    actor: Optional[str] = Query(None),
     user: dict = Depends(get_current_user),
 ):
     filt: dict = {}
@@ -1446,6 +1515,8 @@ async def list_logs(
         filt["resource"] = resource
     if user.get("role") != "admin":
         filt["actor"] = user["username"]
+    elif actor:
+        filt["actor"] = actor
     if session_code:
         sess = await db.work_sessions.find_one({"code": session_code})
         if sess:
@@ -1493,7 +1564,7 @@ async def list_logs(
         l["officer"] = await _resolve_user(l.get("actor"))
         items.append(l)
 
-    counts = {"create": 0, "update": 0, "delete": 0, "login": 0, "import": 0}
+    counts = {"create": 0, "update": 0, "delete": 0, "login": 0, "import": 0, "sync": 0}
     count_filt = dict(filt)
     count_filt.pop("_impossible", None)
     pipeline = [{"$match": count_filt}, {"$group": {"_id": "$action", "n": {"$sum": 1}}}]

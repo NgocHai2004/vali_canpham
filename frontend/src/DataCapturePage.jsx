@@ -1691,12 +1691,12 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
 
           {/* ===== II. Biometric & custody info ===== */}
           <h3 className="pv-section">{t("pdf.section2")}</h3>
-          <table className="pv-table pv-info-table">
+          <table className="pv-table pv-info-table pv-info-2x2">
             <colgroup>
-              <col style={{ width: "28%" }} />
-              <col style={{ width: "22%" }} />
-              <col style={{ width: "28%" }} />
-              <col style={{ width: "22%" }} />
+              <col style={{ width: "34mm" }} />
+              <col />
+              <col style={{ width: "34mm" }} />
+              <col />
             </colgroup>
             <tbody>
               <tr>
