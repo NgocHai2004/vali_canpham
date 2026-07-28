@@ -5753,6 +5753,37 @@ const styles = `
   .btn-cccd-scan:disabled { opacity: .55; cursor: not-allowed; }
   .btn-cccd-scan svg { width: 13px; height: 13px; }
 
+  /* Chỉ báo tự lắng nghe đầu đọc CCCD (thay nút "Đọc CCCD") */
+  .cccd-listen-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 28px;
+    padding: 0 10px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,.22);
+    background: rgba(255,255,255,.10);
+    color: rgba(255,255,255,.72);
+    font-size: 11.5px; font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .cccd-listen-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(255,255,255,.45);
+    flex: none;
+  }
+  .cccd-listen-badge.on {
+    border-color: rgba(18,175,100,.55);
+    background: rgba(18,175,100,.18);
+    color: #eafff4;
+  }
+  .cccd-listen-badge.on .cccd-listen-dot {
+    background: #12af64;
+    animation: cccd-listen-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes cccd-listen-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(18,175,100,.55); }
+    50% { opacity: .55; box-shadow: 0 0 0 4px rgba(18,175,100,0); }
+  }
+
   /* --- Photo slot base --- */
   .photo-slot {
     position: relative;
@@ -6619,6 +6650,13 @@ const styles = `
     min-height: 0;
     display: flex;
   }
+  /* Đã chụp: chỉ viền khung đổi xanh — nút vẫn là nút chụp đỏ như cũ.
+     Dùng outline (offset âm, vẽ đè vào trong) nên không chiếm chỗ,
+     khung ảnh không xê dịch và trạng thái chưa chụp không đổi. */
+  .body-shot-frame--done {
+    outline: 5px solid #12af64;
+    outline-offset: -5px;
+  }
   .body-shot-frame > * {
     flex: 1;
     min-height: 0;
@@ -6672,12 +6710,8 @@ const styles = `
   .body-shot-btn:hover:not(:disabled) { background: #7f171e; }
   .body-shot-btn:disabled { opacity: .5; cursor: not-allowed; }
   .body-shot-btn svg { width: 10px; height: 10px; }
-  .body-shot-btn--done {
-    background: #12af64 !important;
-  }
-  .body-shot-btn--done:hover:not(:disabled) {
-    background: #0d8f52 !important;
-  }
+  /* Nút giữ nguyên kiểu capture đỏ ở cả 2 trạng thái —
+     dấu hiệu "đã chụp" nằm ở viền khung ảnh, không ở nút. */
   .body-shot-err {
     padding: 8px;
     color: #b91c26;
@@ -6882,31 +6916,31 @@ const styles = `
     flex-direction: row;
     align-items: center;
     justify-content: space-evenly;
-    gap: 18px;
-    padding: 12px 18px;
+    gap: 12px;
+    padding: 6px 14px;
     text-align: center;
     line-height: 1.1;
     min-height: 0;
   }
   .fp-kpi > * { flex-shrink: 0; }
   .fp-kpi-icon {
-    width: 52px; height: 52px;
+    width: 36px; height: 36px;
     border-radius: 50%;
     display: grid; place-items: center;
     background: #fde8ea;
     color: #7f171e;
   }
-  .fp-kpi-icon svg { width: 30px; height: 30px; }
+  .fp-kpi-icon svg { width: 22px; height: 22px; }
   .fp-kpi-count {
     color: #7f171e;
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 800;
     letter-spacing: .2px;
     line-height: 1.15;
   }
   .fp-kpi-big {
     color: #7f171e;
-    font-size: 38px;
+    font-size: 26px;
     font-weight: 800;
     line-height: 1;
     letter-spacing: -.5px;

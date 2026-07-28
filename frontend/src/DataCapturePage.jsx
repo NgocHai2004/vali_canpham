@@ -846,47 +846,77 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  const readCCCD = async () => {
-    if (reading) return;
-    setErr("");
-    setOk("");
-    setReading(true);
+  // Tự động lắng nghe đầu đọc CCCD ngay khi vào trang, chạy liên tục.
+  // Mỗi lần backend trả thẻ mới, nó tự dời baseline nên vòng lặp chỉ nhận thẻ mới,
+  // không lặp lại thẻ cũ. Thẻ mới vào thì chèn dữ liệu lên form.
+  useEffect(() => {
+    if (sessionReadOnly) return;
+
+    let stopped = false;
     const ac = new AbortController();
     cccdAbortRef.current = ac;
-    try {
-      const h = await cccdApi.health();
-      if (!h.ok) {
-        throw new Error(apiT("capture.err.cccd_dir", { dir: h.data_dir || "" }));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    (async () => {
+      try {
+        const h = await cccdApi.health();
+        if (stopped) return;
+        if (!h.ok) {
+          setErr(apiT("capture.err.cccd_dir", { dir: h.data_dir || "" }));
+          return;
+        }
+      } catch (e) {
+        if (!stopped) setErr(e.message);
+        return;
       }
-      const s = await cccdApi.startSession();
-      cccdSidRef.current = s.session_id;
-      while (!ac.signal.aborted) {
-        const r = await cccdApi.wait(s.session_id, ac.signal, 25);
-        if (ac.signal.aborted) break;
-        if (r && r.status === "ok" && r.data) {
-          applyCccdData(r.data);
-          setOk(t("capture.status.cccd_read"));
-          break;
+
+      let sid = null;
+      while (!stopped && !ac.signal.aborted) {
+        // Session hết hạn (TTL backend) hoặc chưa có -> mở phiên mới rồi đọc tiếp
+        if (!sid) {
+          try {
+            const s = await cccdApi.startSession();
+            if (stopped) break;
+            sid = s.session_id;
+            cccdSidRef.current = sid;
+            setReading(true);
+          } catch {
+            if (stopped || ac.signal.aborted) break;
+            setReading(false);
+            await sleep(3000);
+            continue;
+          }
+        }
+
+        try {
+          const r = await cccdApi.wait(sid, ac.signal, 25);
+          if (stopped || ac.signal.aborted) break;
+          if (r && r.status === "ok" && r.data) {
+            applyCccdData(r.data);
+            setOk(t("capture.status.cccd_read"));
+          }
+        } catch (e) {
+          if (stopped || ac.signal.aborted || e.name === "AbortError") break;
+          // 404 = phiên đã bị GC; mọi lỗi khác cũng thử mở lại phiên
+          sid = null;
+          cccdSidRef.current = null;
+          await sleep(1000);
         }
       }
-    } catch (e) {
-      if (e.name !== "AbortError") setErr(e.message);
-    } finally {
+      if (!stopped) setReading(false);
+    })();
+
+    return () => {
+      stopped = true;
+      try { ac.abort(); } catch { /* noop */ }
       const sid = cccdSidRef.current;
       cccdSidRef.current = null;
       cccdAbortRef.current = null;
-      setReading(false);
       if (sid) {
-        try { await cccdApi.cancel(sid); } catch { /* noop */ }
+        cccdApi.cancel(sid).catch(() => { /* noop */ });
       }
-    }
-  };
-
-  const cancelReadCCCD = () => {
-    if (cccdAbortRef.current) {
-      try { cccdAbortRef.current.abort(); } catch { /* noop */ }
-    }
-  };
+    };
+  }, [sessionReadOnly]);
 
   const fpCount = FINGERS.filter((f) => photos[f.key]).length;
   const portraitCount = PORTRAITS.filter((p) => photos[p.key]).length;
@@ -1118,12 +1148,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.cccd_card")}</h2>
-              <button type="button" className="btn-cccd-scan" onClick={readCCCD} disabled={reading}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="5" width="5" height="5" rx="2" /><path d="M3 10h18" />
-                </svg>
-                {reading ? t("capture.toolbar.reading") : t("capture.toolbar.read_cccd")}
-              </button>
+              <span className={"cccd-listen-badge" + (reading ? " on" : "")}>
+                <span className="cccd-listen-dot" />
+                {reading ? t("capture.toolbar.listening") : t("capture.toolbar.reader_off")}
+              </span>
             </div>
             <div className="cccd-preview-wrap">
               <CccdCardUpload
@@ -1475,7 +1503,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
   return (
     <>
       <div className="body-shot-body">
-        <div className="body-shot-frame">
+        <div className={"body-shot-frame" + (captured ? " body-shot-frame--done" : "")}>
           {captured ? (
             <img src={value} alt={label} />
           ) : err ? (
@@ -1493,23 +1521,15 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
       </div>
       <button
         type="button"
-        className={"body-shot-btn" + (captured ? " body-shot-btn--done" : "")}
+        className="body-shot-btn"
         onClick={captured ? retake : snap}
         disabled={busy || (!captured && (!ready || !!err))}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-          {captured ? (
-            <>
-              <path d="M20 6L9 17l-5-5" />
-            </>
-          ) : (
-            <>
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </>
-          )}
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+          <circle cx="12" cy="13" r="4" />
         </svg>
-        {busy ? t("capture.liveshot.saving") : captured ? t("capture.liveshot.captured") : ready ? t("capture.liveshot.capture") : t("capture.liveshot.opening")}
+        {busy ? t("capture.liveshot.saving") : ready || captured ? t("capture.liveshot.capture") : t("capture.liveshot.opening")}
       </button>
     </>
   );
@@ -1692,20 +1712,14 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
           {/* ===== II. Biometric & custody info ===== */}
           <h3 className="pv-section">{t("pdf.section2")}</h3>
           <table className="pv-table pv-info-table pv-info-2x2">
-            <colgroup>
-              <col style={{ width: "34mm" }} />
-              <col />
-              <col style={{ width: "34mm" }} />
-              <col />
-            </colgroup>
             <tbody>
               <tr>
-                <td className="pv-label">{t("pdf.field.height")}</td><td>{val(form.height_cm)}</td>
-                <td className="pv-label">{t("pdf.field.weight")}</td><td>{val(form.weight_kg)}</td>
+                <td className="pv-label">{t("pdf.field.height")}</td><td className="pv-value">{val(form.height_cm)}</td>
+                <td className="pv-label">{t("pdf.field.weight")}</td><td className="pv-value">{val(form.weight_kg)}</td>
               </tr>
               <tr>
-                <td className="pv-label">{t("pdf.field.date_in")}</td><td>{val(form.date_in)}</td>
-                <td className="pv-label">{t("pdf.field.cell")}</td><td>{val(form.cell_code)}</td>
+                <td className="pv-label">{t("pdf.field.date_in")}</td><td className="pv-value">{val(form.date_in)}</td>
+                <td className="pv-label">{t("pdf.field.cell")}</td><td className="pv-value">{val(form.cell_code)}</td>
               </tr>
               <tr>
                 <td className="pv-label">{t("pdf.field.note")}</td>

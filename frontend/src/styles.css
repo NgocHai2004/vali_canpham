@@ -6107,10 +6107,14 @@ textarea.input {
   table-layout: fixed;
 }
 .preview-a4-portrait .pv-info-2x2 .pv-label {
-  width: 20mm;
+  width: 26mm;
   white-space: normal;
   word-break: keep-all;
   overflow-wrap: normal;
+}
+/* Thu hẹp ô giá trị "………………" để không đẩy cột phải tràn ra ngoài */
+.preview-a4-portrait .pv-info-2x2 .pv-value {
+  width: 20mm;
 }
 .preview-a4-portrait .pv-info-2x2 td {
   white-space: normal;
@@ -6824,7 +6828,7 @@ textarea.input {
 
 .fp-preview {
   width: 200px;
-  height: 240px;
+  height: 200px;
   background: #0f172a;
   border-radius: 10px;
   display: flex;
