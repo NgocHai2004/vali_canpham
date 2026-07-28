@@ -306,7 +306,7 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
         print(f"[audit] err: {e}")
 
 
-app = FastAPI(title="Phần mềm Đăng ký Can phạm", lifespan=lifespan)
+app = FastAPI(title="Thiết bị thu thập & quản lý căn cước can phạm", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",

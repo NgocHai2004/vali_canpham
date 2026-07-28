@@ -90,12 +90,17 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   const deviceStatus = useDeviceConnections();
   const notifState = useNotifState();
 
-  const goPage = async (key) => {
+  const goPage = async (key, opts = {}) => {
     if (key !== "session_capture") {
       setEditingDetainee(null);
       setSessionCtx(null);
     }
     if (key === "sessions") {
+      if (opts.openSessionId) {
+        setActiveSessionId(opts.openSessionId);
+        setPage("sessions_detail");
+        return;
+      }
       setActiveSessionId(null);
       setSessionCtx(null);
     }
@@ -618,7 +623,7 @@ function DashboardHome({ go }) {
               <strong className="mono">{openSession.code}</strong>
               <small>{t("dashboard.session.detainee_count", { n: openSession.detainee_count || 0 })}</small>
             </div>
-            <button className="button primary" onClick={() => go("sessions")}>
+            <button className="button primary" onClick={() => go("sessions", { openSessionId: openSession.id })}>
               {t("dashboard.session.enter")} {Icon.arrow}
             </button>
           </div>
@@ -3304,7 +3309,7 @@ function SyncLogDetailModal({ log, onClose }) {
           <button onClick={onClose}>×</button>
         </div>
         <div className="form" style={{ paddingTop: 4 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, fontSize: 13 }}>
             <div>
               <div style={{ color: "#5b6b85", fontSize: 12 }}>{t("logs.col.time")}</div>
               <div>{formatDateTime(log.at)}</div>
@@ -3316,10 +3321,6 @@ function SyncLogDetailModal({ log, onClose }) {
             <div>
               <div style={{ color: "#5b6b85", fontSize: 12 }}>{t("logs.col.session")}</div>
               <div className="mono">{log.session?.code || log.ref || "—"}</div>
-            </div>
-            <div>
-              <div style={{ color: "#5b6b85", fontSize: 12 }}>{t("logs.sync.remote")}</div>
-              <div style={{ wordBreak: "break-all" }}>{d.remote || "—"}</div>
             </div>
           </div>
 
