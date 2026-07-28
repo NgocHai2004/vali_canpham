@@ -69,8 +69,8 @@ const FP_CODE_TO_KEY = {
 };
 
 const PORTRAITS = [
-  { key: "portrait_front", labelKey: "capture.portrait.front" },
   { key: "portrait_left", labelKey: "capture.portrait.left" },
+  { key: "portrait_front", labelKey: "capture.portrait.front" },
   { key: "portrait_right", labelKey: "capture.portrait.right" },
 ];
 
@@ -1054,11 +1054,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               {PORTRAITS.map((p) => (
                 <div key={p.key} className="body-shot">
                   <span className="body-shot-label">
-                    {p.key === "portrait_front" ? "FRONT" : p.key === "portrait_left" ? "LEFT" : "RIGHT"}
+                    {p.key === "portrait_left" ? "TRÁI" : p.key === "portrait_front" ? "THẲNG" : "PHẢI"}
                   </span>
                   <LiveCamShot
                     label={t(p.labelKey)}
-                    shortLabel={p.key === "portrait_front" ? "FRONT" : p.key === "portrait_left" ? "LEFT" : "RIGHT"}
+                    shortLabel={p.key === "portrait_left" ? "TRÁI" : p.key === "portrait_front" ? "THẲNG" : "PHẢI"}
                     value={photos[p.key]}
                     onCapture={(u) => setPhoto(p.key, u)}
                     showRuler={p.key === "portrait_front"}
