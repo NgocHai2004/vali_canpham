@@ -11,7 +11,7 @@ function fmtNow() {
 export default function SessionOpenModal({ officerName, officerFullName, onCreated, onCancel }) {
   const { t } = useI18n();
   const [officer, setOfficer] = useState(officerFullName || officerName || "");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState(t("session.open.location_default"));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");

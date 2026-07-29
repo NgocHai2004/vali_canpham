@@ -172,7 +172,7 @@ class SyncLogBody(BaseModel):
 
 
 class CellIn(BaseModel):
-    code: str = Field(min_length=1, max_length=20)
+    code: str = Field(default="", max_length=20)
     name: str = Field(min_length=1, max_length=100)
     capacity: int = Field(ge=0, le=500)
     note: str = ""
@@ -225,6 +225,17 @@ async def _next_session_code() -> str:
 
 async def _get_open_session_or_none(username: str) -> Optional[dict]:
     return await db.work_sessions.find_one({"officer": username, "status": "open"})
+
+
+async def _next_cell_code() -> str:
+    doc = await db.counters.find_one_and_update(
+        {"_id": "cell_code"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    seq = doc["seq"] if doc else 1
+    return f"BG{seq:03d}"
 
 
 def _s_session(doc: dict) -> dict:
@@ -424,14 +435,16 @@ async def list_cells(user: dict = Depends(get_current_user)):
 
 @app.post("/api/cells")
 async def create_cell(body: CellIn, request: Request, user: dict = Depends(get_current_user)):
-    if await db.cells.find_one({"code": body.code}):
+    code = body.code.strip() or await _next_cell_code()
+    if await db.cells.find_one({"code": code}):
         raise HTTPException(400, "Mã buồng đã tồn tại")
     now = datetime.utcnow()
     doc = body.model_dump()
+    doc["code"] = code
     doc.update({"created_at": now, "updated_at": now})
     res = await db.cells.insert_one(doc)
     doc["_id"] = res.inserted_id
-    await _log(request, user, "create", "cell", body.code)
+    await _log(request, user, "create", "cell", code)
     return _s(doc)
 
 
@@ -785,7 +798,7 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
         "status": "open",
         "officer": officer_username,
         "officer_full_name": override or default_full_name,
-        "location": body.location.strip(),
+        "location": body.location.strip() or "Trung tâm thu thập dữ liệu",
         "note": body.note.strip(),
         "opened_at": now,
         "closed_at": None,
@@ -999,6 +1012,7 @@ async def get_session_detail(session_id: str, user: dict = Depends(get_current_u
         detainees.append({
             "id": str(d["_id"]),
             "code": d.get("code", ""),
+            "personal_id": d.get("personal_id", "") or "",
             "full_name": d.get("full_name", ""),
             "cccd_number": d.get("cccd_number", "") or "",
             "gender": d.get("gender", "male"),

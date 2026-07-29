@@ -539,51 +539,23 @@ function makeHwSample() {
   };
 }
 
-const DEVICE_TEMPLATE = [
-  { id: "cccd", labelKey: "device.reader", note: "CardReader ACR39U", port: "USB 3.0 · Port 1" },
-  { id: "fp", labelKey: "device.fp", note: "Live Scan L-Scan Guardian", port: "USB 3.0 · Port 2" },
-  { id: "cam", labelKey: "device.cam", note: "Sony IMX415 · 4K", port: "USB 3.0 · Port 3" },
-  { id: "iris", labelKey: "device.iris", note: "IriShield MK2120U", port: "USB 3.0 · Port 4" },
-  { id: "sign", labelKey: "device.sign", note: "Wacom STU-540", port: "USB 2.0 · Port 5" },
-  { id: "lan", labelKey: "device.lan", note: "Gigabit · 1 Gbps", port: "RJ45" },
-  { id: "printer", labelKey: "device.printer", note: "Zebra ZD421", port: "USB 2.0 · Port 6" },
-  { id: "hub", labelKey: "device.hub", note: "7-port · 5 Gbps", port: "PCIe Bus 0" },
-];
-
-function makeDeviceList() {
-  return DEVICE_TEMPLATE.map((d, i) => ({
-    ...d,
-    status: i === 6 ? "warn" : "ok",
-    latency: i === 6 ? null : jitter(6 + i, 4, 1, 30),
-  }));
-}
-
-function tickDevices(prev) {
-  return prev.map((d) => {
-    if (d.status === "warn") return d;
-    const flick = Math.random() < 0.02;
-    return {
-      ...d,
-      latency: jitter((d.latency || 8) + (flick ? 6 : 0), 3, 1, 40),
-      status: flick && Math.random() < 0.2 ? "warn" : "ok",
-    };
-  });
-}
-
 function DashboardHome({ go }) {
   const { t, greeting, dayNames, formatNumber } = useI18n();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
   const [hw, setHw] = useState(() => makeHwSample());
-  const [devices, setDevices] = useState(() => makeDeviceList());
+  const [cells, setCells] = useState([]);
 
   useEffect(() => {
     api.stats().then(setStats).catch((e) => setError(e.message));
+    api.listCells().then(setCells).catch(() => {});
     const tmr = setInterval(() => setNow(new Date()), 30_000);
     const th = setInterval(() => setHw(makeHwSample()), 2500);
-    const td = setInterval(() => setDevices((prev) => tickDevices(prev)), 4000);
-    return () => { clearInterval(tmr); clearInterval(th); clearInterval(td); };
+    const tc = setInterval(() => {
+      api.listCells().then(setCells).catch(() => {});
+    }, 15_000);
+    return () => { clearInterval(tmr); clearInterval(th); clearInterval(tc); };
   }, []);
 
   if (error) return <StateBox type="error">{t("common.error_prefix", { message: error })}</StateBox>;
@@ -693,8 +665,12 @@ function DashboardHome({ go }) {
         </section>
 
         <section className="panel">
-          <PanelHeader title={t("dashboard.panel.devices")} />
-          <DeviceStatus devices={devices} />
+          <PanelHeader
+            title={t("dashboard.panel.cells")}
+            action={t("dashboard.panel.manage")}
+            onAction={() => go("cells")}
+          />
+          <CellsStatus cells={cells} />
         </section>
 
         <section className="panel">
@@ -968,6 +944,50 @@ function DeviceStatus({ devices = [] }) {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function CellsStatus({ cells = [] }) {
+  const { t } = useI18n();
+  const totalCap = cells.reduce((s, c) => s + (c.capacity || 0), 0);
+  const totalCur = cells.reduce((s, c) => s + (c.current || 0), 0);
+  if (!cells.length) {
+    return <div className="empty">{t("dashboard.panel.cells_empty")}</div>;
+  }
+  return (
+    <div className="dev-status cells-status">
+      <div className="dev-status-summary">
+        <span>{t("cells.subtitle", { n: cells.length })}</span>
+        <strong>{totalCur}/{totalCap}</strong>
+      </div>
+      <div className="dev-list">
+        {cells.map((c) => {
+          const pct = c.capacity ? Math.round((c.current / c.capacity) * 100) : 0;
+          const tone = pct >= 100 ? "warn" : "ok";
+          return (
+            <div className={`dev-row dev-${tone}`} key={c.id || c.code}>
+              <span className="dev-dot" />
+              <div className="dev-main">
+                <div className="dev-line">
+                  <strong>{c.code}</strong>
+                  <span className={`dev-badge dev-badge-${tone}`}>
+                    {pct}%
+                  </span>
+                </div>
+                <div className="dev-meta">
+                  <span>{c.name}</span>
+                  {c.note ? <span className="dev-port">{c.note}</span> : null}
+                </div>
+              </div>
+              <div className="dev-latency">
+                <strong>{c.current || 0}</strong>
+                <small>/ {c.capacity || 0}</small>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1759,7 +1779,6 @@ function CellsPage() {
         <table>
           <thead>
             <tr>
-              <th>{t("cells.col.code")}</th>
               <th>{t("cells.col.name")}</th>
               <th>{t("cells.col.capacity")}</th>
               <th>{t("cells.col.current")}</th>
@@ -1776,8 +1795,7 @@ function CellsPage() {
 
               return (
                 <tr key={cell.id}>
-                  <td><strong>{cell.code}</strong></td>
-                  <td>{cell.name}</td>
+                  <td><strong>{cell.name}</strong></td>
                   <td>{cell.capacity}</td>
                   <td>{cell.current}</td>
                   <td>
@@ -1935,9 +1953,8 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
   );
 }
 
-function CellForm({ initial, onClose, onSaved }) {
+export function CellForm({ initial, onClose, onSaved }) {
   const { t } = useI18n();
-  const [code, setCode] = useState(initial?.code || "");
   const [name, setName] = useState(initial?.name || "");
   const [capacity, setCapacity] = useState(initial?.capacity ?? 20);
   const [note, setNote] = useState(initial?.note || "");
@@ -1951,7 +1968,7 @@ function CellForm({ initial, onClose, onSaved }) {
 
     try {
       const payload = {
-        code: code.trim(),
+        code: initial?.code || "",
         name: name.trim(),
         capacity: Number(capacity),
         note,
@@ -1978,10 +1995,6 @@ function CellForm({ initial, onClose, onSaved }) {
 
         <form className="form" onSubmit={submit}>
           {error && <div className="error-box">{error}</div>}
-
-          <FieldRow label={t("cells.form.code")}>
-            <input className="control" value={code} onChange={(e) => setCode(e.target.value)} required disabled={Boolean(initial)} />
-          </FieldRow>
 
           <FieldRow label={t("cells.form.name")}>
             <input className="control" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -4776,6 +4789,61 @@ const styles = `
     letter-spacing: .3px;
   }
   .dev-latency .dev-offline { color: #c05a1a; }
+
+  /* Panel Danh sách buồng giam — nền màu nắng, chữ đen */
+  /* Panel Danh sách buồng giam — giống các panel khác (trắng) */
+  .cells-status {
+    background: transparent;
+    border-radius: 0;
+    margin: 0;
+    color: inherit;
+  }
+  .cells-status .dev-status-summary {
+    border-bottom-color: #eef2f8;
+  }
+  .cells-status .dev-status-summary span {
+    color: #7787a0;
+  }
+  .cells-status .dev-status-summary strong {
+    color: #0a8a45;
+  }
+  .cells-status .dev-list {
+    color: inherit;
+  }
+  .cells-status .dev-row {
+    border-bottom-color: #f0f3f8;
+  }
+  .cells-status .dev-dot {
+    background: #12af64;
+    box-shadow: 0 0 0 3px rgba(18, 175, 100, .18);
+  }
+  .cells-status .dev-warn .dev-dot {
+    background: #e07a1f;
+    box-shadow: 0 0 0 3px rgba(224, 122, 31, .2);
+  }
+  .cells-status .dev-line strong {
+    color: #0f2344;
+  }
+  .cells-status .dev-badge-ok {
+    background: #e6f7ec;
+    color: #0a8a45;
+  }
+  .cells-status .dev-badge-warn {
+    background: #fdefdc;
+    color: #a05a10;
+  }
+  .cells-status .dev-meta {
+    color: #7787a0;
+  }
+  .cells-status .dev-port {
+    color: #98a5bd;
+  }
+  .cells-status .dev-latency strong {
+    color: #0f2344;
+  }
+  .cells-status .dev-latency small {
+    color: #98a5bd;
+  }
 
   .dashboard-grid-hw {
     grid-template-columns: 1.15fr .85fr !important;

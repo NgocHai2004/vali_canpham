@@ -190,7 +190,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
         <table className="session-list-table">
           <thead>
             <tr>
-              <th>{t("session.col.short_code")}</th>
+              <th>{t("detainee.field.personal_id")}</th>
               <th>{t("session.col.name")}</th>
               <th>{t("detainee.field.gender")}</th>
               <th>{t("detainee.field.dob")}</th>
@@ -210,7 +210,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
             )}
             {(session.detainees || []).map((d) => (
               <tr key={d.id} className="session-list-row" onClick={() => openEditFull(d, session)}>
-                <td className="mono">{d.code}</td>
+                <td className="mono">{d.personal_id || d.code || "—"}</td>
                 <td>{d.full_name}</td>
                 <td>{d.gender === "female" ? t("common.female") : t("common.male")}</td>
                 <td>{d.dob ? formatDate(d.dob) : "—"}</td>

@@ -4871,9 +4871,28 @@ textarea.input {
 .session-modal-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 10px;
   padding: 12px 20px;
   border-top: 1px solid #e5e7eb;
+}
+
+.session-modal-actions .btn-add-cell {
+  margin-right: auto;
+  background: #fff7e0;
+  color: #8a5a08;
+  border: 1px dashed #e0a800;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.session-modal-actions .btn-add-cell:hover {
+  background: #ffefb8;
+}
+.session-modal-actions .btn-add-cell:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .session-modal-actions .btn-primary {
@@ -4929,6 +4948,32 @@ textarea.input {
 
 .session-list-newwrap {
   display: inline-block;
+}
+
+.session-list-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-list-head-actions .btn-add-cell,
+.session-modal-actions .btn-add-cell {
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.session-list-head-actions .btn-add-cell:hover,
+.session-modal-actions .btn-add-cell:hover {
+  background: #f2f5fa;
+}
+.session-list-head-actions .btn-add-cell:disabled,
+.session-modal-actions .btn-add-cell:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .session-list-newwrap .btn-primary {

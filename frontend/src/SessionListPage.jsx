@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { notify } from "./notifications";
 import SessionOpenModal from "./SessionOpenModal";
+import { CellForm } from "./Dashboard";
 import { useI18n } from "./i18n";
 
 const STAT_ICONS = {
@@ -52,6 +53,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [cellFormOpen, setCellFormOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const [stats, setStats] = useState({ create: 0, update: 0, delete: 0, import: 0 });
   const [deletingId, setDeletingId] = useState(null);
@@ -170,18 +172,28 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
 
       <div className="session-list-head">
         <h2>{t("session.title")}</h2>
-        <div
-          className="session-list-newwrap"
-          title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
-        >
+        <div className="session-list-head-actions">
           <button
             type="button"
-            className="btn-primary"
-            onClick={openNew}
-            disabled={hasOpenSession}
+            className="btn-add-cell"
+            onClick={() => setCellFormOpen(true)}
+            title={t("session.open.add_cell_hint")}
           >
-            {t("session.new")}
+            {t("session.open.add_cell")}
           </button>
+          <div
+            className="session-list-newwrap"
+            title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
+          >
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={openNew}
+              disabled={hasOpenSession}
+            >
+              {t("session.new")}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -301,6 +313,14 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           role={role}
           onCancel={() => setModalOpen(false)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {cellFormOpen && (
+        <CellForm
+          initial={null}
+          onClose={() => setCellFormOpen(false)}
+          onSaved={() => setCellFormOpen(false)}
         />
       )}
 
