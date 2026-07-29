@@ -1,10 +1,14 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
-import { api, fpApi, cccdApi, b64PngToFile, weightApi } from "./api";
+import { api, fpApi, cccdApi, b64PngToFile, weightApi, usbApi } from "./api";
 import { notify } from "./notifications";
 import cccdTemplateBg from "./assets/cccd-template.png";
 import { useI18n, apiT } from "./i18n";
-import { exportProfilePdf, makePdfFileName } from "./lib/exportProfilePdf";
-import { tryOpenOnSecondaryScreen } from "./lib/dualMonitorPreview";
+import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
+import UsbDrivePickerModal from "./UsbDrivePickerModal";
+import {
+  tryOpenOnSecondaryScreen,
+  clearSecondaryScreenPreview,
+} from "./lib/dualMonitorPreview";
 
 const FINGERS = [
   { key: "fp_l1", code: "left_thumb" },
@@ -525,6 +529,25 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [fpError, setFpError] = useState("");
   const fpAbortRef = useRef(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewOnSecondary, setPreviewOnSecondary] = useState(false);
+
+  useEffect(() => {
+    if (!previewOnSecondary) return;
+    const onKey = (ev) => {
+      if (ev.key === "Escape") {
+        clearSecondaryScreenPreview();
+        setPreviewOnSecondary(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [previewOnSecondary]);
+
+  useEffect(() => {
+    return () => {
+      if (previewOnSecondary) clearSecondaryScreenPreview();
+    };
+  }, [previewOnSecondary]);
 
   useEffect(() => {
     setForm(seed.form);
@@ -1361,7 +1384,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           onClick={async () => {
             const payload = { form, photos };
             const opened = await tryOpenOnSecondaryScreen(payload);
-            if (!opened) setPreviewOpen(true);
+            if (opened) setPreviewOnSecondary(true);
+            else setPreviewOpen(true);
           }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1574,7 +1598,11 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
   ref,
 ) {
   const { t, formatDateLong } = useI18n();
-  const genderVi = form.gender === "female" ? t("common.female") : t("common.male");
+  const genderVi = form.gender === "female"
+    ? t("common.female")
+    : form.gender === "male"
+      ? t("common.male")
+      : "";
   const dateLong = formatDateLong(new Date());
   const val = (v) => (v && String(v).trim() ? v : t("pdf.blank"));
 
@@ -1635,7 +1663,7 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
         <div className="pv-g-value">{val(form.weight_kg)}</div>
 
         <div className="pv-g-label">{t("pdf.field.date_in")}</div>
-        <div className="pv-g-value">{val(form.date_in)}</div>
+        <div className="pv-g-value">{toDobInput(form.date_in) || toDobInput(new Date())}</div>
         <div className="pv-g-label">{t("pdf.field.cell")}</div>
         <div className="pv-g-value">{val(form.cell_code)}</div>
 
@@ -1720,15 +1748,32 @@ function ProfilePreviewModal({ form, photos, onClose }) {
   const { t } = useI18n();
   const a4Ref = useRef(null);
   const [exporting, setExporting] = useState(false);
+  const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
+
+  const pickDrive = (drives) => new Promise((resolve) => {
+    setUsbPicker({ open: true, drives, resolve });
+  });
 
   const handlePrint = async () => {
     const node = a4Ref.current;
     if (!node) return;
     setExporting(true);
     try {
-      await exportProfilePdf(node, {
-        fileName: makePdfFileName(form.personal_id || form.cccd_number, form.full_name),
-      });
+      const info = await usbApi.listWritable();
+      const drives = info.drives || [];
+      const dongles = info.dongle_drives || [];
+      if (drives.length === 0) {
+        if (dongles.length > 0) throw new Error(apiT("usb.export.err.only_dongle"));
+        throw new Error(apiT("usb.export.err.no_drive"));
+      }
+      const chosen = drives.length === 1 ? drives[0] : await pickDrive(drives);
+      if (!chosen) return;
+      const blob = await buildProfilePdfBlob(node);
+      const filename = makePdfFileName(form.personal_id || form.cccd_number, form.full_name);
+      const saved = await usbApi.saveExport(chosen.path, filename, blob);
+      const okMsg = t("usb.export.success", { path: saved?.path || chosen.path });
+      notify.add(okMsg);
+      alert(okMsg);
     } catch (ex) {
       console.error("[Export PDF] error:", ex);
       alert(t("capture.pdf.err_export", { message: ex?.message || ex }));
@@ -1753,6 +1798,22 @@ function ProfilePreviewModal({ form, photos, onClose }) {
           <ProfilePreviewContent ref={a4Ref} form={form} photos={photos} />
         </div>
       </div>
+
+      {usbPicker.open && (
+        <UsbDrivePickerModal
+          drives={usbPicker.drives}
+          onPick={(d) => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(d);
+          }}
+          onCancel={() => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(null);
+          }}
+        />
+      )}
     </div>
   );
 }

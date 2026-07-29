@@ -21,7 +21,7 @@ export function makePdfFileName(personalId, fullName) {
   return `${code}_${name}.pdf`;
 }
 
-export async function exportProfilePdf(node, { fileName }) {
+export async function buildProfilePdfBlob(node) {
   const canvas = await html2canvas(node, {
     scale: 2,
     useCORS: true,
@@ -61,5 +61,17 @@ export async function exportProfilePdf(node, { fileName }) {
       remaining -= pageH;
     }
   }
-  pdf.save(fileName);
+  return pdf.output("blob");
+}
+
+export async function exportProfilePdf(node, { fileName }) {
+  const blob = await buildProfilePdfBlob(node);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

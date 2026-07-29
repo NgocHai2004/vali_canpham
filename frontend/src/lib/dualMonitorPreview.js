@@ -34,3 +34,14 @@ export async function tryOpenOnSecondaryScreen(payload) {
     return false;
   }
 }
+
+export function clearSecondaryScreenPreview() {
+  if (typeof BroadcastChannel === "undefined") return;
+  ensureHeartbeatListener();
+  if (!listenerChannel) return;
+  try {
+    listenerChannel.postMessage({ type: "clear" });
+  } catch (err) {
+    console.warn("[dual-preview] postMessage clear failed:", err?.message || err);
+  }
+}
