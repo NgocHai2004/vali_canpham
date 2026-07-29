@@ -6024,7 +6024,7 @@ textarea.input {
   justify-content: safe center;
 }
 
-/* Popup window at màn hình phụ (mở qua ?preview=1). Nền sáng thay vì backdrop tối. */
+/* Trang preview trên màn 2 (khi mở URL ?preview=1). */
 .preview-window-root {
   position: fixed;
   inset: 0;
@@ -6034,12 +6034,13 @@ textarea.input {
   flex-direction: column;
   overflow: hidden;
 }
-.preview-window-loading {
-  font-family: "Segoe UI", system-ui, sans-serif;
-  font-size: 15px;
-  color: #4A5160;
-  padding: 40px 20px;
-  text-align: center;
+
+/* Trạng thái mặc định của màn 2: trắng che hết. */
+.preview-blank {
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  z-index: 3000;
 }
 
 /* A4 portrait — 210 × 297 mm, đúng mockup */

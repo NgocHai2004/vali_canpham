@@ -1,62 +1,36 @@
-const CHANNEL_NAME = "cccd-preview";
-const READY_TIMEOUT_MS = 3000;
+export const PREVIEW_CHANNEL_NAME = "cccd-preview";
 
-export function isDualMonitorSupported() {
-  return typeof window !== "undefined" && "getScreenDetails" in window;
-}
+const HEARTBEAT_STALE_MS = 4000;
 
-async function pickSecondaryScreen() {
-  const details = await window.getScreenDetails();
-  const current = details.currentScreen;
-  const others = details.screens.filter((s) => s !== current);
-  return others.length > 0 ? others[0] : null;
-}
+let lastHeartbeatAt = 0;
+let listenerChannel = null;
 
-function popupFeatures(screen) {
-  const left = Math.round(screen.availLeft);
-  const top = Math.round(screen.availTop);
-  const width = Math.round(screen.availWidth);
-  const height = Math.round(screen.availHeight);
-  return `popup=yes,left=${left},top=${top},width=${width},height=${height}`;
+function ensureHeartbeatListener() {
+  if (listenerChannel) return;
+  try {
+    listenerChannel = new BroadcastChannel(PREVIEW_CHANNEL_NAME);
+    listenerChannel.onmessage = (ev) => {
+      if (ev?.data?.type === "heartbeat") lastHeartbeatAt = Date.now();
+    };
+  } catch (err) {
+    console.warn("[dual-preview] BroadcastChannel unavailable:", err?.message || err);
+    listenerChannel = null;
+  }
 }
 
 export async function tryOpenOnSecondaryScreen(payload) {
-  if (!isDualMonitorSupported()) return false;
+  if (typeof BroadcastChannel === "undefined") return false;
+  ensureHeartbeatListener();
+  if (!listenerChannel) return false;
 
-  let screen;
+  const alive = Date.now() - lastHeartbeatAt < HEARTBEAT_STALE_MS;
+  if (!alive) return false;
+
   try {
-    screen = await pickSecondaryScreen();
+    listenerChannel.postMessage({ type: "payload", payload });
+    return true;
   } catch (err) {
-    console.warn("[dual-preview] getScreenDetails failed:", err?.message || err);
+    console.warn("[dual-preview] postMessage failed:", err?.message || err);
     return false;
   }
-  if (!screen) return false;
-
-  const url = `${window.location.origin}${window.location.pathname}?preview=1`;
-  const popup = window.open(url, "cccd-preview", popupFeatures(screen));
-  if (!popup) {
-    console.warn("[dual-preview] window.open returned null (popup blocked?)");
-    return false;
-  }
-  try { popup.focus(); } catch { /* noop */ }
-
-  const channel = new BroadcastChannel(CHANNEL_NAME);
-  const send = () => channel.postMessage({ type: "payload", payload });
-
-  let sent = false;
-  const sendOnce = () => {
-    if (sent) return;
-    sent = true;
-    send();
-    setTimeout(() => channel.close(), 500);
-  };
-
-  channel.onmessage = (ev) => {
-    if (ev?.data?.type === "ready") sendOnce();
-  };
-  setTimeout(sendOnce, READY_TIMEOUT_MS);
-
-  return true;
 }
-
-export const PREVIEW_CHANNEL_NAME = CHANNEL_NAME;
