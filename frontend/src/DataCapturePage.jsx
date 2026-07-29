@@ -1,30 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, cccdApi, b64PngToFile, weightApi } from "./api";
 import { notify } from "./notifications";
 import cccdTemplateBg from "./assets/cccd-template.png";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { useI18n, apiT } from "./i18n";
-
-function removeVietnameseDiacritics(str) {
-  if (!str) return "";
-  return String(str)
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
-}
-
-function makePdfFileName(personalId, fullName) {
-  const code = removeVietnameseDiacritics(personalId || "hoso")
-    .replace(/[^A-Za-z0-9_-]+/g, "")
-    .trim() || "hoso";
-  const name = removeVietnameseDiacritics(fullName || "")
-    .replace(/[^A-Za-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .trim() || "khongten";
-  return `${code}_${name}.pdf`;
-}
+import { exportProfilePdf, makePdfFileName } from "./lib/exportProfilePdf";
+import { tryOpenOnSecondaryScreen } from "./lib/dualMonitorPreview";
 
 const FINGERS = [
   { key: "fp_l1", code: "left_thumb" },
@@ -1378,7 +1358,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           {saving ? t("common.saving") : isEdit ? t("capture.actions.update") : t("capture.actions.save")}
         </button>
         <button type="button" className="button secondary" disabled={saving}
-          onClick={() => setPreviewOpen(true)}>
+          onClick={async () => {
+            const payload = { form, photos };
+            const opened = await tryOpenOnSecondaryScreen(payload);
+            if (!opened) setPreviewOpen(true);
+          }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <path d="M14 2v6h6M8 13h8M8 17h6" />
@@ -1397,7 +1381,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <ProfilePreviewModal
           form={form}
           photos={photos}
-          cells={cells}
           onClose={() => setPreviewOpen(false)}
         />
       )}
@@ -1586,18 +1569,155 @@ function TimelineItem({ time, desc }) {
   );
 }
 
-function ProfilePreviewModal({ form, photos, cells, onClose }) {
+export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
+  { form, photos },
+  ref,
+) {
   const { t, formatDateLong } = useI18n();
-  const cell = cells.find((c) => c.code === form.cell_code);
   const genderVi = form.gender === "female" ? t("common.female") : t("common.male");
-  const today = new Date();
-  const dd = String(today.getDate()).padStart(2, "0");
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const yyyy = today.getFullYear();
-  const dateLong = formatDateLong(today);
-
+  const dateLong = formatDateLong(new Date());
   const val = (v) => (v && String(v).trim() ? v : t("pdf.blank"));
 
+  return (
+    <div ref={ref} className="preview-a4 preview-a4-portrait">
+      {/* ===== Header: national emblem centered ===== */}
+      <div className="pv-header-row">
+        <div className="pv-header-left">
+          <div className="pv-org1">{t("pdf.emblem")}</div>
+          <div className="pv-org2">{t("pdf.motto")}</div>
+          <div className="pv-org-underline" />
+        </div>
+      </div>
+
+      {/* ===== Title ===== */}
+      <div className="pv-title-row">
+        <h1 className="pv-title">{t("pdf.title")}</h1>
+        <div className="pv-subtitle">
+          {t("pdf.record_id")} <b>{val(form.personal_id || form.cccd_number)}</b>
+        </div>
+      </div>
+
+      {/* ===== I. Personal info (2 cols: table + 4x6 portrait) ===== */}
+      <h3 className="pv-section">{t("pdf.section1")}</h3>
+      <div className="pv-info-row">
+        <table className="pv-table pv-info-table pv-info-single">
+          <tbody>
+            <tr><td className="pv-label">{t("pdf.field.full_name")}</td><td>{val(form.full_name)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.dob")}</td><td>{val(form.dob)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.gender")}</td><td>{val(genderVi)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.cccd")}</td><td>{val(form.cccd_number)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.nationality")}</td><td>{val(form.nationality)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.ethnicity")}</td><td>{val(form.ethnicity)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.religion")}</td><td>{val(form.religion)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.hometown")}</td><td>{val(form.hometown)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.address")}</td><td>{val(form.address)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.issued_date")}</td><td>{val(form.issued_date)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.expiry")}</td><td>{val(form.expiry_date)}</td></tr>
+            <tr><td className="pv-label">{t("pdf.field.issued_place")}</td><td>{val(form.issued_place)}</td></tr>
+          </tbody>
+        </table>
+        <div className="pv-info-photo">
+          <div className="pv-portrait-4x6">
+            {photos.cccd_front
+              ? <img src={photos.cccd_front} alt={t("pdf.cccd_photo")} />
+              : <span>{t("pdf.cccd_photo")}</span>}
+          </div>
+          <div className="pv-portrait-4x6-caption">{t("pdf.cccd_photo")}</div>
+        </div>
+      </div>
+
+      {/* ===== II. Biometric & custody info ===== */}
+      <h3 className="pv-section">{t("pdf.section2")}</h3>
+      <div className="pv-info-grid">
+        <div className="pv-g-label">{t("pdf.field.height")}</div>
+        <div className="pv-g-value">{val(form.height_cm)}</div>
+        <div className="pv-g-label">{t("pdf.field.weight")}</div>
+        <div className="pv-g-value">{val(form.weight_kg)}</div>
+
+        <div className="pv-g-label">{t("pdf.field.date_in")}</div>
+        <div className="pv-g-value">{val(form.date_in)}</div>
+        <div className="pv-g-label">{t("pdf.field.cell")}</div>
+        <div className="pv-g-value">{val(form.cell_code)}</div>
+
+        <div className="pv-g-label">{t("pdf.field.note")}</div>
+        <div className="pv-g-value pv-g-note">{val(form.note)}</div>
+      </div>
+
+      {/* ===== III. Portrait photos (3 frames) ===== */}
+      <h3 className="pv-section">{t("pdf.section3")}</h3>
+      <div className="pv-portraits">
+        {PORTRAITS.map((p) => (
+          <div key={p.key} className="pv-portrait-item">
+            <div className="pv-portrait-frame">
+              {photos[p.key]
+                ? <img src={photos[p.key]} alt={t(p.labelKey)} />
+                : <span className="pv-empty">{t("pdf.no_photo")}</span>}
+            </div>
+            <span>{t(p.labelKey)}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ===== IV. Ten-finger prints (2 rows x 5 cols by hand) ===== */}
+      <h3 className="pv-section">{t("pdf.section4")}</h3>
+      <div className="pv-fp-wrap">
+        <div className="pv-fp-hand">
+          <div className="pv-fp-grid">
+            {LEFT_HAND.map((f) => {
+              const label = t(`fp.finger.${f.code}.long`);
+              return (
+                <div key={f.key} className="pv-fp-item">
+                  <div className="pv-fp-frame">
+                    {photos[f.key]
+                      ? <img src={photos[f.key]} alt={label} />
+                      : <span className="pv-empty">—</span>}
+                  </div>
+                  <span>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="pv-fp-hand">
+          <div className="pv-fp-grid">
+            {RIGHT_HAND.map((f) => {
+              const label = t(`fp.finger.${f.code}.long`);
+              return (
+                <div key={f.key} className="pv-fp-item">
+                  <div className="pv-fp-frame">
+                    {photos[f.key]
+                      ? <img src={photos[f.key]} alt={label} />
+                      : <span className="pv-empty">—</span>}
+                  </div>
+                  <span>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Signatures ===== */}
+      <div className="pv-signatures">
+        <div className="pv-sig-block">
+          <div className="pv-sig-place">&nbsp;</div>
+          <div className="pv-sig-role">{t("pdf.declarant")}</div>
+          <div className="pv-sig-note">{t("pdf.sign_note")}</div>
+          <div className="pv-sig-space" />
+        </div>
+        <div className="pv-sig-block">
+          <div className="pv-sig-place">{dateLong}</div>
+          <div className="pv-sig-role">{t("pdf.officer")}</div>
+          <div className="pv-sig-note">{t("pdf.sign_note")}</div>
+          <div className="pv-sig-space" />
+        </div>
+      </div>
+    </div>
+  );
+});
+
+function ProfilePreviewModal({ form, photos, onClose }) {
+  const { t } = useI18n();
   const a4Ref = useRef(null);
   const [exporting, setExporting] = useState(false);
 
@@ -1606,47 +1726,9 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
     if (!node) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(node, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        windowWidth: node.scrollWidth,
-        windowHeight: node.scrollHeight,
+      await exportProfilePdf(node, {
+        fileName: makePdfFileName(form.personal_id || form.cccd_number, form.full_name),
       });
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const imgH = (canvas.height * pageW) / canvas.width;
-      if (imgH <= pageH) {
-        pdf.addImage(imgData, "JPEG", 0, 0, pageW, imgH);
-      } else {
-        // Paginate: slice canvas into pageH-tall chunks
-        let remaining = imgH;
-        let y = 0;
-        const ratio = canvas.width / pageW;
-        const sliceHeightPx = pageH * ratio;
-        while (remaining > 0) {
-          const sliceCanvas = document.createElement("canvas");
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = Math.min(sliceHeightPx, canvas.height - y * ratio);
-          const ctx = sliceCanvas.getContext("2d");
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-          ctx.drawImage(
-            canvas,
-            0, y * ratio, canvas.width, sliceCanvas.height,
-            0, 0, canvas.width, sliceCanvas.height,
-          );
-          const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.95);
-          const sliceHmm = sliceCanvas.height / ratio;
-          if (y > 0) pdf.addPage();
-          pdf.addImage(sliceData, "JPEG", 0, 0, pageW, sliceHmm);
-          y += pageH;
-          remaining -= pageH;
-        }
-      }
-      pdf.save(makePdfFileName(form.personal_id || form.cccd_number, form.full_name));
     } catch (ex) {
       console.error("[Export PDF] error:", ex);
       alert(t("capture.pdf.err_export", { message: ex?.message || ex }));
@@ -1667,142 +1749,8 @@ function ProfilePreviewModal({ form, photos, cells, onClose }) {
       </div>
 
       <div className="preview-scroll" onClick={onClose}>
-        <div ref={a4Ref} className="preview-a4 preview-a4-portrait" onClick={(e) => e.stopPropagation()}>
-
-          {/* ===== Header: national emblem centered ===== */}
-          <div className="pv-header-row">
-            <div className="pv-header-left">
-              <div className="pv-org1">{t("pdf.emblem")}</div>
-              <div className="pv-org2">{t("pdf.motto")}</div>
-              <div className="pv-org-underline" />
-            </div>
-          </div>
-
-          {/* ===== Title ===== */}
-          <div className="pv-title-row">
-            <h1 className="pv-title">{t("pdf.title")}</h1>
-            <div className="pv-subtitle">
-              {t("pdf.record_id")} <b>{val(form.personal_id || form.cccd_number)}</b>
-            </div>
-          </div>
-
-          {/* ===== I. Personal info (2 cols: table + 4x6 portrait) ===== */}
-          <h3 className="pv-section">{t("pdf.section1")}</h3>
-          <div className="pv-info-row">
-            <table className="pv-table pv-info-table pv-info-single">
-              <tbody>
-                <tr><td className="pv-label">{t("pdf.field.full_name")}</td><td>{val(form.full_name)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.dob")}</td><td>{val(form.dob)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.gender")}</td><td>{val(genderVi)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.cccd")}</td><td>{val(form.cccd_number)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.nationality")}</td><td>{val(form.nationality)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.ethnicity")}</td><td>{val(form.ethnicity)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.religion")}</td><td>{val(form.religion)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.hometown")}</td><td>{val(form.hometown)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.address")}</td><td>{val(form.address)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.issued_date")}</td><td>{val(form.issued_date)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.expiry")}</td><td>{val(form.expiry_date)}</td></tr>
-                <tr><td className="pv-label">{t("pdf.field.issued_place")}</td><td>{val(form.issued_place)}</td></tr>
-              </tbody>
-            </table>
-            <div className="pv-info-photo">
-              <div className="pv-portrait-4x6">
-                {photos.cccd_front
-                  ? <img src={photos.cccd_front} alt={t("pdf.cccd_photo")} />
-                  : <span>{t("pdf.cccd_photo")}</span>}
-              </div>
-              <div className="pv-portrait-4x6-caption">{t("pdf.cccd_photo")}</div>
-            </div>
-          </div>
-
-          {/* ===== II. Biometric & custody info ===== */}
-          <h3 className="pv-section">{t("pdf.section2")}</h3>
-          <div className="pv-info-grid">
-            <div className="pv-g-label">{t("pdf.field.height")}</div>
-            <div className="pv-g-value">{val(form.height_cm)}</div>
-            <div className="pv-g-label">{t("pdf.field.weight")}</div>
-            <div className="pv-g-value">{val(form.weight_kg)}</div>
-
-            <div className="pv-g-label">{t("pdf.field.date_in")}</div>
-            <div className="pv-g-value">{val(form.date_in)}</div>
-            <div className="pv-g-label">{t("pdf.field.cell")}</div>
-            <div className="pv-g-value">{val(form.cell_code)}</div>
-
-            <div className="pv-g-label">{t("pdf.field.note")}</div>
-            <div className="pv-g-value pv-g-note">{val(form.note)}</div>
-          </div>
-
-          {/* ===== III. Portrait photos (3 frames) ===== */}
-          <h3 className="pv-section">{t("pdf.section3")}</h3>
-          <div className="pv-portraits">
-            {PORTRAITS.map((p) => (
-              <div key={p.key} className="pv-portrait-item">
-                <div className="pv-portrait-frame">
-                  {photos[p.key]
-                    ? <img src={photos[p.key]} alt={t(p.labelKey)} />
-                    : <span className="pv-empty">{t("pdf.no_photo")}</span>}
-                </div>
-                <span>{t(p.labelKey)}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* ===== IV. Ten-finger prints (2 rows x 5 cols by hand) ===== */}
-          <h3 className="pv-section">{t("pdf.section4")}</h3>
-          <div className="pv-fp-wrap">
-            <div className="pv-fp-hand">
-              <div className="pv-fp-grid">
-                {LEFT_HAND.map((f) => {
-                  const label = t(`fp.finger.${f.code}.long`);
-                  return (
-                    <div key={f.key} className="pv-fp-item">
-                      <div className="pv-fp-frame">
-                        {photos[f.key]
-                          ? <img src={photos[f.key]} alt={label} />
-                          : <span className="pv-empty">—</span>}
-                      </div>
-                      <span>{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="pv-fp-hand">
-              <div className="pv-fp-grid">
-                {RIGHT_HAND.map((f) => {
-                  const label = t(`fp.finger.${f.code}.long`);
-                  return (
-                    <div key={f.key} className="pv-fp-item">
-                      <div className="pv-fp-frame">
-                        {photos[f.key]
-                          ? <img src={photos[f.key]} alt={label} />
-                          : <span className="pv-empty">—</span>}
-                      </div>
-                      <span>{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* ===== Signatures ===== */}
-          <div className="pv-signatures">
-            <div className="pv-sig-block">
-              <div className="pv-sig-place">&nbsp;</div>
-              <div className="pv-sig-role">{t("pdf.declarant")}</div>
-              <div className="pv-sig-note">{t("pdf.sign_note")}</div>
-              <div className="pv-sig-space" />
-            </div>
-            <div className="pv-sig-block">
-              <div className="pv-sig-place">
-                {dateLong}
-              </div>
-              <div className="pv-sig-role">{t("pdf.officer")}</div>
-              <div className="pv-sig-note">{t("pdf.sign_note")}</div>
-              <div className="pv-sig-space" />
-            </div>
-          </div>
+        <div onClick={(e) => e.stopPropagation()}>
+          <ProfilePreviewContent ref={a4Ref} form={form} photos={photos} />
         </div>
       </div>
     </div>

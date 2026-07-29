@@ -22,11 +22,13 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
+import shutil
 import subprocess
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 try:
@@ -75,6 +77,34 @@ def _get_volume_serial(drive: str) -> Optional[str]:
         return out.decode("ascii", errors="ignore").strip() or None
     except Exception:
         return None
+
+
+def _get_volume_label(drive: str) -> str:
+    """Doc volume label (ten hien thi cua USB). Tra "" neu khong doc duoc."""
+    if os.name == "nt":
+        root = drive if drive.endswith("\\") else drive + "\\"
+        try:
+            kernel32 = ctypes.windll.kernel32
+            volume_name = ctypes.create_unicode_buffer(1024)
+            fs_name = ctypes.create_unicode_buffer(1024)
+            serial = ctypes.c_ulong(0)
+            max_component = ctypes.c_ulong(0)
+            fs_flags = ctypes.c_ulong(0)
+            ok = kernel32.GetVolumeInformationW(
+                ctypes.c_wchar_p(root),
+                volume_name, ctypes.sizeof(volume_name),
+                ctypes.byref(serial),
+                ctypes.byref(max_component),
+                ctypes.byref(fs_flags),
+                fs_name, ctypes.sizeof(fs_name),
+            )
+            if not ok:
+                return ""
+            return volume_name.value or ""
+        except Exception:
+            return ""
+    # Linux/macOS: mount point tail thuong la ten drive
+    return os.path.basename(drive.rstrip("/")) or ""
 
 
 # ---------- Config ----------
@@ -244,4 +274,128 @@ def provision(body: ProvisionReq) -> dict:
         "drive": drive,
         "org": body.org,
         "volume_serial": volume_serial,
+    }
+
+
+# ---------- Export to USB ----------
+_SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _writable_drives_snapshot() -> tuple[list[dict], list[str]]:
+    """Chup snapshot USB hien tai: (drives writable, drives la dongle).
+
+    Drive la dongle neu _read_key_file tra ve dict (co .key hop le).
+    """
+    writable: list[dict] = []
+    dongles: list[str] = []
+    for drive in _list_usb_drives():
+        if _read_key_file(drive) is not None:
+            dongles.append(drive)
+            continue
+        try:
+            usage = shutil.disk_usage(drive)
+            free_bytes = usage.free
+            total_bytes = usage.total
+        except OSError:
+            continue  # drive vua bi rut giua chung
+        writable.append({
+            "path": drive,
+            "label": _get_volume_label(drive),
+            "free_bytes": free_bytes,
+            "total_bytes": total_bytes,
+        })
+    return writable, dongles
+
+
+def _sanitize_filename(name: str) -> str:
+    """Ep filename ve dang an toan: chi giu [A-Za-z0-9._-], toi da 128 ky tu."""
+    name = os.path.basename((name or "").strip())
+    if not name or ".." in name:
+        return ""
+    cleaned = _SAFE_FILENAME_RE.sub("_", name).strip("._") or ""
+    if len(cleaned) > 128:
+        stem, dot, ext = cleaned.rpartition(".")
+        if dot and 0 < len(ext) <= 8:
+            keep = 128 - (len(ext) + 1)
+            cleaned = (stem[:keep] if keep > 0 else stem[:1]) + "." + ext
+        else:
+            cleaned = cleaned[:128]
+    return cleaned
+
+
+def _unique_path(drive: str, filename: str) -> str:
+    """Tra ve path chua ton tai tren drive; them _1, _2... neu trung."""
+    base = os.path.join(drive, filename)
+    if not os.path.exists(base):
+        return base
+    stem, dot, ext = filename.rpartition(".")
+    if not dot:
+        stem, ext = filename, ""
+        suffix_ext = ""
+    else:
+        suffix_ext = "." + ext
+    for i in range(1, 101):
+        candidate = os.path.join(drive, f"{stem}_{i}{suffix_ext}")
+        if not os.path.exists(candidate):
+            return candidate
+    raise HTTPException(500, "Qua nhieu file trung ten tren USB (>100).")
+
+
+@app.get("/api/usb/writable-drives")
+def writable_drives() -> dict:
+    """Liet ke drive removable co the ghi (loai dongle).
+
+    Response:
+      { ok: true, drives: [{path,label,free_bytes,total_bytes}], dongle_drives: [<path>] }
+    """
+    drives, dongles = _writable_drives_snapshot()
+    return {"ok": True, "drives": drives, "dongle_drives": dongles}
+
+
+@app.post("/api/usb/save-export")
+async def save_export(
+    drive: str = Form(...),
+    file: UploadFile = File(...),
+) -> dict:
+    """Ghi file export XLSX vao USB nguoi dung chi dinh.
+
+    Validate: drive phai la 1 trong writable-drives hien tai (khong phai dongle,
+    khong phai o cung noi bo). Filename duoc sanitize truoc khi ghi.
+    """
+    drives, dongles = _writable_drives_snapshot()
+    writable_paths = {d["path"] for d in drives}
+    if drive not in writable_paths:
+        if drive in dongles:
+            raise HTTPException(400, "Drive nay la USB dongle. Chon USB khac.")
+        raise HTTPException(400, "Drive khong hop le hoac khong con cam.")
+
+    filename = _sanitize_filename(file.filename or "")
+    if not filename:
+        raise HTTPException(400, "Ten file khong hop le.")
+
+    target = _unique_path(drive, filename)
+    bytes_written = 0
+    try:
+        with open(target, "wb") as dst:
+            while True:
+                chunk = await file.read(64 * 1024)
+                if not chunk:
+                    break
+                dst.write(chunk)
+                bytes_written += len(chunk)
+    except OSError as e:
+        # Xoa file dang do neu ghi hong (het dung luong, rut USB giua chung)
+        try:
+            if os.path.exists(target):
+                os.remove(target)
+        except OSError:
+            pass
+        raise HTTPException(500, f"Ghi file that bai: {e}")
+
+    return {
+        "ok": True,
+        "path": target,
+        "filename": os.path.basename(target),
+        "drive": drive,
+        "bytes_written": bytes_written,
     }

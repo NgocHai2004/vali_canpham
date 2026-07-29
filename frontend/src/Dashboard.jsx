@@ -1,12 +1,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, fpApi, cccdApi } from "./api";
+import { api, fpApi, cccdApi, exportToUsb } from "./api";
+import { toast } from "./Toast";
 import { notify } from "./notifications";
 import SyncDiffModal, { buildSyncDiff } from "./SyncDiffModal";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
+import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { useI18n, LanguageSwitch } from "./i18n";
 
 const Icon = {
@@ -2025,6 +2027,34 @@ function ImportExportPage() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
+
+  const pickDrive = (drives) => new Promise((resolve) => {
+    setUsbPicker({ open: true, drives, resolve });
+  });
+
+  const doExport = async () => {
+    setExporting(true);
+    setError("");
+    try {
+      const res = await exportToUsb(
+        "/api/detainees/export/xlsx",
+        "can_pham.xlsx",
+        pickDrive,
+      );
+      if (!res.cancelled) {
+        const msg = t("usb.export.success", { path: res.path });
+        toast.success(msg);
+        notify.add(msg);
+      }
+    } catch (ex) {
+      toast.error(ex.message);
+      setError(ex.message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const importFile = async (e) => {
     const file = e.target.files?.[0];
@@ -2057,8 +2087,8 @@ function ImportExportPage() {
           <div className="feature-icon">{Icon.file}</div>
           <h3>{t("import.export_title")}</h3>
           <p>{t("import.export_desc")}</p>
-          <button className="button primary" onClick={() => api.downloadExport()}>
-            {t("import.export_btn")}
+          <button className="button primary" onClick={doExport} disabled={exporting}>
+            {exporting ? t("session.exporting") : t("import.export_btn")}
           </button>
         </section>
 
@@ -2087,6 +2117,22 @@ function ImportExportPage() {
           )}
         </section>
       </div>
+
+      {usbPicker.open && (
+        <UsbDrivePickerModal
+          drives={usbPicker.drives}
+          onPick={(d) => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(d);
+          }}
+          onCancel={() => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { auth, api, setOnAuthExpired } from "./api";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
+import ToastHost from "./Toast";
 import { useI18n } from "./i18n";
 
 const DONGLE_POLL_MS = 5000;
@@ -128,7 +129,12 @@ export default function App() {
     );
   }
 
-  if (!user) return <Login onLogin={handleLogin} />;
+  if (!user) return (
+    <>
+      <Login onLogin={handleLogin} />
+      <ToastHost />
+    </>
+  );
   return (
     <>
       {!dongleOk && (
@@ -163,6 +169,7 @@ export default function App() {
         }}
         onLogout={handleLogout}
       />
+      <ToastHost />
     </>
   );
 }

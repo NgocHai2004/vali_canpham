@@ -426,6 +426,8 @@
   "capture.pdf.err_export": "Không xuất được PDF: {message}",
   "capture.pdf.exporting": "Đang xuất PDF...",
   "capture.pdf.export": "Xuất PDF",
+  "capture.pdf.preview_loading": "Đang tải hồ sơ…",
+  "capture.pdf.window_title": "Xem trước hồ sơ — CCCD",
   "pdf.emblem": "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM",
   "pdf.motto": "Độc lập – Tự do – Hạnh phúc",
   "pdf.title": "HỒ SƠ CAN PHẠM",
@@ -758,5 +760,13 @@
   "logs.field.session_ph": "S20260713-0001",
   "history.title": "Lịch sử",
   "history.stat.note.create": "Hồ sơ được tạo",
+  "usb.export.picker.title": "Chọn USB để lưu file",
+  "usb.export.picker.hint": "USB dongle không hiện trong danh sách để tránh ghi đè.",
+  "usb.export.picker.free": "{free} trống / {total}",
+  "usb.export.picker.confirm": "Lưu vào USB này",
+  "usb.export.err.no_drive": "Không có USB nào để lưu. Cắm USB (khác USB dongle) rồi thử lại.",
+  "usb.export.err.only_dongle": "USB duy nhất đang cắm là dongle. Cắm thêm 1 USB thứ hai để lưu file.",
+  "usb.export.err.service_down": "Không kết nối được usb_service (:8766). Kiểm tra service đã chạy chưa.",
+  "usb.export.success": "Đã lưu: {path}",
   "__END_MARKER__": "end"
 }

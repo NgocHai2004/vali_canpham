@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { api } from "./api";
+import { api, exportToUsb } from "./api";
 import { notify } from "./notifications";
 import { useI18n } from "./i18n";
+import UsbDrivePickerModal from "./UsbDrivePickerModal";
+import { toast } from "./Toast";
 
 function fmtTime(iso) {
   if (!iso) return "—";
@@ -30,6 +32,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmDeleteSess, setConfirmDeleteSess] = useState(false);
   const [confirmDelRow, setConfirmDelRow] = useState(null);
+  const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
 
   const load = async () => {
     setLoading(true);
@@ -89,12 +92,25 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
     }
   };
 
+  const pickDrive = (drives) => new Promise((resolve) => {
+    setUsbPicker({ open: true, drives, resolve });
+  });
+
   const doDownload = async () => {
     if (!session) return;
     try {
-      await api.downloadSessionReport(sessionId, session.report_filename);
+      const res = await exportToUsb(
+        `/api/sessions/${sessionId}/report`,
+        session.report_filename || `session_${session.code || sessionId}.xlsx`,
+        pickDrive,
+      );
+      if (!res.cancelled) {
+        const msg = t("usb.export.success", { path: res.path });
+        toast.success(msg);
+        notify.add(msg);
+      }
     } catch (ex) {
-      alert(ex.message || t("session.detail.err.report"));
+      toast.error(ex.message || t("session.detail.err.report"));
     }
   };
 
@@ -273,6 +289,22 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
             </div>
           </div>
         </div>
+      )}
+
+      {usbPicker.open && (
+        <UsbDrivePickerModal
+          drives={usbPicker.drives}
+          onPick={(d) => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(d);
+          }}
+          onCancel={() => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(null);
+          }}
+        />
       )}
     </div>
   );

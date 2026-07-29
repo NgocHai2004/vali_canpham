@@ -426,6 +426,8 @@
   "capture.pdf.err_export": "Cannot export PDF: {message}",
   "capture.pdf.exporting": "Exporting PDF...",
   "capture.pdf.export": "Export PDF",
+  "capture.pdf.preview_loading": "Loading profile…",
+  "capture.pdf.window_title": "Profile preview — CCCD",
   "pdf.emblem": "SOCIALIST REPUBLIC OF VIET NAM",
   "pdf.motto": "Independence – Freedom – Happiness",
   "pdf.title": "DETAINEE RECORD",
@@ -758,5 +760,13 @@
   "logs.field.session_ph": "S20260713-0001",
   "history.title": "History",
   "history.stat.note.create": "Records created",
+  "usb.export.picker.title": "Choose USB drive to save file",
+  "usb.export.picker.hint": "The USB dongle is hidden from the list to prevent overwriting it.",
+  "usb.export.picker.free": "{free} free / {total}",
+  "usb.export.picker.confirm": "Save to this USB",
+  "usb.export.err.no_drive": "No USB drive available. Plug in a USB (other than the dongle) and try again.",
+  "usb.export.err.only_dongle": "The only USB connected is the dongle. Plug in a second USB to save the file.",
+  "usb.export.err.service_down": "Cannot reach usb_service (:8766). Check that it is running.",
+  "usb.export.success": "Saved to: {path}",
   "__END_MARKER__": "end"
 }

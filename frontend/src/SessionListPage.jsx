@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { api } from "./api";
+import { api, exportToUsb } from "./api";
 import { notify } from "./notifications";
 import SessionOpenModal from "./SessionOpenModal";
 import { CellForm } from "./Dashboard";
+import UsbDrivePickerModal from "./UsbDrivePickerModal";
+import { toast } from "./Toast";
 import { useI18n } from "./i18n";
 
 const STAT_ICONS = {
@@ -58,6 +60,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [stats, setStats] = useState({ create: 0, update: 0, delete: 0, import: 0 });
   const [deletingId, setDeletingId] = useState(null);
   const [exportingId, setExportingId] = useState(null);
+  const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -131,13 +134,25 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
     if (onOpenSession) onOpenSession(s.id);
   };
 
+  const pickDrive = (drives) => new Promise((resolve) => {
+    setUsbPicker({ open: true, drives, resolve });
+  });
+
   const downloadReport = async (s) => {
     setExportingId(s.id);
     try {
-      await api.downloadSessionReport(s.id, s.report_filename || `session_${s.code}.xlsx`);
-      notify.add();
+      const res = await exportToUsb(
+        `/api/sessions/${s.id}/report`,
+        s.report_filename || `session_${s.code}.xlsx`,
+        pickDrive,
+      );
+      if (!res.cancelled) {
+        const msg = t("usb.export.success", { path: res.path });
+        toast.success(msg);
+        notify.add(msg);
+      }
     } catch (ex) {
-      alert(ex.message || t("session.err.report"));
+      toast.error(ex.message || t("session.err.report"));
     } finally {
       setExportingId(null);
     }
@@ -348,6 +363,22 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
             </div>
           </div>
         </div>
+      )}
+
+      {usbPicker.open && (
+        <UsbDrivePickerModal
+          drives={usbPicker.drives}
+          onPick={(d) => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(d);
+          }}
+          onCancel={() => {
+            const r = usbPicker.resolve;
+            setUsbPicker({ open: false, drives: [], resolve: null });
+            r && r(null);
+          }}
+        />
       )}
     </div>
   );

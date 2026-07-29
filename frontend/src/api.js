@@ -79,6 +79,75 @@ async function downloadFile(path, defaultName) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function fetchExportBlob(path, defaultName) {
+  const token = auth.getToken();
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error(apiT("api.error.download_failed", { status: res.status }));
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition") || "";
+  const m = /filename="?([^"]+)"?/.exec(cd);
+  const filename = m ? m[1] : defaultName;
+  return { blob, filename };
+}
+
+export const usbApi = {
+  listWritable: async () => {
+    let res;
+    try {
+      res = await fetch("/usb/api/usb/writable-drives");
+    } catch (netErr) {
+      throw new Error(apiT("usb.export.err.service_down"));
+    }
+    if (!res.ok) throw new Error(apiT("usb.export.err.service_down"));
+    return res.json();
+  },
+  saveExport: async (drive, filename, blob) => {
+    const fd = new FormData();
+    fd.append("drive", drive);
+    fd.append("file", new File([blob], filename));
+    let res;
+    try {
+      res = await fetch("/usb/api/usb/save-export", { method: "POST", body: fd });
+    } catch (netErr) {
+      throw new Error(apiT("usb.export.err.service_down"));
+    }
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : await res.text();
+    if (!res.ok) {
+      throw new Error((data && data.detail) || (typeof data === "string" ? data : apiT("api.error.server")));
+    }
+    return data;
+  },
+};
+
+/**
+ * Xuất file XLSX ra USB người dùng chỉ định thay vì tải về máy.
+ * @param {string} sourcePath   Backend path tra ve XLSX (vi du /api/detainees/export/xlsx).
+ * @param {string} defaultFilename  Ten fallback neu server khong dat Content-Disposition.
+ * @param {(drives:Array)=>Promise<Object|null>} pickDrive
+ *        Callback UI: nhan danh sach drive, tra ve drive user chon (hoac null neu huy).
+ * @returns {Promise<{cancelled?:boolean, path?:string, filename?:string, bytes_written?:number}>}
+ */
+export async function exportToUsb(sourcePath, defaultFilename, pickDrive) {
+  const info = await usbApi.listWritable();
+  const drives = info.drives || [];
+  const dongles = info.dongle_drives || [];
+  if (drives.length === 0) {
+    if (dongles.length > 0) throw new Error(apiT("usb.export.err.only_dongle"));
+    throw new Error(apiT("usb.export.err.no_drive"));
+  }
+  let chosen;
+  if (drives.length === 1) {
+    chosen = drives[0];
+  } else {
+    chosen = await pickDrive(drives);
+    if (!chosen) return { cancelled: true };
+  }
+  const { blob, filename } = await fetchExportBlob(sourcePath, defaultFilename);
+  const saved = await usbApi.saveExport(chosen.path, filename, blob);
+  return saved;
+}
+
 export const api = {
   request,
 
