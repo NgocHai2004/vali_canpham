@@ -1149,6 +1149,8 @@ from cccd_watcher import (
     cccd_wait_session as _cccd_wait_session,
     cccd_read_again as _cccd_read_again,
     cccd_end_session as _cccd_end_session,
+    cccd_session_count as _cccd_session_count,
+    cccd_inject as _cccd_inject,
 )
 
 
@@ -1185,6 +1187,115 @@ async def cccd_session_read_again(sid: str, user: dict = Depends(get_current_use
 async def cccd_session_delete(sid: str, user: dict = Depends(get_current_user)):
     _cccd_end_session(sid)
     return {"ok": True}
+
+
+# ---------- CCCD PUSH (máy ngoài bắn dữ liệu quét CCCD lên) ----------
+CCCD_API_KEY = os.getenv("CCCD_API_KEY", "")
+CCCD_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "cccd_push")
+os.makedirs(CCCD_UPLOAD_DIR, exist_ok=True)
+
+
+def _require_cccd_key(request: Request) -> None:
+    if CCCD_API_KEY and request.headers.get("X-CCCD-Key", "") != CCCD_API_KEY:
+        raise HTTPException(401, "Sai X-CCCD-Key")
+
+
+def _norm_sex_vi(gender: Optional[str]) -> str:
+    if not gender:
+        return ""
+    g = gender.strip().lower()
+    if g in ("male", "nam", "m"):
+        return "Nam"
+    if g in ("female", "nữ", "nu", "f"):
+        return "Nữ"
+    return gender.strip()
+
+
+def _safe_name_segment(s: str) -> str:
+    s = (s or "").strip() or "unknown"
+    return re.sub(r"[^\w\-. ]+", "_", s, flags=re.UNICODE)[:80] or "unknown"
+
+
+class CCCDPushBody(BaseModel):
+    cccd_number: str = Field(..., pattern=r"^\d{12}$")
+    full_name: str = Field(..., min_length=1, max_length=100)
+    dob: Optional[str] = None
+    gender: Optional[str] = None
+    nationality: Optional[str] = None
+    hometown: Optional[str] = None
+    address: Optional[str] = None
+    issued_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    ethnicity: Optional[str] = None
+    religion: Optional[str] = None
+    personal_identification: Optional[str] = None
+    face_photo: Optional[str] = Field(None, max_length=500)
+    source: Optional[str] = Field(None, max_length=64)
+
+
+def _gender_to_en(gender: Optional[str]) -> Optional[str]:
+    if not gender:
+        return None
+    g = gender.strip().lower()
+    if g in ("male", "nam", "m"):
+        return "male"
+    if g in ("female", "nữ", "nu", "f"):
+        return "female"
+    return None
+
+
+@app.post("/api/cccd/push")
+async def cccd_push(body: CCCDPushBody, request: Request):
+    """Máy ngoài bắn dữ liệu CCCD vừa quét lên. Backend đẩy thẳng dữ liệu
+    vào hàng đợi của mọi session đang long-poll /api/cccd/session/{sid}/wait
+    — không phụ thuộc file watcher, không ghi ra data_cccd/."""
+    _require_cccd_key(request)
+
+    now = datetime.utcnow()
+    data = {
+        "cccd_number": body.cccd_number,
+        "full_name": body.full_name,
+        "dob": body.dob or "",
+        "gender": _gender_to_en(body.gender),
+        "sex_vi": _norm_sex_vi(body.gender),
+        "nationality": body.nationality or "",
+        "hometown": body.hometown or "",
+        "address": body.address or "",
+        "issued_date": body.issued_date or "",
+        "expiry_date": body.expiry_date or "",
+        "personal_identification": body.personal_identification or "",
+        "ethnicity": body.ethnicity or "",
+        "religion": body.religion or "",
+        "facePhoto": body.face_photo or "",
+        "_scan_folder": f"push_{now.strftime('%d.%m.%Y.%H.%M.%S')}",
+        "_source": body.source or "",
+    }
+
+    delivered = _cccd_inject(data)
+    return {
+        "ok": True,
+        "cccd_number": body.cccd_number,
+        "delivered": delivered,
+        "ts": now.isoformat(),
+    }
+
+
+@app.post("/api/cccd/upload_image")
+async def cccd_upload_image(request: Request, file: UploadFile = File(...)):
+    """Máy ngoài upload ảnh CCCD/khuôn mặt trước khi gọi /api/cccd/push.
+    Trả URL để đưa vào field face_photo của POST /api/cccd/push."""
+    _require_cccd_key(request)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(400, "Chỉ hỗ trợ ảnh jpg/png/webp")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Ảnh vượt quá 5MB")
+    name = f"cccd_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
+    path = os.path.join(CCCD_UPLOAD_DIR, name)
+    with open(path, "wb") as f:
+        f.write(data)
+    return {"url": f"/uploads/cccd_push/{name}", "size": len(data)}
 
 
 # ==================== WEIGHT SCALE (push từ máy cân ngoài + WS broadcast) ====================

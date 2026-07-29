@@ -108,12 +108,13 @@ def _parse_scan_folder(scan_dir: Path) -> Optional[dict]:
 
 
 class _Session:
-    __slots__ = ("id", "baseline", "created_at")
+    __slots__ = ("id", "baseline", "created_at", "pending")
 
     def __init__(self) -> None:
         self.id = uuid.uuid4().hex
         self.baseline = _snapshot_scan_folders()
         self.created_at = time.time()
+        self.pending: list[dict] = []
 
 
 _sessions: dict[str, _Session] = {}
@@ -160,15 +161,47 @@ def cccd_end_session(sid: str) -> None:
         _sessions.pop(sid, None)
 
 
+def cccd_session_count() -> int:
+    with _lock:
+        _gc_locked()
+        return len(_sessions)
+
+
+def cccd_inject(data: dict) -> int:
+    """Đẩy dữ liệu CCCD thẳng vào hàng đợi của mọi session đang mở.
+    Không đụng thư mục data_cccd. Trả số session đã nhận."""
+    with _lock:
+        _gc_locked()
+        n = 0
+        for s in _sessions.values():
+            s.pending.append(data)
+            s.created_at = time.time()
+            n += 1
+        return n
+
+
 async def cccd_wait_session(sid: str, timeout: int) -> Optional[dict]:
     with _lock:
         s = _sessions.get(sid)
         if not s:
             return None
+        if s.pending:
+            data = s.pending.pop(0)
+            s.created_at = time.time()
+            return {"status": "ok", "data": data}
         baseline = set(s.baseline)
 
     deadline = time.time() + max(1, timeout)
     while True:
+        with _lock:
+            s = _sessions.get(sid)
+            if s is None:
+                return None
+            if s.pending:
+                data = s.pending.pop(0)
+                s.created_at = time.time()
+                return {"status": "ok", "data": data}
+
         current = _snapshot_scan_folders()
         new_folders = current - baseline
         if new_folders:
@@ -183,7 +216,4 @@ async def cccd_wait_session(sid: str, timeout: int) -> Optional[dict]:
                 return {"status": "ok", "data": data}
         if time.time() >= deadline:
             return {"status": "timeout"}
-        with _lock:
-            if sid not in _sessions:
-                return None
         await asyncio.sleep(_POLL_INTERVAL)

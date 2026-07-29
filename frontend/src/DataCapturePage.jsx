@@ -832,16 +832,22 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       cmnd_old: d.cmnd_old || f.cmnd_old,
     }));
     if (d.facePhoto) {
-      const dataUrl = `data:image/jpeg;base64,${d.facePhoto}`;
-      setCccdCardPortrait(dataUrl);
-      try {
-        const file = await b64PngToFile(d.facePhoto, `cccd_face_${d.cccd_number || Date.now()}.jpg`);
-        const jpgFile = new File([file], file.name, { type: "image/jpeg" });
-        const res = await api.uploadPhoto(jpgFile);
-        setPhoto("cccd_front", res.url);
-      } catch (uploadEx) {
-        console.error("[CCCD] portrait upload failed:", uploadEx);
-        setErr(t("capture.err.cccd_saved_photo", { message: uploadEx.message }));
+      const fp = d.facePhoto;
+      if (fp.startsWith("/uploads/") || fp.startsWith("http://") || fp.startsWith("https://") || fp.startsWith("data:")) {
+        setCccdCardPortrait(fp);
+        setPhoto("cccd_front", fp);
+      } else {
+        const dataUrl = `data:image/jpeg;base64,${fp}`;
+        setCccdCardPortrait(dataUrl);
+        try {
+          const file = await b64PngToFile(fp, `cccd_face_${d.cccd_number || Date.now()}.jpg`);
+          const jpgFile = new File([file], file.name, { type: "image/jpeg" });
+          const res = await api.uploadPhoto(jpgFile);
+          setPhoto("cccd_front", res.url);
+        } catch (uploadEx) {
+          console.error("[CCCD] portrait upload failed:", uploadEx);
+          setErr(t("capture.err.cccd_saved_photo", { message: uploadEx.message }));
+        }
       }
     }
   };
