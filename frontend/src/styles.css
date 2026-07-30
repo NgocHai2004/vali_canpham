@@ -1912,6 +1912,51 @@ textarea.input {
   width: 100%;
 }
 
+/* Gender radio group */
+.radio-group {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  height: 36px;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2d3748;
+  cursor: pointer;
+  user-select: none;
+}
+
+.radio-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #2b6cb0;
+  margin: 0;
+}
+
+.radio-option span {
+  line-height: 1;
+}
+
+.radio-group-sm {
+  height: 30px;
+  gap: 14px;
+}
+
+.radio-group-sm .radio-option {
+  font-size: 12.5px;
+}
+
+.radio-group-sm input[type="radio"] {
+  width: 14px;
+  height: 14px;
+}
+
 /* Detainee form grid */
 .form-grid {
   display: grid;

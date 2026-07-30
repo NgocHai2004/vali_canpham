@@ -1500,27 +1500,31 @@ function SyncPage() {
       iris_left: p.iris_left, iris_right: p.iris_right,
     };
     const uploaded = {};
-    await Promise.all(keys.map(async (k) => { uploaded[k] = await uploadPhoto(source[k]); }));
+    await Promise.all(keys.map(async (k) => {
+      const url = await uploadPhoto(source[k]);
+      uploaded[k] = url || null;
+    }));
     return {
-      personal_id: d.personal_id || d.code || "",
-      full_name: d.full_name || "",
-      gender: d.gender || "male",
+      personal_id: d.personal_id || d.code || null,
+      full_name: d.full_name || null,
+      gender: d.gender || null,
       dob: d.dob || null,
-      cccd_number: d.cccd_number || "",
-      nationality: d.nationality || "Việt Nam",
-      ethnicity: d.ethnicity || "",
-      religion: d.religion || "",
-      hometown: d.hometown || "",
-      address: d.address || "",
+      cccd_number: d.cccd_number || null,
+      nationality: d.nationality || null,
+      ethnicity: d.ethnicity || null,
+      religion: d.religion || null,
+      hometown: d.hometown || null,
+      address: d.address || null,
       issued_date: d.issued_date || null,
       expiry_date: d.expiry_date || null,
-      issued_place: d.issued_place || "",
+      issued_place: d.issued_place || null,
       height_cm: d.height_cm || null,
       weight_kg: d.weight_kg || null,
-      cell_code: d.cell_code || "",
+      cell_code: d.cell_code || null,
+      charge: d.charge || null,
       date_in: d.date_in || null,
-      note: d.note || "",
-      created_by: d.created_by || "",
+      note: d.note || null,
+      created_by: d.created_by || null,
       photos: uploaded,
     };
   };
@@ -1565,7 +1569,15 @@ function SyncPage() {
       const mappedDetainees = await Promise.all(selectedTargets.map((t) => mapOneToPayload(t.local)));
       const payload = {
         total: mappedDetainees.length,
-        items: [{ detainees: mappedDetainees }],
+        items: [{
+          id: session.code || session.id || null,
+          officer: session.officer || null,
+          officer_full_name: session.officer_full_name || null,
+          location: session.location || null,
+          opened_at: session.opened_at || null,
+          closed_at: session.closed_at || null,
+          detainees: mappedDetainees,
+        }],
       };
       await api.request(`${REMOTE}/sync-detainee`, {
         method: "POST",

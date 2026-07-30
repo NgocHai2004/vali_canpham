@@ -218,10 +218,28 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                   <input className="input" value={form.full_name} onChange={set("full_name")} required maxLength={100} />
                 </Field>
                 <Field label={t("detainee.field.gender") + " *"}>
-                  <select className="input" value={form.gender} onChange={set("gender")}>
-                    <option value="male">{t("common.male")}</option>
-                    <option value="female">{t("common.female")}</option>
-                  </select>
+                  <div className="radio-group">
+                    <label className="radio-option">
+                      <input
+                        type="radio"
+                        name="gender"
+                        value="male"
+                        checked={form.gender === "male"}
+                        onChange={set("gender")}
+                      />
+                      <span>{t("common.male")}</span>
+                    </label>
+                    <label className="radio-option">
+                      <input
+                        type="radio"
+                        name="gender"
+                        value="female"
+                        checked={form.gender === "female"}
+                        onChange={set("gender")}
+                      />
+                      <span>{t("common.female")}</span>
+                    </label>
+                  </div>
                 </Field>
               </div>
 

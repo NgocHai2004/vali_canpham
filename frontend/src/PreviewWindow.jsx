@@ -6,6 +6,7 @@ import { PREVIEW_CHANNEL_NAME } from "./lib/dualMonitorPreview";
 import { usbApi } from "./api";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { notify } from "./notifications";
+import { toast } from "./Toast";
 
 const HEARTBEAT_MS = 1500;
 
@@ -67,10 +68,10 @@ export default function PreviewWindow() {
       const saved = await usbApi.saveExport(chosen.path, filename, blob);
       const okMsg = t("usb.export.success", { path: saved?.path || chosen.path });
       notify.add(okMsg);
-      alert(okMsg);
+      toast.success(okMsg);
     } catch (ex) {
       console.error("[Export PDF] error:", ex);
-      alert(t("capture.pdf.err_export", { message: ex?.message || ex }));
+      toast.error(t("capture.pdf.err_export", { message: ex?.message || ex }));
     } finally {
       setExporting(false);
     }

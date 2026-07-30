@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, cccdApi, b64PngToFile, weightApi, usbApi } from "./api";
 import { notify } from "./notifications";
+import { toast } from "./Toast";
 import cccdTemplateBg from "./assets/cccd-template.png";
 import { useI18n, apiT } from "./i18n";
 import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
@@ -1129,12 +1130,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               </InfoField>
 
               <InfoField label={t("detainee.field.gender")}>
-                <select className="control control-sm" value={form.gender}
-                  onChange={(e) => setField("gender", e.target.value)}>
-                  <option value="">{t("common.select")}</option>
-                  <option value="male">{t("common.male")}</option>
-                  <option value="female">{t("common.female")}</option>
-                </select>
+                <div className="radio-group radio-group-sm">
+                  <label className="radio-option">
+                    <input type="radio" name="capture-gender" value="male"
+                      checked={form.gender === "male"}
+                      onChange={(e) => setField("gender", e.target.value)} />
+                    <span>{t("common.male")}</span>
+                  </label>
+                  <label className="radio-option">
+                    <input type="radio" name="capture-gender" value="female"
+                      checked={form.gender === "female"}
+                      onChange={(e) => setField("gender", e.target.value)} />
+                    <span>{t("common.female")}</span>
+                  </label>
+                </div>
               </InfoField>
               <InfoField label={t("detainee.field.ethnicity")}>
                 <input className="control control-sm" value={form.ethnicity}
@@ -1773,10 +1782,10 @@ function ProfilePreviewModal({ form, photos, onClose }) {
       const saved = await usbApi.saveExport(chosen.path, filename, blob);
       const okMsg = t("usb.export.success", { path: saved?.path || chosen.path });
       notify.add(okMsg);
-      alert(okMsg);
+      toast.success(okMsg);
     } catch (ex) {
       console.error("[Export PDF] error:", ex);
-      alert(t("capture.pdf.err_export", { message: ex?.message || ex }));
+      toast.error(t("capture.pdf.err_export", { message: ex?.message || ex }));
     } finally {
       setExporting(false);
     }
