@@ -6650,41 +6650,22 @@ const styles = `
      CASE PREVIEW LAYOUT — 2 cột (main + aside) + action bar
      ============================================================= */
   .case-preview {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 200px;
-    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 0.45fr) auto;
-    grid-template-areas:
-      "tier1  tier1"
-      "tier2  verify"
-      "tier3  verify"
-      "tier4  verify"
-      "action action";
+    display: flex;
+    flex-direction: column;
     gap: 6px;
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
-    overflow: auto;
+    overflow: auto;        /* scroll cả trang theo trục dọc — các tier xếp tuần tự, không đè lên nhau */
+    padding-bottom: 8px;
   }
-  .case-tier-1 { grid-area: tier1; }
-  .case-tier-2 { grid-area: tier2; }
-  .case-tier-3 { grid-area: tier3; }
-  .case-tier-4 { grid-area: tier4; }
-  .case-aside  { grid-area: verify; }
-  .case-action-bar { grid-area: action; }
-
-  .case-main {
-    display: contents;
-  }
-  .case-aside {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr);
-    gap: 8px;
-    min-height: 0;
-    overflow: hidden;
-  }
-  .case-aside .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .case-tier-1,
+  .case-tier-2,
+  .case-tier-3,
+  .case-tier-4 { width: 100%; }
+  .case-aside  { width: 100%; }
+  .case-action-bar { width: 100%; }
   .case-action-bar {
-    grid-column: 1 / -1;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
@@ -6707,7 +6688,7 @@ const styles = `
     gap: 8px;
     min-height: 0;
   }
-  .case-tier-1 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .case-tier-1 .cap-block { min-height: 0; overflow: visible; display: flex; flex-direction: column; }
 
   /* Body photos (3 khung ảnh + thước đo) */
   .body-shots {
@@ -6919,9 +6900,9 @@ const styles = `
   /* Tier 2: Personal info form (đã dời từ tier 1 xuống) — 1 cột fill chiều cao */
   .case-tier-2 {
     min-height: 0;
-    overflow: auto;
+    overflow: visible;   /* nội dung tràn ra, scroll cả trang */
   }
-  .case-tier-2 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .case-tier-2 .cap-block { min-height: 0; overflow: visible; display: flex; flex-direction: column; }
 
   /* Tier 3: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) */
   .case-tier-3 {
@@ -6931,7 +6912,7 @@ const styles = `
     gap: 10px;
     min-height: 0;
   }
-  .case-tier-3 .cap-block { min-height: 0; overflow: hidden; }
+  .case-tier-3 .cap-block { min-height: 0; overflow: visible; }
   .fp-preview-grid {
     display: grid;
     grid-template-columns: 68px repeat(5, minmax(0, 1fr));
@@ -6940,7 +6921,7 @@ const styles = `
     padding: 8px 10px 10px;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow: visible;
   }
   .fp-preview-cell {
     min-height: 0;
@@ -7093,14 +7074,14 @@ const styles = `
     gap: 8px;
     min-height: 0;
   }
-  .case-tier-4 .cap-block { min-height: 0; overflow: hidden; }
+  .case-tier-4 .cap-block { min-height: 0; overflow: visible; }
   .tier3-body {
     padding: 6px 10px 8px;
     display: flex;
     flex-direction: column;
     gap: 4px;
     min-height: 0;
-    overflow: auto;
+    overflow: visible;
   }
   .tier3-row {
     display: grid;
