@@ -200,10 +200,11 @@ export const api = {
     body: JSON.stringify({ template_b64: templateB64 }),
   }),
 
-  uploadPhoto: async (file) => {
+  uploadPhoto: async (file, type = "") => {
     const fd = new FormData();
     fd.append("file", file);
-    return request("/api/upload/photo", { method: "POST", body: fd });
+    const qs = type ? `?type=${encodeURIComponent(type)}` : "";
+    return request(`/api/upload/photo${qs}`, { method: "POST", body: fd });
   },
 
 

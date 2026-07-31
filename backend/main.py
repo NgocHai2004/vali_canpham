@@ -1,8 +1,12 @@
 import os
 import io
 import re
+import threading
+import anyio
 import httpx
 from datetime import datetime, timedelta, date
+
+import person_detect
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
@@ -81,6 +85,9 @@ async def lifespan(app: FastAPI):
         print(f"[startup] MongoDB OK - db={DB_NAME}")
     except Exception as e:
         print(f"[startup] MongoDB chưa sẵn sàng: {e}")
+    # Load YOLO person-detect model o background (khong block app ready)
+    threading.Thread(target=person_detect.load_blocking, daemon=True, name="yolo-load").start()
+    print("[startup] person_detect: dang load YOLO o background...")
     yield
     client.close()
 
@@ -1142,18 +1149,44 @@ async def delete_session(session_id: str, request: Request, user: dict = Depends
 
 # ==================== PHOTO UPLOAD ====================
 @app.post("/api/upload/photo")
-async def upload_photo(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+async def upload_photo(
+    file: UploadFile = File(...),
+    type: str = Query(default=""),
+    user: dict = Depends(get_current_user),
+):
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
         raise HTTPException(400, "Chỉ hỗ trợ ảnh jpg/png/webp")
-    name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
-    path = os.path.join(UPLOAD_DIR, name)
     data = await file.read()
     if len(data) > 5 * 1024 * 1024:
         raise HTTPException(400, "Ảnh vượt quá 5MB")
+
+    boxed = False
+    n_persons = None
+    save_bytes = data
+    if type == "portrait" and person_detect.is_ready():
+        try:
+            boxed_bytes, n_persons = await anyio.to_thread.run_sync(
+                person_detect.draw_person_boxes, data
+            )
+            save_bytes = boxed_bytes
+            boxed = True
+        except Exception as e:  # noqa: BLE001 — không hỏng flow chụp
+            print(f"[upload_photo] person_detect fail, fallback ảnh gốc: {e}")
+            boxed = False
+            n_persons = None
+            save_bytes = data
+
+    name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
+    path = os.path.join(UPLOAD_DIR, name)
     with open(path, "wb") as f:
-        f.write(data)
-    return {"url": f"/uploads/{name}", "size": len(data)}
+        f.write(save_bytes)
+    return {"url": f"/uploads/{name}", "size": len(save_bytes), "boxed": boxed, "n_persons": n_persons}
+
+
+@app.get("/api/detect/health")
+async def detect_health(user: dict = Depends(get_current_user)):
+    return person_detect.get_status()
 
 
 # ==================== CCCD READER (watch folder data_cccd) ====================

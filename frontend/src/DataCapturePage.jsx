@@ -1504,7 +1504,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
         streamRef.current = null;
       }
       const file = new File([blob], `portrait_${Date.now()}.jpg`, { type: "image/jpeg" });
-      const res = await api.uploadPhoto(file);
+      const res = await api.uploadPhoto(file, "portrait");
       onCapture(res.url);
       setPreview(true);
     } catch (e) {
