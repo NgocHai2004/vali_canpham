@@ -359,6 +359,8 @@
   "capture.err.cccd_dir": "Thư mục dữ liệu CCCD chưa sẵn sàng: {dir}",
   "capture.cccd.aria_delete": "Xoá ảnh CCCD",
   "capture.cccd.loading": "Đang tải & cắt ảnh...",
+  "capture.cccd.upload_back": "Tải lên ảnh mặt sau",
+  "capture.section.cccd_back": "THẺ CCCD (MẶT SAU)",
   "capture.status.check_scanner": "Đang kiểm tra máy quét...",
   "capture.status.place_finger": "Đặt {name} lên máy quét và giữ yên ~1 giây...",
   "capture.status.retook": "Đã thu lại {name}.",

@@ -3,6 +3,7 @@ import { api, fpApi, cccdApi, b64PngToFile, weightApi, usbApi } from "./api";
 import { notify } from "./notifications";
 import { toast } from "./Toast";
 import cccdTemplateBg from "./assets/cccd-template.png";
+import cccdBackTemplateBg from "./assets/cccd-back-template.jpg";
 import { useI18n, apiT } from "./i18n";
 import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
@@ -73,6 +74,7 @@ const EMPTY_FORM = {
   issued_date: "",
   expiry_date: "",
   issued_place: "",
+  cmnd_old: "",
   height_cm: "",
   weight_kg: "",
   cell_code: "",
@@ -185,6 +187,22 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
         </div>
       )}
       <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
+    </div>
+  );
+}
+
+function CccdCardBackUpload({ form }) {
+  const { t } = useI18n();
+  return (
+    <div className="cccd-card-back">
+      <img className="cccd-card-mock-bg" src={cccdBackTemplateBg} alt="" />
+      <div className="cccd-card-mock-fields">
+        {/* TODO: tọa độ % ước lượng — hiệu chỉnh theo ảnh mặt sau thật sau khi chạy app */}
+        <div className="cccd-mf cccd-mf-back-issued">{form.issued_date || ""}</div>
+        <div className="cccd-mf cccd-mf-back-expiry">{form.expiry_date || ""}</div>
+        <div className="cccd-mf cccd-mf-back-place">{form.issued_place || ""}</div>
+        <div className="cccd-mf cccd-mf-back-cmnd">{form.cmnd_old || ""}</div>
+      </div>
     </div>
   );
 }
@@ -501,6 +519,7 @@ function normalizeInitial(initial) {
       issued_date: toDobInput(initial.issued_date),
       expiry_date: toDobInput(initial.expiry_date),
       issued_place: initial.issued_place || "",
+      cmnd_old: initial.cmnd_old || "",
       height_cm: initial.height_cm != null ? String(initial.height_cm) : "",
       weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
       cell_code: initial.cell_code || "",
@@ -1054,7 +1073,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       )}
 
       <div className="case-main">
-        {/* ================ Tier 1: 3 cols — Photo + Personal info + CCCD ================ */}
+        {/* ================ Tier 1: 3 cols — Photo + CCCD front + CCCD back ================ */}
         <div className="case-tier-1">
           <section className="cap-block">
             <div className="cap-block-head">
@@ -1078,6 +1097,38 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             </div>
           </section>
 
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">{t("capture.section.cccd_card")}</h2>
+              <span className={"cccd-listen-badge" + (reading ? " on" : "")}>
+                <span className="cccd-listen-dot" />
+                {reading ? t("capture.toolbar.listening") : t("capture.toolbar.reader_off")}
+              </span>
+            </div>
+            <div className="cccd-preview-wrap">
+              <CccdCardUpload
+                form={form}
+                photos={photos}
+                cardPortrait={cccdCardPortrait}
+                onUpload={(url) => setPhoto("cccd_front", url)}
+                onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
+                onCardPortraitPreview={setCccdCardPortrait}
+              />
+            </div>
+          </section>
+
+          <section className="cap-block">
+            <div className="cap-block-head">
+              <h2 className="cap-block-title">{t("capture.section.cccd_back")}</h2>
+            </div>
+            <div className="cccd-preview-wrap">
+              <CccdCardBackUpload form={form} />
+            </div>
+          </section>
+        </div>
+
+        {/* ================ Tier 2: Personal info ================ */}
+        <div className="case-tier-2">
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
@@ -1162,30 +1213,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               </InfoField>
             </div>
           </section>
-
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.cccd_card")}</h2>
-              <span className={"cccd-listen-badge" + (reading ? " on" : "")}>
-                <span className="cccd-listen-dot" />
-                {reading ? t("capture.toolbar.listening") : t("capture.toolbar.reader_off")}
-              </span>
-            </div>
-            <div className="cccd-preview-wrap">
-              <CccdCardUpload
-                form={form}
-                photos={photos}
-                cardPortrait={cccdCardPortrait}
-                onUpload={(url) => setPhoto("cccd_front", url)}
-                onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
-                onCardPortraitPreview={setCccdCardPortrait}
-              />
-            </div>
-          </section>
         </div>
 
-        {/* ================ Tier 2: Fingerprint + KPI ================ */}
-        <div className="case-tier-2">
+        {/* ================ Tier 3: Fingerprint + KPI ================ */}
+        <div className="case-tier-3">
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.fp", { n: fpCount })}</h2>
@@ -1259,8 +1290,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </section>
         </div>
 
-        {/* ================ Tier 3: 4 side cols ================ */}
-        <div className="case-tier-3">
+        {/* ================ Tier 4: 4 side cols ================ */}
+        <div className="case-tier-4">
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.extra")}</h2>

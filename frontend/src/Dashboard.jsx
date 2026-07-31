@@ -6657,16 +6657,18 @@ const styles = `
       "tier1  tier1"
       "tier2  verify"
       "tier3  verify"
+      "tier4  verify"
       "action action";
     gap: 6px;
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
-    overflow: hidden;
+    overflow: auto;
   }
   .case-tier-1 { grid-area: tier1; }
   .case-tier-2 { grid-area: tier2; }
   .case-tier-3 { grid-area: tier3; }
+  .case-tier-4 { grid-area: tier4; }
   .case-aside  { grid-area: verify; }
   .case-action-bar { grid-area: action; }
 
@@ -6699,7 +6701,6 @@ const styles = `
   }
   .case-action-bar .button.danger:hover { background: #fff5f6; }
 
-  /* Tier 1: 3 cột bằng nhau — Body photos | Personal info | CCCD */
   .case-tier-1 {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -6915,15 +6916,22 @@ const styles = `
     overflow: hidden;
   }
 
-  /* Tier 2: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) */
+  /* Tier 2: Personal info form (đã dời từ tier 1 xuống) — 1 cột fill chiều cao */
   .case-tier-2 {
+    min-height: 0;
+    overflow: auto;
+  }
+  .case-tier-2 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* Tier 3: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) */
+  .case-tier-3 {
     display: grid;
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
     gap: 10px;
     min-height: 0;
   }
-  .case-tier-2 .cap-block { min-height: 0; overflow: hidden; }
+  .case-tier-3 .cap-block { min-height: 0; overflow: hidden; }
   .fp-preview-grid {
     display: grid;
     grid-template-columns: 68px repeat(5, minmax(0, 1fr));
@@ -7078,14 +7086,14 @@ const styles = `
     font-weight: 600;
   }
 
-  /* Tier 3: 4 cột phụ */
-  .case-tier-3 {
+  /* Tier 4: 4 cột phụ */
+  .case-tier-4 {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
     min-height: 0;
   }
-  .case-tier-3 .cap-block { min-height: 0; overflow: hidden; }
+  .case-tier-4 .cap-block { min-height: 0; overflow: hidden; }
   .tier3-body {
     padding: 6px 10px 8px;
     display: flex;

@@ -5917,6 +5917,30 @@ textarea.input {
   padding: 4px 8px;
 }
 
+/* ============================================================
+   Mock thẻ CCCD mặt sau — upload ảnh + overlay field đè lên
+   Tái dùng .cccd-card-mock-bg, .cccd-card-mock-fields, .cccd-mf,
+   .cccd-card-mock-clear, .cccd-card-mock-hint đã có ở trên.
+   ============================================================ */
+.cccd-card-back {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1024 / 601; /* theo ảnh mẫu mặt sau thật (1024x601) */
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+  container-type: inline-size;
+  background: #f3f4f6;
+}
+.cccd-card-back .cccd-card-mock-bg { z-index: 1; }
+.cccd-card-back .cccd-card-mock-fields { z-index: 2; }
+
+/* Overlay field trên mặt sau — tọa độ % ước lượng (TODO: hiệu chỉnh theo ảnh mặt sau thật sau khi chạy app) */
+.cccd-mf-back-issued { left: 30%; right: 30%; top: 8%;  font-size: clamp(9px, 1.5cqw, 12px); -webkit-line-clamp: 1; }
+.cccd-mf-back-expiry { left: 30%; right: 30%; top: 16%; font-size: clamp(9px, 1.5cqw, 12px); -webkit-line-clamp: 1; }
+.cccd-mf-back-place  { left: 30%; right: 8%;  top: 80%; font-size: clamp(9px, 1.4cqw, 11px); -webkit-line-clamp: 1; }
+.cccd-mf-back-cmnd   { left: 60%; right: 8%;  top: 88%; font-size: clamp(9px, 1.4cqw, 11px); font-family: ui-monospace, Menlo, monospace; -webkit-line-clamp: 1; }
+
 @media (max-width: 640px) {
   .cccd-body-2col {
     grid-template-columns: 1fr;

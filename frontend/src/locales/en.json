@@ -359,6 +359,8 @@
   "capture.err.cccd_dir": "CCCD data folder is not ready: {dir}",
   "capture.cccd.aria_delete": "Delete CCCD photo",
   "capture.cccd.loading": "Loading & cropping image...",
+  "capture.cccd.upload_back": "Upload back side",
+  "capture.section.cccd_back": "CCCD (BACK)",
   "capture.status.check_scanner": "Checking scanner...",
   "capture.status.place_finger": "Place your {name} on the scanner and hold still ~1 second...",
   "capture.status.retook": "Retook {name}.",
