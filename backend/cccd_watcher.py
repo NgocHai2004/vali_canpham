@@ -66,6 +66,33 @@ def _sex_to_gender(sex: Optional[str]) -> Optional[str]:
     return None
 
 
+def _decode_mrz(card: dict) -> str:
+    """Decode MRZ (TD1, 3 dòng × 30 ký tự) từ trường dg1 (base64) do máy đọc trả về.
+    dg1 là base64 của text MRZ thuần → decode trực tiếp, cắt thành 3 dòng 30 ký tự.
+    Trả "" nếu không decode được."""
+    raw = card.get("dg1")
+    if not raw:
+        return ""
+    try:
+        import base64
+        txt = base64.b64decode(raw).decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+    # Lọc bỏ các ký tự điều khiển ở đầu (byte tag TLV/CBOR) — MRZ thật bắt đầu bằng 'I' (IDVNM...)
+    idx = txt.find("IDVNM")
+    if idx >= 0:
+        txt = txt[idx:]
+    # MRZ TD1: 3 dòng × 30 ký tự
+    txt = txt.replace("\r", "").replace("\n", "")
+    lines = []
+    for i in range(3):
+        seg = txt[i * 30:(i + 1) * 30]
+        if not seg:
+            break
+        lines.append(seg)
+    return "\n".join(lines)
+
+
 def _normalize(card: dict, scan_dir: Path) -> dict:
     return {
         "cccd_number": card.get("identityNumber") or "",
@@ -79,6 +106,10 @@ def _normalize(card: dict, scan_dir: Path) -> dict:
         "issued_date": card.get("dateOfIssue") or "",
         "expiry_date": card.get("dateOfExpiry") or "",
         "personal_identification": card.get("personalIdentification") or "",
+        "distinguishing_features": card.get("personalIdentification") or "",
+        "mrz": _decode_mrz(card),
+        "issued_place": "",  # cơ quan cấp — máy đọc không trả, để trống nhập tay
+        "cmnd_old": card.get("previousNumber") or "",
         "ethnicity": card.get("ethnicity") or "",
         "religion": card.get("religion") or "",
         "facePhoto": card.get("facePhoto") or "",

@@ -5940,6 +5940,11 @@ textarea.input {
 .cccd-mf-back-expiry { left: 30%; right: 30%; top: 16%; font-size: clamp(9px, 1.5cqw, 12px); -webkit-line-clamp: 1; }
 .cccd-mf-back-place  { left: 30%; right: 8%;  top: 80%; font-size: clamp(9px, 1.4cqw, 11px); -webkit-line-clamp: 1; }
 .cccd-mf-back-cmnd   { left: 60%; right: 8%;  top: 88%; font-size: clamp(9px, 1.4cqw, 11px); font-family: ui-monospace, Menlo, monospace; -webkit-line-clamp: 1; }
+/* Đặc điểm nhận dạng — vùng đặc điểm trên mặt sau thẻ */
+.cccd-mf-back-features { left: 8%; right: 8%; top: 40%; font-size: clamp(8px, 1.2cqw, 10px); -webkit-line-clamp: 2; line-height: 1.25; }
+/* MRZ — dải 2-3 dòng dưới cùng mặt sau, monospace */
+.cccd-mf-back-mrz { left: 4%; right: 4%; top: 92%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: clamp(7px, 1.0cqw, 9px); letter-spacing: .2px; line-height: 1.15; }
+.cccd-mf-mrz-line { white-space: pre; overflow: hidden; text-overflow: clip; }
 
 @media (max-width: 640px) {
   .cccd-body-2col {
@@ -6565,6 +6570,16 @@ textarea.input {
 }
 
 .pv-table-2col td.pv-label { width: 34mm; }
+
+/* MRZ trong bảng preview PDF — monospace, giữ dấu xuống dòng */
+.pv-mrz {
+  margin: 0;
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  font-size: 9px;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 
 .pv-photo-frame {
   width: 34mm;

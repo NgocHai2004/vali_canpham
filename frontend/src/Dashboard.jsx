@@ -6843,6 +6843,24 @@ const styles = `
     flex: 1 1 auto;
     overflow: hidden;
   }
+  /* Biến thể 3 cột cho tier 2 personal-info (có cột 3 = trường mới: đặc điểm, ngày cấp, cơ quan cấp, MRZ) */
+  .personal-info--3col {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(5, minmax(0, 1fr));
+  }
+  /* Ô MRZ — textarea 2-3 dòng, cao hơn input thường, kéo dài cả ô grid */
+  .info-field-mrz { grid-row: span 2; }
+  .control-mrz {
+    width: 100%;
+    height: 100%;
+    min-height: 56px;
+    resize: vertical;
+    font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+    font-size: 10px;
+    line-height: 1.3;
+    letter-spacing: .2px;
+    white-space: pre;
+  }
   .info-field {
     display: flex;
     flex-direction: column;

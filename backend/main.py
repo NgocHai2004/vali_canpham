@@ -199,7 +199,9 @@ class DetaineeIn(BaseModel):
     religion: Optional[str] = None
     issued_date: Optional[str] = None
     expiry_date: Optional[str] = None
-    issued_place: Optional[str] = None
+    issued_place: Optional[str] = None              # cơ quan cấp
+    distinguishing_features: Optional[str] = None    # đặc điểm nhận dạng
+    mrz: Optional[str] = None                       # MRZ 2-3 dòng
     height_cm: Optional[float] = Field(None, ge=50, le=250)
     weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
@@ -1273,9 +1275,12 @@ class CCCDPushBody(BaseModel):
     address: Optional[str] = None
     issued_date: Optional[str] = None
     expiry_date: Optional[str] = None
+    issued_place: Optional[str] = None            # cơ quan cấp (nhập tay / OCR)
+    cmnd_old: Optional[str] = Field(None, max_length=20)
     ethnicity: Optional[str] = None
     religion: Optional[str] = None
-    personal_identification: Optional[str] = None
+    personal_identification: Optional[str] = None  # đặc điểm nhận dạng
+    mrz: Optional[str] = None                     # MRZ 2-3 dòng (text, máy ngoài decode sẵn)
     face_photo: Optional[str] = Field(None, max_length=500)
     source: Optional[str] = Field(None, max_length=64)
 
@@ -1299,6 +1304,7 @@ async def cccd_push(body: CCCDPushBody, request: Request):
     _require_cccd_key(request)
 
     now = datetime.utcnow()
+    pid = body.personal_identification or ""
     data = {
         "cccd_number": body.cccd_number,
         "full_name": body.full_name,
@@ -1310,7 +1316,11 @@ async def cccd_push(body: CCCDPushBody, request: Request):
         "address": body.address or "",
         "issued_date": body.issued_date or "",
         "expiry_date": body.expiry_date or "",
-        "personal_identification": body.personal_identification or "",
+        "issued_place": body.issued_place or "",                 # cơ quan cấp
+        "cmnd_old": body.cmnd_old or "",
+        "personal_identification": pid,
+        "distinguishing_features": pid,                          # song song — FE dùng key này
+        "mrz": body.mrz or "",
         "ethnicity": body.ethnicity or "",
         "religion": body.religion or "",
         "facePhoto": body.face_photo or "",

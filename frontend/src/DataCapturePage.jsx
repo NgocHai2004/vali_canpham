@@ -75,6 +75,8 @@ const EMPTY_FORM = {
   expiry_date: "",
   issued_place: "",
   cmnd_old: "",
+  distinguishing_features: "",
+  mrz: "",
   height_cm: "",
   weight_kg: "",
   cell_code: "",
@@ -193,6 +195,7 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
 
 function CccdCardBackUpload({ form }) {
   const { t } = useI18n();
+  const mrzLines = (form.mrz || "").split(/\r?\n/).filter((_, i, arr) => i < arr.length);
   return (
     <div className="cccd-card-back">
       <img className="cccd-card-mock-bg" src={cccdBackTemplateBg} alt="" />
@@ -202,6 +205,14 @@ function CccdCardBackUpload({ form }) {
         <div className="cccd-mf cccd-mf-back-expiry">{form.expiry_date || ""}</div>
         <div className="cccd-mf cccd-mf-back-place">{form.issued_place || ""}</div>
         <div className="cccd-mf cccd-mf-back-cmnd">{form.cmnd_old || ""}</div>
+        {/* Đặc điểm nhận dạng — hiển thị đè lên vùng đặc điểm trên mặt sau */}
+        <div className="cccd-mf cccd-mf-back-features">{form.distinguishing_features || ""}</div>
+        {/* MRZ — 2-3 dòng monospace đè lên dải MRZ dưới mặt sau thẻ */}
+        <div className="cccd-mf cccd-mf-back-mrz">
+          {mrzLines.length > 0 ? mrzLines.map((ln, i) => (
+            <div className="cccd-mf-mrz-line" key={i}>{ln}</div>
+          )) : null}
+        </div>
       </div>
     </div>
   );
@@ -520,6 +531,8 @@ function normalizeInitial(initial) {
       expiry_date: toDobInput(initial.expiry_date),
       issued_place: initial.issued_place || "",
       cmnd_old: initial.cmnd_old || "",
+      distinguishing_features: initial.distinguishing_features || "",
+      mrz: initial.mrz || "",
       height_cm: initial.height_cm != null ? String(initial.height_cm) : "",
       weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
       cell_code: initial.cell_code || "",
@@ -853,6 +866,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       issued_date: d.issued_date || f.issued_date,
       expiry_date: d.expiry_date || f.expiry_date,
       cmnd_old: d.cmnd_old || f.cmnd_old,
+      distinguishing_features: d.distinguishing_features || d.personal_identification || f.distinguishing_features,
+      mrz: d.mrz || f.mrz,
     }));
     if (d.facePhoto) {
       const fp = d.facePhoto;
@@ -998,6 +1013,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         issued_date: strOrNull(form.issued_date),
         expiry_date: strOrNull(form.expiry_date),
         issued_place: strOrNull(form.issued_place),
+        cmnd_old: strOrNull(form.cmnd_old),
+        distinguishing_features: strOrNull(form.distinguishing_features),
+        mrz: strOrNull(form.mrz),
         height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
         weight_kg: form.weight_kg ? Math.round(Number(form.weight_kg)) : null,
         cell_code: strOrNull(form.cell_code),
@@ -1133,7 +1151,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
             </div>
-            <div className="personal-info">
+            <div className="personal-info personal-info--3col">
               {/* Col 1 */}
               <InfoField label={t("capture.form.personal_id")}>
                 <input className="control control-sm" value={form.personal_id}
@@ -1146,6 +1164,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   onChange={(e) => setField("hometown", e.target.value)}
                   placeholder={t("capture.form.hometown_ph")} />
               </InfoField>
+              {/* Col 3 */}
+              <InfoField label={t("detainee.field.distinguishing_features")}>
+                <input className="control control-sm" value={form.distinguishing_features}
+                  onChange={(e) => setField("distinguishing_features", e.target.value)}
+                  placeholder={t("capture.form.distinguishing_ph")} />
+              </InfoField>
 
               <InfoField label={t("detainee.field.full_name")}>
                 <input className="control control-sm" value={form.full_name}
@@ -1157,29 +1181,33 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   onChange={(e) => setField("address", e.target.value)}
                   placeholder={t("capture.form.address_ph")} />
               </InfoField>
-
-              <InfoField label={t("detainee.field.cccd")}>
-                <input className="control control-sm" value={form.cccd_number}
-                  onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
-                  placeholder={t("capture.form.cccd_ph")} inputMode="numeric" />
-              </InfoField>
               <InfoField label={t("detainee.field.issued_date")}>
                 <input className="control control-sm" value={form.issued_date}
                   onChange={(e) => setField("issued_date", e.target.value)}
                   placeholder={t("capture.form.date_ph")} />
               </InfoField>
 
+              <InfoField label={t("detainee.field.cccd")}>
+                <input className="control control-sm" value={form.cccd_number}
+                  onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                  placeholder={t("capture.form.cccd_ph")} inputMode="numeric" />
+              </InfoField>
               <InfoField label={t("detainee.field.dob")}>
                 <input className="control control-sm" value={form.dob}
                   onChange={(e) => setField("dob", e.target.value)}
                   placeholder={t("capture.form.date_ph")} />
               </InfoField>
+              <InfoField label={t("detainee.field.issued_place")}>
+                <input className="control control-sm" value={form.issued_place}
+                  onChange={(e) => setField("issued_place", e.target.value)}
+                  placeholder={t("capture.form.issued_place_ph")} />
+              </InfoField>
+
               <InfoField label={t("detainee.field.expiry_date")}>
                 <input className="control control-sm" value={form.expiry_date}
                   onChange={(e) => setField("expiry_date", e.target.value)}
                   placeholder={t("capture.form.date_ph")} />
               </InfoField>
-
               <InfoField label={t("detainee.field.gender")}>
                 <div className="radio-group radio-group-sm">
                   <label className="radio-option">
@@ -1196,12 +1224,18 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   </label>
                 </div>
               </InfoField>
+              <InfoField label={t("detainee.field.mrz")} className="info-field-mrz">
+                <textarea className="control control-sm control-mrz" value={form.mrz}
+                  rows={3}
+                  onChange={(e) => setField("mrz", e.target.value)}
+                  placeholder={t("capture.form.mrz_ph")} />
+              </InfoField>
+
               <InfoField label={t("detainee.field.ethnicity")}>
                 <input className="control control-sm" value={form.ethnicity}
                   onChange={(e) => setField("ethnicity", e.target.value)}
                   placeholder={t("capture.form.ethnicity_ph")} />
               </InfoField>
-
               <InfoField label={t("detainee.field.nationality")}>
                 <input className="control control-sm" value={form.nationality}
                   onChange={(e) => setField("nationality", e.target.value)} />
@@ -1452,9 +1486,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   );
 }
 
-function InfoField({ label, children }) {
+function InfoField({ label, children, className = "" }) {
   return (
-    <label className="info-field">
+    <label className={"info-field " + className}>
       <span className="info-field-label">{label}</span>
       {children}
     </label>
@@ -1682,6 +1716,8 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
             <tr><td className="pv-label">{t("pdf.field.issued_date")}</td><td>{val(form.issued_date)}</td></tr>
             <tr><td className="pv-label">{t("pdf.field.expiry")}</td><td>{val(form.expiry_date)}</td></tr>
             <tr><td className="pv-label">{t("pdf.field.issued_place")}</td><td>{val(form.issued_place)}</td></tr>
+            <tr><td className="pv-label">{t("detainee.field.distinguishing_features")}</td><td>{val(form.distinguishing_features)}</td></tr>
+            <tr><td className="pv-label">{t("detainee.field.mrz")}</td><td><pre className="pv-mrz">{val(form.mrz)}</pre></td></tr>
           </tbody>
         </table>
         <div className="pv-info-photo">
