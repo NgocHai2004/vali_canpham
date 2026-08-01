@@ -28,6 +28,31 @@ JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production-please-abc123xyz")
 JWT_ALGO = "HS256"
 TOKEN_TTL_MINUTES = 60 * 8
 
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+        try:
+            with open(root_env, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    if k.strip() == name:
+                        raw = v.strip().strip('"').strip("'")
+                        break
+        except FileNotFoundError:
+            raw = None
+    try:
+        return float(raw) if raw not in (None, "") else default
+    except ValueError:
+        return default
+
+
+HEIGHT_IMAGE = _env_float("height_image", 100)
+
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 
@@ -205,6 +230,8 @@ class DetaineeIn(BaseModel):
     height_cm: Optional[float] = Field(None, ge=50, le=250)
     weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
+    facility_type: Optional[str] = None    # trai_tam_giam | phan_trai_tam_giam
+    custody_type: Optional[str] = None     # tam_giu | tam_giam
     charge: Optional[str] = None
     date_in: Optional[str] = None
     note: Optional[str] = None
@@ -1189,6 +1216,11 @@ async def upload_photo(
 @app.get("/api/detect/health")
 async def detect_health(user: dict = Depends(get_current_user)):
     return person_detect.get_status()
+
+
+@app.get("/api/config/measurement")
+async def measurement_config(user: dict = Depends(get_current_user)):
+    return {"height_image": HEIGHT_IMAGE}
 
 
 # ==================== CCCD READER (watch folder data_cccd) ====================

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, cccdApi, b64PngToFile, weightApi, usbApi } from "./api";
 import { notify } from "./notifications";
 import { toast } from "./Toast";
@@ -11,6 +11,7 @@ import {
   tryOpenOnSecondaryScreen,
   clearSecondaryScreenPreview,
 } from "./lib/dualMonitorPreview";
+import { getMeasurementHeight } from "./lib/heightMeasurement";
 
 const FINGERS = [
   { key: "fp_l1", code: "left_thumb" },
@@ -80,6 +81,8 @@ const EMPTY_FORM = {
   height_cm: "",
   weight_kg: "",
   cell_code: "",
+  facility_type: "",
+  custody_type: "",
   note: "",
 };
 
@@ -536,6 +539,8 @@ function normalizeInitial(initial) {
       height_cm: initial.height_cm != null ? String(initial.height_cm) : "",
       weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
       cell_code: initial.cell_code || "",
+      facility_type: initial.facility_type || "",
+      custody_type: initial.custody_type || "",
       note: initial.note || "",
     },
     photos,
@@ -563,6 +568,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const fpAbortRef = useRef(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewOnSecondary, setPreviewOnSecondary] = useState(false);
+  const [heightImage, setHeightImage] = useState(100);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.measurementConfig()
+      .then((cfg) => {
+        const next = Number(cfg?.height_image);
+        if (!cancelled && Number.isFinite(next) && next > 0) setHeightImage(next);
+      })
+      .catch(() => {
+        if (!cancelled) setHeightImage(100);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!previewOnSecondary) return;
@@ -676,6 +695,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       else delete next[k];
       return next;
     });
+
+  const applyMeasuredHeight = useCallback(({ linePixelHeight, imageHeight }) => {
+    const measured = getMeasurementHeight({ linePixelHeight, imageHeight, heightImage });
+    if (!measured || measured < 50 || measured > 250) return;
+    setForm((f) => ({ ...f, height_cm: String(measured) }));
+  }, [heightImage]);
 
   const stopFpCollect = () => {
     fpAbortRef.current = true;
@@ -1019,6 +1044,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
         weight_kg: form.weight_kg ? Math.round(Number(form.weight_kg)) : null,
         cell_code: strOrNull(form.cell_code),
+        facility_type: strOrNull(form.facility_type),
+        custody_type: strOrNull(form.custody_type),
         note: strOrNull(form.note),
         photo_url: photos.portrait_front || null,
         photos,
@@ -1109,6 +1136,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     value={photos[p.key]}
                     onCapture={(u) => setPhoto(p.key, u)}
                     showRuler={p.key === "portrait_front"}
+                    onMeasureHeight={p.key === "portrait_front" ? applyMeasuredHeight : undefined}
+                    heightImage={heightImage}
                   />
                 </div>
               ))}
@@ -1244,6 +1273,39 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 <input className="control control-sm" value={form.religion}
                   onChange={(e) => setField("religion", e.target.value)}
                   placeholder={t("capture.form.religion_ph")} />
+              </InfoField>
+
+              <InfoField label={t("detainee.field.facility_type")}>
+                <div className="radio-group radio-group-sm">
+                  <label className="radio-option">
+                    <input type="radio" name="capture-facility-type" value="trai_tam_giam"
+                      checked={form.facility_type === "trai_tam_giam"}
+                      onChange={(e) => setField("facility_type", e.target.value)} />
+                    <span>{t("detainee.facility_type.main")}</span>
+                  </label>
+                  <label className="radio-option">
+                    <input type="radio" name="capture-facility-type" value="phan_trai_tam_giam"
+                      checked={form.facility_type === "phan_trai_tam_giam"}
+                      onChange={(e) => setField("facility_type", e.target.value)} />
+                    <span>{t("detainee.facility_type.sub")}</span>
+                  </label>
+                </div>
+              </InfoField>
+              <InfoField label={t("detainee.field.custody_type")}>
+                <div className="radio-group radio-group-sm">
+                  <label className="radio-option">
+                    <input type="radio" name="capture-custody-type" value="tam_giu"
+                      checked={form.custody_type === "tam_giu"}
+                      onChange={(e) => setField("custody_type", e.target.value)} />
+                    <span>{t("detainee.custody_type.temporary_hold")}</span>
+                  </label>
+                  <label className="radio-option">
+                    <input type="radio" name="capture-custody-type" value="tam_giam"
+                      checked={form.custody_type === "tam_giam"}
+                      onChange={(e) => setField("custody_type", e.target.value)} />
+                    <span>{t("detainee.custody_type.detention")}</span>
+                  </label>
+                </div>
               </InfoField>
             </div>
           </section>
@@ -1495,14 +1557,17 @@ function InfoField({ label, children, className = "" }) {
   );
 }
 
-function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
+function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, heightImage = 100 }) {
   const { t } = useI18n();
   const videoRef = useRef(null);
+  const frameRef = useRef(null);
   const streamRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState(false);
+  // 1 vạch đỉnh đầu, tính bằng % từ đỉnh ảnh xuống. Chiều cao = từ vạch tới đáy ảnh.
+  const [measureTop, setMeasureTop] = useState(12);
 
   useEffect(() => {
     if (value || preview) return;
@@ -1586,13 +1651,68 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler }) {
 
   const showLive = !value && !preview;
   const captured = Boolean(value);
+  // Chiều cao = khoảng cách từ vạch đỉnh đầu xuống ĐÁY ảnh, tính bằng % chiều cao ảnh.
+  const headToBottom = 100 - measureTop;
+  const measuredHeight = showRuler
+    ? getMeasurementHeight({
+      linePixelHeight: headToBottom,
+      imageHeight: 100,
+      heightImage,
+    })
+    : null;
+
+  useEffect(() => {
+    if (!captured || !showRuler || !onMeasureHeight) return;
+    onMeasureHeight({
+      linePixelHeight: 100 - measureTop,
+      imageHeight: 100,
+    });
+  }, [captured, showRuler, onMeasureHeight, measureTop]);
+
+  const setMeasurePointFromClientY = (clientY) => {
+    const rect = frameRef.current?.getBoundingClientRect();
+    if (!rect || rect.height <= 0) return;
+    const pct = Math.max(0, Math.min(99, ((clientY - rect.top) / rect.height) * 100));
+    setMeasureTop(pct);
+  };
+
+  const startMeasureDrag = () => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMeasurePointFromClientY(e.clientY);
+    const move = (ev) => setMeasurePointFromClientY(ev.clientY);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   return (
     <>
       <div className="body-shot-body">
-        <div className={"body-shot-frame" + (captured ? " body-shot-frame--done" : "")}>
+        <div ref={frameRef} className={"body-shot-frame" + (captured ? " body-shot-frame--done" : "") + (showRuler ? " body-shot-frame--measure" : "")}>
           {captured ? (
-            <img src={value} alt={label} />
+            <>
+              <img src={value} alt={label} />
+              {showRuler && (
+                <div className="height-measure-overlay" aria-label="Đo chiều cao">
+                  <div
+                    className="height-measure-line"
+                    style={{ top: `${measureTop}%`, height: `${100 - measureTop}%` }}
+                  >
+                    <button
+                      type="button"
+                      className="height-measure-handle top"
+                      onPointerDown={startMeasureDrag()}
+                      aria-label="Vạch đỉnh đầu"
+                    />
+                    {measuredHeight && <span className="height-measure-value">{measuredHeight} cm</span>}
+                  </div>
+                </div>
+              )}
+            </>
           ) : err ? (
             <div className="body-shot-err">{err}</div>
           ) : (

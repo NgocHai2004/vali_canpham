@@ -2154,7 +2154,7 @@ function formatDateTime(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return iso;
   const pad = (n) => String(n).padStart(2, "0");
-  const { locale } = useI18nLastLocale();
+  const locale = _lastLocale;
   const date = locale === "en"
     ? `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`
     : `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
@@ -2163,10 +2163,6 @@ function formatDateTime(iso) {
 
 // shared mutable locale getter for the module-level formatDateTime helper
 let _lastLocale = "vi";
-function useI18nLastLocale() {
-  // best-effort: components update this via setLastLocale() calls below
-  return { locale: _lastLocale };
-}
 function setLastLocale(v) { _lastLocale = v; }
 
 function LogsPage() {
@@ -6771,6 +6767,72 @@ const styles = `
     min-height: 0;
   }
   .body-shot-frame img { width: 100%; height: 100%; object-fit: cover; }
+  .body-shot-frame--measure { position: relative; }
+  .height-measure-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .height-measure-line {
+    position: absolute;
+    left: 50%;
+    width: 0;
+    border-left: 3px solid #ffd400;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.45));
+    pointer-events: none;
+  }
+  .height-measure-line::before,
+  .height-measure-line::after {
+    content: "";
+    position: absolute;
+    left: -20px;
+    width: 40px;
+    border-top: 2px solid #ffd400;
+  }
+  .height-measure-line::before { top: 0; }
+  .height-measure-line::after { bottom: 0; }
+  .height-measure-handle {
+    position: absolute;
+    left: -9px;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border-radius: 50%;
+    background: #ffd400;
+    border: 2px solid #7f171e;
+    box-shadow: 0 1px 3px rgba(0,0,0,.35);
+    pointer-events: auto;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  .height-measure-handle.top { top: -6px; }
+  .height-measure-handle.bottom { bottom: -6px; }
+  .height-measure-value {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(127, 23, 30, .88);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .height-measure-range {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    width: calc(100% - 16px);
+    height: 18px;
+    opacity: .01;
+    pointer-events: auto;
+    cursor: ns-resize;
+  }
+  .height-measure-range--top { top: 0; }
+  .height-measure-range--bottom { bottom: 0; }
   .body-shot-video {
     width: 100%;
     height: 100%;
