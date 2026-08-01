@@ -196,6 +196,9 @@ export const api = {
   }),
   checkDuplicate: (body) => request("/api/detainees/check-duplicate", { method: "POST", body: JSON.stringify(body) }),
 
+  // Tra cứu đối tượng đã đăng ký theo số CCCD (toàn hệ thống). Trả {matched, detainee}.
+  checkCccd: (cccdNumber) => request(`/api/detainees/check-cccd?cccd_number=${encodeURIComponent(cccdNumber)}`),
+
   matchFingerprint: (templateB64) => request("/api/detainees/match_fingerprint", {
     method: "POST",
     body: JSON.stringify({ template_b64: templateB64 }),

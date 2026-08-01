@@ -23,7 +23,7 @@ function writeItems(items) {
 }
 
 export const notify = {
-  add(message) {
+  add(message, meta) {
     const items = readItems();
     const item = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -31,6 +31,9 @@ export const notify = {
       at: new Date().toISOString(),
       read: false,
     };
+    // meta (tuỳ chọn): dữ liệu kèm theo, vd { kind: "match", detainee: {...} }
+    // để khi click thông báo mở được hồ sơ đối tượng.
+    if (meta && typeof meta === "object") item.meta = meta;
     const next = [item, ...items].slice(0, MAX_ITEMS);
     writeItems(next);
     return item;

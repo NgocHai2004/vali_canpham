@@ -570,6 +570,25 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [previewOnSecondary, setPreviewOnSecondary] = useState(false);
   const [heightImage, setHeightImage] = useState(100);
 
+  const lastCheckedCccdRef = useRef("");   // tránh gọi check-cccd lặp lại cùng 1 số
+
+  // Cảnh báo "đối tượng đã có trong danh sách" → đẩy vào chuông thông báo header.
+  // Click thông báo (kind:"match") sẽ mở hồ sơ đối tượng đã đăng ký.
+  const raiseAlert = useCallback((match) => {
+    const who = match?.detainee?.full_name || match?.detainee?.cccd_number || "";
+    const msg = t("capture.alert.on_list", { name: who });
+    try { toast.error(msg, 6000); } catch { /* noop */ }
+    try {
+      notify.add(msg, {
+        kind: "match",
+        source: match.source,
+        detainee: match.detainee,
+        score: match.score,
+        finger: match.finger,
+      });
+    } catch { /* noop */ }
+  }, [t]);
+
   useEffect(() => {
     let cancelled = false;
     api.measurementConfig()
@@ -862,6 +881,29 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       if (!fpAbortRef.current) {
         setFpStatus(t("capture.status.done_10"));
         setOk(t("capture.status.done_10_full"));
+        // Sau khi thu xong: tra cứu 1 template bất kỳ xem đối tượng đã có trong danh sách chưa.
+        try {
+          // Đọc state photos mới nhất qua functional setter (tránh stale closure).
+          const latestPhotos = await new Promise((resolve) => {
+            setPhotos((p) => { resolve(p); return p; });
+          });
+          const tpls = latestPhotos?.fp_templates || {};
+          const anyTemplate = Object.values(tpls).find((v) => !!v);
+          if (anyTemplate) {
+            const r = await api.matchFingerprint(anyTemplate);
+            if (r && r.matched && Array.isArray(r.items) && r.items.length > 0) {
+              const best = r.items[0];
+              raiseAlert({
+                source: "fp",
+                detainee: best,
+                score: best.match_score,
+                finger: best.match_finger,
+              });
+            }
+          }
+        } catch (e) {
+          console.error("[FP] match lookup failed:", e);
+        }
       }
     } catch (e) {
       setFpError(e.message);
@@ -911,6 +953,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           console.error("[CCCD] portrait upload failed:", uploadEx);
           setErr(t("capture.err.cccd_saved_photo", { message: uploadEx.message }));
         }
+      }
+    }
+
+    // Cảnh báo nếu số CCCD vừa quét đã có trong danh sách (toàn hệ thống).
+    const cccd = (d.cccd_number || "").replace(/\D/g, "");
+    if (cccd && cccd.length >= 9 && cccd !== lastCheckedCccdRef.current) {
+      lastCheckedCccdRef.current = cccd;
+      try {
+        const r = await api.checkCccd(cccd);
+        if (r && r.matched && r.detainee) {
+          raiseAlert({ source: "cccd", detainee: r.detainee });
+        }
+      } catch (e) {
+        console.error("[CCCD] check duplicate failed:", e);
       }
     }
   };
@@ -1566,8 +1622,9 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
   const [err, setErr] = useState("");
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState(false);
-  // 1 vạch đỉnh đầu, tính bằng % từ đỉnh ảnh xuống. Chiều cao = từ vạch tới đáy ảnh.
-  const [measureTop, setMeasureTop] = useState(12);
+  // head_ratio = y1_đỉnh_đầu / chiều_cao_ảnh (0..1) do YOLO trả về khi upload.
+  // Chiều cao tự động = (1 - head_ratio) * height_image. null = chưa detect được.
+  const [headRatio, setHeadRatio] = useState(null);
 
   useEffect(() => {
     if (value || preview) return;
@@ -1635,6 +1692,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
       }
       const file = new File([blob], `portrait_${Date.now()}.jpg`, { type: "image/jpeg" });
       const res = await api.uploadPhoto(file, "portrait");
+      setHeadRatio(typeof res.head_ratio === "number" ? res.head_ratio : null);
       onCapture(res.url);
       setPreview(true);
     } catch (e) {
@@ -1646,48 +1704,29 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
 
   const retake = () => {
     setPreview(false);
+    setHeadRatio(null);
     onCapture("");
   };
 
   const showLive = !value && !preview;
   const captured = Boolean(value);
-  // Chiều cao = khoảng cách từ vạch đỉnh đầu xuống ĐÁY ảnh, tính bằng % chiều cao ảnh.
-  const headToBottom = 100 - measureTop;
-  const measuredHeight = showRuler
+  // Chiều cao TỰ ĐỘNG = (1 - head_ratio) * height_image.
+  // head_ratio = vị trí vạch đỉnh đầu tính từ đỉnh ảnh (0..1) → khoảng tới đáy = 1 - head_ratio.
+  const measuredHeight = showRuler && headRatio != null
     ? getMeasurementHeight({
-      linePixelHeight: headToBottom,
+      linePixelHeight: (1 - headRatio) * 100,
       imageHeight: 100,
       heightImage,
     })
     : null;
 
   useEffect(() => {
-    if (!captured || !showRuler || !onMeasureHeight) return;
+    if (!captured || !showRuler || !onMeasureHeight || headRatio == null) return;
     onMeasureHeight({
-      linePixelHeight: 100 - measureTop,
+      linePixelHeight: (1 - headRatio) * 100,
       imageHeight: 100,
     });
-  }, [captured, showRuler, onMeasureHeight, measureTop]);
-
-  const setMeasurePointFromClientY = (clientY) => {
-    const rect = frameRef.current?.getBoundingClientRect();
-    if (!rect || rect.height <= 0) return;
-    const pct = Math.max(0, Math.min(99, ((clientY - rect.top) / rect.height) * 100));
-    setMeasureTop(pct);
-  };
-
-  const startMeasureDrag = () => (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setMeasurePointFromClientY(e.clientY);
-    const move = (ev) => setMeasurePointFromClientY(ev.clientY);
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
+  }, [captured, showRuler, onMeasureHeight, headRatio]);
 
   return (
     <>
@@ -1696,18 +1735,12 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
           {captured ? (
             <>
               <img src={value} alt={label} />
-              {showRuler && (
+              {showRuler && headRatio != null && (
                 <div className="height-measure-overlay" aria-label="Đo chiều cao">
                   <div
-                    className="height-measure-line"
-                    style={{ top: `${measureTop}%`, height: `${100 - measureTop}%` }}
+                    className="height-measure-line height-measure-line--auto"
+                    style={{ top: `${headRatio * 100}%`, height: `${(1 - headRatio) * 100}%` }}
                   >
-                    <button
-                      type="button"
-                      className="height-measure-handle top"
-                      onPointerDown={startMeasureDrag()}
-                      aria-label="Vạch đỉnh đầu"
-                    />
                     {measuredHeight && <span className="height-measure-value">{measuredHeight} cm</span>}
                   </div>
                 </div>

@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from jose import jwt, JWTError
@@ -609,6 +609,36 @@ async def check_duplicate(body: DetaineeIn, user: dict = Depends(get_current_use
     return {"count": len(dups), "duplicates": dups}
 
 
+# ---------- CCCD duplicate check (tra cứu đối tượng đã đăng ký bằng số CCCD) ----------
+# Fields trả về đủ để hiển thị modal cảnh báo, KHÔNG kèm template/ảnh nặng.
+_MATCH_PROJECTION = {
+    "personal_id": 1, "full_name": 1, "cccd_number": 1, "gender": 1, "dob": 1,
+    "cell_code": 1, "charge": 1, "hometown": 1, "address": 1,
+    "photos.portrait_front": 1, "photos.cccd_front": 1,
+    "created_at": 1, "created_by": 1,
+}
+
+
+@app.get("/api/detainees/check-cccd")
+async def check_cccd(
+    cccd_number: str = Query("", min_length=1),
+    user: dict = Depends(get_current_user),
+):
+    """Kiểm tra 1 số CCCD đã có trong hệ thống chưa (tra cứu toàn hệ thống,
+    KHÔNG lọc theo người đăng ký — dùng cảnh báo "đối tượng có trong danh sách").
+
+    Trả về hồ sơ đầu tiên khớp exact số CCCD, hoặc matched=false nếu chưa có.
+    """
+    cccd = re.sub(r"\D", "", cccd_number or "")
+    if not cccd:
+        raise HTTPException(400, "Thiếu số CCCD.")
+    doc = await db.detainees.find_one(
+        {"cccd_number": cccd},
+        _MATCH_PROJECTION,
+    )
+    return {"matched": doc is not None, "detainee": _s(doc) if doc else None}
+
+
 # ---------- Fingerprint match (tra cứu can phạm bằng vân tay) ----------
 FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
 FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "50"))
@@ -1192,10 +1222,11 @@ async def upload_photo(
 
     boxed = False
     n_persons = None
+    head_ratio = None
     save_bytes = data
     if type == "portrait" and person_detect.is_ready():
         try:
-            boxed_bytes, n_persons = await anyio.to_thread.run_sync(
+            boxed_bytes, n_persons, head_ratio = await anyio.to_thread.run_sync(
                 person_detect.draw_person_boxes, data
             )
             save_bytes = boxed_bytes
@@ -1204,13 +1235,20 @@ async def upload_photo(
             print(f"[upload_photo] person_detect fail, fallback ảnh gốc: {e}")
             boxed = False
             n_persons = None
+            head_ratio = None
             save_bytes = data
 
     name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
     path = os.path.join(UPLOAD_DIR, name)
     with open(path, "wb") as f:
         f.write(save_bytes)
-    return {"url": f"/uploads/{name}", "size": len(save_bytes), "boxed": boxed, "n_persons": n_persons}
+    return {
+        "url": f"/uploads/{name}",
+        "size": len(save_bytes),
+        "boxed": boxed,
+        "n_persons": n_persons,
+        "head_ratio": head_ratio,
+    }
 
 
 @app.get("/api/detect/health")

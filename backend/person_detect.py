@@ -65,11 +65,13 @@ def load_blocking() -> None:
 
 
 def draw_person_boxes(img_bytes: bytes):
-    """Trả (boxed_jpeg_bytes, n_persons).
+    """Trả (boxed_jpeg_bytes, n_persons, head_ratio).
 
     - Chưa ready → RuntimeError (caller fallback ảnh gốc).
     - Ảnh hỏng → raise exception gốc.
-    - 0 người → trả (ảnh gốc re-encode JPEG, 0).
+    - 0 người → trả (ảnh gốc re-encode JPEG, 0, None).
+    - head_ratio = y1_đỉnh_đầu / chiều_cao_ảnh (0..1) của bbox tốt nhất (conf cao nhất).
+      Dùng để tính chiều cao tự động: height_cm = (1 - head_ratio) * height_image.
     """
     if _model is None:
         raise RuntimeError("person_detect model chưa ready")
@@ -78,22 +80,28 @@ def draw_person_boxes(img_bytes: bytes):
 
     t0 = time.time()
     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+    img_h = img.height or 1
     results = _model.predict(img, conf=CONF_THRES, classes=[PERSON_CLS], verbose=False)
     boxes = results[0].boxes
     n_persons = 0
     best_conf = 0.0
+    best_y1 = None       # y1 của bbox có conf cao nhất
     draw = ImageDraw.Draw(img)
     if boxes is not None and len(boxes) > 0:
         for b in boxes:
             x1, y1, x2, y2 = b.xyxy[0].tolist()
             conf = float(b.conf[0])
-            best_conf = max(best_conf, conf)
             # Chỉ vẽ 1 đường ngang màu đỏ ở mép trên bbox (đỉnh đầu) làm mốc đo chiều cao.
             # Không vẽ nhãn, không vẽ khung.
             draw.line([(x1, y1), (x2, y1)], fill=(255, 0, 0), width=3)
             n_persons += 1
+            if conf > best_conf:
+                best_conf = conf
+                best_y1 = y1
+    head_ratio = (best_y1 / img_h) if best_y1 is not None else None
     out = io.BytesIO()
     img.save(out, format="JPEG", quality=92)
     ms = int((time.time() - t0) * 1000)
-    _log.info("person_detect ok n=%d conf=%.2f ms=%d", n_persons, best_conf, ms)
-    return out.getvalue(), n_persons
+    _log.info("person_detect ok n=%d conf=%.2f head_ratio=%s ms=%d",
+              n_persons, best_conf, f"{head_ratio:.3f}" if head_ratio is not None else "None", ms)
+    return out.getvalue(), n_persons, head_ratio

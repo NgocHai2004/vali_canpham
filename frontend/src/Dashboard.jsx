@@ -263,6 +263,7 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
   const { t } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [viewingMatch, setViewingMatch] = useState(null);
   const notifRef = useRef(null);
   const userMenuRef = useRef(null);
 
@@ -353,15 +354,28 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
                 {notif.items.length === 0 ? (
                   <div className="notif-empty">{t("header.notif.none")}</div>
                 ) : (
-                  notif.items.map((it) => (
-                    <div className="notif-item" key={it.id}>
-                      <div className="notif-item-dot" />
-                      <div className="notif-item-body">
-                        <div className="notif-item-msg">{it.message}</div>
-                        <div className="notif-item-time">{formatDateTime(it.at)}</div>
+                  notif.items.map((it) => {
+                    const match = it.meta && it.meta.kind === "match" && it.meta.detainee;
+                    return (
+                      <div
+                        className={"notif-item" + (match ? " notif-item-match" : "")}
+                        key={it.id}
+                        onClick={match ? () => { setViewingMatch(it.meta.detainee); setNotifOpen(false); } : undefined}
+                        role={match ? "button" : undefined}
+                        tabIndex={match ? 0 : undefined}
+                        title={match ? t("capture.alert.open_profile") : undefined}
+                      >
+                        <div className={"notif-item-dot" + (match ? " notif-item-dot-alert" : "")} />
+                        <div className="notif-item-body">
+                          <div className="notif-item-msg">{it.message}</div>
+                          <div className="notif-item-time">{formatDateTime(it.at)}</div>
+                          {match && (
+                            <div className="notif-item-cta">{t("capture.alert.open_profile")}</div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -415,6 +429,9 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
           {t("header.logout")}
         </button>
       </div>
+      {viewingMatch && (
+        <DetailModal detainee={viewingMatch} onClose={() => setViewingMatch(null)} />
+      )}
     </header>
   );
 }
@@ -3843,6 +3860,16 @@ const styles = `
     font-size: 11.5px;
     color: #6b7a95;
     margin-top: 2px;
+  }
+
+  .notif-item-match { cursor: pointer; }
+  .notif-item-match:hover { background: #fef6f6; }
+  .notif-item-dot-alert { background: #B91C1C; }
+  .notif-item-cta {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #B91C1C;
   }
 
   .icon-button {
