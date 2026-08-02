@@ -11,63 +11,25 @@ Web quản lý phân công công việc dự án CCCD lưu động: 1 tài kho�
 ```
 app_cccd/
 ├── backend/
-│   ├── main.py
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx, Login.jsx, Dashboard.jsx, api.js, styles.css, main.jsx
-│   │   └── ...
-│   └── vite.config.js
-├── .venv/                 (python venv)
-└── README.md
+│   ├── main.py                  # FastAPI monolith (auth, detainees, sessions, cccd, weight, face)
+│   ├── cccd_watcher.py          # Session-queue cho CccdService push
+│   ├── person_detect.py         # YOLO person detection
+│   ├── face_recognition_service.py  # InsightFace
+│   ├── weight_hub.py            # WebSocket hub cho cân
+│   ├── tests/
+│   └── services/                # Các service phần cứng (xem services/README.md)
+│       ├── usb_service/         # USB dongle (:8766)
+│       ├── fingerprint_service/ # ZK fingerprint (:8765)
+│       ├── cccd_scanner/        # CccdService .NET (binary ngoài git)
+│       └── weight/              # Cân BLE → push backend
+├── frontend/                    # React + Vite (:5173)
+├── run.ps1 / stop.ps1           # Deploy 1 lệnh
+└── start-services.ps1           # Start usb + fingerprint
 ```
 
-## 1) MongoDB
+## Chạy
 
-Máy hiện chưa có MongoDB. Chọn 1 trong 2 cách:
-
-**Cách A - Cài MongoDB Community bản native (khuyến nghị):**
-```bash
-sudo apt update
-sudo apt install -y mongodb-server mongodb-clients   # Ubuntu 25.04
-# hoặc theo hướng dẫn chính thức: https://www.mongodb.com/docs/manual/administration/install-on-linux/
-sudo systemctl enable --now mongod
-```
-
-**Cách B - Dùng Docker:**
-```bash
-sudo docker run -d --name mongo -p 27017:27017 -v mongo_data:/data/db mongo:7
-```
-
-Kiểm tra: `curl http://localhost:27017` phải trả lời (dù là lỗi text-only).
-
-## 2) Chạy backend
-
-```bash
-cd /home/ubuntu-ngochai/Documents/app_cccd
-.venv/bin/uvicorn --app-dir backend main:app --reload --host 0.0.0.0 --port 8000
-```
-
-- Backend nghe cổng **8000**
-- Swagger docs: http://localhost:8000/docs
-- Health check: http://localhost:8000/api/health
-- Lần chạy đầu tự tạo tài khoản `admin` / `admin123` và seed toàn bộ task ban đầu
-
-Biến môi trường (tuỳ chọn):
-- `MONGO_URL` — mặc định `mongodb://localhost:27017`
-- `DB_NAME` — mặc định `app_cccd`
-- `JWT_SECRET` — nên đặt khác trên production
-
-## 3) Chạy frontend
-
-```bash
-cd /home/ubuntu-ngochai/Documents/app_cccd/frontend
-npm run dev
-```
-
-Mở trình duyệt: **http://localhost:5173**
-
-Vite đã proxy `/api/*` sang `http://localhost:8000` sẵn, không cần cấu hình CORS thêm.
+Xem `../RUN.md`. Tóm tắt: tạo `.env`, cài deps, `.\run.ps1`.
 
 ## Đăng nhập
 
