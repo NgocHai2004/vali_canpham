@@ -589,6 +589,36 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } catch { /* noop */ }
   }, [t]);
 
+  // Dedup face recognition: 1 người = 1 toast trong 1 phiên chụp (reset khi seed đổi)
+  const recognizedIdsRef = useRef(new Set());
+  useEffect(() => {
+    recognizedIdsRef.current = new Set();
+  }, [seed]);
+
+  // Gọi nhận diện sau khi upload 1 ảnh portrait góc. Mỗi người match = 1 toast.
+  const raiseFaceAlerts = useCallback(async (portraitUrl) => {
+    try {
+      const r = await api.faceRecognize(portraitUrl);
+      if (!r || !r.ready || !Array.isArray(r.matches)) return;
+      for (const m of r.matches) {
+        const did = m?.detainee?._id || m?.detainee?.id;
+        if (!did || recognizedIdsRef.current.has(did)) continue;
+        recognizedIdsRef.current.add(did);
+        const who = m?.detainee?.full_name || m?.detainee?.cccd_number || "";
+        const msg = t("capture.alert.on_list", { name: who });
+        try { toast.error(msg, 6000); } catch { /* noop */ }
+        try {
+          notify.add(msg, {
+            kind: "face",
+            source: t("capture.alert.source_face"),
+            detainee: m.detainee,
+            score: m.score,
+          });
+        } catch { /* noop */ }
+      }
+    } catch { /* recognize fail → không hỏng flow chụp */ }
+  }, [t]);
+
   useEffect(() => {
     let cancelled = false;
     api.measurementConfig()
@@ -1193,6 +1223,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     onCapture={(u) => setPhoto(p.key, u)}
                     showRuler={p.key === "portrait_front"}
                     onMeasureHeight={p.key === "portrait_front" ? applyMeasuredHeight : undefined}
+                    onPortraitRecognize={raiseFaceAlerts}
                     heightImage={heightImage}
                   />
                 </div>
@@ -1613,7 +1644,7 @@ function InfoField({ label, children, className = "" }) {
   );
 }
 
-function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, heightImage = 100 }) {
+function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, onPortraitRecognize, heightImage = 100 }) {
   const { t } = useI18n();
   const videoRef = useRef(null);
   const frameRef = useRef(null);
@@ -1694,6 +1725,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
       const res = await api.uploadPhoto(file, "portrait");
       setHeadRatio(typeof res.head_ratio === "number" ? res.head_ratio : null);
       onCapture(res.url);
+      onPortraitRecognize?.(res.url);
       setPreview(true);
     } catch (e) {
       setErr(e.message);

@@ -383,6 +383,8 @@
   "capture.alert.title": "Subject already on record",
   "capture.alert.source_cccd": "Detected by CCCD number",
   "capture.alert.source_fp": "Detected by fingerprint",
+  "capture.alert.source_face": "Detected by face",
+  "capture.alert.face_score": "Face match score: {score}",
   "capture.alert.score": "Fingerprint match score: {score}",
   "capture.alert.registered_by": "Registered by: {user}",
   "capture.alert.no_photo": "No photo",

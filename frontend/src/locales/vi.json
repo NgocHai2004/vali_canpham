@@ -383,6 +383,8 @@
   "capture.alert.title": "Đối tượng đã có trong danh sách",
   "capture.alert.source_cccd": "Phát hiện qua số CCCD",
   "capture.alert.source_fp": "Phát hiện qua vân tay",
+  "capture.alert.source_face": "Phát hiện qua khuôn mặt",
+  "capture.alert.face_score": "Độ khớp khuôn mặt: {score}",
   "capture.alert.score": "Độ khớp vân tay: {score}",
   "capture.alert.registered_by": "Đã đăng ký bởi: {user}",
   "capture.alert.no_photo": "Không có ảnh",

@@ -355,7 +355,7 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
                   <div className="notif-empty">{t("header.notif.none")}</div>
                 ) : (
                   notif.items.map((it) => {
-                    const match = it.meta && it.meta.kind === "match" && it.meta.detainee;
+                    const match = it.meta && (it.meta.kind === "match" || it.meta.kind === "face") && it.meta.detainee;
                     return (
                       <div
                         className={"notif-item" + (match ? " notif-item-match" : "")}

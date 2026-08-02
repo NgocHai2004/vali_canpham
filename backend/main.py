@@ -7,6 +7,7 @@ import httpx
 from datetime import datetime, timedelta, date
 
 import person_detect
+import face_recognition_service
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
@@ -61,6 +62,15 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 REPORTS_DIR = os.path.join(UPLOAD_DIR, "reports")
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
+
+def _resolve_upload_path(url: str) -> str | None:
+    """Map URL '/uploads/...' → đường dẫn file local. Trả None nếu không phải URL local."""
+    if not url or not url.startswith("/uploads/"):
+        return None
+    rel = url[len("/uploads/"):]
+    path = os.path.join(UPLOAD_DIR, rel.replace("/", os.sep))
+    return path if os.path.isfile(path) else None
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 client: Optional[AsyncIOMotorClient] = None
@@ -113,6 +123,9 @@ async def lifespan(app: FastAPI):
     # Load YOLO person-detect model o background (khong block app ready)
     threading.Thread(target=person_detect.load_blocking, daemon=True, name="yolo-load").start()
     print("[startup] person_detect: dang load YOLO o background...")
+    # Load InsightFace (buffalo_sc) o background cho nhan dien khuon mat
+    threading.Thread(target=face_recognition_service.load_blocking, daemon=True, name="face-load").start()
+    print("[startup] face_recognition: dang load InsightFace o background...")
     yield
     client.close()
 
@@ -643,6 +656,9 @@ async def check_cccd(
 FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
 FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "50"))
 
+# ---------- Face recognition (nhận diện khuôn mặt bằng InsightFace buffalo_sc) ----------
+FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.4"))
+
 
 class MatchFingerprintReq(BaseModel):
     template_b64: str
@@ -713,6 +729,30 @@ async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_
     }
 
 
+async def _compute_face_embedding(portrait_url: str) -> list[float] | None:
+    """Tính embedding 512d từ ảnh portrait_front (URL local /uploads/...).
+
+    Trả None nếu model chưa ready / không detect mặt / URL ngoài. Không raise.
+    """
+    if not portrait_url or not face_recognition_service.is_ready():
+        return None
+    path = _resolve_upload_path(portrait_url)
+    if not path:
+        return None
+    try:
+        with open(path, "rb") as f:
+            img_bytes = f.read()
+        emb, _n, _m = await anyio.to_thread.run_sync(
+            face_recognition_service.get_embedding, img_bytes
+        )
+        if emb is None:
+            return None
+        return [float(x) for x in emb.tolist()]
+    except Exception as e:  # noqa: BLE001
+        print(f"[face] compute embedding fail, skip: {e}")
+        return None
+
+
 @app.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
     if not body.session_id:
@@ -757,6 +797,12 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         {"_id": session_doc["_id"]},
         {"$inc": {"detainee_count": 1}, "$set": {"updated_at": now}},
     )
+    # Face embedding từ portrait_front (nếu có ảnh local + model ready)
+    portrait_url = (doc.get("photos") or {}).get("portrait_front") or ""
+    fe = await _compute_face_embedding(portrait_url)
+    if fe:
+        await db.detainees.update_one({"_id": doc["_id"]}, {"$set": {"photos.face_embedding": fe}})
+        doc.setdefault("photos", {})["face_embedding"] = fe
     await _log(request, user, "create", "detainee", personal_id, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id), session_id=session_doc["_id"])
     return _s(doc)
 
@@ -787,6 +833,15 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
         upd["cccd_number"] = body.cccd_number or upd.get("cccd_number", "")
     upd["updated_at"] = datetime.utcnow()
     doc = await db.detainees.find_one_and_update({"_id": _oid(det_id)}, {"$set": upd}, return_document=True)
+    # Cập nhật face_embedding nếu portrait_front thay đổi
+    portrait_url = (doc.get("photos") or {}).get("portrait_front") or ""
+    fe = await _compute_face_embedding(portrait_url)
+    if fe:
+        await db.detainees.update_one({"_id": _oid(det_id)}, {"$set": {"photos.face_embedding": fe}})
+        doc.setdefault("photos", {})["face_embedding"] = fe
+    elif not portrait_url:
+        # Portrait bị xoá → xoá embedding cũ
+        await db.detainees.update_one({"_id": _oid(det_id)}, {"$unset": {"photos.face_embedding": ""}})
     await _log(request, user, "update", "detainee", doc.get("personal_id", det_id), {"full_name": body.full_name}, ref_id=det_id, session_id=doc.get("session_id"))
     return _s(doc)
 
@@ -1254,6 +1309,110 @@ async def upload_photo(
 @app.get("/api/detect/health")
 async def detect_health(user: dict = Depends(get_current_user)):
     return person_detect.get_status()
+
+
+@app.get("/api/face/health")
+async def face_health(user: dict = Depends(get_current_user)):
+    return face_recognition_service.get_status()
+
+
+@app.post("/api/face/recognize")
+async def face_recognize(
+    request: Request,
+    file: UploadFile | None = File(None),
+    user: dict = Depends(get_current_user),
+):
+    """Nhận diện khuôn mặt + match toàn hệ thống.
+
+    Nhận multipart 'file' HOẶC JSON body {url: '/uploads/...'}.
+    Trả {ready, method, n_faces, matches:[{detainee(gọn), score}]} —
+    cosine >= FACE_MATCH_THRESHOLD, sort desc, limit 5.
+    """
+    # Lấy bytes ảnh: từ file upload hoặc từ URL local
+    img_bytes = None
+    if file is not None:
+        img_bytes = await file.read()
+    else:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        url = (body or {}).get("url", "")
+        path = _resolve_upload_path(url)
+        if not path:
+            raise HTTPException(400, "Cần gửi file ảnh hoặc url '/uploads/...'.")
+        with open(path, "rb") as f:
+            img_bytes = f.read()
+
+    if not img_bytes:
+        raise HTTPException(400, "Ảnh trống.")
+
+    if not face_recognition_service.is_ready():
+        return {"ready": False, "method": "none", "n_faces": 0, "matches": []}
+
+    embedding, n_faces, method = await anyio.to_thread.run_sync(
+        face_recognition_service.get_embedding, img_bytes
+    )
+    if embedding is None:
+        return {"ready": True, "method": method, "n_faces": 0, "matches": []}
+
+    # Scan toàn hệ thống các doc có face_embedding
+    candidates = []
+    cursor = db.detainees.find(
+        {"photos.face_embedding": {"$exists": True, "$ne": []}},
+        {"_id": 1, "photos.face_embedding": 1},
+    )
+    async for d in cursor:
+        fe = (d.get("photos") or {}).get("face_embedding")
+        if fe:
+            candidates.append({"_id": d["_id"], "face_embedding": fe})
+
+    hits = await anyio.to_thread.run_sync(
+        lambda: face_recognition_service.match(embedding, candidates, FACE_MATCH_THRESHOLD)
+    )
+    hits = hits[:5]
+    # Lấy doc gọn cho top hits
+    matches = []
+    if hits:
+        ids = [_oid(h["_id"]) for h in hits]
+        score_by_id = {str(_oid(h["_id"])): h["score"] for h in hits}
+        async for d in db.detainees.find({"_id": {"$in": ids}}, _MATCH_PROJECTION):
+            det_id = str(d["_id"])
+            matches.append({
+                "detainee": _s(d),
+                "score": score_by_id.get(det_id, 0.0),
+            })
+    # Giữ thứ tự sort desc
+    matches.sort(key=lambda m: -m["score"])
+    return {"ready": True, "method": method, "n_faces": n_faces, "matches": matches}
+
+
+@app.post("/api/face/backfill")
+async def face_backfill(user: dict = Depends(get_current_user)):
+    """Tính lại face_embedding cho mọi detainee có portrait_front + chưa có embedding.
+
+    Admin only. Chạy batch, không block. Trả {updated, skipped, failed}.
+    """
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Chỉ admin mới được backfill.")
+    updated = skipped = failed = 0
+    cursor = db.detainees.find(
+        {"photos.portrait_front": {"$exists": True, "$ne": ""}},
+        {"_id": 1, "photos.portrait_front": 1, "photos.face_embedding": 1},
+    )
+    async for d in cursor:
+        photos = d.get("photos") or {}
+        if photos.get("face_embedding"):
+            skipped += 1
+            continue
+        url = photos.get("portrait_front") or ""
+        fe = await _compute_face_embedding(url)
+        if fe:
+            await db.detainees.update_one({"_id": d["_id"]}, {"$set": {"photos.face_embedding": fe}})
+            updated += 1
+        else:
+            failed += 1
+    return {"updated": updated, "skipped": skipped, "failed": failed}
 
 
 @app.get("/api/config/measurement")

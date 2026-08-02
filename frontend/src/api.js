@@ -211,6 +211,19 @@ export const api = {
     return request(`/api/upload/photo${qs}`, { method: "POST", body: fd });
   },
 
+  // Nhận diện khuôn mặt + match toàn hệ thống. Truyền URL '/uploads/...' hoặc File.
+  // Trả {ready, method, n_faces, matches:[{detainee, score}]}.
+  faceRecognize: async (fileOrUrl) => {
+    if (typeof fileOrUrl === "string") {
+      return request("/api/face/recognize", { method: "POST", body: JSON.stringify({ url: fileOrUrl }) });
+    }
+    const fd = new FormData();
+    fd.append("file", fileOrUrl);
+    return request("/api/face/recognize", { method: "POST", body: fd });
+  },
+
+  faceHealth: () => request("/api/face/health"),
+
 
   importXlsx: async (formData) => request("/api/detainees/import/xlsx", { method: "POST", body: formData }),
   downloadExport: () => downloadFile("/api/detainees/export/xlsx", "can_pham.xlsx"),
