@@ -1,0 +1,6 @@
+fastapi==0.115.4
+uvicorn==0.32.0
+pydantic==2.9.2
+pillow==11.0.0
+# zkfp (ZKTeco fingerprint SDK) — DLL Windows, KHONG cai qua pip.
+# Copy zkfp*.dll vao thu muc nay theo huong dan trong README cua service.
