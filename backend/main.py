@@ -117,15 +117,12 @@ async def lifespan(app: FastAPI):
         await _ensure_admin()
         await _ensure_default_cells()
         await _ensure_indexes()
-        print(f"[startup] MongoDB OK - db={DB_NAME}")
-    except Exception as e:
-        print(f"[startup] MongoDB chưa sẵn sàng: {e}")
+    except Exception:
+        pass
     # Load YOLO person-detect model o background (khong block app ready)
     threading.Thread(target=person_detect.load_blocking, daemon=True, name="yolo-load").start()
-    print("[startup] person_detect: dang load YOLO o background...")
     # Load InsightFace (buffalo_sc) o background cho nhan dien khuon mat
     threading.Thread(target=face_recognition_service.load_blocking, daemon=True, name="face-load").start()
-    print("[startup] face_recognition: dang load InsightFace o background...")
     yield
     client.close()
 
@@ -362,8 +359,8 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
             "session_id": session_id,
         }
         await db.audit_logs.insert_one(entry)
-    except Exception as e:
-        print(f"[audit] err: {e}")
+    except Exception:
+        pass
 
 
 app = FastAPI(title="Thiết bị thu thập & quản lý căn cước can phạm", lifespan=lifespan)
@@ -748,8 +745,7 @@ async def _compute_face_embedding(portrait_url: str) -> list[float] | None:
         if emb is None:
             return None
         return [float(x) for x in emb.tolist()]
-    except Exception as e:  # noqa: BLE001
-        print(f"[face] compute embedding fail, skip: {e}")
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -1286,8 +1282,7 @@ async def upload_photo(
             )
             save_bytes = boxed_bytes
             boxed = True
-        except Exception as e:  # noqa: BLE001 — không hỏng flow chụp
-            print(f"[upload_photo] person_detect fail, fallback ảnh gốc: {e}")
+        except Exception:  # noqa: BLE001 — không hỏng flow chụp
             boxed = False
             n_persons = None
             head_ratio = None

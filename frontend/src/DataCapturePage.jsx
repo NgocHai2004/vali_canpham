@@ -760,7 +760,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   // Double-click 1 ô vân tay để thu/thu lại ngón đó
   const retryFingerprint = async (photoKey, fingerCode) => {
-    console.log("[retryFingerprint] called", { photoKey, fingerCode, fpRunning });
     if (fpRunning) {
       setFpError(t("capture.err.fp_running"));
       return;
