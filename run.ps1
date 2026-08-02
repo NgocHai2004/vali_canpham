@@ -25,7 +25,7 @@ if (-not $env:DONGLE_SECRET) { throw "DONGLE_SECRET chua duoc set." }
 if (-not $env:JWT_SECRET)    { throw "JWT_SECRET chua duoc set." }
 
 # 1. Services (usb + fingerprint)
-& (Join-Path $root 'backend\start-services.ps1')
+& (Join-Path $root 'start-services.ps1')
 
 # 2. Backend
 Start-Process -FilePath $py `
