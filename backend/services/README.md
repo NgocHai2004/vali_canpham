@@ -4,8 +4,8 @@ Các service phần cứng chạy native (không Docker, cần truy cập USB/CO
 
 | Service | Thư mục | Port | Venv | Cách chạy riêng |
 |---|---|---|---|---|
-| USB dongle | `usb_service/` | 8766 | `app_cccd/.venv` | `uvicorn --app-dir usb_service api:app --host 127.0.0.1 --port 8766` |
-| Fingerprint (ZK) | `fingerprint_service/` | 8765 | `app_cccd/.venv` | `uvicorn --app-dir fingerprint_service api:app --host 127.0.0.1 --port 8765` |
+| USB dongle | `usb_service/` | 8766 | `app_cccd/.venv` | `uvicorn --app-dir backend\services\usb_service api:app --host 127.0.0.1 --port 8766` |
+| Fingerprint (ZK) | `fingerprint_service/` | 8765 | `app_cccd/.venv` | `uvicorn --app-dir backend\services\fingerprint_service api:app --host 127.0.0.1 --port 8765` |
 | CccdService (.NET) | `cccd_scanner/` | — | binary riêng | xem `cccd_scanner/README.md` |
 | Cân kỹ thuật | `weight/` | — | `app_cccd/.venv` | `python weight/main.py` |
 

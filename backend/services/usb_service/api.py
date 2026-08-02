@@ -10,7 +10,7 @@ Cung cap 3 endpoint:
 
 Chay:
     $env:DONGLE_SECRET = "<mat khau bi mat cua co quan>"
-    .\.venv\Scripts\python.exe -m uvicorn --app-dir usb_service api:app \
+    .\.venv\Scripts\python.exe -m uvicorn --app-dir backend\services\usb_service api:app \
         --host 127.0.0.1 --port 8766
 
 Backend main.py phai co cung DONGLE_SECRET de verify HMAC signature.
@@ -35,7 +35,7 @@ try:
     import psutil
 except ImportError:
     raise SystemExit(
-        "psutil chua duoc cai. Chay: pip install -r usb_service/requirements.txt"
+        "psutil chua duoc cai. Chay: pip install -r backend/services/usb_service/requirements.txt"
     )
 
 
