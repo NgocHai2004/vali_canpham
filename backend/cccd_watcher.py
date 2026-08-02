@@ -1,141 +1,22 @@
 # -*- coding: utf-8 -*-
-"""Watcher cho thư mục dữ liệu CCCD do HANEL eKYC (IDCheck.exe) sinh ra.
+"""Session-queue cho CCCD reader.
 
-Cấu trúc:
-    data_cccd/
-        {identityNumber}_{fullName}/
-            {DD.MM.YYYY.HH.MM.SS}/
-                {identityNumber}.json
+CccdService (.NET) push du lieu CCCD len POST /api/cccd/push, backend goi
+cccd_inject() de day vao hang doi cua moi session dang mo. Frontend long-poll
+GET /api/cccd/session/{sid}/wait de nhan.
 
-Cơ chế:
-    - Khi frontend "startSession", chụp baseline = toàn bộ folder scan hiện có.
-    - Long-poll: cứ 500ms so sánh snapshot mới với baseline. Folder scan mới
-      xuất hiện + file .json bên trong đã `done && status == "ALL_STEP_DONE"`
-      thì trả về dữ liệu đã chuẩn hoá.
+Co che HANEL eKYC folder-scan (data_cccd/) da BO - chi dung CccdService push.
 """
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 import threading
 import time
 import uuid
-from pathlib import Path
 from typing import Optional
-
-DATA_DIR = Path(__file__).resolve().parent / "data_cccd"
 
 _POLL_INTERVAL = 0.5
 _SESSION_TTL = 300.0
-
-
-def _snapshot_scan_folders() -> set[Path]:
-    if not DATA_DIR.is_dir():
-        return set()
-    out: set[Path] = set()
-    for person_dir in DATA_DIR.iterdir():
-        if not person_dir.is_dir():
-            continue
-        for scan_dir in person_dir.iterdir():
-            if scan_dir.is_dir():
-                out.add(scan_dir)
-    return out
-
-
-def _find_json_in(scan_dir: Path) -> Optional[Path]:
-    try:
-        for entry in scan_dir.iterdir():
-            if entry.is_file() and entry.suffix.lower() == ".json":
-                return entry
-    except OSError:
-        return None
-    return None
-
-
-def _sex_to_gender(sex: Optional[str]) -> Optional[str]:
-    if not sex:
-        return None
-    s = sex.strip().lower()
-    if s.startswith("n") and "ữ" in s:
-        return "female"
-    if "female" in s or s in ("nữ", "nu"):
-        return "female"
-    if "male" in s or s in ("nam",):
-        return "male"
-    return None
-
-
-def _decode_mrz(card: dict) -> str:
-    """Decode MRZ (TD1, 3 dòng × 30 ký tự) từ trường dg1 (base64) do máy đọc trả về.
-    dg1 là base64 của text MRZ thuần → decode trực tiếp, cắt thành 3 dòng 30 ký tự.
-    Trả "" nếu không decode được."""
-    raw = card.get("dg1")
-    if not raw:
-        return ""
-    try:
-        import base64
-        txt = base64.b64decode(raw).decode("utf-8", errors="replace")
-    except Exception:
-        return ""
-    # Lọc bỏ các ký tự điều khiển ở đầu (byte tag TLV/CBOR) — MRZ thật bắt đầu bằng 'I' (IDVNM...)
-    idx = txt.find("IDVNM")
-    if idx >= 0:
-        txt = txt[idx:]
-    # MRZ TD1: 3 dòng × 30 ký tự
-    txt = txt.replace("\r", "").replace("\n", "")
-    lines = []
-    for i in range(3):
-        seg = txt[i * 30:(i + 1) * 30]
-        if not seg:
-            break
-        lines.append(seg)
-    return "\n".join(lines)
-
-
-def _normalize(card: dict, scan_dir: Path) -> dict:
-    return {
-        "cccd_number": card.get("identityNumber") or "",
-        "full_name": card.get("fullName") or "",
-        "dob": card.get("dateOfBirth") or "",
-        "gender": _sex_to_gender(card.get("sex")),
-        "sex_vi": card.get("sex") or "",
-        "nationality": card.get("nationality") or "",
-        "hometown": card.get("placeOfOrigin") or "",
-        "address": card.get("placeOfResidence") or "",
-        "issued_date": card.get("dateOfIssue") or "",
-        "expiry_date": card.get("dateOfExpiry") or "",
-        "personal_identification": card.get("personalIdentification") or "",
-        "distinguishing_features": card.get("personalIdentification") or "",
-        "mrz": _decode_mrz(card),
-        "issued_place": "",  # cơ quan cấp — máy đọc không trả, để trống nhập tay
-        "cmnd_old": card.get("previousNumber") or "",
-        "ethnicity": card.get("ethnicity") or "",
-        "religion": card.get("religion") or "",
-        "facePhoto": card.get("facePhoto") or "",
-        "_scan_folder": scan_dir.name,
-    }
-
-
-def _parse_scan_folder(scan_dir: Path) -> Optional[dict]:
-    json_path = _find_json_in(scan_dir)
-    if not json_path:
-        return None
-    try:
-        raw = json_path.read_text(encoding="utf-8")
-        payload = json.loads(raw)
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not payload.get("done"):
-        return None
-    if payload.get("status") != "ALL_STEP_DONE":
-        return None
-    card = payload.get("cardObj") or {}
-    if not card.get("done"):
-        return None
-    if not card.get("identityNumber"):
-        return None
-    return _normalize(card, scan_dir)
 
 
 class _Session:
@@ -143,7 +24,7 @@ class _Session:
 
     def __init__(self) -> None:
         self.id = uuid.uuid4().hex
-        self.baseline = _snapshot_scan_folders()
+        self.baseline = None  # giu field de cap nhat created_at khi poll
         self.created_at = time.time()
         self.pending: list[dict] = []
 
@@ -160,12 +41,11 @@ def _gc_locked() -> None:
 
 
 def cccd_health() -> dict:
-    exists = DATA_DIR.is_dir()
     return {
-        "ok": exists,
-        "data_dir": str(DATA_DIR),
-        "exists": exists,
-        "sdk": "HANEL eKYC folder watcher",
+        "ok": True,
+        "data_dir": "",
+        "exists": False,
+        "sdk": "CccdService push (no folder watcher)",
     }
 
 
@@ -182,8 +62,9 @@ def cccd_read_again(sid: str) -> bool:
         s = _sessions.get(sid)
         if not s:
             return False
-        s.baseline = _snapshot_scan_folders()
         s.created_at = time.time()
+        # Xoa pending cu khi "read again" - nguoi dung muon ban moi
+        s.pending.clear()
         return True
 
 
@@ -199,8 +80,8 @@ def cccd_session_count() -> int:
 
 
 def cccd_inject(data: dict) -> int:
-    """Đẩy dữ liệu CCCD thẳng vào hàng đợi của mọi session đang mở.
-    Không đụng thư mục data_cccd. Trả số session đã nhận."""
+    """Day du lieu CCCD thang vao hang doi cua moi session dang mo.
+    Tra so session da nhan."""
     with _lock:
         _gc_locked()
         n = 0
@@ -220,7 +101,6 @@ async def cccd_wait_session(sid: str, timeout: int) -> Optional[dict]:
             data = s.pending.pop(0)
             s.created_at = time.time()
             return {"status": "ok", "data": data}
-        baseline = set(s.baseline)
 
     deadline = time.time() + max(1, timeout)
     while True:
@@ -231,19 +111,6 @@ async def cccd_wait_session(sid: str, timeout: int) -> Optional[dict]:
             if s.pending:
                 data = s.pending.pop(0)
                 s.created_at = time.time()
-                return {"status": "ok", "data": data}
-
-        current = _snapshot_scan_folders()
-        new_folders = current - baseline
-        if new_folders:
-            newest = max(new_folders, key=lambda p: p.stat().st_mtime if p.exists() else 0)
-            data = _parse_scan_folder(newest)
-            if data is not None:
-                with _lock:
-                    s2 = _sessions.get(sid)
-                    if s2:
-                        s2.baseline = current
-                        s2.created_at = time.time()
                 return {"status": "ok", "data": data}
         if time.time() >= deadline:
             return {"status": "timeout"}
