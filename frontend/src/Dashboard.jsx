@@ -5933,6 +5933,15 @@ const styles = `
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(18,175,100,.55); }
     50% { opacity: .55; box-shadow: 0 0 0 4px rgba(18,175,100,0); }
   }
+  .cccd-listen-badge.locked {
+    border-color: rgba(240,180,40,.55);
+    background: rgba(240,180,40,.18);
+    color: #fff6e0;
+  }
+  .cccd-listen-badge.locked .cccd-listen-dot {
+    background: #f0b428;
+    animation: none;
+  }
 
   /* --- Photo slot base --- */
   .photo-slot {

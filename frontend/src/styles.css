@@ -5935,15 +5935,16 @@ textarea.input {
 .cccd-card-back .cccd-card-mock-bg { z-index: 1; }
 .cccd-card-back .cccd-card-mock-fields { z-index: 2; }
 
-/* Overlay field trên mặt sau — tọa độ % ước lượng (TODO: hiệu chỉnh theo ảnh mặt sau thật sau khi chạy app) */
-.cccd-mf-back-issued { left: 30%; right: 30%; top: 8%;  font-size: clamp(9px, 1.5cqw, 12px); -webkit-line-clamp: 1; }
-.cccd-mf-back-expiry { left: 30%; right: 30%; top: 16%; font-size: clamp(9px, 1.5cqw, 12px); -webkit-line-clamp: 1; }
-.cccd-mf-back-place  { left: 30%; right: 8%;  top: 80%; font-size: clamp(9px, 1.4cqw, 11px); -webkit-line-clamp: 1; }
-.cccd-mf-back-cmnd   { left: 60%; right: 8%;  top: 88%; font-size: clamp(9px, 1.4cqw, 11px); font-family: ui-monospace, Menlo, monospace; -webkit-line-clamp: 1; }
-/* Đặc điểm nhận dạng — vùng đặc điểm trên mặt sau thẻ */
-.cccd-mf-back-features { left: 8%; right: 8%; top: 40%; font-size: clamp(8px, 1.2cqw, 10px); -webkit-line-clamp: 2; line-height: 1.25; }
-/* MRZ — dải 2-3 dòng dưới cùng mặt sau, monospace */
-.cccd-mf-back-mrz { left: 4%; right: 4%; top: 92%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: clamp(7px, 1.0cqw, 9px); letter-spacing: .2px; line-height: 1.15; }
+/* Overlay field trên mặt sau — căn theo template thật cccd-back-template.jpg (1024x601).
+   Cột nhãn tiếng Việt/Anh nằm bên trái, giá trị bắt đầu từ ~31%. */
+/* Đặc điểm nhận dạng / Personal identification — 2 dòng kẻ phía trên */
+.cccd-mf-back-features { left: 31%; right: 20%; top: 20.5%; font-size: clamp(8px, 1.3cqw, 11px); -webkit-line-clamp: 2; line-height: 1.35; }
+/* Ngày cấp / Date of issue */
+.cccd-mf-back-issued { left: 31%; right: 20%; top: 40.5%; font-size: clamp(9px, 1.5cqw, 12px); -webkit-line-clamp: 1; }
+/* Nơi cấp / Place of issue */
+.cccd-mf-back-place  { left: 31%; right: 20%; top: 46.5%; font-size: clamp(9px, 1.4cqw, 11px); -webkit-line-clamp: 1; }
+/* MRZ — dải 3 dòng dưới cùng mặt sau, monospace */
+.cccd-mf-back-mrz { left: 4%; right: 4%; top: 74%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: clamp(7px, 1.05cqw, 10px); letter-spacing: .3px; line-height: 1.25; }
 .cccd-mf-mrz-line { white-space: pre; overflow: hidden; text-overflow: clip; }
 
 @media (max-width: 640px) {

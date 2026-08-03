@@ -1543,7 +1543,7 @@ async def cccd_push(body: CCCDPushBody, request: Request):
         "address": body.address or "",
         "issued_date": body.issued_date or "",
         "expiry_date": body.expiry_date or "",
-        "issued_place": body.issued_place or "",                 # cơ quan cấp
+        "issued_place": "CỤC CẢNH SÁT QLHC VỀ TTXH",            # cơ quan cấp — hardcode cứng, bỏ qua body
         "cmnd_old": body.cmnd_old or "",
         "personal_identification": pid,
         "distinguishing_features": pid,                          # song song — FE dùng key này

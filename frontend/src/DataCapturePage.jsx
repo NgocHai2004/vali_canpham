@@ -75,7 +75,7 @@ const EMPTY_FORM = {
   address: "",
   issued_date: "",
   expiry_date: "",
-  issued_place: "",
+  issued_place: "CỤC CẢNH SÁT QLHC VỀ TTXH",
   cmnd_old: "",
   distinguishing_features: "",
   mrz: "",
@@ -204,14 +204,14 @@ function CccdCardBackUpload({ form }) {
     <div className="cccd-card-back">
       <img className="cccd-card-mock-bg" src={cccdBackTemplateBg} alt="" />
       <div className="cccd-card-mock-fields">
-        {/* TODO: tọa độ % ước lượng — hiệu chỉnh theo ảnh mặt sau thật sau khi chạy app */}
-        <div className="cccd-mf cccd-mf-back-issued">{form.issued_date || ""}</div>
-        <div className="cccd-mf cccd-mf-back-expiry">{form.expiry_date || ""}</div>
-        <div className="cccd-mf cccd-mf-back-place">{form.issued_place || ""}</div>
-        <div className="cccd-mf cccd-mf-back-cmnd">{form.cmnd_old || ""}</div>
-        {/* Đặc điểm nhận dạng — hiển thị đè lên vùng đặc điểm trên mặt sau */}
+        {/* Tọa độ căn theo template mặt sau thật (cccd-back-template.jpg, 1024x601) */}
+        {/* Đặc điểm nhận dạng — 2 dòng kẻ phía trên */}
         <div className="cccd-mf cccd-mf-back-features">{form.distinguishing_features || ""}</div>
-        {/* MRZ — 2-3 dòng monospace đè lên dải MRZ dưới mặt sau thẻ */}
+        {/* Ngày cấp */}
+        <div className="cccd-mf cccd-mf-back-issued">{form.issued_date || ""}</div>
+        {/* Nơi cấp */}
+        <div className="cccd-mf cccd-mf-back-place">{form.issued_place || ""}</div>
+        {/* MRZ — 2-3 dòng monospace ở dải dưới cùng mặt sau thẻ */}
         <div className="cccd-mf cccd-mf-back-mrz">
           {mrzLines.length > 0 ? mrzLines.map((ln, i) => (
             <div className="cccd-mf-mrz-line" key={i}>{ln}</div>
@@ -533,7 +533,7 @@ function normalizeInitial(initial) {
       address: initial.address || "",
       issued_date: toDobInput(initial.issued_date),
       expiry_date: toDobInput(initial.expiry_date),
-      issued_place: initial.issued_place || "",
+      issued_place: initial.issued_place || "CỤC CẢNH SÁT QLHC VỀ TTXH",
       cmnd_old: initial.cmnd_old || "",
       distinguishing_features: initial.distinguishing_features || "",
       mrz: initial.mrz || "",
@@ -561,6 +561,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [reading, setReading] = useState(false);
   const cccdSidRef = useRef(null);
   const cccdAbortRef = useRef(null);
+  const [cccdLocked, setCccdLocked] = useState(false);   // chốt dữ liệu CCCD: true = chạm thẻ không đổi form
+  const cccdLockedRef = useRef(false);                   // ref để đọc trạng thái mới nhất trong vòng lặp nền
+  useEffect(() => { cccdLockedRef.current = cccdLocked; }, [cccdLocked]);
   const [cells, setCells] = useState([]);
   const [fpRunning, setFpRunning] = useState(false);
   const [fpNextCode, setFpNextCode] = useState(null);
@@ -950,6 +953,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   const applyCccdData = async (d) => {
     if (!d) return;
+    if (cccdLockedRef.current) return;   // đã khóa: chạm thẻ khác không ghi đè form
     setForm((f) => ({
       ...f,
       full_name: d.full_name || f.full_name,
@@ -1304,10 +1308,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.cccd_card")}</h2>
-              <span className={"cccd-listen-badge" + (reading ? " on" : "")}>
-                <span className="cccd-listen-dot" />
-                {reading ? t("capture.toolbar.listening") : t("capture.toolbar.reader_off")}
-              </span>
+              {cccdLocked && (
+                <span className="cccd-listen-badge locked">
+                  <span className="cccd-listen-dot" />
+                  {t("capture.toolbar.locked")}
+                </span>
+              )}
+              <button
+                type="button"
+                className="btn-cccd-scan"
+                onClick={() => setCccdLocked((v) => !v)}
+                title={cccdLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
+              >
+                {cccdLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
+              </button>
             </div>
             <div className="cccd-preview-wrap">
               <CccdCardUpload
