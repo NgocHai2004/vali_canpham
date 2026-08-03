@@ -75,7 +75,7 @@ const EMPTY_FORM = {
   address: "",
   issued_date: "",
   expiry_date: "",
-  issued_place: "CỤC CẢNH SÁT QLHC VỀ TTXH",
+  issued_place: "",
   cmnd_old: "",
   distinguishing_features: "",
   mrz: "",
@@ -199,7 +199,13 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
 
 function CccdCardBackUpload({ form }) {
   const { t } = useI18n();
-  const mrzLines = (form.mrz || "").split(/\r?\n/).filter((_, i, arr) => i < arr.length);
+  // MRZ chuẩn TD1 = 3 dòng × 30 ký tự. Máy đọc push lên thường là 1 chuỗi
+  // liền 90 ký tự (không có \n) — tự chia 30 ký tự/dòng cho giống thẻ thật.
+  // Nếu chuỗi đã có sẵn xuống dòng thì tôn trọng nguyên trạng.
+  const mrzRaw = (form.mrz || "").trim();
+  const mrzLines = mrzRaw.includes("\n")
+    ? mrzRaw.split(/\r?\n/).filter((ln) => ln.length > 0)
+    : (mrzRaw.match(/.{1,30}/g) || []);
   return (
     <div className="cccd-card-back">
       <img className="cccd-card-mock-bg" src={cccdBackTemplateBg} alt="" />
@@ -211,10 +217,14 @@ function CccdCardBackUpload({ form }) {
         <div className="cccd-mf cccd-mf-back-issued">{form.issued_date || ""}</div>
         {/* Nơi cấp */}
         <div className="cccd-mf cccd-mf-back-place">{form.issued_place || ""}</div>
-        {/* MRZ — 2-3 dòng monospace ở dải dưới cùng mặt sau thẻ */}
+        {/* MRZ — 3 dòng monospace, chữ to, căn đều hai bên (mỗi ký tự dàn đều từ lề trái tới lề phải) */}
         <div className="cccd-mf cccd-mf-back-mrz">
           {mrzLines.length > 0 ? mrzLines.map((ln, i) => (
-            <div className="cccd-mf-mrz-line" key={i}>{ln}</div>
+            <div className="cccd-mf-mrz-line" key={i}>
+              {Array.from(ln).map((ch, j) => (
+                <span className="cccd-mf-mrz-char" key={j}>{ch}</span>
+              ))}
+            </div>
           )) : null}
         </div>
       </div>
@@ -533,7 +543,7 @@ function normalizeInitial(initial) {
       address: initial.address || "",
       issued_date: toDobInput(initial.issued_date),
       expiry_date: toDobInput(initial.expiry_date),
-      issued_place: initial.issued_place || "CỤC CẢNH SÁT QLHC VỀ TTXH",
+      issued_place: initial.issued_place || "",
       cmnd_old: initial.cmnd_old || "",
       distinguishing_features: initial.distinguishing_features || "",
       mrz: initial.mrz || "",
@@ -968,6 +978,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       nationality: d.nationality || f.nationality,
       issued_date: d.issued_date || f.issued_date,
       expiry_date: d.expiry_date || f.expiry_date,
+      issued_place: d.issued_place || f.issued_place,
       cmnd_old: d.cmnd_old || f.cmnd_old,
       distinguishing_features: d.distinguishing_features || d.personal_identification || f.distinguishing_features,
       mrz: d.mrz || f.mrz,

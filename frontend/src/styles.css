@@ -5936,16 +5936,31 @@ textarea.input {
 .cccd-card-back .cccd-card-mock-fields { z-index: 2; }
 
 /* Overlay field trên mặt sau — căn theo template thật cccd-back-template.jpg (1024x601).
-   Cột nhãn tiếng Việt/Anh nằm bên trái, giá trị bắt đầu từ ~31%. */
-/* Đặc điểm nhận dạng / Personal identification — 2 dòng kẻ phía trên */
-.cccd-mf-back-features { left: 31%; right: 20%; top: 20.5%; font-size: clamp(8px, 1.3cqw, 11px); -webkit-line-clamp: 2; line-height: 1.35; }
-/* Ngày cấp / Date of issue */
-.cccd-mf-back-issued { left: 31%; right: 20%; top: 40.5%; font-size: clamp(9px, 1.5cqw, 12px); -webkit-line-clamp: 1; }
-/* Nơi cấp / Place of issue */
-.cccd-mf-back-place  { left: 31%; right: 20%; top: 46.5%; font-size: clamp(9px, 1.4cqw, 11px); -webkit-line-clamp: 1; }
-/* MRZ — dải 3 dòng dưới cùng mặt sau, monospace */
-.cccd-mf-back-mrz { left: 4%; right: 4%; top: 74%; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: clamp(7px, 1.05cqw, 10px); letter-spacing: .3px; line-height: 1.25; }
-.cccd-mf-mrz-line { white-space: pre; overflow: hidden; text-overflow: clip; }
+   Nhãn nằm bên trái; QR ở x81-92%/y16-34%, chip ở x80-92%/y42-61% nên giá trị phải né mép phải ~22%. */
+/* Đặc điểm nhận dạng / Personal identification — giá trị nằm ở dòng kẻ ngay dưới nhãn, sát lề trái */
+.cccd-mf-back-features { left: 11%; right: 22%; top: 24%; font-size: clamp(10px, 1.85cqw, 16px); -webkit-line-clamp: 2; line-height: 1.4; }
+/* Ngày cấp / Date of issue — cùng dòng với nhãn, bắt đầu sau nhãn ~36% */
+.cccd-mf-back-issued { left: 36%; right: 22%; top: 37%; font-size: clamp(10px, 1.9cqw, 16px); -webkit-line-clamp: 1; }
+/* Nơi cấp / Place of issue — cùng dòng với nhãn */
+.cccd-mf-back-place  { left: 36%; right: 22%; top: 44%; font-size: clamp(10px, 1.8cqw, 15px); -webkit-line-clamp: 2; line-height: 1.3; }
+/* MRZ — 3 dòng dưới cùng: chữ to, in đậm, monospace, căn đều hai bên (mỗi ký tự dàn từ lề trái tới lề phải), giống ảnh thẻ thật */
+.cccd-mf-back-mrz {
+  left: 4%; right: 4%; top: 70%;
+  font-family: "Courier New", ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 900;
+  font-size: clamp(11px, 2.55cqw, 26px);
+  letter-spacing: 0;
+  line-height: 1.5;
+  color: #111;
+}
+.cccd-mf-mrz-line {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  white-space: pre;
+  overflow: hidden;
+}
+.cccd-mf-mrz-char { flex: 0 0 auto; text-align: center; }
 
 @media (max-width: 640px) {
   .cccd-body-2col {
