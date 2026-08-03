@@ -7,6 +7,7 @@ import cccdBackTemplateBg from "./assets/cccd-back-template.jpg";
 import { useI18n, apiT } from "./i18n";
 import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
+import DuplicateWarnModal from "./DuplicateWarnModal";
 import {
   tryOpenOnSecondaryScreen,
   clearSecondaryScreenPreview,
@@ -571,6 +572,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [heightImage, setHeightImage] = useState(100);
 
   const lastCheckedCccdRef = useRef("");   // tránh gọi check-cccd lặp lại cùng 1 số
+  const [dupModal, setDupModal] = useState({ open: false, matches: [] });  // cảnh báo trùng lúc Lưu
+  const [checkingDup, setCheckingDup] = useState(false);   // đang gộp check khi bấm Lưu
 
   // Cảnh báo "đối tượng đã có trong danh sách" → đẩy vào chuông thông báo header.
   // Click thông báo (kind:"match") sẽ mở hồ sơ đối tượng đã đăng ký.
@@ -1094,8 +1097,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const allRequiredValid = checks.filter((c) => c.required).every((c) => c.ok);
   const allValid = checks.every((c) => c.ok);
 
-  const submit = async () => {
-    if (!allRequiredValid) return;
+  // Thực hiện lưu thật sự (sau khi đã qua bước kiểm tra trùng lúc bấm Lưu).
+  const doSave = async () => {
     setSaving(true);
     setErr("");
     setOk("");
@@ -1160,6 +1163,74 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } finally {
       setSaving(false);
     }
+  };
+
+  // Bấm Lưu: gộp check-cccd + check-duplicate chạy song song 1 lần. Nếu phát hiện
+  // hồ sơ trùng → mở modal xác nhận (officer tự quyết). Không trùng → lưu luôn.
+  const submit = async () => {
+    if (!allRequiredValid) return;
+    const cccd = (form.cccd_number || "").replace(/\D/g, "");
+    const dupBody = {
+      full_name: form.full_name.trim(),
+      gender: form.gender || "male",
+      dob: form.dob || null,
+    };
+    setCheckingDup(true);
+    setErr("");
+    try {
+      const [cccdRes, dupRes] = await Promise.allSettled([
+        cccd.length >= 9 ? api.checkCccd(cccd) : Promise.resolve({ matched: false }),
+        api.checkDuplicate(dupBody),
+      ]);
+
+      const matches = [];
+      const seen = new Set();
+      if (isEdit && initial?.id) seen.add(initial.id);   // bỏ chính hồ sơ đang sửa
+
+      const pushMatch = (detainee, source) => {
+        const id = detainee?.id || detainee?._id;
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        matches.push({ source, detainee });
+      };
+
+      if (cccdRes.status === "fulfilled" && cccdRes.value?.matched && cccdRes.value.detainee) {
+        pushMatch(cccdRes.value.detainee, "cccd");
+      }
+      if (dupRes.status === "fulfilled" && Array.isArray(dupRes.value?.duplicates)) {
+        dupRes.value.duplicates.forEach((d) => pushMatch(d, "info"));
+      }
+
+      // Cả 2 check đều lỗi mạng → không chặn officer vì lỗi hạ tầng, cho lưu luôn.
+      if (cccdRes.status === "rejected" && dupRes.status === "rejected") {
+        console.error("[dup-check] cả 2 API lỗi:", cccdRes.reason, dupRes.reason);
+      }
+
+      if (matches.length > 0) {
+        setDupModal({ open: true, matches });
+        return;   // chờ officer quyết định trong modal
+      }
+      await doSave();
+    } catch (e) {
+      console.error("[dup-check] lỗi ngoài dự kiến:", e);
+      await doSave();   // lỗi bất ngờ vẫn cho lưu, không kẹt
+    } finally {
+      setCheckingDup(false);
+    }
+  };
+
+  const onDupProceed = () => {
+    setDupModal({ open: false, matches: [] });
+    doSave();
+  };
+
+  const onDupCancel = () => setDupModal({ open: false, matches: [] });
+
+  const onDupOpenProfile = (detainee) => {
+    setDupModal({ open: false, matches: [] });
+    // Đẩy vào chuông thông báo (kind:"match") — click thông báo sẽ mở hồ sơ đã đăng ký,
+    // dùng chung cơ chế với raiseAlert (Dashboard xử lý điều hướng khi click).
+    raiseAlert({ source: "cccd", detainee });
   };
 
   const resetAll = () => {
@@ -1630,6 +1701,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           onClose={() => setPreviewOpen(false)}
         />
       )}
+
+      <DuplicateWarnModal
+        open={dupModal.open}
+        matches={dupModal.matches}
+        onProceed={onDupProceed}
+        onOpenProfile={onDupOpenProfile}
+        onCancel={onDupCancel}
+      />
     </div>
   );
 }

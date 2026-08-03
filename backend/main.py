@@ -603,22 +603,6 @@ def _ensure_can_touch(doc: dict, user: dict) -> None:
         raise HTTPException(403, "Bạn chỉ được thao tác trên hồ sơ do chính mình đăng ký")
 
 
-@app.get("/api/detainees/{det_id}")
-async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
-    doc = await db.detainees.find_one({"_id": _oid(det_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy hồ sơ")
-    _ensure_can_touch(doc, user)
-    return _s(doc)
-
-
-@app.post("/api/detainees/check-duplicate")
-async def check_duplicate(body: DetaineeIn, user: dict = Depends(get_current_user)):
-    dob = _parse_dob(body.dob)
-    dups = await _find_duplicates(body.full_name, dob, body.gender)
-    return {"count": len(dups), "duplicates": dups}
-
-
 # ---------- CCCD duplicate check (tra cứu đối tượng đã đăng ký bằng số CCCD) ----------
 # Fields trả về đủ để hiển thị modal cảnh báo, KHÔNG kèm template/ảnh nặng.
 _MATCH_PROJECTION = {
@@ -629,6 +613,9 @@ _MATCH_PROJECTION = {
 }
 
 
+# CHÚ Ý thứ tự route: các route TĨNH (check-cccd, check-duplicate) phải khai báo
+# TRƯỚC route động "/api/detainees/{det_id}", nếu không FastAPI sẽ coi "check-cccd"
+# là det_id và ném "invalid id" (route match theo thứ tự khai báo).
 @app.get("/api/detainees/check-cccd")
 async def check_cccd(
     cccd_number: str = Query("", min_length=1),
@@ -647,6 +634,22 @@ async def check_cccd(
         _MATCH_PROJECTION,
     )
     return {"matched": doc is not None, "detainee": _s(doc) if doc else None}
+
+
+@app.post("/api/detainees/check-duplicate")
+async def check_duplicate(body: DetaineeIn, user: dict = Depends(get_current_user)):
+    dob = _parse_dob(body.dob)
+    dups = await _find_duplicates(body.full_name, dob, body.gender)
+    return {"count": len(dups), "duplicates": dups}
+
+
+@app.get("/api/detainees/{det_id}")
+async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.detainees.find_one({"_id": _oid(det_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy hồ sơ")
+    _ensure_can_touch(doc, user)
+    return _s(doc)
 
 
 # ---------- Fingerprint match (tra cứu can phạm bằng vân tay) ----------
