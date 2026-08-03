@@ -111,3 +111,14 @@ frontend/_vite.*.log
 
 # ===== Stray scratch =====
 photo_*.jpg
+image.png
+image copy*.png
+
+# ===== Drawio backups (giữ file .drawio, bỏ bản backup tự sinh) =====
+*.drawio.bkp
+*.drawio.dtmp
+~$*.drawio
+
+# ===== OS / editor thêm =====
+desktop.ini
+$RECYCLE.BIN/
