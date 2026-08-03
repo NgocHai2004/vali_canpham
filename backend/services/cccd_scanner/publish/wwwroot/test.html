@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>CCCD Service — Test client</title>
+<style>
+  body { font: 14px/1.5 "Segoe UI", sans-serif; margin: 20px; background: #f5f5f7; color: #222; }
+  h1 { margin: 0 0 12px; }
+  .row { display: flex; gap: 20px; align-items: flex-start; }
+  .col { flex: 1; }
+  fieldset { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; }
+  legend { font-weight: 600; }
+  .kv { display: grid; grid-template-columns: 170px 1fr; gap: 4px 10px; margin-top: 6px; }
+  .kv b { color: #555; font-weight: 500; }
+  .kv span { color: #0a4d8f; font-weight: 600; word-break: break-word; }
+  #log { height: 220px; overflow: auto; background: #0f1720; color: #d0d4d8; font: 12px Consolas, monospace; padding: 8px; border-radius: 4px; }
+  #face { max-width: 180px; max-height: 220px; border: 1px solid #ccc; background: #fafafa; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #e8eaf6; color: #333; margin-left: 8px; font-size: 12px; }
+  .ok { background: #e6f4ea; color: #137333; }
+  .bad { background: #fce8e6; color: #b3261e; }
+</style>
+</head>
+<body>
+<h1>CCCD Reader — Test client <span id="wsBadge" class="badge">WS: —</span></h1>
+
+<div class="row">
+  <div class="col">
+    <fieldset>
+      <legend>Trạng thái thiết bị</legend>
+      <div class="kv" id="statusBox">
+        <b>Device exist</b><span id="s_exist">—</span>
+        <b>Chip connected</b><span id="s_conn">—</span>
+        <b>Monitoring</b><span id="s_mon">—</span>
+        <b>Card on reader</b><span id="s_card">—</span>
+        <b>Last error</b><span id="s_err">—</span>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Dữ liệu CCCD</legend>
+      <div class="kv" id="cardBox">
+        <b>Số CCCD</b><span data-f="idNumber">—</span>
+        <b>Họ tên</b><span data-f="fullName">—</span>
+        <b>Ngày sinh</b><span data-f="dateOfBirth">—</span>
+        <b>Giới tính</b><span data-f="gender">—</span>
+        <b>Dân tộc</b><span data-f="ethnicity">—</span>
+        <b>Quốc tịch</b><span data-f="nationality">—</span>
+        <b>Quê quán</b><span data-f="placeOfOrigin">—</span>
+        <b>Nơi thường trú</b><span data-f="placeOfResidence">—</span>
+        <b>Ngày cấp</b><span data-f="dateOfIssue">—</span>
+        <b>Có giá trị đến</b><span data-f="dateOfExpiry">—</span>
+        <b>Cha</b><span data-f="fatherName">—</span>
+        <b>Mẹ</b><span data-f="motherName">—</span>
+        <b>MRZ</b><span data-f="mrz">—</span>
+        <b>VerifySOD</b><span data-f="verifySod">—</span>
+        <b>AaCaAuthen</b><span data-f="aaCaAuthen">—</span>
+      </div>
+    </fieldset>
+  </div>
+
+  <div class="col" style="flex: 0 0 240px;">
+    <fieldset>
+      <legend>Ảnh khuôn mặt (DG2)</legend>
+      <img id="face" alt="face"/>
+    </fieldset>
+    <fieldset>
+      <legend>Log realtime</legend>
+      <div id="log"></div>
+    </fieldset>
+  </div>
+</div>
+
+<script>
+const BASE = location.origin;
+const $ = id => document.getElementById(id);
+
+function logLine(s, cls) {
+  const el = $('log');
+  const line = document.createElement('div');
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${s}`;
+  if (cls) line.style.color = cls;
+  el.appendChild(line); el.scrollTop = el.scrollHeight;
+}
+
+async function fetchStatus() {
+  try {
+    const r = await fetch(BASE + '/status');
+    const d = await r.json();
+    $('s_exist').textContent = d.deviceExist ? 'OK' : 'KHÔNG';
+    $('s_conn').textContent  = d.deviceConnected ? 'ĐÃ KẾT NỐI' : '—';
+    $('s_mon').textContent   = d.monitoring ? 'RUNNING' : 'STOPPED';
+    $('s_card').textContent  = d.cardOnReader ? 'CÓ' : '—';
+    $('s_err').textContent   = d.lastError || '—';
+  } catch (e) { logLine('status error: ' + e.message, '#ff8'); }
+}
+
+function renderCard(c) {
+  document.querySelectorAll('#cardBox span[data-f]').forEach(el => {
+    const v = c[el.dataset.f];
+    el.textContent = v || '—';
+    if (el.dataset.f === 'verifySod' || el.dataset.f === 'aaCaAuthen') {
+      const low = String(v || '').toLowerCase();
+      el.style.color = (low.includes('true') || low.includes('success')) ? '#137333'
+                     : (low.includes('false') || low.includes('fail')) ? '#b3261e' : '#0a4d8f';
+    }
+  });
+  if (c.hasFace && c.idNumber) {
+    $('face').src = `${BASE}/scan/face/${encodeURIComponent(c.idNumber)}?t=${Date.now()}`;
+  }
+}
+
+function connectWS() {
+  const url = BASE.replace(/^http/, 'ws') + '/ws';
+  const ws = new WebSocket(url);
+  const badge = $('wsBadge');
+  ws.onopen = () => { badge.textContent = 'WS: connected'; badge.className = 'badge ok'; logLine('WS connected'); };
+  ws.onclose = () => { badge.textContent = 'WS: closed'; badge.className = 'badge bad'; logLine('WS closed, retry 3s'); setTimeout(connectWS, 3000); };
+  ws.onerror = () => logLine('WS error', '#f88');
+  ws.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    if (e.type === 'card_data' && e.data) {
+      logLine(`✔ CCCD ${e.data.idNumber} - ${e.data.fullName}`, '#8f8');
+      renderCard(e.data);
+    } else if (e.type === 'read') {
+      logLine(`read: ${e.step} → ${e.status}`);
+    } else {
+      logLine(`${e.type}: ${e.status || ''} ${e.message || ''}`);
+    }
+    fetchStatus();
+  };
+}
+
+fetchStatus();
+setInterval(fetchStatus, 2500);
+connectWS();
+</script>
+</body>
+</html>

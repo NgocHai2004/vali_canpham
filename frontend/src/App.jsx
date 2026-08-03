@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { auth, api, setOnAuthExpired } from "./api";
+import { auth, api, setOnAuthExpired, isNetworkError } from "./api";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
 import ToastHost from "./Toast";
@@ -78,7 +78,15 @@ export default function App() {
           setDongleOk(false);
           return;
         }
-        // 401 hoặc lỗi khác = coi như dongle không có → tăng fail counter
+        // Lỗi mạng (Vite drop / ERR_EMPTY_RESPONSE / reset / timeout) — fetch throw
+        // trước khi có HTTP response. Không đáng tin để logout: chỉ cảnh báo, KHÔNG
+        // tăng fail counter, để Vite/Mạng khôi phục ở poll kế tiếp.
+        if (isNetworkError(err)) {
+          setDongleOk(false);
+          setDongleWarn("warning");
+          return;
+        }
+        // 401 thật (dongle thực sự không có) → tăng fail counter
         failCountRef.current += 1;
         if (failCountRef.current >= DONGLE_MAX_FAIL) {
           auth.clear();

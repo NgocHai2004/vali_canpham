@@ -1,0 +1,32 @@
+info: CccdService.Services.Hn212ReaderService[0]
+      SDK HN-212 da n?p t? C:\Users\vali-01\Documents\App_CCCD\app_cccd\backend\services\cccd_scanner\_runtime
+info: CccdService.Services.Hn212ReaderService[0]
+      StartMonitor OK
+info: CccdService.Services.JsonFileSink[0]
+      JsonFileSink luu v…o: C:\Users\vali-01\Documents\App_CCCD\app_cccd\backend\data_cccd
+info: CccdService.Services.ApiPushSink[0]
+      ApiPushSink  http://192.168.21.24:8000/api/cccd/push (source=scanner-01, face=True)
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://127.0.0.1:8080
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\vali-01\Documents\App_CCCD\app_cccd\backend\services\cccd_scanner\publish\
+info: CccdService.Services.Hn212ReaderService[0]
+      D?c th? OK: 001******844 - Ho…ng C“ng Anh
+info: CccdService.Services.JsonFileSink[0]
+      Da ghi C:\Users\vali-01\Documents\App_CCCD\app_cccd\backend\data_cccd\001203033844_Ho…ng C“ng Anh\20260803_150604.json (0 bytes ?nh)
+info: System.Net.Http.HttpClient.cccd.LogicalHandler[100]
+      Start processing HTTP request POST http://192.168.21.24:8000/api/cccd/push
+info: System.Net.Http.HttpClient.cccd.ClientHandler[100]
+      Sending HTTP request POST http://192.168.21.24:8000/api/cccd/push
+info: System.Net.Http.HttpClient.cccd.ClientHandler[101]
+      Received HTTP response headers after 35.7749ms - 200
+info: System.Net.Http.HttpClient.cccd.LogicalHandler[101]
+      End processing HTTP request after 44.6501ms - 200
+info: CccdService.Services.ApiPushSink[0]
+      Upload ?nh OK -> (xem upload)
+info: CccdService.Services.ApiPushSink[0]
+      Push OK (200). {"ok":true,"cccd_number":"001203033844","delivered":1,"ts":"2026-08-03T08:06:05.018707"}

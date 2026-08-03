@@ -1,0 +1,87 @@
+{
+  "parameters": [
+    {
+      "name": "usblib",
+      "value": "auto",
+      "apply": "default",
+      "desc": "value=auto/libusb/hidapi; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "ocrmode",
+      "value": "fast",
+      "apply": "default",
+      "desc": "value=mode: fast/mid/slow/fullauto; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "ocrminscore",
+      "value": "0.75",
+      "apply": "default",
+      "desc": "value=score: 0.0 to 1.0; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "ocrtimeout",
+      "value": "6000",
+      "apply": "default",
+      "desc": "value=timeout in miliseconds: 3000 to 30000; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "saveocrerrorimage",
+      "value": "yes",
+      "apply": "default",
+      "desc": "value: yes or no; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "capturefaceminfacewidth",
+      "value": "150",
+      "apply": "default",
+      "desc": "value: number of pixel; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "capturefaceallowmultiface",
+      "value": "yes",
+      "apply": "default",
+      "desc": "value: yes or no; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "capturefaceusefirstcamavaiable",
+      "value": "no",
+      "apply": "default",
+      "desc": "value: yes or no; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "autocapturefaceminimumms",
+      "value": "200",
+      "apply": "default",
+      "desc": "value: time in milliseconds; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "spoofingmode",
+      "value": "low",
+      "apply": "default",
+      "desc": "value: off/low/mid/high; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "processsequence",
+      "value": "cardthenface",
+      "apply": "default",
+      "desc": "value: cardonly/cardthenface/facethencard; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "capturefacecropframeposition",
+      "value": "-1,-1,-1,-1",
+      "apply": "default",
+      "desc": "value: xLeft,yTop,width,height [-1: keep the original]; apply: default or force (force: Ignore setting from code)"
+    },
+    {
+      "name": "kiosqrcodereadermode",
+      "value": "none",
+      "apply": "default",
+      "desc": "value: None,Auto,AutoClipboard,AutoClipboardEnterkey [Auto: Auto detect F4100 QRcode reader, send event to app]; apply: default or force (force: Ignore setting from code)"
+    }
+  ],
+  "warranty": {
+    "apiurl": "",
+    "activateAction": "",
+    "pingAction": ""
+  }
+}
