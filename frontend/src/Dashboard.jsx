@@ -7106,6 +7106,41 @@ const styles = `
   }
   .fp-preview-cell.done { border-color: #12af64; background: #f0fbf6; }
   .fp-preview-cell.empty { border-style: dashed; background: #fafafa; }
+  /* Ô ngón đang chờ đặt: vòng sáng đỏ chạy quanh viền báo đang chờ thu (live) */
+  .fp-preview-cell.active {
+    border-color: transparent;
+    background: #fdf2f3;
+    position: relative;
+    z-index: 0;
+  }
+  .fp-preview-cell.active::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 10px;
+    padding: 2px;
+    background: conic-gradient(from var(--fp-ring-angle, 0deg),
+      rgba(185,28,38,0) 0deg,
+      rgba(185,28,38,0) 250deg,
+      #e0505a 310deg,
+      #b91c26 340deg,
+      #e0505a 360deg);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: fp-ring-spin 1.1s linear infinite;
+    z-index: -1;
+    pointer-events: none;
+  }
+  @property --fp-ring-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+  @keyframes fp-ring-spin {
+    to { --fp-ring-angle: 360deg; }
+  }
   .fp-preview-thumb {
     width: 100%;
     aspect-ratio: 1;

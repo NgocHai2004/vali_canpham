@@ -85,6 +85,28 @@ const EMPTY_FORM = {
   facility_type: "",
   custody_type: "",
   note: "",
+  // ---- Thông tin can phạm (21 trường string) ----
+  cell_block: "",
+  status_detainee: "",
+  squad: "",
+  health_intake: "",
+  disease_current: "",
+  disease_intake: "",
+  alcohol_use: "",
+  address_before_arrest: "",
+  release_residence: "",
+  occupation: "",
+  occupation_detail: "",
+  file_number: "",
+  file_number_sub: "",
+  search_index: "",
+  disease_current_detail: "",
+  disease_intake_detail: "",
+  education_level: "",
+  professional_level: "",
+  study_status: "",
+  literacy: "",
+  alias: "",
 };
 
 async function cropPortraitFromCCCD(file) {
@@ -123,11 +145,35 @@ async function cropPortraitFromCCCD(file) {
   return new File([blob], "portrait_from_cccd.jpg", { type: "image/jpeg" });
 }
 
-function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardPortraitPreview }) {
+function CccdField({ value, onChange, className, ...rest }) {
+  // Ô hiển thị thông tin trên ảnh CCCD, sửa tại chỗ. Click vào ô KHÔNG mở upload
+  // (stopPropagation). onBlur mới ghi giá trị về form để tránh re-render mỗi ký tự.
+  const ref = useRef(null);
+  return (
+    <div
+      ref={ref}
+      className={className}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => onChange(e.currentTarget.textContent)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+      }}
+      {...rest}
+    >
+      {value}
+    </div>
+  );
+}
+
+function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardPortraitPreview, onFieldChange }) {
   const { t } = useI18n();
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
+  const setF = onFieldChange || (() => {});
 
   const pick = async (e) => {
     const f = e.target.files?.[0];
@@ -170,14 +216,28 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
         {cardPortrait && <img src={cardPortrait} alt="" />}
       </div>
       <div className="cccd-card-mock-fields">
-        <div className="cccd-mf cccd-mf-no">{form.cccd_number || ""}</div>
-        <div className="cccd-mf cccd-mf-name">{form.full_name || ""}</div>
-        <div className="cccd-mf cccd-mf-dob">{form.dob || ""}</div>
-        <div className="cccd-mf cccd-mf-sex">{form.gender ? (form.gender === "female" ? t("common.female") : t("common.male")) : ""}</div>
-        <div className="cccd-mf cccd-mf-nat">{form.nationality || ""}</div>
-        <div className="cccd-mf cccd-mf-origin">{form.hometown || ""}</div>
-        <div className="cccd-mf cccd-mf-res">{form.address || ""}</div>
-        <div className="cccd-mf cccd-mf-exp">{form.expiry_date || ""}</div>
+        <CccdField className="cccd-mf cccd-mf-no" value={form.cccd_number || ""}
+          onChange={(v) => setF("cccd_number", v.replace(/\D/g, "").slice(0, 12))} />
+        <CccdField className="cccd-mf cccd-mf-name" value={form.full_name || ""}
+          onChange={(v) => setF("full_name", v)} />
+        <CccdField className="cccd-mf cccd-mf-dob" value={form.dob || ""}
+          onChange={(v) => setF("dob", v)} />
+        <CccdField className="cccd-mf cccd-mf-sex"
+          value={form.gender ? (form.gender === "female" ? t("common.female") : t("common.male")) : ""}
+          onChange={(v) => {
+            const s = (v || "").trim().toLowerCase();
+            setF("gender", s.startsWith("n") && s.includes("ữ") ? "female"
+              : s === "female" || s === "nữ" || s === "nu" ? "female"
+              : s ? "male" : "");
+          }} />
+        <CccdField className="cccd-mf cccd-mf-nat" value={form.nationality || ""}
+          onChange={(v) => setF("nationality", v)} />
+        <CccdField className="cccd-mf cccd-mf-origin" value={form.hometown || ""}
+          onChange={(v) => setF("hometown", v)} />
+        <CccdField className="cccd-mf cccd-mf-res" value={form.address || ""}
+          onChange={(v) => setF("address", v)} />
+        <CccdField className="cccd-mf cccd-mf-exp" value={form.expiry_date || ""}
+          onChange={(v) => setF("expiry_date", v)} />
       </div>
       {uploaded && (
         <button
@@ -197,8 +257,9 @@ function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardP
   );
 }
 
-function CccdCardBackUpload({ form }) {
+function CccdCardBackUpload({ form, onFieldChange }) {
   const { t } = useI18n();
+  const setF = onFieldChange || (() => {});
   // MRZ chuẩn TD1 = 3 dòng × 30 ký tự. Máy đọc push lên thường là 1 chuỗi
   // liền 90 ký tự (không có \n) — tự chia 30 ký tự/dòng cho giống thẻ thật.
   // Nếu chuỗi đã có sẵn xuống dòng thì tôn trọng nguyên trạng.
@@ -212,13 +273,28 @@ function CccdCardBackUpload({ form }) {
       <div className="cccd-card-mock-fields">
         {/* Tọa độ căn theo template mặt sau thật (cccd-back-template.jpg, 1024x601) */}
         {/* Đặc điểm nhận dạng — 2 dòng kẻ phía trên */}
-        <div className="cccd-mf cccd-mf-back-features">{form.distinguishing_features || ""}</div>
+        <CccdField className="cccd-mf cccd-mf-back-features" value={form.distinguishing_features || ""}
+          onChange={(v) => setF("distinguishing_features", v)} />
         {/* Ngày cấp */}
-        <div className="cccd-mf cccd-mf-back-issued">{form.issued_date || ""}</div>
+        <CccdField className="cccd-mf cccd-mf-back-issued" value={form.issued_date || ""}
+          onChange={(v) => setF("issued_date", v)} />
         {/* Nơi cấp */}
-        <div className="cccd-mf cccd-mf-back-place">{form.issued_place || ""}</div>
-        {/* MRZ — 3 dòng monospace, chữ to, căn đều hai bên (mỗi ký tự dàn đều từ lề trái tới lề phải) */}
-        <div className="cccd-mf cccd-mf-back-mrz">
+        <CccdField className="cccd-mf cccd-mf-back-place" value={form.issued_place || ""}
+          onChange={(v) => setF("issued_place", v)} />
+        {/* MRZ — 3 dòng monospace, chữ to, căn đều hai bên. Sửa tại chỗ: click mở ô nhập,
+            các ký tự < biểu diễn khoảng trắng chuẩn MRZ; onBlur ghép lại thành 1 chuỗi. */}
+        <div className="cccd-mf cccd-mf-back-mrz"
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck={false}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={(e) => {
+            // gộp mọi dòng thành 1 chuỗi, bỏ khoảng trắng thừa, viết hoa
+            const raw = (e.currentTarget.textContent || "").replace(/\s+/g, "").toUpperCase();
+            setF("mrz", raw);
+          }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+        >
           {mrzLines.length > 0 ? mrzLines.map((ln, i) => (
             <div className="cccd-mf-mrz-line" key={i}>
               {Array.from(ln).map((ch, j) => (
@@ -553,6 +629,28 @@ function normalizeInitial(initial) {
       facility_type: initial.facility_type || "",
       custody_type: initial.custody_type || "",
       note: initial.note || "",
+      // ---- Thông tin can phạm (21 trường string) ----
+      cell_block: initial.cell_block || "",
+      status_detainee: initial.status_detainee || "",
+      squad: initial.squad || "",
+      health_intake: initial.health_intake || "",
+      disease_current: initial.disease_current || "",
+      disease_intake: initial.disease_intake || "",
+      alcohol_use: initial.alcohol_use || "",
+      address_before_arrest: initial.address_before_arrest || "",
+      release_residence: initial.release_residence || "",
+      occupation: initial.occupation || "",
+      occupation_detail: initial.occupation_detail || "",
+      file_number: initial.file_number || "",
+      file_number_sub: initial.file_number_sub || "",
+      search_index: initial.search_index || "",
+      disease_current_detail: initial.disease_current_detail || "",
+      disease_intake_detail: initial.disease_intake_detail || "",
+      education_level: initial.education_level || "",
+      professional_level: initial.professional_level || "",
+      study_status: initial.study_status || "",
+      literacy: initial.literacy || "",
+      alias: initial.alias || "",
     },
     photos,
   };
@@ -574,6 +672,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [cccdLocked, setCccdLocked] = useState(false);   // chốt dữ liệu CCCD: true = chạm thẻ không đổi form
   const cccdLockedRef = useRef(false);                   // ref để đọc trạng thái mới nhất trong vòng lặp nền
   useEffect(() => { cccdLockedRef.current = cccdLocked; }, [cccdLocked]);
+  const [fpLocked, setFpLocked] = useState(false);       // chốt vân tay: true = dừng quét, đóng băng 10 ngón
+  const fpLockedRef = useRef(false);                     // ref để auto-start effect đọc trạng thái mới nhất
+  useEffect(() => { fpLockedRef.current = fpLocked; }, [fpLocked]);
+  const fpRunningRef = useRef(false);                    // ref phản chiếu fpRunning cho auto-start effect
+  const fpCountRef = useRef(0);                          // ref phản chiếu số ngón đã thu cho auto-start effect
   const [cells, setCells] = useState([]);
   const [fpRunning, setFpRunning] = useState(false);
   const [fpNextCode, setFpNextCode] = useState(null);
@@ -774,8 +877,22 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setFpStatus("");
   };
 
+  // Khóa ⇄ Thu thập vân tay. Khóa = dừng vòng enroll, đóng băng 10 ngón hiện có,
+  // chặn double-click thu lại. Thu thập = mở lại, cho phép auto-start & thu tay.
+  const toggleFpLock = () => {
+    if (fpLocked) {
+      setFpLocked(false);
+      fpAutoStoppedRef.current = false;   // cho phép auto-start effect chạy lại
+    } else {
+      stopFpCollect();
+      fpAutoStoppedRef.current = true;    // đã khóa: auto-start không tự bật lại
+      setFpLocked(true);
+    }
+  };
+
   // Double-click 1 ô vân tay để thu/thu lại ngón đó
   const retryFingerprint = async (photoKey, fingerCode) => {
+    if (fpLocked) return;   // đã khóa: không cho thu lại ngón lẻ
     if (fpRunning) {
       setFpError(t("capture.err.fp_running"));
       return;
@@ -1090,8 +1207,38 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     };
   }, [sessionReadOnly]);
 
+  // Tự động bật quét vân tay khi vào trang. Máy quét chưa sẵn sàng thì thử lại
+  // âm thầm mỗi 3s (không hiện lỗi đỏ) — giống vòng CCCD, cắm máy vào là tự chạy.
+  const fpAutoStoppedRef = useRef(false);   // cán bộ đã bấm Dừng thủ công -> không auto-start lại
+  useEffect(() => {
+    if (sessionReadOnly) return;
+    let stopped = false;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    (async () => {
+      while (!stopped) {
+        // Chỉ auto-start khi: chưa khóa, chưa đủ 10 ngón, không đang chạy, chưa bị dừng tay
+        if (!fpLockedRef.current && !fpAutoStoppedRef.current && !fpRunningRef.current && fpCountRef.current < 10) {
+          try {
+            const h = await fpApi.health();
+            if (stopped) return;
+            if (h.ok) {
+              startFpCollect();   // tự chạy vòng enroll; lỗi bên trong tự xử lý
+            }
+          } catch { /* máy quét chưa sẵn sàng -> thử lại vòng sau, không báo lỗi */ }
+        }
+        await sleep(3000);
+        if (stopped) return;
+      }
+    })();
+
+    return () => { stopped = true; };
+  }, [sessionReadOnly]);
+
   const fpCount = FINGERS.filter((f) => photos[f.key]).length;
   const portraitCount = PORTRAITS.filter((p) => photos[p.key]).length;
+  useEffect(() => { fpRunningRef.current = fpRunning; }, [fpRunning]);
+  useEffect(() => { fpCountRef.current = fpCount; }, [fpCount]);
 
   const checks = useMemo(() => {
     const personalOk = !!(form.personal_id || "").trim();
@@ -1150,6 +1297,28 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         facility_type: strOrNull(form.facility_type),
         custody_type: strOrNull(form.custody_type),
         note: strOrNull(form.note),
+        // ---- Thông tin can phạm (21 trường string) ----
+        cell_block: strOrNull(form.cell_block),
+        status_detainee: strOrNull(form.status_detainee),
+        squad: strOrNull(form.squad),
+        health_intake: strOrNull(form.health_intake),
+        disease_current: strOrNull(form.disease_current),
+        disease_intake: strOrNull(form.disease_intake),
+        alcohol_use: strOrNull(form.alcohol_use),
+        address_before_arrest: strOrNull(form.address_before_arrest),
+        release_residence: strOrNull(form.release_residence),
+        occupation: strOrNull(form.occupation),
+        occupation_detail: strOrNull(form.occupation_detail),
+        file_number: strOrNull(form.file_number),
+        file_number_sub: strOrNull(form.file_number_sub),
+        search_index: strOrNull(form.search_index),
+        disease_current_detail: strOrNull(form.disease_current_detail),
+        disease_intake_detail: strOrNull(form.disease_intake_detail),
+        education_level: strOrNull(form.education_level),
+        professional_level: strOrNull(form.professional_level),
+        study_status: strOrNull(form.study_status),
+        literacy: strOrNull(form.literacy),
+        alias: strOrNull(form.alias),
         photo_url: photos.portrait_front || null,
         photos,
       };
@@ -1299,11 +1468,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               {PORTRAITS.map((p) => (
                 <div key={p.key} className="body-shot">
                   <span className="body-shot-label">
-                    {p.key === "portrait_left" ? "TRÁI" : p.key === "portrait_front" ? "THẲNG" : "PHẢI"}
+                    {t(p.labelKey).toUpperCase()}
                   </span>
                   <LiveCamShot
                     label={t(p.labelKey)}
-                    shortLabel={p.key === "portrait_left" ? "TRÁI" : p.key === "portrait_front" ? "THẲNG" : "PHẢI"}
+                    shortLabel={t(p.labelKey).toUpperCase()}
                     value={photos[p.key]}
                     onCapture={(u) => setPhoto(p.key, u)}
                     showRuler={p.key === "portrait_front"}
@@ -1342,6 +1511,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 onUpload={(url) => setPhoto("cccd_front", url)}
                 onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
                 onCardPortraitPreview={setCccdCardPortrait}
+                onFieldChange={setField}
               />
             </div>
           </section>
@@ -1351,7 +1521,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <h2 className="cap-block-title">{t("capture.section.cccd_back")}</h2>
             </div>
             <div className="cccd-preview-wrap">
-              <CccdCardBackUpload form={form} />
+              <CccdCardBackUpload form={form} onFieldChange={setField} />
             </div>
           </section>
         </div>
@@ -1363,98 +1533,96 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
             </div>
             <div className="personal-info personal-info--3col">
-              {/* Col 1 */}
+              {/* Mã can phạm — giữ lại (nghiệp vụ, không phải trường CCCD) */}
               <InfoField label={t("capture.form.personal_id")}>
                 <input className="control control-sm" value={form.personal_id}
                   onChange={(e) => setField("personal_id", e.target.value)}
                   placeholder={t("capture.form.personal_id_ph")} />
               </InfoField>
-              {/* Col 2 */}
-              <InfoField label={t("detainee.field.hometown")}>
-                <input className="control control-sm" value={form.hometown}
-                  onChange={(e) => setField("hometown", e.target.value)}
-                  placeholder={t("capture.form.hometown_ph")} />
+              {/* ---- 21 trường Thông tin can phạm (string) ---- */}
+              <InfoField label={t("detainee.field.cell_block")}>
+                <input className="control control-sm" value={form.cell_block}
+                  onChange={(e) => setField("cell_block", e.target.value)} />
               </InfoField>
-              {/* Col 3 */}
-              <InfoField label={t("detainee.field.distinguishing_features")}>
-                <input className="control control-sm" value={form.distinguishing_features}
-                  onChange={(e) => setField("distinguishing_features", e.target.value)}
-                  placeholder={t("capture.form.distinguishing_ph")} />
+              <InfoField label={t("detainee.field.status_detainee")}>
+                <input className="control control-sm" value={form.status_detainee}
+                  onChange={(e) => setField("status_detainee", e.target.value)} />
               </InfoField>
-
-              <InfoField label={t("detainee.field.full_name")}>
-                <input className="control control-sm" value={form.full_name}
-                  onChange={(e) => setField("full_name", e.target.value)}
-                  placeholder={t("capture.form.full_name_ph")} />
+              <InfoField label={t("detainee.field.squad")}>
+                <input className="control control-sm" value={form.squad}
+                  onChange={(e) => setField("squad", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.address")}>
-                <input className="control control-sm" value={form.address}
-                  onChange={(e) => setField("address", e.target.value)}
-                  placeholder={t("capture.form.address_ph")} />
+              <InfoField label={t("detainee.field.health_intake")}>
+                <input className="control control-sm" value={form.health_intake}
+                  onChange={(e) => setField("health_intake", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.issued_date")}>
-                <input className="control control-sm" value={form.issued_date}
-                  onChange={(e) => setField("issued_date", e.target.value)}
-                  placeholder={t("capture.form.date_ph")} />
+              <InfoField label={t("detainee.field.disease_current")}>
+                <input className="control control-sm" value={form.disease_current}
+                  onChange={(e) => setField("disease_current", e.target.value)} />
               </InfoField>
-
-              <InfoField label={t("detainee.field.cccd")}>
-                <input className="control control-sm" value={form.cccd_number}
-                  onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
-                  placeholder={t("capture.form.cccd_ph")} inputMode="numeric" />
+              <InfoField label={t("detainee.field.disease_intake")}>
+                <input className="control control-sm" value={form.disease_intake}
+                  onChange={(e) => setField("disease_intake", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.dob")}>
-                <input className="control control-sm" value={form.dob}
-                  onChange={(e) => setField("dob", e.target.value)}
-                  placeholder={t("capture.form.date_ph")} />
+              <InfoField label={t("detainee.field.alcohol_use")}>
+                <input className="control control-sm" value={form.alcohol_use}
+                  onChange={(e) => setField("alcohol_use", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.issued_place")}>
-                <input className="control control-sm" value={form.issued_place}
-                  onChange={(e) => setField("issued_place", e.target.value)}
-                  placeholder={t("capture.form.issued_place_ph")} />
+              <InfoField label={t("detainee.field.address_before_arrest")}>
+                <input className="control control-sm" value={form.address_before_arrest}
+                  onChange={(e) => setField("address_before_arrest", e.target.value)} />
               </InfoField>
-
-              <InfoField label={t("detainee.field.expiry_date")}>
-                <input className="control control-sm" value={form.expiry_date}
-                  onChange={(e) => setField("expiry_date", e.target.value)}
-                  placeholder={t("capture.form.date_ph")} />
+              <InfoField label={t("detainee.field.release_residence")}>
+                <input className="control control-sm" value={form.release_residence}
+                  onChange={(e) => setField("release_residence", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.gender")}>
-                <div className="radio-group radio-group-sm">
-                  <label className="radio-option">
-                    <input type="radio" name="capture-gender" value="male"
-                      checked={form.gender === "male"}
-                      onChange={(e) => setField("gender", e.target.value)} />
-                    <span>{t("common.male")}</span>
-                  </label>
-                  <label className="radio-option">
-                    <input type="radio" name="capture-gender" value="female"
-                      checked={form.gender === "female"}
-                      onChange={(e) => setField("gender", e.target.value)} />
-                    <span>{t("common.female")}</span>
-                  </label>
-                </div>
+              <InfoField label={t("detainee.field.occupation")}>
+                <input className="control control-sm" value={form.occupation}
+                  onChange={(e) => setField("occupation", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.mrz")} className="info-field-mrz">
-                <textarea className="control control-sm control-mrz" value={form.mrz}
-                  rows={3}
-                  onChange={(e) => setField("mrz", e.target.value)}
-                  placeholder={t("capture.form.mrz_ph")} />
+              <InfoField label={t("detainee.field.occupation_detail")}>
+                <input className="control control-sm" value={form.occupation_detail}
+                  onChange={(e) => setField("occupation_detail", e.target.value)} />
               </InfoField>
-
-              <InfoField label={t("detainee.field.ethnicity")}>
-                <input className="control control-sm" value={form.ethnicity}
-                  onChange={(e) => setField("ethnicity", e.target.value)}
-                  placeholder={t("capture.form.ethnicity_ph")} />
+              <InfoField label={t("detainee.field.file_number")}>
+                <input className="control control-sm" value={form.file_number}
+                  onChange={(e) => setField("file_number", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.nationality")}>
-                <input className="control control-sm" value={form.nationality}
-                  onChange={(e) => setField("nationality", e.target.value)} />
+              <InfoField label={t("detainee.field.file_number_sub")}>
+                <input className="control control-sm" value={form.file_number_sub}
+                  onChange={(e) => setField("file_number_sub", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.religion")}>
-                <input className="control control-sm" value={form.religion}
-                  onChange={(e) => setField("religion", e.target.value)}
-                  placeholder={t("capture.form.religion_ph")} />
+              <InfoField label={t("detainee.field.search_index")}>
+                <input className="control control-sm" value={form.search_index}
+                  onChange={(e) => setField("search_index", e.target.value)} />
+              </InfoField>
+              <InfoField label={t("detainee.field.disease_current_detail")}>
+                <input className="control control-sm" value={form.disease_current_detail}
+                  onChange={(e) => setField("disease_current_detail", e.target.value)} />
+              </InfoField>
+              <InfoField label={t("detainee.field.disease_intake_detail")}>
+                <input className="control control-sm" value={form.disease_intake_detail}
+                  onChange={(e) => setField("disease_intake_detail", e.target.value)} />
+              </InfoField>
+              <InfoField label={t("detainee.field.education_level")}>
+                <input className="control control-sm" value={form.education_level}
+                  onChange={(e) => setField("education_level", e.target.value)} />
+              </InfoField>
+              <InfoField label={t("detainee.field.professional_level")}>
+                <input className="control control-sm" value={form.professional_level}
+                  onChange={(e) => setField("professional_level", e.target.value)} />
+              </InfoField>
+              <InfoField label={t("detainee.field.study_status")}>
+                <input className="control control-sm" value={form.study_status}
+                  onChange={(e) => setField("study_status", e.target.value)} />
+              </InfoField>
+              <InfoField label={t("detainee.field.literacy")}>
+                <input className="control control-sm" value={form.literacy}
+                  onChange={(e) => setField("literacy", e.target.value)} />
+              </InfoField>
+              <InfoField label={t("detainee.field.alias")}>
+                <input className="control control-sm" value={form.alias}
+                  onChange={(e) => setField("alias", e.target.value)} />
               </InfoField>
 
               <InfoField label={t("detainee.field.facility_type")}>
@@ -1498,15 +1666,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.fp", { n: fpCount })}</h2>
-              {!fpRunning ? (
-                <button type="button" className="btn-cccd-scan" onClick={startFpCollect}>
-                  {t("capture.toolbar.enroll")}
-                </button>
-              ) : (
-                <button type="button" className="btn-cccd-scan" onClick={stopFpCollect}>
-                  {t("capture.toolbar.stop")}
-                </button>
+              {fpLocked && (
+                <span className="cccd-listen-badge locked">
+                  <span className="cccd-listen-dot" />
+                  {t("capture.toolbar.locked")}
+                </span>
               )}
+              <button
+                type="button"
+                className="btn-cccd-scan"
+                onClick={toggleFpLock}
+                title={fpLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
+              >
+                {fpLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
+              </button>
             </div>
             <div className="fp-preview-grid fp-preview-grid--single-row">
               {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {

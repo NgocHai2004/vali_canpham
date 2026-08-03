@@ -5789,6 +5789,29 @@ textarea.input {
   text-shadow: 0 0 1px rgba(255, 255, 255, 0.55);
 }
 
+/* Ô contentEditable sửa tại chỗ trên ảnh CCCD: hover/focus hiện viền + nền để biết đang sửa được.
+   Container .cccd-card-mock-fields có pointer-events:none để click vùng ảnh trống lọt xuống
+   div upload; riêng ô editable phải bật lại pointer-events:auto để nhận click + stopPropagation. */
+.cccd-mf[contenteditable] {
+  pointer-events: auto;
+  cursor: text;
+  border-radius: 3px;
+  transition: background 0.12s, box-shadow 0.12s;
+  min-width: 1.5em;
+}
+.cccd-mf[contenteditable]:hover {
+  background: rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+.cccd-mf[contenteditable]:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.75);
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  z-index: 5;
+}
+
 .cccd-mf-no {
   left: 40%;
   right: 4%;
@@ -5852,7 +5875,7 @@ textarea.input {
 .cccd-mf-res {
   left: 31%;
   right: 4%;
-  top: 89%;
+  top: 90%;
   font-size: clamp(9px, 1.55cqw, 13px);
   line-height: 1.15;
   font-weight: 400;

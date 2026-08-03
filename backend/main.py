@@ -237,6 +237,28 @@ class DetaineeIn(BaseModel):
     issued_place: Optional[str] = None              # cơ quan cấp
     distinguishing_features: Optional[str] = None    # đặc điểm nhận dạng
     mrz: Optional[str] = None                       # MRZ 2-3 dòng
+    # ---- Thông tin can phạm (nghiệp vụ, 21 trường string) ----
+    cell_block: Optional[str] = None                 # 1. Buồng giam
+    status_detainee: Optional[str] = None            # 2. Tình trạng
+    squad: Optional[str] = None                      # 3. Phân đội
+    health_intake: Optional[str] = None              # 4. Sức khỏe khi vào
+    disease_current: Optional[str] = None            # 5. Bệnh hiện tại
+    disease_intake: Optional[str] = None             # 6. Bệnh tật khi vào
+    alcohol_use: Optional[str] = None                # 7. Sử dụng chất có cồn
+    address_before_arrest: Optional[str] = None      # 8. Địa chỉ trước khi bị bắt
+    release_residence: Optional[str] = None          # 9. Nơi thả về cư trú
+    occupation: Optional[str] = None                 # 10. Nghề nghiệp
+    occupation_detail: Optional[str] = None          # 11. Nghề cụ thể
+    file_number: Optional[str] = None                # 12. Số HSĐ
+    file_number_sub: Optional[str] = None            # 13. Số HS phụ
+    search_index: Optional[str] = None               # 14. Chỉ mục tìm kiếm
+    disease_current_detail: Optional[str] = None     # 15. Chi tiết bệnh hiện tại
+    disease_intake_detail: Optional[str] = None      # 16. Chi tiết bệnh khi vào
+    education_level: Optional[str] = None            # 17. Trình độ học vấn
+    professional_level: Optional[str] = None         # 18. Trình độ chuyên môn
+    study_status: Optional[str] = None               # 19. Tình trạng học tập
+    literacy: Optional[str] = None                   # 20. Biết đọc viết
+    alias: Optional[str] = None                      # 21. Tên khác (bí danh)
     height_cm: Optional[float] = Field(None, ge=50, le=250)
     weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
