@@ -1158,7 +1158,7 @@ async def get_session_detail(session_id: str, user: dict = Depends(get_current_u
             "full_name": d.get("full_name", ""),
             "cccd_number": d.get("cccd_number", "") or "",
             "gender": d.get("gender", "male"),
-            "dob": d["dob"].isoformat() if isinstance(d.get("dob"), datetime) else None,
+            "dob": (d["dob"].isoformat() if isinstance(d.get("dob"), datetime) else d.get("dob")) or None,
             "cell_code": d.get("cell_code", "") or "",
             "created_at": d["created_at"].isoformat() if isinstance(d.get("created_at"), datetime) else None,
         })

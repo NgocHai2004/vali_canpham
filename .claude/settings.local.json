@@ -8,7 +8,9 @@
       "Read(//tmp/**)",
       "mcp__graphiti__get_status",
       "mcp__graphiti__add_memory",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "PowerShell(docker run *)",
+      "PowerShell(docker exec mongo *)"
     ]
   },
   "enabledPlugins": {}
