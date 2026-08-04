@@ -5838,7 +5838,7 @@ textarea.input {
 .cccd-mf-dob {
   left: 58%;
   right: 5%;
-  top: 62%;
+  top: 61%;
   font-size: clamp(8px, 1.0cqw, 8px);
   font-weight: 400;
   -webkit-line-clamp: 1;
@@ -5846,7 +5846,7 @@ textarea.input {
 
 .cccd-mf-sex {
   left: 48%;
-  top: 66.5%;
+  top: 68%;
   font-size: clamp(9px, 1.55cqw, 13px);
   font-weight: 400;
   -webkit-line-clamp: 1;
@@ -5855,7 +5855,7 @@ textarea.input {
 .cccd-mf-nat {
   left: 81%;
   right: 5%;
-  top: 66.5%;
+  top: 68%;
   font-size: clamp(9px, 1.55cqw, 13px);
   font-weight: 400;
   -webkit-line-clamp: 1;
@@ -5864,7 +5864,7 @@ textarea.input {
 .cccd-mf-origin {
   left: 31%;
   right: 4%;
-  top: 79.5%;
+  top: 80%;
   font-size: clamp(9px, 1.55cqw, 13px);
   line-height: 1.0;
   font-weight: 400;

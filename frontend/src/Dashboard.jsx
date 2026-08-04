@@ -6946,6 +6946,10 @@ const styles = `
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: repeat(5, minmax(0, 1fr));
   }
+  /* Trường Ghi chú — kéo dài 2 cột như một trường thường trong lưới can phạm */
+  .personal-info--3col .span-2col {
+    grid-column: span 2;
+  }
   /* Ô MRZ — textarea 2-3 dòng, cao hơn input thường, kéo dài cả ô grid */
   .info-field-mrz { grid-row: span 2; }
   .control-mrz {

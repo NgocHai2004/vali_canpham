@@ -436,7 +436,7 @@
   "capture.updated": "Đã cập nhật hồ sơ {code} — {name}",
   "capture.view_list": "Xem danh sách →",
   "capture.form.personal_id": "Mã can phạm *",
-  "capture.form.personal_id_ph": "VD: CP2026-001 hoặc số CCCD",
+  "capture.form.personal_id_ph": "VD: CP2026-001",
   "capture.form.full_name": "Họ và tên",
   "capture.form.full_name_ph": "Nguyễn Văn A",
   "capture.form.cccd_ph": "079204012345",

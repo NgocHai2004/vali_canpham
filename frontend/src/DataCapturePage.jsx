@@ -1624,6 +1624,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 <input className="control control-sm" value={form.alias}
                   onChange={(e) => setField("alias", e.target.value)} />
               </InfoField>
+              <InfoField label={t("detainee.field.note")} className="span-2col">
+                <input className="control control-sm" value={form.note}
+                  onChange={(e) => setField("note", e.target.value)}
+                  placeholder={t("capture.field.note_ph")} />
+              </InfoField>
 
               <InfoField label={t("detainee.field.facility_type")}>
                 <div className="radio-group radio-group-sm">
@@ -1790,21 +1795,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <Tier3Static label={t("capture.field.software")} value="v5.3.4.1" />
               <Tier3Static label={t("capture.field.method")} value="Live Scan" />
               <Tier3Static label={t("capture.field.workstation")} value={typeof window !== "undefined" ? window.location.hostname : "-"} />
-            </div>
-          </section>
-
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.note")}</h2>
-            </div>
-            <div className="notes-body">
-              <textarea
-                className="control notes-input"
-                value={form.note}
-                onChange={(e) => setField("note", e.target.value)}
-                placeholder={t("capture.field.note_ph")}
-                rows={4}
-              />
             </div>
           </section>
 
