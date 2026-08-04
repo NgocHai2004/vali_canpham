@@ -6943,12 +6943,20 @@ const styles = `
   }
   /* Biến thể 3 cột cho tier 2 personal-info (có cột 3 = trường mới: đặc điểm, ngày cấp, cơ quan cấp, MRZ) */
   .personal-info--3col {
+    /* Lưới 3 cột cân bằng: hàng tự chia đều theo số trường.
+       grid-auto-flow: column + grid-template-rows cố định → các cột bằng nhau. */
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(5, minmax(0, 1fr));
+    grid-template-rows: repeat(9, minmax(0, 1fr));
   }
-  /* Trường Ghi chú — kéo dài 2 cột như một trường thường trong lưới can phạm */
-  .personal-info--3col .span-2col {
-    grid-column: span 2;
+  /* Biến thể 4 cột cho khối THÔNG TIN CAN PHẠM — 27 trường chia 4 cột × 7 hàng */
+  .personal-info--4col {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: repeat(7, minmax(0, 1fr));
+  }
+  /* Trường Ghi chú — trong lưới can phạm giữ 1 ô như các trường khác để cột cân */
+  .personal-info--3col .span-2col,
+  .personal-info--4col .span-2col {
+    grid-column: span 1;
   }
   /* Ô MRZ — textarea 2-3 dòng, cao hơn input thường, kéo dài cả ô grid */
   .info-field-mrz { grid-row: span 2; }
@@ -6965,9 +6973,9 @@ const styles = `
   }
   .info-field {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 2px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
     min-width: 0;
     min-height: 0;
   }
@@ -6977,9 +6985,16 @@ const styles = `
     font-weight: 700;
     letter-spacing: .1px;
     line-height: 1;
+    flex: 0 0 40%;
+    width: 40%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .info-field .control-sm {
-    width: 100%;
+    flex: 1 1 60%;
+    width: 60%;
+    min-width: 0;
     height: 26px;
     padding: 0 8px;
     border: 1px solid #d9e3f0;

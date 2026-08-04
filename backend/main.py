@@ -149,11 +149,27 @@ async def _ensure_default_cells():
     if await db.cells.count_documents({}) == 0:
         now = datetime.utcnow()
         seeds = [
-            {"code": "A01", "name": "Buồng A01", "capacity": 20, "note": "Khu A - tầng 1"},
-            {"code": "A02", "name": "Buồng A02", "capacity": 20, "note": "Khu A - tầng 1"},
-            {"code": "B01", "name": "Buồng B01", "capacity": 25, "note": "Khu B - tầng 1"},
-            {"code": "B02", "name": "Buồng B02", "capacity": 25, "note": "Khu B - tầng 1"},
-            {"code": "C01", "name": "Buồng C01 - Nữ", "capacity": 15, "note": "Khu C - dành cho nữ"},
+            # Cấp facility (cơ sở giam giữ)
+            {"code": "TTG", "name": "Trại tạm giam", "capacity": 0, "note": "",
+             "level": "facility", "parent": None, "custody_type": "tam_giam"},
+            {"code": "NTG", "name": "Nhà tạm giữ", "capacity": 0, "note": "",
+             "level": "facility", "parent": None, "custody_type": "tam_giu"},
+            # Cấp sub_camp (phân trại — con của Trại tạm giam)
+            {"code": "PT1", "name": "Phân trại 1", "capacity": 0, "note": "",
+             "level": "sub_camp", "parent": "TTG", "custody_type": None},
+            {"code": "PT2", "name": "Phân trại 2", "capacity": 0, "note": "",
+             "level": "sub_camp", "parent": "TTG", "custody_type": None},
+            # Cấp cell (buồng)
+            {"code": "B101", "name": "Buồng 101", "capacity": 20, "note": "Phân trại 1",
+             "level": "cell", "parent": "PT1", "custody_type": None},
+            {"code": "B102", "name": "Buồng 102", "capacity": 20, "note": "Phân trại 1",
+             "level": "cell", "parent": "PT1", "custody_type": None},
+            {"code": "B201", "name": "Buồng 201", "capacity": 25, "note": "Phân trại 2",
+             "level": "cell", "parent": "PT2", "custody_type": None},
+            {"code": "B01", "name": "Buồng 01", "capacity": 15, "note": "Nhà tạm giữ",
+             "level": "cell", "parent": "NTG", "custody_type": None},
+            {"code": "B02", "name": "Buồng 02", "capacity": 15, "note": "Nhà tạm giữ - nữ",
+             "level": "cell", "parent": "NTG", "custody_type": None},
         ]
         for s in seeds:
             s.update({"created_at": now, "updated_at": now})
@@ -218,6 +234,13 @@ class CellIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     capacity: int = Field(ge=0, le=500)
     note: str = ""
+    # ---- Phân cấp cơ sở giam giữ (cây) ----
+    # level: facility (Trại tạm giam / Nhà tạm giữ)
+    #      | sub_camp (Phân trại — con của Trại tạm giam)
+    #      | cell (Buồng — con của sub_camp hoặc facility)
+    level: str = Field(default="cell", pattern=r"^(facility|sub_camp|cell)$")
+    parent: Optional[str] = None        # code của node cha
+    custody_type: Optional[str] = None  # tam_giam | tam_giu — chỉ đặt ở cấp facility
 
 
 class DetaineeIn(BaseModel):
@@ -262,8 +285,7 @@ class DetaineeIn(BaseModel):
     height_cm: Optional[float] = Field(None, ge=50, le=250)
     weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
-    facility_type: Optional[str] = None    # trai_tam_giam | phan_trai_tam_giam
-    custody_type: Optional[str] = None     # tam_giu | tam_giam
+    custody_type: Optional[str] = None     # tam_giu | tam_giam — Diện giam giữ
     charge: Optional[str] = None
     date_in: Optional[str] = None
     note: Optional[str] = None

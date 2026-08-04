@@ -82,8 +82,9 @@ const EMPTY_FORM = {
   height_cm: "",
   weight_kg: "",
   cell_code: "",
-  facility_type: "",
   custody_type: "",
+  facility_code: "",    // cơ sở giam giữ (Trại tạm giam / Nhà tạm giữ)
+  sub_camp_code: "",    // phân trại (chỉ khi custody_type = tam_giam)
   note: "",
   // ---- Thông tin can phạm (21 trường string) ----
   cell_block: "",
@@ -626,8 +627,9 @@ function normalizeInitial(initial) {
       height_cm: initial.height_cm != null ? String(initial.height_cm) : "",
       weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
       cell_code: initial.cell_code || "",
-      facility_type: initial.facility_type || "",
       custody_type: initial.custody_type || "",
+      facility_code: initial.facility_code || "",
+      sub_camp_code: initial.sub_camp_code || "",
       note: initial.note || "",
       // ---- Thông tin can phạm (21 trường string) ----
       cell_block: initial.cell_block || "",
@@ -823,6 +825,62 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   useEffect(() => {
     api.listCells().then(setCells).catch(() => setCells([]));
   }, []);
+
+  // ---- Phân cấp cơ sở giam giữ (cây) ----
+  // cells từ backend giờ có { code, name, level, parent, custody_type }
+  const facilities = cells.filter(
+    (c) => c.level === "facility" && c.custody_type === form.custody_type
+  );
+  const subCamps = cells.filter(
+    (c) => c.level === "sub_camp" && c.parent === form.facility_code
+  );
+  // Buồng con của phân trại (Tạm giam) hoặc con của cơ sở (Tạm giữ)
+  const cellParent = form.custody_type === "tam_giam"
+    ? form.sub_camp_code
+    : form.facility_code;
+  const availableCells = cells.filter(
+    (c) => c.level === "cell" && c.parent === cellParent
+  );
+
+  // Khi đổi Diện → reset cơ sở/phân trại/buồng không còn hợp lệ
+  useEffect(() => {
+    setForm((f) => {
+      const validFacilities = cells.filter(
+        (c) => c.level === "facility" && c.custody_type === f.custody_type
+      );
+      if (f.facility_code && !validFacilities.some((c) => c.code === f.facility_code)) {
+        return { ...f, facility_code: "", sub_camp_code: "", cell_code: "" };
+      }
+      return f;
+    });
+  }, [form.custody_type, cells]);
+
+  // Khi đổi cơ sở → reset phân trại/buồng
+  useEffect(() => {
+    setForm((f) => {
+      const validSub = cells.filter(
+        (c) => c.level === "sub_camp" && c.parent === f.facility_code
+      );
+      if (f.sub_camp_code && !validSub.some((c) => c.code === f.sub_camp_code)) {
+        return { ...f, sub_camp_code: "", cell_code: "" };
+      }
+      return f;
+    });
+  }, [form.facility_code, cells]);
+
+  // Khi đổi phân trại → reset buồng
+  useEffect(() => {
+    setForm((f) => {
+      const parent = f.custody_type === "tam_giam" ? f.sub_camp_code : f.facility_code;
+      const validCells = cells.filter(
+        (c) => c.level === "cell" && c.parent === parent
+      );
+      if (f.cell_code && !validCells.some((c) => c.code === f.cell_code)) {
+        return { ...f, cell_code: "" };
+      }
+      return f;
+    });
+  }, [form.sub_camp_code, form.facility_code, form.custody_type, cells]);
 
   // WebSocket lắng nghe cân nặng từ máy cân ngoài (POST /api/weight/push -> broadcast)
   const [weightFlash, setWeightFlash] = useState(false);
@@ -1294,8 +1352,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
         weight_kg: form.weight_kg ? Math.round(Number(form.weight_kg)) : null,
         cell_code: strOrNull(form.cell_code),
-        facility_type: strOrNull(form.facility_type),
         custody_type: strOrNull(form.custody_type),
+        facility_code: strOrNull(form.facility_code),
+        sub_camp_code: strOrNull(form.sub_camp_code),
         note: strOrNull(form.note),
         // ---- Thông tin can phạm (21 trường string) ----
         cell_block: strOrNull(form.cell_block),
@@ -1532,7 +1591,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
             </div>
-            <div className="personal-info personal-info--3col">
+            <div className="personal-info personal-info--4col">
               {/* Mã can phạm — giữ lại (nghiệp vụ, không phải trường CCCD) */}
               <InfoField label={t("capture.form.personal_id")}>
                 <input className="control control-sm" value={form.personal_id}
@@ -1592,10 +1651,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 <input className="control control-sm" value={form.file_number_sub}
                   onChange={(e) => setField("file_number_sub", e.target.value)} />
               </InfoField>
-              <InfoField label={t("detainee.field.search_index")}>
-                <input className="control control-sm" value={form.search_index}
-                  onChange={(e) => setField("search_index", e.target.value)} />
-              </InfoField>
               <InfoField label={t("detainee.field.disease_current_detail")}>
                 <input className="control control-sm" value={form.disease_current_detail}
                   onChange={(e) => setField("disease_current_detail", e.target.value)} />
@@ -1630,22 +1685,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   placeholder={t("capture.field.note_ph")} />
               </InfoField>
 
-              <InfoField label={t("detainee.field.facility_type")}>
-                <div className="radio-group radio-group-sm">
-                  <label className="radio-option">
-                    <input type="radio" name="capture-facility-type" value="trai_tam_giam"
-                      checked={form.facility_type === "trai_tam_giam"}
-                      onChange={(e) => setField("facility_type", e.target.value)} />
-                    <span>{t("detainee.facility_type.main")}</span>
-                  </label>
-                  <label className="radio-option">
-                    <input type="radio" name="capture-facility-type" value="phan_trai_tam_giam"
-                      checked={form.facility_type === "phan_trai_tam_giam"}
-                      onChange={(e) => setField("facility_type", e.target.value)} />
-                    <span>{t("detainee.facility_type.sub")}</span>
-                  </label>
-                </div>
+              <InfoField label={t("detainee.field.height_cm")}>
+                <input className="control control-sm" type="number" min="50" max="250"
+                  value={form.height_cm}
+                  onChange={(e) => setField("height_cm", e.target.value)}
+                  placeholder="---" />
               </InfoField>
+              <InfoField label={t("detainee.field.weight_kg")}>
+                <input className="control control-sm" type="number" min="20" max="200"
+                  value={form.weight_kg}
+                  onChange={(e) => setField("weight_kg", e.target.value)}
+                  placeholder="---" />
+              </InfoField>
+
               <InfoField label={t("detainee.field.custody_type")}>
                 <div className="radio-group radio-group-sm">
                   <label className="radio-option">
@@ -1661,6 +1713,38 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     <span>{t("detainee.custody_type.detention")}</span>
                   </label>
                 </div>
+              </InfoField>
+              <InfoField label={t("detainee.field.facility_type")}>
+                <select className="control control-sm"
+                  value={form.facility_code}
+                  onChange={(e) => setField("facility_code", e.target.value)}>
+                  <option value="">{t("detainee.form.select_facility")}</option>
+                  {facilities.map((f) => (
+                    <option key={f.code} value={f.code}>{f.name}</option>
+                  ))}
+                </select>
+              </InfoField>
+              {form.custody_type === "tam_giam" && (
+                <InfoField label={t("detainee.field.sub_camp")}>
+                  <select className="control control-sm"
+                    value={form.sub_camp_code}
+                    onChange={(e) => setField("sub_camp_code", e.target.value)}>
+                    <option value="">{t("detainee.form.select_sub_camp")}</option>
+                    {subCamps.map((s) => (
+                      <option key={s.code} value={s.code}>{s.name}</option>
+                    ))}
+                  </select>
+                </InfoField>
+              )}
+              <InfoField label={t("detainee.field.cell")}>
+                <select className="control control-sm"
+                  value={form.cell_code}
+                  onChange={(e) => setField("cell_code", e.target.value)}>
+                  <option value="">{t("detainee.form.select_cell")}</option>
+                  {availableCells.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name || c.code}</option>
+                  ))}
+                </select>
               </InfoField>
             </div>
           </section>
@@ -1746,45 +1830,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </section>
         </div>
 
-        {/* ================ Tier 4: 4 side cols ================ */}
+        {/* ================ Tier 4: side cols ================ */}
         <div className="case-tier-4">
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.extra")}</h2>
-            </div>
-            <div className="tier3-body">
-              <Tier3Row label={t("capture.field.height_cm")}>
-                <div className="tier3-input-unit">
-                  <input className="control tier3-input" type="number" min="50" max="250" value={form.height_cm}
-                    onChange={(e) => setField("height_cm", e.target.value)} placeholder="---" />
-                  <span className="tier3-unit">cm</span>
-                </div>
-              </Tier3Row>
-              <Tier3Row label={t("capture.field.weight_kg")}>
-                <div className="tier3-input-unit">
-                  <input className="control tier3-input" type="number" min="20" max="200" value={form.weight_kg}
-                    onChange={(e) => setField("weight_kg", e.target.value)} placeholder="---" />
-                  <span className="tier3-unit">kg</span>
-                </div>
-              </Tier3Row>
-              <Tier3Row label={t("capture.field.cell")}>
-                <input
-                  className="control tier3-input"
-                  type="text"
-                  list="cell-code-suggestions"
-                  value={form.cell_code}
-                  onChange={(e) => setField("cell_code", e.target.value)}
-                  placeholder={t("capture.field.cell_ph")}
-                />
-                <datalist id="cell-code-suggestions">
-                  {cells.map((c) => (
-                    <option key={c.code} value={c.code}>{c.name || c.code}</option>
-                  ))}
-                </datalist>
-              </Tier3Row>
-            </div>
-          </section>
-
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.devices")}</h2>
@@ -1795,17 +1842,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <Tier3Static label={t("capture.field.software")} value="v5.3.4.1" />
               <Tier3Static label={t("capture.field.method")} value="Live Scan" />
               <Tier3Static label={t("capture.field.workstation")} value={typeof window !== "undefined" ? window.location.hostname : "-"} />
-            </div>
-          </section>
-
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.history")}</h2>
-            </div>
-            <div className="timeline-body">
-              <TimelineItem time={captureTimeStr} desc={t("capture.timeline.capture")} />
-              <TimelineItem time={captureTimeStr} desc={t("capture.timeline.verify")} />
-              {readyState && <TimelineItem time={captureTimeStr} desc={t("capture.timeline.ready")} />}
             </div>
           </section>
         </div>
