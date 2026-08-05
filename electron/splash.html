@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html,body{margin:0;height:100%;background:#7a0f14;color:#fff;
+    font-family:Segoe UI,Arial,sans-serif;display:flex;align-items:center;
+    justify-content:center;flex-direction:column;gap:16px}
+  .spin{width:36px;height:36px;border:4px solid rgba(255,255,255,.3);
+    border-top-color:#fff;border-radius:50%;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  #msg{font-size:15px;opacity:.9}
+</style></head><body>
+  <div class="spin"></div>
+  <div id="msg">Đang khởi động…</div>
+</body></html>
