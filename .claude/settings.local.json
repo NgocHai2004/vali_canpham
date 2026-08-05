@@ -10,7 +10,9 @@
       "mcp__graphiti__add_memory",
       "Bash(npm run *)",
       "PowerShell(docker run *)",
-      "PowerShell(docker exec mongo *)"
+      "PowerShell(docker exec mongo *)",
+      "PowerShell(git *)",
+      "Bash(npm test *)"
     ]
   },
   "enabledPlugins": {}

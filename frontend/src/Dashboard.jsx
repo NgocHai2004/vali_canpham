@@ -66,6 +66,9 @@ const Icon = {
   clipboard: (
     <svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1" /><path d="M6 7h12v14H6z" /><path d="M9 12h6M9 16h4" /></svg>
   ),
+  gear: (
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+  ),
 };
 
 const NAV_BASE = [
@@ -77,7 +80,10 @@ const NAV_BASE = [
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
   { key: "logs", labelKey: "nav.logs", icon: Icon.clipboard },
 ];
-const NAV_ADMIN = [{ key: "users", labelKey: "nav.users", icon: Icon.users }];
+const NAV_ADMIN = [
+  { key: "users", labelKey: "nav.users", icon: Icon.users },
+  { key: "settings", labelKey: "nav.settings", icon: Icon.gear },
+];
 
 export default function Dashboard({ username = "admin", role = "user", fullName = "", onFullNameChange, onLogout }) {
   const { t, locale } = useI18n();
@@ -246,6 +252,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
           {page === "logs" && <LogsPage />}
           {page === "users" && isAdmin && <UsersPage currentUser={username} />}
+          {page === "settings" && isAdmin && <SettingsPage />}
         </main>
       </div>
     </>
@@ -1524,9 +1531,11 @@ function SyncPage() {
     return {
       personal_id: d.personal_id || d.code || null,
       full_name: d.full_name || null,
-      gender: d.gender || null,
       dob: d.dob || null,
+      gender: d.gender || null,
       cccd_number: d.cccd_number || null,
+      cmnd_old: d.cmnd_old || null,
+      alias: d.alias || null,
       nationality: d.nationality || null,
       ethnicity: d.ethnicity || null,
       religion: d.religion || null,
@@ -1535,9 +1544,34 @@ function SyncPage() {
       issued_date: d.issued_date || null,
       expiry_date: d.expiry_date || null,
       issued_place: d.issued_place || null,
+      distinguishing_features: d.distinguishing_features || null,
+      mrz: d.mrz || null,
       height_cm: d.height_cm || null,
       weight_kg: d.weight_kg || null,
+      // ---- Nghiệp vụ giam giữ (21 trường) ----
+      cell_block: d.cell_block || null,
+      status_detainee: d.status_detainee || null,
+      squad: d.squad || null,
+      health_intake: d.health_intake || null,
+      disease_current: d.disease_current || null,
+      disease_intake: d.disease_intake || null,
+      alcohol_use: d.alcohol_use || null,
+      address_before_arrest: d.address_before_arrest || null,
+      release_residence: d.release_residence || null,
+      occupation: d.occupation || null,
+      occupation_detail: d.occupation_detail || null,
+      file_number: d.file_number || null,
+      file_number_sub: d.file_number_sub || null,
+      search_index: d.search_index || null,
+      disease_current_detail: d.disease_current_detail || null,
+      disease_intake_detail: d.disease_intake_detail || null,
+      education_level: d.education_level || null,
+      professional_level: d.professional_level || null,
+      study_status: d.study_status || null,
+      literacy: d.literacy || null,
+      // ---- Diện giam & vị trí ----
       cell_code: d.cell_code || null,
+      custody_type: d.custody_type || null,
       charge: d.charge || null,
       date_in: d.date_in || null,
       note: d.note || null,
@@ -3489,6 +3523,131 @@ function UsersPage({ currentUser }) {
   );
 }
 
+function SettingsPage() {
+  const { t } = useI18n();
+  const [heightImage, setHeightImage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    api.measurementConfig()
+      .then((cfg) => {
+        if (!cancelled) {
+          const v = Number(cfg?.height_image);
+          setHeightImage(Number.isFinite(v) && v > 0 ? String(v) : "");
+        }
+      })
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const value = Number(heightImage);
+    if (!Number.isFinite(value) || value <= 0) {
+      setError(t("settings.err.invalid"));
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const res = await api.updateMeasurementConfig({ height_image: value });
+      setHeightImage(String(res.height_image));
+      toast.success(t("settings.saved"));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hi = Number(heightImage);
+  const hiValid = Number.isFinite(hi) && hi > 0;
+  const previewRows = [0.15, 0.2, 0.25, 0.3];
+
+  return (
+    <div className="page">
+      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
+
+      {error && <StateBox type="error">{error}</StateBox>}
+
+      {loading ? (
+        <div className="table-card" style={{ padding: 20 }}>
+          <StateBox>{t("common.loading")}</StateBox>
+        </div>
+      ) : (
+        <div className="settings-grid">
+          <section className="table-card settings-card">
+            <div className="settings-card-head">
+              <span className="settings-card-icon">{Icon.gear}</span>
+              <div>
+                <h2>{t("settings.measurement.title")}</h2>
+                <p>{t("settings.measurement.desc")}</p>
+              </div>
+            </div>
+            <form className="form" onSubmit={submit}>
+              <FieldRow label={t("settings.height_image.label")}>
+                <input
+                  className="control"
+                  type="number"
+                  min="1"
+                  step="any"
+                  value={heightImage}
+                  onChange={(e) => setHeightImage(e.target.value)}
+                  required
+                />
+              </FieldRow>
+              <p style={{ color: "#98a4b8", fontSize: 12, margin: "4px 0 16px" }}>
+                {t("settings.height_image.desc")}
+              </p>
+              <div className="modal-actions" style={{ marginTop: 0 }}>
+                <button type="submit" className="button primary" disabled={saving}>
+                  {saving ? t("common.saving") : t("common.save")}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="table-card settings-card">
+            <div className="settings-card-head">
+              <span className="settings-card-icon">{Icon.chart}</span>
+              <div>
+                <h2>{t("settings.formula.title")}</h2>
+                <p>{t("settings.formula.desc")}</p>
+              </div>
+            </div>
+            <div className="settings-formula">height_cm = (1 − head_ratio) × height_image</div>
+            <p className="settings-preview-caption">
+              {hiValid
+                ? t("settings.preview.caption", { v: hi })
+                : t("settings.preview.invalid")}
+            </p>
+            <table className="settings-preview-table">
+              <thead>
+                <tr>
+                  <th>head_ratio</th>
+                  <th>{t("settings.preview.col_height")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((r) => (
+                  <tr key={r}>
+                    <td>{r.toFixed(2)}</td>
+                    <td>{hiValid ? `${((1 - r) * hi).toFixed(1)} cm` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UserForm({ initial, onClose, onSaved }) {
   const { t } = useI18n();
   const isEdit = Boolean(initial);
@@ -5392,6 +5551,76 @@ const styles = `
     flex: 1 1 auto;
     min-height: 0;
   }
+
+  /* ===== Trang Cài đặt ===== */
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 18px;
+    align-content: start;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+  .settings-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 20px 22px;
+    flex: 0 0 auto;
+  }
+  .settings-card-head {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f1f4;
+  }
+  .settings-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: rgba(120, 170, 255, .14);
+    color: #2563eb;
+    flex-shrink: 0;
+  }
+  .settings-card-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .settings-card-head h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: #111827; }
+  .settings-card-head p { font-size: 12.5px; color: #6b7280; margin: 0; line-height: 1.5; }
+  .settings-formula {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 12px 14px;
+    border-radius: 8px;
+    text-align: center;
+    letter-spacing: .3px;
+  }
+  .settings-preview-caption { font-size: 12.5px; color: #6b7280; margin: 14px 0 8px; }
+  .settings-preview-table { width: 100%; border-collapse: collapse; }
+  .settings-preview-table th {
+    text-align: left;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: #6b7280;
+    font-weight: 600;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .settings-preview-table td {
+    padding: 9px 10px;
+    font-size: 13.5px;
+    color: #111827;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .settings-preview-table td:last-child { font-weight: 600; }
+  .settings-preview-table tr:last-child td { border-bottom: none; }
 
   /* Danh sách can phạm — dùng cùng phong cách session-list */
   .detainees-table-wrap {

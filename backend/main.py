@@ -153,6 +153,22 @@ async def _ensure_admin():
             )
 
 
+async def _load_measurement_config():
+    """Đọc height_image từ db.settings; seed từ .env nếu chưa có. Cập nhật cache in-memory."""
+    global _height_image_cache
+    doc = await db.settings.find_one({"_id": "measurement"})
+    if doc is None:
+        _height_image_cache = HEIGHT_IMAGE_DEFAULT
+        await db.settings.insert_one({"_id": "measurement", "height_image": HEIGHT_IMAGE_DEFAULT})
+    else:
+        try:
+            val = float(doc.get("height_image"))
+            if val > 0:
+                _height_image_cache = val
+        except (TypeError, ValueError):
+            pass
+
+
 async def _ensure_default_cells():
     if await db.cells.count_documents({}) == 0:
         now = datetime.utcnow()
@@ -1510,7 +1526,25 @@ async def face_backfill(user: dict = Depends(get_current_user)):
 
 @app.get("/api/config/measurement")
 async def measurement_config(user: dict = Depends(get_current_user)):
-    return {"height_image": HEIGHT_IMAGE}
+    return {"height_image": get_height_image()}
+
+
+class MeasurementConfigIn(BaseModel):
+    height_image: float = Field(..., gt=0, le=HEIGHT_IMAGE_MAX)
+
+
+@app.put("/api/config/measurement")
+async def update_measurement_config(body: MeasurementConfigIn, request: Request, admin: dict = Depends(require_admin)):
+    global _height_image_cache
+    value = float(body.height_image)
+    await db.settings.update_one(
+        {"_id": "measurement"},
+        {"$set": {"height_image": value}},
+        upsert=True,
+    )
+    _height_image_cache = value
+    await _log(request, admin, "update", "setting", "measurement", {"height_image": value})
+    return {"height_image": value}
 
 
 # ==================== CCCD READER (watch folder data_cccd) ====================

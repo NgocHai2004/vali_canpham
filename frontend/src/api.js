@@ -185,6 +185,7 @@ export const api = {
   verifyDongle: () => request("/api/auth/dongle-verify"),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
   measurementConfig: () => request("/api/config/measurement"),
+  updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
 
   stats: () => request("/api/stats"),
 
