@@ -710,6 +710,33 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } catch { /* noop */ }
   }, [t]);
 
+  // Dedup đối sánh vân tay: 1 can phạm đã đăng ký = 1 cảnh báo trong 1 phiên chụp.
+  const fpMatchedIdsRef = useRef(new Set());
+  useEffect(() => { fpMatchedIdsRef.current = new Set(); }, [seed]);
+
+  // Tra cứu ngay 1 template vừa quét: nếu trùng can phạm đã đăng ký thì cảnh báo
+  // liền (không đợi thu đủ 10 ngón). Dùng chung cho vòng thu tự động và thu lại 1 ngón.
+  const checkFpMatch = useCallback(async (templateB64) => {
+    if (!templateB64) return;
+    try {
+      const r = await api.matchFingerprint(templateB64);
+      if (r && r.matched && Array.isArray(r.items) && r.items.length > 0) {
+        const best = r.items[0];
+        const did = best?._id || best?.id;
+        if (did && fpMatchedIdsRef.current.has(did)) return;   // đã báo người này rồi
+        if (did) fpMatchedIdsRef.current.add(did);
+        raiseAlert({
+          source: "fp",
+          detainee: best,
+          score: best.match_score,
+          finger: best.match_finger,
+        });
+      }
+    } catch (e) {
+      console.error("[FP] match lookup failed:", e);
+    }
+  }, [raiseAlert]);
+
   // Dedup face recognition: 1 người = 1 toast trong 1 phiên chụp (reset khi seed đổi)
   const recognizedIdsRef = useRef(new Set());
   useEffect(() => {
@@ -1023,6 +1050,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         });
         setFpStatus(t("capture.status.retook", { name: targetName }));
         setOk(t("capture.status.updated", { name: targetName }));
+        // Thu lại 1 ngón cũng tra cứu ngay: trùng can phạm đã đăng ký thì báo liền.
+        checkFpMatch(tmplB64);
       } catch (e) {
         setFpError(t("capture.err.save_photo", { message: e.message }));
       }
@@ -1090,6 +1119,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               }
               return np;
             });
+            // Quét xong ngón này là tra cứu ngay: trùng can phạm đã đăng ký thì báo liền.
+            checkFpMatch(tmplB64);
           } catch (e) {
             setFpError(t("capture.err.save_photo", { message: e.message }));
           }
@@ -1805,46 +1836,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 );
               })}
             </div>
-          </section>
-
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.quality")}</h2>
-            </div>
-            <div className="fp-kpi">
-              <div className="fp-kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 10.5c-.9 0-1.6.7-1.6 1.6v2.4c0 1.7.4 3.4 1.1 5" />
-                  <path d="M9.2 8.5A4 4 0 0 1 16 11v3.4c0 1.4.2 2.7.6 4" />
-                  <path d="M7 7.6A6 6 0 0 1 18 11v3.3c0 1 .1 2 .4 3" />
-                  <path d="M5.2 9.8A8 8 0 0 1 20 11" />
-                  <path d="M4.5 13.5c-.1-.9-.1-1.8 0-2.7" />
-                  <path d="M6 18.5c-.5-1-.8-2.1-.9-3.2" />
-                  <path d="M8.7 20.6c-.6-1-1-2-1.3-3.1" />
-                  <path d="M15.7 20.7c.7-1.4 1-2.9 1.1-4.4" />
-                </svg>
+            <div className="fp-kpi fp-kpi-inline fp-kpi-3col">
+              <div className="fp-kpi-cell">
+                <span className="fp-kpi-num">{fpCount}</span>
+                <span className="fp-kpi-divider">/ 10</span>
               </div>
-              <div className="fp-kpi-count">{t("capture.quality.collected", { n: fpCount })}</div>
-              <div className="fp-kpi-big">{fpCount === 10 ? "100%" : `${Math.round(fpCount * 10)}%`}</div>
+              <div className="fp-kpi-cell">{t("capture.quality.collected", { n: fpCount })}</div>
+              <div className="fp-kpi-cell">
+                <span className="fp-kpi-percent">{fpCount === 10 ? "100%" : `${Math.round(fpCount * 10)}%`}</span>
+              </div>
             </div>
           </section>
         </div>
 
-        {/* ================ Tier 4: side cols ================ */}
-        <div className="case-tier-4">
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.devices")}</h2>
-            </div>
-            <div className="tier3-body">
-              <Tier3Static label={t("capture.field.device")} value="Vali" />
-              <Tier3Static label={t("capture.field.serial")} value="ZKF-4500-2401" />
-              <Tier3Static label={t("capture.field.software")} value="v5.3.4.1" />
-              <Tier3Static label={t("capture.field.method")} value="Live Scan" />
-              <Tier3Static label={t("capture.field.workstation")} value={typeof window !== "undefined" ? window.location.hostname : "-"} />
-            </div>
-          </section>
-        </div>
       </div>
 
       {/* ================ Aside: Data verification only ================ */}

@@ -52,7 +52,14 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
-HEIGHT_IMAGE = _env_float("height_image", 100)
+HEIGHT_IMAGE_DEFAULT = _env_float("height_image", 100)
+HEIGHT_IMAGE_MAX = 1000.0
+_height_image_cache: float = HEIGHT_IMAGE_DEFAULT
+
+
+def get_height_image() -> float:
+    """Giá trị height_image hiện hành (cache in-memory, đồng bộ với DB)."""
+    return _height_image_cache
 
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
@@ -117,6 +124,7 @@ async def lifespan(app: FastAPI):
         await _ensure_admin()
         await _ensure_default_cells()
         await _ensure_indexes()
+        await _load_measurement_config()
     except Exception:
         pass
     # Load YOLO person-detect model o background (khong block app ready)
@@ -328,6 +336,20 @@ async def _next_cell_code() -> str:
     return f"BG{seq:03d}"
 
 
+async def _next_cell_code_by_level(level: str, parent: Optional[str]) -> str:
+    """Sinh mã tự động theo cấp, đảm bảo duy nhất trong collection cells."""
+    prefix_map = {"facility": "CS", "sub_camp": "PT", "cell": "BG"}
+    counter_id = f"cell_code_{prefix_map.get(level, 'X')}"
+    doc = await db.counters.find_one_and_update(
+        {"_id": counter_id},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    seq = doc["seq"] if doc else 1
+    return f"{prefix_map.get(level, 'X')}{seq:03d}"
+
+
 def _s_session(doc: dict) -> dict:
     if not doc:
         return doc
@@ -525,12 +547,35 @@ async def list_cells(user: dict = Depends(get_current_user)):
 
 @app.post("/api/cells")
 async def create_cell(body: CellIn, request: Request, user: dict = Depends(get_current_user)):
-    code = body.code.strip() or await _next_cell_code()
-    if await db.cells.find_one({"code": code}):
-        raise HTTPException(400, "Mã buồng đã tồn tại")
+    # Validate quan hệ cha-con theo cây phân cấp
+    level = body.level
+    parent = (body.parent or "").strip() or None
+    custody = (body.custody_type or "").strip() or None
+    if level == "facility":
+        # Cơ sở phải có custody_type (tam_giam | tam_giu), không có cha
+        if custody not in ("tam_giam", "tam_giu"):
+            raise HTTPException(400, "Cơ sở giam giữ cần diện (tam_giam/tam_giu)")
+        parent = None
+    else:
+        # sub_camp / cell phải có cha hợp lệ
+        if not parent:
+            raise HTTPException(400, f"{level} cần chỉ định node cha (parent)")
+        pdoc = await db.cells.find_one({"code": parent})
+        if not pdoc:
+            raise HTTPException(400, f"Node cha '{parent}' không tồn tại")
+        if level == "sub_camp" and pdoc.get("level") != "facility":
+            raise HTTPException(400, "Phân trại phải thuộc một cơ sở giam giữ (facility)")
+        if level == "cell" and pdoc.get("level") not in ("sub_camp", "facility"):
+            raise HTTPException(400, "Buồng phải thuộc phân trại hoặc cơ sở giam giữ")
+        custody = None  # custody chỉ đặt ở cấp facility
     now = datetime.utcnow()
+    # Sinh code tự động theo cấp (người dùng không nhập mã)
+    code = await _next_cell_code_by_level(level, parent)
     doc = body.model_dump()
     doc["code"] = code
+    doc["level"] = level
+    doc["parent"] = parent
+    doc["custody_type"] = custody
     doc.update({"created_at": now, "updated_at": now})
     res = await db.cells.insert_one(doc)
     doc["_id"] = res.inserted_id
@@ -553,12 +598,18 @@ async def update_cell(cell_id: str, body: CellIn, request: Request, user: dict =
 async def delete_cell(cell_id: str, request: Request, user: dict = Depends(get_current_user)):
     doc = await db.cells.find_one({"_id": _oid(cell_id)})
     if not doc:
-        raise HTTPException(404, "Không tìm thấy buồng")
-    n = await db.detainees.count_documents({"cell_code": doc["code"]})
+        raise HTTPException(404, "Không tìm thấy node")
+    code = doc.get("code")
+    # Không xoá nếu còn node con
+    n_child = await db.cells.count_documents({"parent": code})
+    if n_child > 0:
+        raise HTTPException(400, f"Node đang có {n_child} node con, không thể xoá. Xoá con trước.")
+    # Không xoá buồng nếu còn can phạm
+    n = await db.detainees.count_documents({"cell_code": code})
     if n > 0:
         raise HTTPException(400, f"Buồng đang có {n} can phạm, không thể xoá")
     await db.cells.delete_one({"_id": _oid(cell_id)})
-    await _log(request, user, "delete", "cell", doc["code"])
+    await _log(request, user, "delete", "cell", code)
     return {"ok": True}
 
 

@@ -145,7 +145,7 @@ export default function App() {
   );
   return (
     <>
-      {!dongleOk && (
+      {!dongleOk && dongleWarn === "service_down" && (
         <div
           role="alert"
           style={{

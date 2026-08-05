@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, cccdApi, exportToUsb } from "./api";
 import { toast } from "./Toast";
 import { notify } from "./notifications";
@@ -213,7 +213,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
         <main className="content">
           {page === "dashboard" && <DashboardHome go={goPage} />}
           {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
-          {page === "cells" && <SyncPage />}
+          {page === "cells" && <CellsPage />}
           {page === "sessions" && (
             <SessionListPage
               role={role}
@@ -1763,21 +1763,30 @@ function CellsPage() {
   const { t } = useI18n();
   const [cells, setCells] = useState([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewingCell, setViewingCell] = useState(null);
+  // Bộ lọc
+  const [filterCustody, setFilterCustody] = useState("");   // Diện
+  const [filterLevel, setFilterLevel] = useState("");       // Cấp
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
 
   const load = async () => {
+    setLoading(true);
+    setError("");
     try {
       setCells(await api.listCells());
     } catch (e) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [filterCustody, filterLevel]);
 
   const deleteCell = async (cell) => {
     if (!window.confirm(t("cells.confirm_delete", { code: cell.code }))) return;
@@ -1789,15 +1798,53 @@ function CellsPage() {
     }
   };
 
+  // Suy ra Diện của 1 node bất kỳ bằng cách truy ngược lên gốc
+  const custodyOf = (node) => {
+    let cur = node;
+    const seen = new Set();
+    while (cur && !seen.has(cur.code)) {
+      if (cur.custody_type) return cur.custody_type;
+      seen.add(cur.code);
+      cur = cells.find((c) => c.code === cur.parent);
+    }
+    return null;
+  };
+
+  const levelLabel = (lv) =>
+    lv === "facility" ? t("cells.level.facility")
+      : lv === "sub_camp" ? t("cells.level.sub_camp")
+      : t("cells.level.cell");
+  const custodyLabel = (ct) =>
+    ct === "tam_giam" ? t("detainee.custody_type.detention")
+      : ct === "tam_giu" ? t("detainee.custody_type.temporary_hold") : "—";
+
+  // Danh sách phẳng theo thứ tự cây: facility → sub_camp → cell
+  const orderedRows = [];
+  cells.filter((c) => c.level === "facility").forEach((f) => {
+    orderedRows.push({ ...f, depth: 0 });
+    cells.filter((s) => s.level === "sub_camp" && s.parent === f.code).forEach((s) => {
+      orderedRows.push({ ...s, depth: 1 });
+      cells.filter((r) => r.level === "cell" && r.parent === s.code).forEach((r) => orderedRows.push({ ...r, depth: 2 }));
+    });
+    // Buồng gắn trực tiếp facility (Nhà tạm giữ)
+    cells.filter((r) => r.level === "cell" && r.parent === f.code).forEach((r) => orderedRows.push({ ...r, depth: 1 }));
+  });
+
+  const filtered = orderedRows.filter((row) => {
+    if (filterLevel && row.level !== filterLevel) return false;
+    if (filterCustody && custodyOf(row) !== filterCustody) return false;
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <div className="page">
       <PageHeader title={t("cells.title")} subtitle={t("cells.subtitle", { n: cells.length })}>
         <button
           className="button primary"
-          onClick={() => {
-            setEditing(null);
-            setShowForm(true);
-          }}
+          onClick={() => { setEditing(null); setShowForm(true); }}
         >
           {Icon.plus}
           {t("cells.add")}
@@ -1806,60 +1853,94 @@ function CellsPage() {
 
       {error && <StateBox type="error">{error}</StateBox>}
 
-      <div className="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th>{t("cells.col.name")}</th>
-              <th>{t("cells.col.capacity")}</th>
-              <th>{t("cells.col.current")}</th>
-              <th>{t("cells.col.percent")}</th>
-              <th>{t("cells.col.note")}</th>
-              <th>{t("cells.col.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cells.map((cell) => {
-              const percent = cell.capacity
-                ? Math.round((cell.current / cell.capacity) * 100)
-                : 0;
-
-              return (
-                <tr key={cell.id}>
-                  <td><strong>{cell.name}</strong></td>
-                  <td>{cell.capacity}</td>
-                  <td>{cell.current}</td>
-                  <td>
-                    <div className="mini-progress"><span style={{ width: `${Math.min(100, percent)}%` }} /></div>
-                    <small>{percent}%</small>
-                  </td>
-                  <td>{cell.note || "-"}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button onClick={() => setViewingCell(cell)}>{t("cells.view_detainees")}</button>
-                      <button onClick={() => { setEditing(cell); setShowForm(true); }}>{t("common.edit")}</button>
-                      <button className="danger-text" onClick={() => deleteCell(cell)}>{t("common.delete")}</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Bộ lọc: Diện + Cấp */}
+      <div className="cells-filter">
+        <div className="filter-item">
+          <label className="control-label">{t("detainee.field.custody_type")}</label>
+          <select className="control" value={filterCustody} onChange={(e) => setFilterCustody(e.target.value)}>
+            <option value="">{t("common.all")}</option>
+            <option value="tam_giam">{t("detainee.custody_type.detention")}</option>
+            <option value="tam_giu">{t("detainee.custody_type.temporary_hold")}</option>
+          </select>
+        </div>
+        <div className="filter-item">
+          <label className="control-label">{t("cells.col.level")}</label>
+          <select className="control" value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)}>
+            <option value="">{t("common.all")}</option>
+            <option value="facility">{t("cells.level.facility")}</option>
+            <option value="sub_camp">{t("cells.level.sub_camp")}</option>
+            <option value="cell">{t("cells.level.cell")}</option>
+          </select>
+        </div>
       </div>
+
+      <div className="table-card">
+        {loading ? (
+          <StateBox>{t("common.loading")}</StateBox>
+        ) : !filtered.length ? (
+          <StateBox>{t("common.empty")}</StateBox>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>{t("cells.col.code")}</th>
+                <th>{t("cells.col.name")}</th>
+                <th>{t("cells.col.level")}</th>
+                <th>{t("detainee.field.custody_type")}</th>
+                <th>{t("cells.col.capacity")}</th>
+                <th>{t("cells.col.current")}</th>
+                <th>{t("cells.col.note")}</th>
+                <th>{t("cells.col.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map((row) => {
+                const rowClass = row.level === "facility" ? "row-facility"
+                  : row.level === "sub_camp" ? "row-subcamp" : "row-cell";
+                const indent = row.depth === 2 ? "　　└ " : row.depth === 1 ? "└ " : "";
+                return (
+                  <tr key={row.code} className={rowClass}>
+                    <td>{indent}{row.code}</td>
+                    <td>{row.level === "facility" ? <strong>{row.name}</strong> : row.name}</td>
+                    <td><span className="badge-level">{levelLabel(row.level)}</span></td>
+                    <td>{row.level === "facility" ? custodyLabel(row.custody_type) : "—"}</td>
+                    <td>{row.capacity || "—"}</td>
+                    <td>{row.current || 0}</td>
+                    <td>{row.note || "-"}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button onClick={() => setViewingCell(row)}>{t("cells.view_detainees")}</button>
+                        <button onClick={() => { setEditing(row); setShowForm(true); }}>{t("common.edit")}</button>
+                        <button className="danger-text" onClick={() => deleteCell(row)}>{t("common.delete")}</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Phân trang */}
+      {totalPages > 1 && (
+        <div className="pager">
+          <button className="button secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+            {t("common.prev")}
+          </button>
+          <span className="pager-info">{t("common.page_of", { page, total: totalPages })}</span>
+          <button className="button secondary" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+            {t("common.next")}
+          </button>
+        </div>
+      )}
 
       {showForm && (
         <CellForm
           initial={editing}
-          onClose={() => {
-            setShowForm(false);
-            setEditing(null);
-          }}
-          onSaved={() => {
-            setShowForm(false);
-            setEditing(null);
-            load();
-          }}
+          allCells={cells}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+          onSaved={() => { setShowForm(false); setEditing(null); load(); }}
         />
       )}
 
@@ -1984,30 +2065,76 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
   );
 }
 
-export function CellForm({ initial, onClose, onSaved }) {
+export function CellForm({ initial, allCells = [], onClose, onSaved }) {
   const { t } = useI18n();
   const [name, setName] = useState(initial?.name || "");
+  const [level, setLevel] = useState(initial?.level || "facility");
+  const [custodyType, setCustodyType] = useState(initial?.custody_type || "tam_giam");
+  // parent cho sub_camp = facility; cho cell = phân trại (hoặc facility nếu tạm giữ)
+  const [facilityParent, setFacilityParent] = useState(initial?.parent || "");
+  const [subCampParent, setSubCampParent] = useState("");
   const [capacity, setCapacity] = useState(initial?.capacity ?? 20);
   const [note, setNote] = useState(initial?.note || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Khôi phục sub_camp_parent khi edit một cell
+  useEffect(() => {
+    if (initial && initial.level === "cell" && initial.parent) {
+      const parentNode = allCells.find((c) => c.code === initial.parent);
+      if (parentNode?.level === "sub_camp") {
+        setFacilityParent(parentNode.parent || "");
+        setSubCampParent(parentNode.code);
+      } else {
+        // cha là facility (Nhà tạm giữ)
+        setFacilityParent(initial.parent);
+        setSubCampParent("");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Khi đổi level → reset lựa chọn cha
+  useEffect(() => {
+    if (level === "facility") {
+      setFacilityParent("");
+      setSubCampParent("");
+    }
+  }, [level]);
+
+  // Danh sách cơ sở theo Diện đã chọn (cho sub_camp & cell)
+  const facilitiesByCustody = allCells.filter(
+    (c) => c.level === "facility" && (!custodyType || c.custody_type === custodyType)
+  );
+  // Phân trại thuộc cơ sở đã chọn
+  const subCampsOfFacility = allCells.filter(
+    (c) => c.level === "sub_camp" && c.parent === facilityParent
+  );
+
+  // parent cuối cùng gửi backend
+  const resolvedParent = (() => {
+    if (level === "facility") return null;
+    if (level === "sub_camp") return facilityParent || null;
+    // cell: ưu tiên phân trại, nếu không có (Nhà tạm giữ) thì lấy facility
+    return subCampParent || facilityParent || null;
+  })();
+
   const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
     setError("");
-
     try {
       const payload = {
-        code: initial?.code || "",
+        code: "",                          // tự sinh backend
         name: name.trim(),
         capacity: Number(capacity),
         note,
+        level,
+        parent: resolvedParent,
+        custody_type: level === "facility" ? custodyType : null,
       };
-
       if (initial) await api.updateCell(initial.id, payload);
       else await api.createCell(payload);
-
       onSaved();
     } catch (e) {
       setError(e.message);
@@ -2016,28 +2143,147 @@ export function CellForm({ initial, onClose, onSaved }) {
     }
   };
 
+  const LEVELS = [
+    { key: "facility", labelKey: "cells.level.facility", descKey: "cells.form.level_desc.facility", icon: "🏛" },
+    { key: "sub_camp", labelKey: "cells.level.sub_camp", descKey: "cells.form.level_desc.sub_camp", icon: "🏢" },
+    { key: "cell", labelKey: "cells.level.cell", descKey: "cells.form.level_desc.cell", icon: "🚪" },
+  ];
+
+  // Breadcrumb đường dẫn cây (hiển thị ngữ cảnh)
+  const facilityName = allCells.find((c) => c.code === facilityParent)?.name;
+  const subCampName = allCells.find((c) => c.code === subCampParent)?.name;
+  const crumbs = [];
+  if (level === "facility") {
+    crumbs.push(custodyType === "tam_giam" ? t("detainee.custody_type.detention") : t("detainee.custody_type.temporary_hold"));
+    crumbs.push(name || t("cells.level.facility"));
+  } else {
+    crumbs.push(facilityName || t("cells.level.facility"));
+    if (level === "sub_camp") crumbs.push(name || t("cells.level.sub_camp"));
+    if (level === "cell") {
+      if (subCampName) crumbs.push(subCampName);
+      crumbs.push(name || t("cells.level.cell"));
+    }
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal cells-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{initial ? t("cells.form.title.edit") : t("cells.form.title.new")}</h3>
           <button onClick={onClose}>×</button>
         </div>
 
-        <form className="form" onSubmit={submit}>
+        <form className="form cells-form" onSubmit={submit}>
           {error && <div className="error-box">{error}</div>}
 
-          <FieldRow label={t("cells.form.name")}>
-            <input className="control" value={name} onChange={(e) => setName(e.target.value)} required />
-          </FieldRow>
+          {/* Breadcrumb ngữ cảnh cây */}
+          <div className="cells-breadcrumb">
+            {crumbs.map((c, i) => (
+              <Fragment key={i}>
+                {i > 0 && <span className="cells-breadcrumb-sep">›</span>}
+                <span className={"cells-breadcrumb-item" + (i === crumbs.length - 1 ? " current" : "")}>{c}</span>
+              </Fragment>
+            ))}
+          </div>
 
-          <FieldRow label={t("cells.form.capacity")}>
-            <input className="control" type="number" min="0" max="500" value={capacity} onChange={(e) => setCapacity(e.target.value)} required />
-          </FieldRow>
+          {/* Chọn cấp bằng card */}
+          <div className="cells-field-label">{t("cells.form.level")}</div>
+          <div className="cells-level-picker">
+            {LEVELS.map((lv) => (
+              <button
+                type="button"
+                key={lv.key}
+                className={"cells-level-card" + (level === lv.key ? " active" : "")}
+                onClick={() => !initial && setLevel(lv.key)}
+                disabled={!!initial && level !== lv.key}
+              >
+                <span className="cells-level-icon">{lv.icon}</span>
+                <span className="cells-level-name">{t(lv.labelKey)}</span>
+                <span className="cells-level-desc">{t(lv.descKey)}</span>
+              </button>
+            ))}
+          </div>
 
-          <FieldRow label={t("cells.form.note")}>
-            <input className="control" value={note} onChange={(e) => setNote(e.target.value)} />
-          </FieldRow>
+          {/* Diện — chỉ khi tạo cơ sở */}
+          {level === "facility" && (
+            <>
+              <div className="cells-field-label">{t("detainee.field.custody_type")}</div>
+              <div className="cells-segment">
+                <button
+                  type="button"
+                  className={"cells-segment-btn" + (custodyType === "tam_giam" ? " active" : "")}
+                  onClick={() => !initial && setCustodyType("tam_giam")}
+                  disabled={!!initial}
+                >
+                  {t("detainee.custody_type.detention")}
+                </button>
+                <button
+                  type="button"
+                  className={"cells-segment-btn" + (custodyType === "tam_giu" ? " active" : "")}
+                  onClick={() => !initial && setCustodyType("tam_giu")}
+                  disabled={!!initial}
+                >
+                  {t("detainee.custody_type.temporary_hold")}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Chọn cha */}
+          {level !== "facility" && (
+            <div className="cells-row-2">
+              <div className="cells-field">
+                <label className="cells-field-label">{t("cells.form.facility_parent")}</label>
+                <select
+                  className="control"
+                  value={facilityParent}
+                  onChange={(e) => { setFacilityParent(e.target.value); setSubCampParent(""); }}
+                  required
+                  disabled={!!initial}
+                >
+                  <option value="">{t("cells.form.select_facility")}</option>
+                  {facilitiesByCustody.map((p) => (
+                    <option key={p.code} value={p.code}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              {level === "cell" && subCampsOfFacility.length > 0 && (
+                <div className="cells-field">
+                  <label className="cells-field-label">{t("cells.form.sub_camp_parent")}</label>
+                  <select
+                    className="control"
+                    value={subCampParent}
+                    onChange={(e) => setSubCampParent(e.target.value)}
+                    disabled={!!initial}
+                  >
+                    <option value="">{t("cells.form.no_sub_camp")}</option>
+                    {subCampsOfFacility.map((p) => (
+                      <option key={p.code} value={p.code}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tên + sức chứa */}
+          <div className="cells-row-2">
+            <div className="cells-field">
+              <label className="cells-field-label">{t("cells.form.name")}</label>
+              <input className="control" value={name} onChange={(e) => setName(e.target.value)} required autoFocus placeholder={t("cells.form.name_ph")} />
+            </div>
+            {level === "cell" && (
+              <div className="cells-field cells-field-narrow">
+                <label className="cells-field-label">{t("cells.form.capacity")}</label>
+                <input className="control" type="number" min="0" max="500" value={capacity} onChange={(e) => setCapacity(e.target.value)} required />
+              </div>
+            )}
+          </div>
+
+          <div className="cells-field">
+            <label className="cells-field-label">{t("cells.form.note")}</label>
+            <input className="control" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("cells.form.note_ph")} />
+          </div>
 
           <div className="modal-actions">
             <button type="button" className="button secondary" onClick={onClose}>{t("common.cancel")}</button>
@@ -5240,6 +5486,135 @@ const styles = `
     letter-spacing: .2px;
   }
   tbody tr:hover { background: #fbfdff; }
+  /* Cơ sở giam giữ: filter + pager */
+  .cells-filter {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border: 1px solid #e2e9f3;
+    border-radius: 12px;
+    background: white;
+  }
+  .cells-filter .filter-item { display: flex; flex-direction: column; gap: 5px; min-width: 200px; }
+  .cells-filter .control-label { font-size: 11px; font-weight: 700; color: #62738b; text-transform: uppercase; letter-spacing: .2px; }
+  .pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 14px;
+  }
+  .pager-info { font-size: 13px; color: #62738b; font-weight: 600; }
+
+  /* ===== Form Thêm/Sửa cơ sở giam giữ ===== */
+  .cells-modal { width: min(560px, 100%); }
+  .cells-form { padding: 22px 24px 24px; }
+  .cells-form .cells-field-label {
+    display: block;
+    margin-bottom: 7px;
+    color: #40546e;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .2px;
+  }
+  .cells-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #fff5f5, #fdeaea);
+    border: 1px solid #f6d5d8;
+  }
+  .cells-breadcrumb-item { font-size: 12.5px; font-weight: 600; color: #9a5560; }
+  .cells-breadcrumb-item.current { color: #7f171e; font-weight: 800; }
+  .cells-breadcrumb-sep { color: #d3a3a8; font-weight: 700; }
+
+  .cells-level-picker {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .cells-level-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 8px;
+    border: 1.5px solid #e2e9f3;
+    border-radius: 12px;
+    background: #fbfcfe;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+  }
+  .cells-level-card:hover:not(:disabled) { border-color: #e6b3b8; background: #fff; }
+  .cells-level-card.active {
+    border-color: #b91c26;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(185, 28, 38, .12);
+  }
+  .cells-level-card:disabled { opacity: .45; cursor: not-allowed; }
+  .cells-level-icon { font-size: 22px; line-height: 1; }
+  .cells-level-name { font-size: 13px; font-weight: 800; color: #16233a; }
+  .cells-level-desc { font-size: 10.5px; color: #7d8ca7; line-height: 1.25; }
+
+  .cells-segment {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 18px;
+    background: #f4f6f9;
+    border: 1px solid #e2e9f3;
+    border-radius: 10px;
+  }
+  .cells-segment-btn {
+    height: 34px;
+    padding: 0 20px;
+    border: 0;
+    background: transparent;
+    color: #4a5568;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .cells-segment-btn:hover:not(:disabled) { color: #b91c26; }
+  .cells-segment-btn.active {
+    background: #b91c26;
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(185, 28, 38, .25);
+  }
+  .cells-segment-btn:disabled { cursor: not-allowed; }
+
+  .cells-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  .cells-row-2 .cells-field { margin-bottom: 0; }
+  .cells-field { margin-bottom: 16px; }
+  .cells-field-narrow { max-width: 130px; }
+
+  /* Phân cấp cơ sở giam giữ */
+  .row-facility { background: #fff7f7; }
+  .row-facility td { font-weight: 700; }
+  .row-subcamp td { color: #5a4a2a; }
+  .row-subcamp td:first-child, .row-cell td:first-child { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+  .badge-level {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: #eef2f8;
+    color: #47597a;
+  }
+  .row-facility .badge-level { background: #fde8ea; color: #7f171e; }
+  .row-subcamp .badge-level { background: #fff3d6; color: #8a6a1a; }
+  .row-cell .badge-level { background: #e6f0ff; color: #2a4a8a; }
   .table-avatar { width: 38px; height: 38px; }
   .ellipsis {
     max-width: 210px;
@@ -6810,24 +7185,14 @@ const styles = `
     z-index: 4;
     pointer-events: none;
   }
+  /* Vạch đỏ đỉnh đầu đã được backend (YOLO) vẽ sẵn vào ảnh.
+     Overlay này chỉ dùng để đặt nhãn số cm — KHÔNG vẽ thêm đường/vạch nào. */
   .height-measure-line {
     position: absolute;
     left: 50%;
     width: 0;
-    border-left: 3px solid #ffd400;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,.45));
     pointer-events: none;
   }
-  .height-measure-line::before,
-  .height-measure-line::after {
-    content: "";
-    position: absolute;
-    left: -20px;
-    width: 40px;
-    border-top: 2px solid #ffd400;
-  }
-  .height-measure-line::before { top: 0; }
-  .height-measure-line::after { bottom: 0; }
   .height-measure-handle {
     position: absolute;
     left: -9px;
@@ -7236,6 +7601,42 @@ const styles = `
     font-size: 11px;
     font-weight: 600;
   }
+  /* Biến thể inline: KPI gộp vào header khối vân tay (bỏ cột CHẤT LƯỢNG riêng) */
+  .fp-kpi-inline {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0;
+  }
+  .fp-kpi-inline .fp-kpi-count { font-size: 12px; }
+  .fp-kpi-inline .fp-kpi-big { font-size: 16px; }
+  /* Biến thể 3 cột: chia đều KPI thành 3 ô cân đối dưới grid vân tay */
+  .fp-kpi-3col {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+    justify-content: stretch;
+    text-align: center;
+    gap: 0;
+    padding: 6px 0 4px;
+    border-top: 1px solid #eef2f8;
+  }
+  .fp-kpi-3col .fp-kpi-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: #7f171e;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1;
+    border-right: 1px solid #eef2f8;
+  }
+  .fp-kpi-3col .fp-kpi-cell:last-child { border-right: none; }
+  .fp-kpi-3col .fp-kpi-num { font-size: 22px; letter-spacing: -.5px; }
+  .fp-kpi-3col .fp-kpi-divider { font-size: 13px; color: #9aa6bd; font-weight: 700; }
+  .fp-kpi-3col .fp-kpi-percent { font-size: 22px; letter-spacing: -.5px; }
 
   /* Tier 4: 4 cột phụ */
   .case-tier-4 {
