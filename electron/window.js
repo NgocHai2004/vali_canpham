@@ -1,0 +1,51 @@
+// window.js - cua so kiosk, khoa phim, dev escape hatch. Cham Electron API.
+const { BrowserWindow, globalShortcut } = require('electron')
+const config = require('./config')
+
+// Cac to hop phim chan trong kiosk (bat ke dev/prod).
+const BLOCKED = [
+  'F12', 'CommandOrControl+Shift+I', 'CommandOrControl+R',
+  'CommandOrControl+Shift+R', 'CommandOrControl+W', 'CommandOrControl+P',
+]
+
+function createKioskWindow() {
+  const win = new BrowserWindow({
+    fullscreen: true,
+    kiosk: !config.IS_DEV,
+    frame: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      devTools: config.IS_DEV,
+    },
+  })
+  win.setMenuBarVisibility(false)
+
+  // Chan mo cua so moi / link ngoai.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+
+  // Chan chuot phai (context menu).
+  win.webContents.on('context-menu', (e) => e.preventDefault())
+
+  win.loadURL('app://local/')
+  return win
+}
+
+function lockKeyboard() {
+  for (const combo of BLOCKED) globalShortcut.register(combo, () => {})
+  // Alt+F4 / phim Win chuan triet de can Win32 hook (ngoai pham vi Phase 1);
+  // kiosk:true cua Electron da chan phan lon. Watchdog cua so se mo lai neu dong.
+}
+
+// Dev escape hatch: CHI dang ky khi IS_DEV. Prod khong chay nhanh nay
+// (guard boi IS_DEV; giai doan 2 se strip han).
+function registerDevEscape(win) {
+  if (!config.IS_DEV) return
+  globalShortcut.register('CommandOrControl+Shift+Q', () => {
+    win.setKiosk(false)
+    win.setFullScreen(false)
+  })
+}
+
+module.exports = { createKioskWindow, lockKeyboard, registerDevEscape }
