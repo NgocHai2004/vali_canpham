@@ -1,5 +1,6 @@
 // window.js - cua so kiosk, khoa phim, dev escape hatch. Cham Electron API.
-const { BrowserWindow, globalShortcut } = require('electron')
+const { BrowserWindow, globalShortcut, ipcMain } = require('electron')
+const path = require('node:path')
 const config = require('./config')
 
 // Cac to hop phim chan trong kiosk (bat ke dev/prod).
@@ -8,7 +9,7 @@ const BLOCKED = [
   'CommandOrControl+Shift+R', 'CommandOrControl+W', 'CommandOrControl+P',
 ]
 
-function createKioskWindow() {
+function createKioskWindow(proxyPort) {
   const win = new BrowserWindow({
     fullscreen: true,
     kiosk: !config.IS_DEV,
@@ -18,6 +19,7 @@ function createKioskWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       devTools: config.IS_DEV,
+      preload: path.join(__dirname, 'preload.js'),
     },
   })
   win.setMenuBarVisibility(false)
@@ -28,7 +30,12 @@ function createKioskWindow() {
   // Chan chuot phai (context menu).
   win.webContents.on('context-menu', (e) => e.preventDefault())
 
-  win.loadURL('app://local/')
+  // Gui proxyPort vao renderer ngay khi dom ready (preload lang nghe 'set-proxy-port').
+  win.webContents.once('dom-ready', () => {
+    if (proxyPort) win.webContents.send('set-proxy-port', proxyPort)
+  })
+
+  win.loadURL('appcccd://local/')
   return win
 }
 

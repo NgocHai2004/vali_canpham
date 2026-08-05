@@ -30,11 +30,16 @@ function createProxyServer(routes, host = '127.0.0.1') {
   server.on('upgrade', (req, clientSocket, head) => {
     const t = resolveTarget(routes, req.url)
     if (!t) { clientSocket.destroy(); return }
+    console.log(`[ws-proxy] upgrade ${req.url} -> ${host}:${t.port}${t.path} sec-ws-key=${req.headers['sec-websocket-key'] ? 'yes' : 'no'}`)
+    // Don header: bo host (de backend khong nhan host cua proxy), giu cac header ws con lai.
+    const upHeaders = { ...req.headers }
+    delete upHeaders.host
     const proxyReq = http.request({
       host, port: t.port, path: t.path, method: 'GET',
-      headers: req.headers,
+      headers: upHeaders,
     })
     proxyReq.on('upgrade', (proxyRes, proxySocket, proxyHead) => {
+      console.log(`[ws-proxy] <- 101 upgraded ${req.url}`)
       clientSocket.write(
         'HTTP/1.1 101 Switching Protocols\r\n' +
         Object.entries(proxyRes.headers).map(([k, v]) => `${k}: ${v}`).join('\r\n') +
@@ -42,7 +47,22 @@ function createProxyServer(routes, host = '127.0.0.1') {
       if (proxyHead && proxyHead.length) proxySocket.unshift(proxyHead)
       proxySocket.pipe(clientSocket).pipe(proxySocket)
     })
-    proxyReq.on('error', () => clientSocket.destroy())
+    proxyReq.on('error', (e) => {
+      console.log(`[ws-proxy] ERROR ${req.url}: ${e.message}`)
+      clientSocket.destroy()
+    })
+    proxyReq.on('response', (res) => {
+      // Backend tra HTTP thuong (vd 401) thay vi upgrade — phai forward lai de client biet.
+      console.log(`[ws-proxy] <- HTTP ${res.statusCode} (khong upgrade) ${req.url}`)
+      let body = ''
+      res.on('data', (c) => (body += c.toString()))
+      res.on('end', () => {
+        clientSocket.end(
+          `HTTP/1.1 ${res.statusCode} ${res.statusMessage}\r\n` +
+          Object.entries(res.headers).map(([k, v]) => `${k}: ${v}`).join('\r\n') +
+          '\r\n\r\n' + body)
+      })
+    })
     proxyReq.end()
   })
 

@@ -358,7 +358,15 @@ export const weightApi = {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     // Dev Vite (:5173): nối thẳng vào backend :8000, tránh phụ thuộc `ws: true` trong vite.config.js.
     // Prod / khi FE serve cùng host với BE: giữ nguyên location.host.
-    const host = location.port === "5173" ? `${location.hostname}:8000` : location.host;
+    // Electron kiosk: ws đi qua proxy nội bộ (127.0.0.1:<proxyPort>) — preload inject.
+    let host;
+    if (location.port === "5173") {
+      host = `${location.hostname}:8000`;
+    } else if (window.appcccd && window.appcccd.getProxyPort && window.appcccd.getProxyPort()) {
+      host = `${window.appcccd.proxyHost}:${window.appcccd.getProxyPort()}`;
+    } else {
+      host = location.host;
+    }
     const url = `${proto}//${host}/api/weight/ws`;
     let ws = null;
     let closed = false;

@@ -502,7 +502,14 @@ function useDeviceConnections() {
     const timer = setInterval(runAll, 5000);
 
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const host = location.port === "5173" ? `${location.hostname}:8000` : location.host;
+    let host;
+    if (location.port === "5173") {
+      host = `${location.hostname}:8000`;
+    } else if (window.appcccd && window.appcccd.getProxyPort && window.appcccd.getProxyPort()) {
+      host = `${window.appcccd.proxyHost}:${window.appcccd.getProxyPort()}`;
+    } else {
+      host = location.host;
+    }
     const wsUrl = `${proto}//${host}/api/weight/ws`;
     let ws = null;
     let closed = false;

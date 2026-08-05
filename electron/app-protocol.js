@@ -1,4 +1,5 @@
-// app-protocol.js - dang ky app:// serve frontend/dist tinh (thay Vite dev server).
+// app-protocol.js - dang ky appcccd:// serve frontend/dist tinh (thay Vite dev server).
+// Ten scheme la 'appcccd' (KHONG dung 'app' — Electron danh rieng app:// noi bo).
 // Path thuoc cacs prefix API (/api /uploads /fp /usb) duoc forward sang proxy
 // de goi backend — vi frontend build goi API bang duong tuong doi (/api/...),
 // va khi load qua app:// cac duong do se roi vao handler nay thay vi proxy.
@@ -19,38 +20,86 @@ function isApiPath(relPath) {
   return API_PREFIXES.some((p) => relPath === p || relPath.startsWith(p + '/'))
 }
 
+// Lay headers tu web Request (Headers object — phai dung .get(), khong enumerate).
+function collectHeaders(reqHeaders, bodyBuffer) {
+  const headers = {}
+  const PRESERVED = [
+    'authorization', 'content-type', 'content-length', 'accept', 'accept-language',
+    'cookie', 'user-agent', 'x-requested-with',
+  ]
+  for (const name of PRESERVED) {
+    const v = reqHeaders.get(name)
+    if (v != null) headers[name] = v
+  }
+  // Suy Content-Type tu body neu van thieu (form-encoded vs json).
+  if (!headers['content-type'] && bodyBuffer && bodyBuffer.length) {
+    const t = bodyBuffer.toString('utf8')
+    if (/^[^=]+=[^&]*(&[^=]+=[^&]*)*$/.test(t) && !t.trim().startsWith('{')) {
+      headers['content-type'] = 'application/x-www-form-urlencoded'
+    } else {
+      headers['content-type'] = 'application/json'
+    }
+  }
+  if (bodyBuffer) headers['content-length'] = String(bodyBuffer.length)
+  return headers
+}
+
 // Forward 1 request toi proxy (127.0.0.1:proxyPort) va tra ve Response.
-function proxyRequest(proxyHost, proxyPort, relPath, originalReq) {
+async function proxyRequest(proxyHost, proxyPort, relPath, originalReq) {
+  // request.body la ReadableStream (web stream) — phai doc het ra buffer.
+  let bodyBuffer = null
+  if (originalReq.body) {
+    const reader = originalReq.body.getReader()
+    const parts = []
+    let totalLen = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      parts.push(value)
+      totalLen += value.length
+    }
+    bodyBuffer = Buffer.concat(parts, totalLen)
+  }
+
+  const headers = collectHeaders(originalReq.headers, bodyBuffer)
+
+  console.log(`[proxy] forward ${originalReq.method} ${relPath} ct=${headers['content-type'] || '-'} authz=${headers['authorization'] ? 'yes' : 'no'}`)
+
   return new Promise((resolve) => {
     const req = http.request(
       { host: proxyHost, port: proxyPort, path: relPath, method: originalReq.method,
-        headers: originalReq.headers },
+        headers },
       (res) => {
         const chunks = []
         res.on('data', (c) => chunks.push(c))
         res.on('end', () => {
-          resolve(new Response(Buffer.concat(chunks), {
+          const buf = Buffer.concat(chunks)
+          console.log(`[proxy] <- ${res.statusCode} ${relPath} respLen=${buf.length}`)
+          resolve(new Response(buf, {
             status: res.statusCode,
             headers: res.headers,
           }))
         })
       },
     )
-    req.on('error', () => resolve(new Response('proxy error', { status: 502 })))
-    if (originalReq.body) req.write(originalReq.body)
+    req.on('error', (e) => {
+      console.log(`[proxy] ERROR ${relPath}: ${e.message}`)
+      resolve(new Response('proxy error', { status: 502 }))
+    })
+    if (bodyBuffer) req.write(bodyBuffer)
     req.end()
   })
 }
 
 function registerAppProtocol(protocol, distDir, proxyHost, proxyPort) {
-  protocol.handle('app', (request) => {
+  protocol.handle('appcccd', async (request) => {
     const url = new URL(request.url)
     let rel = decodeURIComponent(url.pathname)
     if (rel === '/' || rel === '') rel = '/index.html'
 
     // Cac duong API -> proxy backend.
     if (isApiPath(rel)) {
-      return proxyRequest(proxyHost, proxyPort, rel, request)
+      return await proxyRequest(proxyHost, proxyPort, rel, request)
     }
 
     const filePath = path.normalize(path.join(distDir, rel))

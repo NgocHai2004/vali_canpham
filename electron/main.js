@@ -6,10 +6,25 @@ const { createProxyServer } = require('./proxy')
 const { ManagedProcess } = require('./process-manager')
 const { registerAppProtocol } = require('./app-protocol')
 const { createKioskWindow, lockKeyboard, registerDevEscape } = require('./window')
+const { createPreviewWindow } = require('./preview-window')
 const { createSplash, setSplashText } = require('./splash')
+
+// Custom scheme phai dang ky dac quyen TRUOC app.whenReady() moi serve duoc.
+// Khong dung 'app' (Electron dan rieng). 'appcccd' la scheme rieng cua minh.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'appcccd',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+])
+
+function registerAppScheme() {
+  registerAppProtocol(protocol, config.paths.frontendDist, config.HOST, proxyServer.address().port)
+}
 
 let splash = null
 let mainWin = null
+let previewWin = null
 let proxyServer = null
 const managed = []                    // ManagedProcess list, teardown nguoc thu tu
 
@@ -37,7 +52,6 @@ async function boot() {
   // Proxy thay Vite: phuc vu /api, /uploads, /fp, /usb cho frontend build.
   proxyServer = createProxyServer(config.ROUTES, config.HOST)
   await new Promise((r) => proxyServer.listen(0, config.HOST, r))
-  const proxyPort = proxyServer.address().port
 
   setSplashText(splash, 'Đang khởi động dịch vụ…')
   startBackend()
@@ -52,18 +66,31 @@ async function boot() {
     return
   }
 
-  registerAppProtocol(protocol, config.paths.frontendDist, config.HOST, proxyPort)
-  mainWin = createKioskWindow()
+  registerAppScheme()
+  const proxyPort = proxyServer.address().port
+  mainWin = createKioskWindow(proxyPort)
   lockKeyboard()
   registerDevEscape(mainWin)
+
+  // Man phu (xem truoc ho so): chi mo khi co >= 2 display.
+  previewWin = createPreviewWindow(proxyPort, mainWin)
 
   // Watchdog cua so: dong bat thuong -> mo lai (thay kiosk-guard.ahk).
   mainWin.on('closed', () => {
     if (!app.isQuiting) {
-      mainWin = createKioskWindow()
+      mainWin = createKioskWindow(proxyPort)
       registerDevEscape(mainWin)
     }
   })
+
+  // Watchdog cua so phu: dong bat thuong -> mo lai.
+  if (previewWin) {
+    previewWin.on('closed', () => {
+      if (!app.isQuiting) {
+        previewWin = createPreviewWindow(proxyPort, mainWin)
+      }
+    })
+  }
 
   mainWin.webContents.once('did-finish-load', () => {
     if (splash && !splash.isDestroyed()) splash.close()
@@ -76,6 +103,8 @@ app.whenReady().then(boot)
 function teardown() {
   app.isQuiting = true
   globalShortcut.unregisterAll()
+  // Dong cua so phu truoc, roi kill tien trinh con, roi proxy.
+  if (previewWin && !previewWin.isDestroyed()) try { previewWin.destroy() } catch {}
   // Kill nguoc thu tu: cac tien trinh con truoc, roi proxy.
   for (let i = managed.length - 1; i >= 0; i--) managed[i].stop()
   if (proxyServer) try { proxyServer.close() } catch {}
