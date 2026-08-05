@@ -78,6 +78,7 @@ const NAV_BASE = [
   { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
   { key: "search", labelKey: "nav.search", icon: Icon.search },
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
+  { key: "sync", labelKey: "nav.sync", icon: Icon.sync },
   { key: "logs", labelKey: "nav.logs", icon: Icon.clipboard },
 ];
 const NAV_ADMIN = [
@@ -250,6 +251,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           )}
           {page === "search" && <SearchPage />}
           {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
+          {page === "sync" && <SyncPage />}
           {page === "logs" && <LogsPage />}
           {page === "users" && isAdmin && <UsersPage currentUser={username} />}
           {page === "settings" && isAdmin && <SettingsPage />}

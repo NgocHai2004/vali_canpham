@@ -45,6 +45,7 @@
   "nav.search": "Lookup",
   "nav.detainee_history": "History",
   "nav.logs": "Sync history",
+  "nav.sync": "Sync sessions",
   "nav.users": "User management",
   "nav.settings": "Settings",
   "nav.function_group": "FUNCTIONS",
