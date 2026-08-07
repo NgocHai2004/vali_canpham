@@ -2178,6 +2178,11 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
     if (v === "tam_giam") return t("detainee.custody_type.detention");
     return v;
   };
+  const cellName = (code) => {
+    if (!code) return t("pdf.blank");
+    const c = cells.find((x) => x.code === code);
+    return c ? c.name : code;
+  };
   const alcoholLabel = (v) => {
     if (v === true || v === "true") return t("common.yes");
     if (v === false || v === "false") return t("common.no");
@@ -2222,7 +2227,6 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
               <tr><td className="pv-label">{t("pdf.field.dob")}</td><td>{val(form.dob)}</td></tr>
               <tr><td className="pv-label">{t("pdf.field.gender")}</td><td>{val(genderVi)}</td></tr>
               <tr><td className="pv-label">{t("pdf.field.cccd")}</td><td>{val(form.cccd_number)}</td></tr>
-              <tr><td className="pv-label">Số CMND cũ</td><td>{val(form.cmnd_old)}</td></tr>
               <tr><td className="pv-label">{t("pdf.field.nationality")}</td><td>{val(form.nationality)}</td></tr>
               <tr><td className="pv-label">{t("pdf.field.ethnicity")}</td><td>{val(form.ethnicity)}</td></tr>
               <tr><td className="pv-label">{t("pdf.field.religion")}</td><td>{val(form.religion)}</td></tr>
@@ -2256,18 +2260,22 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
           <div className="pv-info-grid">
             <div className="pv-g-label">{t("detainee.field.custody_type")}</div>
             <div>{custLabel(form.custody_type)}</div>
+            <div className="pv-g-label">{t("detainee.field.facility_type")}</div>
+            <div>{cellName(form.facility_code)}</div>
+            {form.custody_type === "tam_giam" && (
+              <>
+                <div className="pv-g-label">{t("detainee.field.sub_camp")}</div>
+                <div>{cellName(form.sub_camp_code)}</div>
+              </>
+            )}
             <div className="pv-g-label">{t("detainee.field.cell_block")}</div>
-            <div>{val(form.cell_block)}</div>
+            <div>{cellName(form.cell_code)}</div>
             <div className="pv-g-label">{t("detainee.field.squad")}</div>
             <div>{val(form.squad)}</div>
             <div className="pv-g-label">{t("detainee.field.status_detainee")}</div>
             <div>{val(form.status_detainee)}</div>
-            <div className="pv-g-label">{t("detainee.field.charge")}</div>
-            <div>{val(form.charge)}</div>
             <div className="pv-g-label">{t("pdf.field.date_in")}</div>
             <div>{toDobInput(form.date_in) || toDobInput(new Date())}</div>
-            <div className="pv-g-label">{t("pdf.field.cell")}</div>
-            <div>{val(form.cell_code)}</div>
           </div>
 
           <h3 className="pv-section pv-section-sub">{t("pdf.section2.health")}</h3>

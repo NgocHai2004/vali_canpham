@@ -354,6 +354,8 @@ class DetaineeIn(BaseModel):
     weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
     custody_type: Optional[str] = None     # tam_giu | tam_giam — Diện giam giữ
+    facility_code: Optional[str] = None    # Nơi giam giữ (Trại tạm giam / Nhà tạm giữ)
+    sub_camp_code: Optional[str] = None    # Phân trại (chỉ khi custody_type = tam_giam)
     charge: Optional[str] = None
     date_in: Optional[str] = None
     note: Optional[str] = None
@@ -762,7 +764,8 @@ def _ensure_can_touch(doc: dict, user: dict) -> None:
 # Fields trả về đủ để hiển thị modal cảnh báo, KHÔNG kèm template/ảnh nặng.
 _MATCH_PROJECTION = {
     "personal_id": 1, "full_name": 1, "cccd_number": 1, "gender": 1, "dob": 1,
-    "cell_code": 1, "charge": 1, "hometown": 1, "address": 1,
+    "cell_code": 1, "custody_type": 1, "facility_code": 1, "sub_camp_code": 1,
+    "charge": 1, "hometown": 1, "address": 1,
     "photos.portrait_front": 1, "photos.cccd_front": 1,
     "created_at": 1, "created_by": 1,
 }
@@ -1897,6 +1900,8 @@ EXCEL_COLS = [
     ("address", "Địa chỉ"),
     ("ethnicity", "Dân tộc"),
     ("religion", "Tôn giáo"),
+    ("facility_code", "Nơi giam giữ"),
+    ("sub_camp_code", "Phân trại"),
     ("cell_code", "Mã buồng"),
     ("charge", "Tội danh"),
     ("date_in", "Ngày vào"),

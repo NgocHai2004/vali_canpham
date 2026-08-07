@@ -13,6 +13,9 @@ const FIELD_LABELS = {
   hometown: "Nguyên quán",
   address: "Địa chỉ",
   cell_code: "Buồng giam",
+  custody_type: "Diện giam giữ",
+  facility_code: "Nơi giam giữ",
+  sub_camp_code: "Phân trại",
   search_index: "Chỉ mục tìm kiếm",
   height_cm: "Chiều cao",
   weight_kg: "Cân nặng",
@@ -48,7 +51,7 @@ const META_FIELDS = [
   "full_name", "gender", "dob", "cccd_number",
   "issued_date", "expiry_date",
   "ethnicity", "religion", "nationality",
-  "hometown", "address", "cell_code", "search_index",
+  "hometown", "address", "cell_code", "custody_type", "facility_code", "sub_camp_code", "search_index",
   "height_cm", "weight_kg", "charge",
 ];
 
@@ -96,6 +99,9 @@ function localToComparable(d) {
     hometown: String(d.hometown || "").trim(),
     address: String(d.address || "").trim(),
     cell_code: String(d.cell_code || "").trim(),
+    custody_type: String(d.custody_type || "").trim(),
+    facility_code: String(d.facility_code || "").trim(),
+    sub_camp_code: String(d.sub_camp_code || "").trim(),
     search_index: String(d.search_index || "").trim(),
     height_cm: normNumber(d.height_cm),
     weight_kg: normNumber(d.weight_kg),

@@ -1614,6 +1614,8 @@ function SyncPage() {
       // ---- Diện giam & vị trí ----
       cell_code: d.cell_code || null,
       custody_type: d.custody_type || null,
+      facility_code: d.facility_code || null,
+      sub_camp_code: d.sub_camp_code || null,
       charge: d.charge || null,
       date_in: d.date_in || null,
       note: d.note || null,
