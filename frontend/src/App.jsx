@@ -6,7 +6,7 @@ import ToastHost from "./Toast";
 import { useI18n } from "./i18n";
 
 const DONGLE_POLL_MS = 5000;
-const DONGLE_MAX_FAIL = 1;   // 1 poll fail = 5s → logout (chống clone + rút USB tức thì)
+const DONGLE_MAX_FAIL = 3;   // 3 poll fail liên tiếp = 15s → logout (chống clone + tránh logout nhầm khi bận USB scan)
 
 export default function App() {
   const { t } = useI18n();

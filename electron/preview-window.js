@@ -29,6 +29,7 @@ function createPreviewWindow(proxyPort, primaryWin) {
     kiosk: !config.IS_DEV,
     frame: false,
     autoHideMenuBar: true,
+    show: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -37,6 +38,8 @@ function createPreviewWindow(proxyPort, primaryWin) {
     },
   })
   win.setMenuBarVisibility(false)
+  win.show()
+  win.focus()
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   // Gui proxyPort cho preload (USB export can goi /usb qua proxy).

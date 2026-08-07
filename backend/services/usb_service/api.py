@@ -108,12 +108,36 @@ def _get_volume_label(drive: str) -> str:
 
 
 # ---------- Config ----------
-_secret_str = os.getenv("DONGLE_SECRET", "").strip()
+def _load_dotenv_secret(name: str) -> str:
+    """Doc DONGLE_SECRET tu .env (app_cccd/../../.env) neu env var chua set.
+    Nguon su that duy nhat la .env — tranh lech secret giua bien User env va file .env.
+    """
+    val = os.getenv(name, "").strip()
+    if val:
+        return val
+    # .env nam o goc project (App_CCCD/.env), 2 cap thu muc len tu usb_service/
+    env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".env"))
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == name:
+                    return v.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
+    return ""
+
+
+_secret_str = _load_dotenv_secret("DONGLE_SECRET")
 if not _secret_str:
     raise SystemExit(
-        "Bat buoc set env DONGLE_SECRET truoc khi chay usb_service.\n"
-        "  PowerShell:  $env:DONGLE_SECRET = 'your-secret-here'\n"
-        "  Bash:        export DONGLE_SECRET='your-secret-here'"
+        "Bat buoc co DONGLE_SECRET: dat trong C:\\Users\\vali-01\\Documents\\App_CCCD\\.env "
+        "(dong DONGLE_SECRET=...) hoac set env var."
+        "\n  PowerShell:  $env:DONGLE_SECRET = 'your-secret-here'"
+        "\n  Bash:        export DONGLE_SECRET='your-secret-here'"
     )
 DONGLE_SECRET = _secret_str.encode("utf-8")
 

@@ -688,6 +688,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewOnSecondary, setPreviewOnSecondary] = useState(false);
   const [heightImage, setHeightImage] = useState(100);
+  const [heightOffset, setHeightOffset] = useState(103);
 
   const lastCheckedCccdRef = useRef("");   // tránh gọi check-cccd lặp lại cùng 1 số
   const [dupModal, setDupModal] = useState({ open: false, matches: [] });  // cảnh báo trùng lúc Lưu
@@ -714,28 +715,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const fpMatchedIdsRef = useRef(new Set());
   useEffect(() => { fpMatchedIdsRef.current = new Set(); }, [seed]);
 
-  // Tra cứu ngay 1 template vừa quét: nếu trùng can phạm đã đăng ký thì cảnh báo
-  // liền (không đợi thu đủ 10 ngón). Dùng chung cho vòng thu tự động và thu lại 1 ngón.
-  const checkFpMatch = useCallback(async (templateB64) => {
-    if (!templateB64) return;
-    try {
-      const r = await api.matchFingerprint(templateB64);
-      if (r && r.matched && Array.isArray(r.items) && r.items.length > 0) {
-        const best = r.items[0];
-        const did = best?._id || best?.id;
-        if (did && fpMatchedIdsRef.current.has(did)) return;   // đã báo người này rồi
-        if (did) fpMatchedIdsRef.current.add(did);
-        raiseAlert({
-          source: "fp",
-          detainee: best,
-          score: best.match_score,
-          finger: best.match_finger,
-        });
-      }
-    } catch (e) {
-      console.error("[FP] match lookup failed:", e);
-    }
-  }, [raiseAlert]);
+  // (Đã bỏ tra cứu realtime sau mỗi ngón — backend giờ yêu cầu đủ 10 ngón.
+  //  Tra cứu được thực hiện 1 lần sau khi thu xong 10 ngón, dùng left_thumb.)
 
   // Dedup face recognition: 1 người = 1 toast trong 1 phiên chụp (reset khi seed đổi)
   const recognizedIdsRef = useRef(new Set());
@@ -773,9 +754,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       .then((cfg) => {
         const next = Number(cfg?.height_image);
         if (!cancelled && Number.isFinite(next) && next > 0) setHeightImage(next);
+        const off = Number(cfg?.height_offset);
+        if (!cancelled && Number.isFinite(off) && off > 0) setHeightOffset(off);
       })
       .catch(() => {
-        if (!cancelled) setHeightImage(100);
+        if (!cancelled) { setHeightImage(100); setHeightOffset(103); }
       });
     return () => { cancelled = true; };
   }, []);
@@ -950,10 +933,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     });
 
   const applyMeasuredHeight = useCallback(({ linePixelHeight, imageHeight }) => {
-    const measured = getMeasurementHeight({ linePixelHeight, imageHeight, heightImage });
+    const measured = getMeasurementHeight({ linePixelHeight, imageHeight, heightImage, heightOffset });
     if (!measured || measured < 50 || measured > 250) return;
     setForm((f) => ({ ...f, height_cm: String(measured) }));
-  }, [heightImage]);
+  }, [heightImage, heightOffset]);
 
   const stopFpCollect = () => {
     fpAbortRef.current = true;
@@ -1050,8 +1033,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         });
         setFpStatus(t("capture.status.retook", { name: targetName }));
         setOk(t("capture.status.updated", { name: targetName }));
-        // Thu lại 1 ngón cũng tra cứu ngay: trùng can phạm đã đăng ký thì báo liền.
-        checkFpMatch(tmplB64);
+        // (Đã bỏ tra cứu ngay sau thu lại 1 ngón — BE giờ cần đủ 10 ngón.
+        //  Tra cứu chỉ chạy sau khi thu đủ 10 ngón ở vòng tự động.)
       } catch (e) {
         setFpError(t("capture.err.save_photo", { message: e.message }));
       }
@@ -1119,8 +1102,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               }
               return np;
             });
-            // Quét xong ngón này là tra cứu ngay: trùng can phạm đã đăng ký thì báo liền.
-            checkFpMatch(tmplB64);
           } catch (e) {
             setFpError(t("capture.err.save_photo", { message: e.message }));
           }
@@ -1132,24 +1113,34 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       if (!fpAbortRef.current) {
         setFpStatus(t("capture.status.done_10"));
         setOk(t("capture.status.done_10_full"));
-        // Sau khi thu xong: tra cứu 1 template bất kỳ xem đối tượng đã có trong danh sách chưa.
+        // Sau khi thu đủ 10 ngón: tra cứu dùng left_thumb (theo logic BE mới).
+        // BE chỉ so left_thumb với left_thumb của can phạm, khớp nếu score > 80.
         try {
           // Đọc state photos mới nhất qua functional setter (tránh stale closure).
           const latestPhotos = await new Promise((resolve) => {
             setPhotos((p) => { resolve(p); return p; });
           });
           const tpls = latestPhotos?.fp_templates || {};
-          const anyTemplate = Object.values(tpls).find((v) => !!v);
-          if (anyTemplate) {
-            const r = await api.matchFingerprint(anyTemplate);
+          // Gửi ĐỦ 10 ngón cho BE. BE tự lấy left_thumb ra so.
+          const fingers = {};
+          let count = 0;
+          for (const [code, b64] of Object.entries(tpls)) {
+            if (b64) { fingers[code] = b64; count++; }
+          }
+          if (count > 0) {
+            const r = await api.matchFingerprint(fingers);
             if (r && r.matched && Array.isArray(r.items) && r.items.length > 0) {
               const best = r.items[0];
-              raiseAlert({
-                source: "fp",
-                detainee: best,
-                score: best.match_score,
-                finger: best.match_finger,
-              });
+              const did = best?._id || best?.id;
+              if (did && !fpMatchedIdsRef.current.has(did)) {
+                fpMatchedIdsRef.current.add(did);
+                raiseAlert({
+                  source: "fp",
+                  detainee: best,
+                  score: best.match_score,
+                  finger: best.match_finger,
+                });
+              }
             }
           }
         } catch (e) {
@@ -1569,6 +1560,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     onMeasureHeight={p.key === "portrait_front" ? applyMeasuredHeight : undefined}
                     onPortraitRecognize={raiseFaceAlerts}
                     heightImage={heightImage}
+                    heightOffset={heightOffset}
                   />
                 </div>
               ))}
@@ -1950,7 +1942,7 @@ function InfoField({ label, children, className = "" }) {
   );
 }
 
-function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, onPortraitRecognize, heightImage = 100 }) {
+function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, onPortraitRecognize, heightImage = 100, heightOffset = 103 }) {
   const { t } = useI18n();
   const videoRef = useRef(null);
   const frameRef = useRef(null);
@@ -1960,7 +1952,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState(false);
   // head_ratio = y1_đỉnh_đầu / chiều_cao_ảnh (0..1) do YOLO trả về khi upload.
-  // Chiều cao tự động = (1 - head_ratio) * height_image. null = chưa detect được.
+  // Chiều cao tự động = (1 - head_ratio) * height_image + 103. null = chưa detect được.
   const [headRatio, setHeadRatio] = useState(null);
 
   useEffect(() => {
@@ -2048,13 +2040,14 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
 
   const showLive = !value && !preview;
   const captured = Boolean(value);
-  // Chiều cao TỰ ĐỘNG = (1 - head_ratio) * height_image.
+  // Chiều cao TỰ ĐỘNG = (1 - head_ratio) * height_image + height_offset.
   // head_ratio = vị trí vạch đỉnh đầu tính từ đỉnh ảnh (0..1) → khoảng tới đáy = 1 - head_ratio.
   const measuredHeight = showRuler && headRatio != null
     ? getMeasurementHeight({
       linePixelHeight: (1 - headRatio) * 100,
       imageHeight: 100,
       heightImage,
+      heightOffset,
     })
     : null;
 
@@ -2170,12 +2163,31 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
       : "";
   const dateLong = formatDateLong(new Date());
   const val = (v) => (v && String(v).trim() ? v : t("pdf.blank"));
+  const custLabel = (v) => {
+    if (!v) return t("pdf.blank");
+    if (v === "tam_giu") return t("detainee.custody_type.temporary_hold");
+    if (v === "tam_giam") return t("detainee.custody_type.detention");
+    return v;
+  };
+  const alcoholLabel = (v) => {
+    if (v === true || v === "true") return t("common.yes");
+    if (v === false || v === "false") return t("common.no");
+    return val(v);
+  };
 
   return (
     <div ref={ref} className="preview-a4 preview-a4-portrait">
-      {/* ===== Header: national emblem centered ===== */}
-      <div className="pv-header-row">
-        <div className="pv-header-left">
+      {/* ===== Header: ảnh CCCD (góc trên trái) + emblem/motto (bên phải) ===== */}
+      <div className="pv-header-row pv-header-row-v3">
+        <div className="pv-cccd-strip">
+          {photos.cccd_front
+            ? <img src={photos.cccd_front} alt={t("pdf.cccd_photo")} />
+            : <span className="pv-cccd-strip-empty">{t("pdf.cccd_photo")}</span>}
+          {photos.cccd_back
+            ? <img src={photos.cccd_back} alt={t("pdf.cccd_photo")} />
+            : null}
+        </div>
+        <div className="pv-header-left pv-header-left-v3">
           <div className="pv-org1">{t("pdf.emblem")}</div>
           <div className="pv-org2">{t("pdf.motto")}</div>
           <div className="pv-org-underline" />
@@ -2190,52 +2202,101 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
         </div>
       </div>
 
-      {/* ===== I. Personal info (2 cols: table + 4x6 portrait) ===== */}
-      <h3 className="pv-section">{t("pdf.section1")}</h3>
-      <div className="pv-info-row">
-        <table className="pv-table pv-info-table pv-info-single">
-          <tbody>
-            <tr><td className="pv-label">{t("pdf.field.full_name")}</td><td>{val(form.full_name)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.dob")}</td><td>{val(form.dob)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.gender")}</td><td>{val(genderVi)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.cccd")}</td><td>{val(form.cccd_number)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.nationality")}</td><td>{val(form.nationality)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.ethnicity")}</td><td>{val(form.ethnicity)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.religion")}</td><td>{val(form.religion)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.hometown")}</td><td>{val(form.hometown)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.address")}</td><td>{val(form.address)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.issued_date")}</td><td>{val(form.issued_date)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.expiry")}</td><td>{val(form.expiry_date)}</td></tr>
-            <tr><td className="pv-label">{t("pdf.field.issued_place")}</td><td>{val(form.issued_place)}</td></tr>
-            <tr><td className="pv-label">{t("detainee.field.distinguishing_features")}</td><td>{val(form.distinguishing_features)}</td></tr>
-            <tr><td className="pv-label">{t("detainee.field.mrz")}</td><td><pre className="pv-mrz">{val(form.mrz)}</pre></td></tr>
-          </tbody>
-        </table>
-        <div className="pv-info-photo">
-          <div className="pv-portrait-4x6">
-            {photos.cccd_front
-              ? <img src={photos.cccd_front} alt={t("pdf.cccd_photo")} />
-              : <span>{t("pdf.cccd_photo")}</span>}
-          </div>
-          <div className="pv-portrait-4x6-caption">{t("pdf.cccd_photo")}</div>
+      {/* ===== 2 cột: I. Thông tin cá nhân (+Hồ sơ) | II. Diện giam + Sức khỏe + Trình độ ===== */}
+      <div className="pv-info-cols">
+        {/* ---- Cột trái ---- */}
+        <div className="pv-info-col">
+          <h3 className="pv-section">{t("pdf.section1")}</h3>
+          <table className="pv-table pv-info-table pv-info-single">
+            <tbody>
+              <tr><td className="pv-label">{t("pdf.field.full_name")}</td><td>{val(form.full_name)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.dob")}</td><td>{val(form.dob)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.gender")}</td><td>{val(genderVi)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.cccd")}</td><td>{val(form.cccd_number)}</td></tr>
+              <tr><td className="pv-label">Số CMND cũ</td><td>{val(form.cmnd_old)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.nationality")}</td><td>{val(form.nationality)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.ethnicity")}</td><td>{val(form.ethnicity)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.religion")}</td><td>{val(form.religion)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.hometown")}</td><td>{val(form.hometown)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.address")}</td><td>{val(form.address)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.issued_date")}</td><td>{val(form.issued_date)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.expiry")}</td><td>{val(form.expiry_date)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.issued_place")}</td><td>{val(form.issued_place)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.distinguishing_features")}</td><td>{val(form.distinguishing_features)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.mrz")}</td><td><pre className="pv-mrz">{val(form.mrz)}</pre></td></tr>
+              <tr><td className="pv-label">{t("detainee.field.alias")}</td><td>{val(form.alias)}</td></tr>
+            </tbody>
+          </table>
+
+          <h3 className="pv-section pv-section-sub">{t("pdf.section2.file")}</h3>
+          <table className="pv-table pv-info-table pv-info-single">
+            <tbody>
+              <tr><td className="pv-label">{t("detainee.field.file_number")}</td><td>{val(form.file_number)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.file_number_sub")}</td><td>{val(form.file_number_sub)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.search_index")}</td><td>{val(form.search_index)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.address_before_arrest")}</td><td>{val(form.address_before_arrest)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.release_residence")}</td><td>{val(form.release_residence)}</td></tr>
+              <tr><td className="pv-label">{t("pdf.field.note")}</td><td>{val(form.note)}</td></tr>
+            </tbody>
+          </table>
         </div>
-      </div>
 
-      {/* ===== II. Biometric & custody info ===== */}
-      <h3 className="pv-section">{t("pdf.section2")}</h3>
-      <div className="pv-info-grid">
-        <div className="pv-g-label">{t("pdf.field.height")}</div>
-        <div className="pv-g-value">{val(form.height_cm)}</div>
-        <div className="pv-g-label">{t("pdf.field.weight")}</div>
-        <div className="pv-g-value">{val(form.weight_kg)}</div>
+        {/* ---- Cột phải ---- */}
+        <div className="pv-info-col">
+          <h3 className="pv-section">{t("pdf.section2.custody")}</h3>
+          <div className="pv-info-grid">
+            <div className="pv-g-label">{t("detainee.field.custody_type")}</div>
+            <div>{custLabel(form.custody_type)}</div>
+            <div className="pv-g-label">{t("detainee.field.cell_block")}</div>
+            <div>{val(form.cell_block)}</div>
+            <div className="pv-g-label">{t("detainee.field.squad")}</div>
+            <div>{val(form.squad)}</div>
+            <div className="pv-g-label">{t("detainee.field.status_detainee")}</div>
+            <div>{val(form.status_detainee)}</div>
+            <div className="pv-g-label">{t("detainee.field.charge")}</div>
+            <div>{val(form.charge)}</div>
+            <div className="pv-g-label">{t("pdf.field.date_in")}</div>
+            <div>{toDobInput(form.date_in) || toDobInput(new Date())}</div>
+            <div className="pv-g-label">{t("pdf.field.cell")}</div>
+            <div>{val(form.cell_code)}</div>
+          </div>
 
-        <div className="pv-g-label">{t("pdf.field.date_in")}</div>
-        <div className="pv-g-value">{toDobInput(form.date_in) || toDobInput(new Date())}</div>
-        <div className="pv-g-label">{t("pdf.field.cell")}</div>
-        <div className="pv-g-value">{val(form.cell_code)}</div>
+          <h3 className="pv-section pv-section-sub">{t("pdf.section2.health")}</h3>
+          <div className="pv-info-grid">
+            <div className="pv-g-label">{t("detainee.field.health_intake")}</div>
+            <div>{val(form.health_intake)}</div>
+            <div className="pv-g-label">{t("detainee.field.alcohol_use")}</div>
+            <div>{alcoholLabel(form.alcohol_use)}</div>
+            <div className="pv-g-label">{t("detainee.field.disease_intake")}</div>
+            <div>{val(form.disease_intake)}</div>
+            <div className="pv-g-label">{t("detainee.field.disease_intake_detail")}</div>
+            <div>{val(form.disease_intake_detail)}</div>
+            <div className="pv-g-label">{t("detainee.field.disease_current")}</div>
+            <div>{val(form.disease_current)}</div>
+            <div className="pv-g-label">{t("detainee.field.disease_current_detail")}</div>
+            <div>{val(form.disease_current_detail)}</div>
+          </div>
 
-        <div className="pv-g-label">{t("pdf.field.note")}</div>
-        <div className="pv-g-value pv-g-note">{val(form.note)}</div>
+          <h3 className="pv-section pv-section-sub">{t("pdf.section2.edu")}</h3>
+          <div className="pv-info-grid">
+            <div className="pv-g-label">{t("detainee.field.education_level")}</div>
+            <div>{val(form.education_level)}</div>
+            <div className="pv-g-label">{t("detainee.field.professional_level")}</div>
+            <div>{val(form.professional_level)}</div>
+            <div className="pv-g-label">{t("detainee.field.study_status")}</div>
+            <div>{val(form.study_status)}</div>
+            <div className="pv-g-label">{t("detainee.field.literacy")}</div>
+            <div>{val(form.literacy)}</div>
+            <div className="pv-g-label">{t("detainee.field.occupation")}</div>
+            <div>{val(form.occupation)}</div>
+            <div className="pv-g-label">{t("detainee.field.occupation_detail")}</div>
+            <div>{val(form.occupation_detail)}</div>
+            <div className="pv-g-label">{t("pdf.field.height")}</div>
+            <div>{val(form.height_cm)}</div>
+            <div className="pv-g-label">{t("pdf.field.weight")}</div>
+            <div>{val(form.weight_kg)}</div>
+          </div>
+        </div>
       </div>
 
       {/* ===== III. Portrait photos (3 frames) ===== */}

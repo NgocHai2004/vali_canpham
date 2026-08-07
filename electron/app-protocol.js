@@ -75,10 +75,13 @@ async function proxyRequest(proxyHost, proxyPort, relPath, originalReq) {
         res.on('end', () => {
           const buf = Buffer.concat(chunks)
           console.log(`[proxy] <- ${res.statusCode} ${relPath} respLen=${buf.length}`)
-          resolve(new Response(buf, {
-            status: res.statusCode,
-            headers: res.headers,
-          }))
+          // Status 204/205/304 KHONG DUOC CO body theo HTTP spec —
+          // Web Response constructor se throw neu truyen body (du rong).
+          // => bo body, chi tra status + headers.
+          const noBodyStatus = res.statusCode === 204 || res.statusCode === 205 || res.statusCode === 304
+          resolve(noBodyStatus
+            ? new Response(null, { status: res.statusCode, headers: res.headers })
+            : new Response(buf, { status: res.statusCode, headers: res.headers }))
         })
       },
     )
@@ -94,7 +97,9 @@ async function proxyRequest(proxyHost, proxyPort, relPath, originalReq) {
 function registerAppProtocol(protocol, distDir, proxyHost, proxyPort) {
   protocol.handle('appcccd', async (request) => {
     const url = new URL(request.url)
-    let rel = decodeURIComponent(url.pathname)
+    // Giu ca query string (?type=portrait...) — chi lay pathname se mat query,
+    // lam backend khong nhan duoc type=portrait (person_detect khong chay).
+    let rel = decodeURIComponent(url.pathname) + url.search
     if (rel === '/' || rel === '') rel = '/index.html'
 
     // Cac duong API -> proxy backend.

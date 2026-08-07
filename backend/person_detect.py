@@ -44,6 +44,7 @@ def load_blocking() -> None:
     Fail → log lỗi, _model vẫn None, is_ready()=False.
     """
     global _model, _load_error
+    _log.info("person_detect: load_blocking CALLED (model=%s)", MODEL_PATH)
     with _lock:
         if _model is not None:
             return
@@ -62,6 +63,8 @@ def load_blocking() -> None:
         except Exception as e:           # noqa: BLE001
             _load_error = str(e)
             _log.exception("person_detect: load model FAIL: %s", e)
+            import traceback
+            traceback.print_exc()
 
 
 def draw_person_boxes(img_bytes: bytes):

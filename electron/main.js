@@ -29,7 +29,30 @@ let proxyServer = null
 const managed = []                    // ManagedProcess list, teardown nguoc thu tu
 
 // Single instance: chan mo 2 lan (kiosk chi 1).
-if (!app.requestSingleInstanceLock()) { app.quit() }
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWin) {
+      if (mainWin.isMinimized()) mainWin.restore()
+      mainWin.show()
+      mainWin.focus()
+    }
+  })
+}
+
+// Kiem tra backend da chay tu truoc (port 8000) chua. Neu roi thi KHONG spawn lai
+// (tranh trung port) — chi doi healthy. Cho phep run-electron.ps1 start backend rieng.
+const net = require('node:net')
+
+function isPortOpen(host, port) {
+  return new Promise((resolve) => {
+    const sock = net.connect({ host, port })
+    sock.once('connect', () => { sock.destroy(); resolve(true) })
+    sock.once('error', () => resolve(false))
+    setTimeout(() => { sock.destroy(); resolve(false) }, 300)
+  })
+}
 
 function startBackend() {
   const backend = new ManagedProcess({
@@ -54,14 +77,19 @@ async function boot() {
   await new Promise((r) => proxyServer.listen(0, config.HOST, r))
 
   setSplashText(splash, 'Đang khởi động dịch vụ…')
-  startBackend()
+  // Neu backend da chay tu truoc (run-electron.ps1 start rieng) thi KHONG spawn lai.
+  const backendAlreadyUp = await isPortOpen(config.HOST, config.PORTS.backend)
+  if (backendAlreadyUp) {
+    console.log('[boot] backend da chay tu truoc — bo qua spawn, chi doi healthy.')
+  } else {
+    startBackend()
+  }
   // mongod portable: bundle trong giai doan 2 (hoac dung Mongo dang chay). Neu
   // can, them ManagedProcess cho mongod.exe theo cung mau startBackend().
 
   setSplashText(splash, 'Đang tải mô hình…')
   try {
-    await waitForHealthy(config.HEALTH_URL, { timeoutMs: 120000, intervalMs: 800 })
-  } catch (e) {
+    await waitForHealthy(config.HEALTH_URL, { timeoutMs: 120000, intervalMs: 800 })  } catch (e) {
     setSplashText(splash, 'Lỗi khởi động. Vui lòng khởi động lại máy.')
     return
   }
@@ -95,6 +123,10 @@ async function boot() {
   mainWin.webContents.once('did-finish-load', () => {
     if (splash && !splash.isDestroyed()) splash.close()
     splash = null
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.show()
+      mainWin.focus()
+    }
   })
 }
 

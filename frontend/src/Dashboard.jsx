@@ -3178,7 +3178,7 @@ function SearchPage() {
       sid = null;
 
       setLoading(true);
-      const res = await api.matchFingerprint(tmplB64);
+      const res = await api.matchFingerprintSingle(tmplB64);
       let list = [];
       if (Array.isArray(res.items)) list = res.items;
       else if (res.detainee) list = [res.detainee];
@@ -3535,6 +3535,7 @@ function UsersPage({ currentUser }) {
 function SettingsPage() {
   const { t } = useI18n();
   const [heightImage, setHeightImage] = useState("");
+  const [heightOffset, setHeightOffset] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -3546,6 +3547,8 @@ function SettingsPage() {
         if (!cancelled) {
           const v = Number(cfg?.height_image);
           setHeightImage(Number.isFinite(v) && v > 0 ? String(v) : "");
+          const o = Number(cfg?.height_offset);
+          setHeightOffset(Number.isFinite(o) && o > 0 ? String(o) : "");
         }
       })
       .catch((e) => { if (!cancelled) setError(e.message); })
@@ -3556,15 +3559,17 @@ function SettingsPage() {
   const submit = async (e) => {
     e.preventDefault();
     const value = Number(heightImage);
-    if (!Number.isFinite(value) || value <= 0) {
+    const offset = Number(heightOffset);
+    if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(offset) || offset <= 0) {
       setError(t("settings.err.invalid"));
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const res = await api.updateMeasurementConfig({ height_image: value });
+      const res = await api.updateMeasurementConfig({ height_image: value, height_offset: offset });
       setHeightImage(String(res.height_image));
+      setHeightOffset(String(res.height_offset));
       toast.success(t("settings.saved"));
     } catch (e) {
       setError(e.message);
@@ -3574,6 +3579,7 @@ function SettingsPage() {
   };
 
   const hi = Number(heightImage);
+  const ho = Number(heightOffset);
   const hiValid = Number.isFinite(hi) && hi > 0;
   const previewRows = [0.15, 0.2, 0.25, 0.3];
 
@@ -3612,6 +3618,20 @@ function SettingsPage() {
               <p style={{ color: "#98a4b8", fontSize: 12, margin: "4px 0 16px" }}>
                 {t("settings.height_image.desc")}
               </p>
+              <FieldRow label={t("settings.height_offset.label")}>
+                <input
+                  className="control"
+                  type="number"
+                  min="1"
+                  step="any"
+                  value={heightOffset}
+                  onChange={(e) => setHeightOffset(e.target.value)}
+                  required
+                />
+              </FieldRow>
+              <p style={{ color: "#98a4b8", fontSize: 12, margin: "4px 0 16px" }}>
+                {t("settings.height_offset.desc")}
+              </p>
               <div className="modal-actions" style={{ marginTop: 0 }}>
                 <button type="submit" className="button primary" disabled={saving}>
                   {saving ? t("common.saving") : t("common.save")}
@@ -3628,7 +3648,7 @@ function SettingsPage() {
                 <p>{t("settings.formula.desc")}</p>
               </div>
             </div>
-            <div className="settings-formula">height_cm = (1 − head_ratio) × height_image</div>
+            <div className="settings-formula">height_cm = (1 − head_ratio) × height_image + height_offset</div>
             <p className="settings-preview-caption">
               {hiValid
                 ? t("settings.preview.caption", { v: hi })
@@ -3645,7 +3665,7 @@ function SettingsPage() {
                 {previewRows.map((r) => (
                   <tr key={r}>
                     <td>{r.toFixed(2)}</td>
-                    <td>{hiValid ? `${((1 - r) * hi).toFixed(1)} cm` : "—"}</td>
+                    <td>{hiValid && ho > 0 ? `${((1 - r) * hi + ho).toFixed(1)} cm` : "—"}</td>
                   </tr>
                 ))}
               </tbody>

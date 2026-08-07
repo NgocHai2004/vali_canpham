@@ -15,6 +15,7 @@ function createKioskWindow(proxyPort) {
     kiosk: !config.IS_DEV,
     frame: false,
     autoHideMenuBar: true,
+    show: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -23,6 +24,8 @@ function createKioskWindow(proxyPort) {
     },
   })
   win.setMenuBarVisibility(false)
+  win.show()
+  win.focus()
 
   // Chan mo cua so moi / link ngoai.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))

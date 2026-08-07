@@ -23,9 +23,33 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from openpyxl import Workbook, load_workbook
 
+def _env_str_from_dotenv(name: str) -> str:
+    """Doc gia tri tu .env (App_CCCD/.env) khi env var chua set.
+    Nguon su that duy nhat la .env — tranh lech secret giua cac cach start khac nhau
+    (run-electron load .env vs start-all khong load .env) gay 2 backend lech secret
+    -> token 401 -> logout hang loat khi quet CCCD.
+    """
+    val = os.getenv(name, "").strip()
+    if val:
+        return val
+    root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+    try:
+        with open(root_env, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == name:
+                    return v.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
+    return ""
+
+
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "app_cccd")
-JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production-please-abc123xyz")
+JWT_SECRET = _env_str_from_dotenv("JWT_SECRET") or "change-me-in-production-please-abc123xyz"
 JWT_ALGO = "HS256"
 TOKEN_TTL_MINUTES = 60 * 8
 
@@ -56,10 +80,19 @@ HEIGHT_IMAGE_DEFAULT = _env_float("height_image", 100)
 HEIGHT_IMAGE_MAX = 1000.0
 _height_image_cache: float = HEIGHT_IMAGE_DEFAULT
 
+HEIGHT_OFFSET_DEFAULT = _env_float("height_offset", 103)
+HEIGHT_OFFSET_MAX = 1000.0
+_height_offset_cache: float = HEIGHT_OFFSET_DEFAULT
+
 
 def get_height_image() -> float:
     """Giá trị height_image hiện hành (cache in-memory, đồng bộ với DB)."""
     return _height_image_cache
+
+
+def get_height_offset() -> float:
+    """Giá trị height_offset hiện hành (cache in-memory, đồng bộ với DB)."""
+    return _height_offset_cache
 
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
@@ -154,17 +187,28 @@ async def _ensure_admin():
 
 
 async def _load_measurement_config():
-    """Đọc height_image từ db.settings; seed từ .env nếu chưa có. Cập nhật cache in-memory."""
-    global _height_image_cache
+    """Đọc height_image + height_offset từ db.settings; seed từ .env nếu chưa có. Cập nhật cache in-memory."""
+    global _height_image_cache, _height_offset_cache
     doc = await db.settings.find_one({"_id": "measurement"})
     if doc is None:
         _height_image_cache = HEIGHT_IMAGE_DEFAULT
-        await db.settings.insert_one({"_id": "measurement", "height_image": HEIGHT_IMAGE_DEFAULT})
+        _height_offset_cache = HEIGHT_OFFSET_DEFAULT
+        await db.settings.insert_one({
+            "_id": "measurement",
+            "height_image": HEIGHT_IMAGE_DEFAULT,
+            "height_offset": HEIGHT_OFFSET_DEFAULT,
+        })
     else:
         try:
             val = float(doc.get("height_image"))
             if val > 0:
                 _height_image_cache = val
+        except (TypeError, ValueError):
+            pass
+        try:
+            val = float(doc.get("height_offset"))
+            if val > 0:
+                _height_offset_cache = val
         except (TypeError, ValueError):
             pass
 
@@ -765,27 +809,111 @@ async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
 
 # ---------- Fingerprint match (tra cứu can phạm bằng vân tay) ----------
 FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
-FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "50"))
+FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "85"))  # luu cho cac luong khac (neu co)
+FP_MATCH_FINGER = os.getenv("FP_MATCH_FINGER", "left_thumb")     # ngon dung de ket luan
+FP_LEFT_THUMB_THRESHOLD = int(os.getenv("FP_LEFT_THUMB_THRESHOLD", "80"))  # score > N (dung >)
+FP_SINGLE_THRESHOLD = int(os.getenv("FP_SINGLE_THRESHOLD", "80"))  # luong 1-ngon (Search), giong Enroll
+FP_REQUIRED_FINGER_COUNT = int(os.getenv("FP_REQUIRED_FINGER_COUNT", "10"))  # phai du bao nhieu ngon
+FP_FINGER_CODES = [
+    "left_little", "left_ring", "left_middle", "left_index", "left_thumb",
+    "right_thumb", "right_index", "right_middle", "right_ring", "right_little",
+]
 
 # ---------- Face recognition (nhận diện khuôn mặt bằng InsightFace buffalo_sc) ----------
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.4"))
 
 
 class MatchFingerprintReq(BaseModel):
-    template_b64: str
+    # FE gom du N ngon (theo FP_FINGER_CODES) roi gui len. Backend chi dung
+    # FP_MATCH_FINGER (left_thumb) de so sanh va ket luan.
+    fingers: dict[str, str]   # {"left_thumb": "<b64>", "left_index": "<b64>", ...}
 
 
 @app.post("/api/detainees/match_fingerprint")
 async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_current_user)):
-    """Tra cứu can phạm bằng 1 template vân tay.
+    """Tra cứu can phạm bằng vân tay (logic moi).
 
-    Nhận template_b64 (do FE quét live qua fingerprint_service port 8765),
-    duyệt tất cả detainee trong Mongo có trường photos.fp_templates,
-    proxy sang fingerprint_service /api/match_pair để lấy score cho từng ngón,
-    trả top 10 detainee có score >= FP_MATCH_THRESHOLD.
+    Yeu cau FE gui du FP_REQUIRED_FINGER_COUNT ngon (mac dinh 10). Backend chi
+    so sanh ngon FP_MATCH_FINGER (left_thumb) cua nguoi tra cuu voi left_thumb
+    cua tung can pham trong Mongo. Ket luan khop neu score > FP_LEFT_THUMB_THRESHOLD.
+    Tra top 10 can pham khop.
+    """
+    fingers = body.fingers or {}
+    # Dem so ngon co template khong trong
+    present = [c for c in FP_FINGER_CODES if (fingers.get(c) or "").strip()]
+    if len(present) < FP_REQUIRED_FINGER_COUNT:
+        raise HTTPException(
+            400,
+            f"Phai quet du {FP_REQUIRED_FINGER_COUNT} ngon moi tra cuu "
+            f"(hien co {len(present)}).",
+        )
+    query_tmpl = (fingers.get(FP_MATCH_FINGER) or "").strip()
+    if not query_tmpl:
+        raise HTTPException(400, f"Thieu template cua ngon {FP_MATCH_FINGER}.")
+
+    cursor = db.detainees.find(
+        {"photos.fp_templates": {"$exists": True, "$ne": {}}},
+        {
+            "personal_id": 1, "full_name": 1, "cccd_number": 1, "gender": 1, "dob": 1,
+            "cell_code": 1, "charge": 1, "hometown": 1, "address": 1,
+            "photos.fp_templates": 1, "photos.portrait_front": 1, "photos.cccd_front": 1,
+            "created_at": 1,
+        },
+    )
+
+    matches: list[dict] = []
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        async for det in cursor:
+            fp_templates = (det.get("photos") or {}).get("fp_templates") or {}
+            stored_tmpl = fp_templates.get(FP_MATCH_FINGER)
+            if not stored_tmpl:
+                continue  # can pham khong co left_thumb -> khong the so
+            try:
+                resp = await client.post(
+                    f"{FP_SERVICE_URL}/api/match_pair",
+                    json={"t1_b64": query_tmpl, "t2_b64": stored_tmpl},
+                )
+                if resp.status_code != 200:
+                    continue
+                score = int(resp.json().get("score", 0))
+            except Exception:
+                continue
+            if score > FP_LEFT_THUMB_THRESHOLD:
+                matches.append({
+                    "detainee": _s(det),
+                    "score": score,
+                    "finger_code": FP_MATCH_FINGER,
+                })
+
+    matches.sort(key=lambda m: -m["score"])
+    top = matches[:10]
+
+    return {
+        "matched": len(top) > 0,
+        "total": len(top),
+        "items": [
+            {**m["detainee"], "match_score": m["score"], "match_finger": m["finger_code"]}
+            for m in top
+        ],
+        "score": top[0]["score"] / 100.0 if top else 0.0,
+    }
+
+
+class MatchFingerprintSingleReq(BaseModel):
+    template_b64: str
+
+
+@app.post("/api/detainees/match_fingerprint_single")
+async def match_fingerprint_single(body: MatchFingerprintSingleReq, user: dict = Depends(get_current_user)):
+    """Tra cứu can phạm bằng 1 template vân tay (luong Search, quet 1 ngon).
+
+    Khac voi match_fingerprint (can 10 ngon + chi so left_thumb): endpoint nay
+    nhan 1 ngon bat ky, so voi TAT CA ngon cua moi can pham, lay best_score.
+    Ket luan khop neu best_score > FP_SINGLE_THRESHOLD (mac dinh 95, rat chat)
+    de giam doan nham khi chi co 1 ngon.
     """
     if not body.template_b64:
-        raise HTTPException(400, "Thiếu template vân tay.")
+        raise HTTPException(400, "Thieu template van tay.")
 
     cursor = db.detainees.find(
         {"photos.fp_templates": {"$exists": True, "$ne": {}}},
@@ -819,7 +947,7 @@ async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_
                 if score > best_score:
                     best_score = score
                     best_finger = code
-            if best_score >= FP_MATCH_THRESHOLD:
+            if best_score > FP_SINGLE_THRESHOLD:
                 matches.append({
                     "detainee": _s(det),
                     "score": best_score,
@@ -1526,25 +1654,28 @@ async def face_backfill(user: dict = Depends(get_current_user)):
 
 @app.get("/api/config/measurement")
 async def measurement_config(user: dict = Depends(get_current_user)):
-    return {"height_image": get_height_image()}
+    return {"height_image": get_height_image(), "height_offset": get_height_offset()}
 
 
 class MeasurementConfigIn(BaseModel):
     height_image: float = Field(..., gt=0, le=HEIGHT_IMAGE_MAX)
+    height_offset: float = Field(..., gt=0, le=HEIGHT_OFFSET_MAX)
 
 
 @app.put("/api/config/measurement")
 async def update_measurement_config(body: MeasurementConfigIn, request: Request, admin: dict = Depends(require_admin)):
-    global _height_image_cache
+    global _height_image_cache, _height_offset_cache
     value = float(body.height_image)
+    offset = float(body.height_offset)
     await db.settings.update_one(
         {"_id": "measurement"},
-        {"$set": {"height_image": value}},
+        {"$set": {"height_image": value, "height_offset": offset}},
         upsert=True,
     )
     _height_image_cache = value
-    await _log(request, admin, "update", "setting", "measurement", {"height_image": value})
-    return {"height_image": value}
+    _height_offset_cache = offset
+    await _log(request, admin, "update", "setting", "measurement", {"height_image": value, "height_offset": offset})
+    return {"height_image": value, "height_offset": offset}
 
 
 # ==================== CCCD READER (watch folder data_cccd) ====================

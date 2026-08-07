@@ -49,7 +49,7 @@ async function request(path, opts = {}) {
   } catch (netErr) {
     throw new Error(apiT("api.error.network", { message: netErr.message }));
   }
-  if (res.status === 401) {
+  if (res.status === 401 && !opts.skipAuthExpire) {
     auth.clear();
     if (onAuthExpired) onAuthExpired();
     throw new Error(apiT("api.error.auth_expired"));
@@ -182,7 +182,7 @@ export const api = {
   },
   me: () => request("/api/auth/me"),
   updateMe: (body) => request("/api/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
-  verifyDongle: () => request("/api/auth/dongle-verify"),
+  verifyDongle: () => request("/api/auth/dongle-verify", { skipAuthExpire: true }),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
   measurementConfig: () => request("/api/config/measurement"),
   updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
@@ -208,7 +208,13 @@ export const api = {
   // Tra cứu đối tượng đã đăng ký theo số CCCD (toàn hệ thống). Trả {matched, detainee}.
   checkCccd: (cccdNumber) => request(`/api/detainees/check-cccd?cccd_number=${encodeURIComponent(cccdNumber)}`),
 
-  matchFingerprint: (templateB64) => request("/api/detainees/match_fingerprint", {
+  matchFingerprint: (fingers) => request("/api/detainees/match_fingerprint", {
+    method: "POST",
+    body: JSON.stringify({ fingers }),
+  }),
+
+  // Luồng Search: quét 1 ngón bất kỳ, so với mọi ngón của can phạm. Ngưỡng rất cao (>95).
+  matchFingerprintSingle: (templateB64) => request("/api/detainees/match_fingerprint_single", {
     method: "POST",
     body: JSON.stringify({ template_b64: templateB64 }),
   }),
@@ -326,6 +332,11 @@ async function cccdRequest(path, opts = {}, signal) {
   }
   if (res.status === 204) return { status: "timeout" };
   if (res.status === 401) {
+    // DELETE /api/cccd/session/{sid} = cleanup (cancel) — KHONG logout khi 401.
+    // 401 o day thuong la hau qua cua logout truoc do (token da clear), khong phai nguyen nhan.
+    if (opts.method === "DELETE" && path.startsWith("/api/cccd/session/")) {
+      throw new Error("cccd session cleanup failed (401)");
+    }
     auth.clear();
     if (onAuthExpired) onAuthExpired();
     throw new Error(apiT("api.error.auth_expired"));
