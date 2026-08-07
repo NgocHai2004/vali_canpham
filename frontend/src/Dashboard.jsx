@@ -131,7 +131,11 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   };
 
   const openEditForm = async (detainee) => {
-    setEditingDetainee(detainee);
+    let full = detainee;
+    try {
+      if (detainee?.id) full = await api.getDetainee(detainee.id);
+    } catch { /* dùng dữ liệu có sẵn nếu không nạp được */ }
+    setEditingDetainee(full);
     setSessionCtx(null);
     setActiveSessionId(null);
     setPage("session_capture");
