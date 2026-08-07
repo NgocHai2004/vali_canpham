@@ -8,8 +8,9 @@ import { useI18n } from "./i18n";
 //   matches       : [{ source, detainee, score?, finger? }] đã dedup theo detainee.id
 //   onProceed     : () => void — "Vẫn lưu bản mới"
 //   onOpenProfile : (detainee) => void — "Mở hồ sơ đã đăng ký" (chỉ khi đúng 1 match)
+//   onEditProfile : (detainee) => void — "Sửa" hồ sơ đã đăng ký (chỉ khi đúng 1 match)
 //   onCancel      : () => void — "Huỷ, kiểm tra lại"
-export default function DuplicateWarnModal({ open, matches = [], onProceed, onOpenProfile, onCancel }) {
+export default function DuplicateWarnModal({ open, matches = [], onProceed, onOpenProfile, onEditProfile, onCancel }) {
   const { t } = useI18n();
   if (!open) return null;
 
@@ -58,6 +59,15 @@ export default function DuplicateWarnModal({ open, matches = [], onProceed, onOp
                       </div>
                     ) : null}
                   </div>
+                  {matches.length === 1 && onEditProfile ? (
+                    <button
+                      type="button"
+                      className="dup-warn-edit-btn"
+                      onClick={() => onEditProfile(d)}
+                    >
+                      {t("capture.dup_modal.edit")}
+                    </button>
+                  ) : null}
                 </li>
               );
             })}

@@ -254,11 +254,14 @@ class ZKFP:
         _dll.ZKFPM_DBSetParameter(self._db, 1, int(value))
 
     # ---------- chup ----------
-    def acquire(self) -> tuple[bytes, bytes] | None:
-        """Doc 1 lan tu sensor.
+    def acquire_status(self) -> tuple[str, bytes | None, bytes | None]:
+        """Doc 1 lan tu sensor, tra ve (status, image, template).
 
-        Tra ve (image_bytes, template_bytes) neu co van tay, hoac None neu chua co.
-        Goi lien tuc trong vong lap (co Sleep nho) cho den khi khac None.
+        status:
+          - "ok"          : chup + trich xuat template thanh cong
+          - "no_finger"   : chua co ngon tay tren sensor
+          - "bad_quality" : co ngon tay nhung khong trich xuat duoc template
+                            (anh kem: ngon kho, dat lech, ap luc khong deu...)
         """
         img = (c_ubyte * self.img_size)()
         tmpl = (c_ubyte * MAX_TEMPLATE_SIZE)()
@@ -267,10 +270,23 @@ class ZKFP:
             self._dev, img, c_uint(self.img_size), tmpl, ctypes.byref(tmpl_len)
         )
         if rc == ZKFP_ERR_OK:
-            return bytes(img), bytes(tmpl[: tmpl_len.value])
-        if rc in (ZKFP_ERR_CAPTURE, ZKFP_ERR_EXTRACT_FP, ZKFP_ERR_TIMEOUT):
-            return None  # chua co van tay, thu lai
+            return "ok", bytes(img), bytes(tmpl[: tmpl_len.value])
+        if rc == ZKFP_ERR_EXTRACT_FP:
+            return "bad_quality", None, None
+        if rc in (ZKFP_ERR_CAPTURE, ZKFP_ERR_TIMEOUT):
+            return "no_finger", None, None
         raise ZKFPError(rc, "AcquireFingerprint")
+
+    def acquire(self) -> tuple[bytes, bytes] | None:
+        """Doc 1 lan tu sensor (backward-compat).
+
+        Tra ve (image_bytes, template_bytes) neu co van tay, hoac None neu chua co.
+        Goi lien tuc trong vong lap (co Sleep nho) cho den khi khac None.
+        """
+        status, img, tmpl = self.acquire_status()
+        if status == "ok":
+            return img, tmpl
+        return None
 
     # ---------- DB thao tac ----------
     def merge(self, t1: bytes, t2: bytes, t3: bytes) -> bytes:

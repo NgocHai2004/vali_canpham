@@ -128,11 +128,25 @@ class DeviceManager:
     def capture_once(self, timeout_s: float = 15.0) -> tuple[bytes, bytes]:
         dev = self.ensure_open()
         deadline = time.time() + timeout_s
+        bad_since: Optional[float] = None
         while time.time() < deadline:
             with self._lock:
-                result = dev.acquire()
-            if result is not None:
-                return result
+                status, img, tmpl = dev.acquire_status()
+            if status == "ok":
+                return img, tmpl
+            if status == "bad_quality":
+                # Co ngon tay nhung anh kem. Cho phep nguoi dung dieu chinh
+                # (lau kho/lam am, dat lai) trong vai giay truoc khi bao loi ro rang.
+                if bad_since is None:
+                    bad_since = time.time()
+                if time.time() - bad_since > 3.0:
+                    raise HTTPException(
+                        422,
+                        "Da nhan dien ngon tay nhung chat luong anh kem. "
+                        "Hay lau kho/lam am ngon tay, dat lai va giu yên.",
+                    )
+            else:  # no_finger
+                bad_since = None
             time.sleep(0.15)
         raise HTTPException(408, "Het thoi gian doi dat ngon tay.")
 
@@ -334,6 +348,12 @@ def capture(sid: str) -> dict:
     buf = io.BytesIO(); img.save(buf, format="PNG")
     img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
+    # Thumbnail nho (~200px) de frontend hien thi nhanh, tranh truyen ảnh full-res.
+    thumb = img.copy()
+    thumb.thumbnail((200, 200))
+    tbuf = io.BytesIO(); thumb.save(tbuf, format="PNG")
+    thumb_b64 = base64.b64encode(tbuf.getvalue()).decode("ascii")
+
     target.template_b64 = base64.b64encode(tmpl).decode("ascii")
     target.image_b64 = img_b64
     target.captured_at = time.time()
@@ -348,6 +368,7 @@ def capture(sid: str) -> dict:
             "finger": {
                 **target.to_public(include_template=True),
                 "image_b64": img_b64,
+                "thumb_b64": thumb_b64,
             },
             "progress": {"done": done, "total": len(s.fingers)},
             "next_finger": nf.to_public() if nf else None,

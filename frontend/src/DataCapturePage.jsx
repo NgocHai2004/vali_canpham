@@ -658,7 +658,7 @@ function normalizeInitial(initial) {
   };
 }
 
-export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession }) {
+export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
   const { t, formatDateLong } = useI18n();
   const isEdit = Boolean(initial && initial.id);
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
@@ -1498,6 +1498,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     raiseAlert({ source: "cccd", detainee });
   };
 
+  const onDupEdit = (detainee) => {
+    setDupModal({ open: false, matches: [] });
+    if (onEditProfile) onEditProfile(detainee);
+  };
+
   const resetAll = () => {
     if (!window.confirm(isEdit ? t("capture.confirm.cancel_edit") : t("capture.confirm.clear_all"))) return;
     if (isEdit && onDone) onDone();
@@ -1928,6 +1933,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         matches={dupModal.matches}
         onProceed={onDupProceed}
         onOpenProfile={onDupOpenProfile}
+        onEditProfile={onEditProfile ? onDupEdit : undefined}
         onCancel={onDupCancel}
       />
     </div>

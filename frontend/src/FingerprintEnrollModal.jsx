@@ -91,7 +91,8 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
       const r = await fpApi.capture(sid);
       const code = r.finger.code;
       capturedRef.current[code] = r.finger.image_b64;
-      setPreviewB64(r.finger.image_b64);
+      // Hiển thị thumbnail nhỏ cho nhanh; ảnh gốc (image_b64) chỉ dùng khi upload.
+      setPreviewB64(r.finger.thumb_b64 || r.finger.image_b64);
       setFingers((list) => list.map((f) => (f.code === code ? { ...f, done: true } : f)));
       setNextCode(r.next_finger ? r.next_finger.code : null);
       setStatus(r.message || t("fpenroll.status.saved", { finger: fingerName(code) }));
@@ -107,24 +108,29 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
     }
   };
 
-  const redoCurrent = async () => {
-    if (!sid) return;
-    const lastDone = [...fingers].reverse().find((f) => f.done);
-    if (!lastDone) return;
+  const redoFinger = async (code) => {
+    if (!sid || busy || saving) return;
     setBusy(true);
     setErr("");
     try {
-      await fpApi.redo(sid, lastDone.code);
-      delete capturedRef.current[lastDone.code];
-      setFingers((list) => list.map((f) => (f.code === lastDone.code ? { ...f, done: false } : f)));
-      setNextCode(lastDone.code);
-      setStatus(t("fpenroll.status.retake", { finger: fingerName(lastDone.code) }));
+      await fpApi.redo(sid, code);
+      delete capturedRef.current[code];
+      setFingers((list) => list.map((f) => (f.code === code ? { ...f, done: false } : f)));
+      setNextCode(code);
+      setStatus(t("fpenroll.status.retake", { finger: fingerName(code) }));
       setPreviewB64(null);
     } catch (e) {
       setErr(e.message);
     } finally {
       setBusy(false);
     }
+  };
+
+  const redoCurrent = async () => {
+    if (!sid) return;
+    const lastDone = [...fingers].reverse().find((f) => f.done);
+    if (!lastDone) return;
+    await redoFinger(lastDone.code);
   };
 
   const cancel = async () => {
@@ -165,12 +171,18 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
         const isNext = nextCode === code;
         const isDone = !!(f && f.done);
         return (
-          <div key={code} className={"fp-row" + (isDone ? " done" : "") + (isNext ? " active" : "")}>
+          <div
+            key={code}
+            className={"fp-row" + (isDone ? " done redoable" : "") + (isNext ? " active" : "")}
+            onClick={isDone ? () => redoFinger(code) : undefined}
+            title={isDone ? t("fpenroll.retake_last") : undefined}
+          >
             <span className="fp-row-dot" />
             <span className="fp-row-name">{fingerName(code)}</span>
             <span className="fp-row-status">
               {isDone ? t("fpenroll.done_label") : isNext ? t("fpenroll.waiting_label") : ""}
             </span>
+            {isDone && <span className="fp-row-redo">↻</span>}
           </div>
         );
       })}

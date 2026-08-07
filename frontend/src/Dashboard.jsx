@@ -130,6 +130,13 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
     }
   };
 
+  const openEditForm = async (detainee) => {
+    setEditingDetainee(detainee);
+    setSessionCtx(null);
+    setActiveSessionId(null);
+    setPage("session_capture");
+  };
+
   const openSession = (sessionId) => {
     setActiveSessionId(sessionId);
     setPage("sessions_detail");
@@ -179,6 +186,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           onLogout={onLogout}
           isAdmin={isAdmin}
           onEditProfile={() => setShowProfileModal(true)}
+          onEditDetainee={openEditForm}
         />
         {showProfileModal && (
           <ProfileEditModal
@@ -238,15 +246,16 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
               onSessionClosed={handleSessionClosed}
             />
           )}
-          {page === "session_capture" && sessionCtx && (
+          {page === "session_capture" && (
             <DataCapturePage
               go={goPage}
               initial={editingDetainee}
               onDone={() => setEditingDetainee(null)}
-              sessionId={sessionCtx.sessionId}
-              sessionCode={sessionCtx.sessionCode}
-              sessionReadOnly={sessionCtx.sessionReadOnly}
+              sessionId={sessionCtx?.sessionId}
+              sessionCode={sessionCtx?.sessionCode}
+              sessionReadOnly={sessionCtx?.sessionReadOnly}
               onSavedInSession={doneSessionCapture}
+              onEditProfile={editDetainee}
             />
           )}
           {page === "search" && <SearchPage />}
@@ -268,7 +277,7 @@ const DEVICE_CHIPS = [
   { key: "scale", labelKey: "header.device.scale" },
 ];
 
-function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile }) {
+function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee }) {
   const { t } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -379,7 +388,22 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
                           <div className="notif-item-msg">{it.message}</div>
                           <div className="notif-item-time">{formatDateTime(it.at)}</div>
                           {match && (
-                            <div className="notif-item-cta">{t("capture.alert.open_profile")}</div>
+                            <div className="notif-item-cta">
+                              <span className="notif-item-cta-view">{t("capture.alert.open_profile")}</span>
+                              {onEditDetainee && (
+                                <button
+                                  type="button"
+                                  className="notif-item-cta-edit"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setNotifOpen(false);
+                                    onEditDetainee(it.meta.detainee);
+                                  }}
+                                >
+                                  {t("capture.alert.edit_profile")}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1302,7 +1326,7 @@ function DetaineesPage({ onEdit }) {
         />
       )}
 
-      {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
+      {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} onEdit={onEdit} />}
     </div>
   );
 }
@@ -1365,14 +1389,19 @@ const DetailIcon = {
   ),
 };
 
-function DetailModal({ detainee, onClose }) {
+function DetailModal({ detainee, onClose, onEdit }) {
   const { t, formatDate } = useI18n();
   const d = detainee;
   const dobText = formatDate(d.dob);
   const dateInText = formatDate(d.date_in);
   const genderText = d.gender === "female" ? t("common.female") : t("common.male");
   const genderSymbol = d.gender === "female" ? "♀" : "♂";
-  const avatar = d.photo_url || d.photos?.portrait_front;
+  const avatar = d.photos?.cccd_front || d.photo_url || d.photos?.portrait_front;
+  const editMissing = onEdit ? (
+    <button className="info-tile-edit-btn" onClick={() => onEdit(d)} title={t("detainee.detail.edit_missing")}>
+      {t("detainee.detail.edit_missing")}
+    </button>
+  ) : null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -1406,11 +1435,11 @@ function DetailModal({ detainee, onClose }) {
             <InfoTile icon={DetailIcon.cccd} label={t("detainee.field.cccd")} value={d.cccd_number || "—"} />
             <InfoTile icon={DetailIcon.note} label={t("detainee.field.personal_id")} value={d.personal_id || "—"} />
             <InfoTile icon={DetailIcon.dob} label={t("detainee.field.dob")} value={dobText} />
-            <InfoTile icon={DetailIcon.ethnic} label={t("detainee.field.ethnicity")} value={d.ethnicity || "—"} />
+            <InfoTile icon={DetailIcon.ethnic} label={t("detainee.field.ethnicity")} value={d.ethnicity || "Kinh"} action={!d.ethnicity ? editMissing : null} />
             <InfoTile icon={DetailIcon.door} label={t("detainee.field.cell")} value={d.cell_code || "—"} />
             <InfoTile icon={DetailIcon.pin} label={t("detainee.field.address")} value={d.address || "—"} />
             <InfoTile icon={DetailIcon.gender} label={t("detainee.field.gender")} value={<span><b>{genderSymbol}</b> {genderText}</span>} />
-            <InfoTile icon={DetailIcon.flag} label={t("detainee.field.nationality")} value={d.nationality || "—"} />
+            <InfoTile icon={DetailIcon.flag} label={t("detainee.field.nationality")} value={d.nationality || t("detainee.field.nationality_default")} action={!d.nationality ? editMissing : null} />
           </div>
         </div>
       </div>
@@ -1418,7 +1447,7 @@ function DetailModal({ detainee, onClose }) {
   );
 }
 
-function InfoTile({ icon, label, value }) {
+function InfoTile({ icon, label, value, action }) {
   return (
     <div className="info-tile">
       <span className="info-tile-icon">{icon}</span>
@@ -1426,6 +1455,7 @@ function InfoTile({ icon, label, value }) {
         <span className="info-tile-label">{label}</span>
         <strong className="info-tile-value">{value}</strong>
       </div>
+      {action && <div className="info-tile-action">{action}</div>}
     </div>
   );
 }
@@ -3051,7 +3081,7 @@ function DetaineeHistoryPage({ onEdit }) {
         </div>
       </div>
 
-      {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
+      {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} onEdit={onEdit} />}
     </div>
   );
 }
@@ -4300,9 +4330,29 @@ const styles = `
   .notif-item-dot-alert { background: #B91C1C; }
   .notif-item-cta {
     margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .notif-item-cta-view {
     font-size: 12px;
     font-weight: 700;
     color: #B91C1C;
+  }
+  .notif-item-cta-edit {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e5eff;
+    background: #eef3ff;
+    border: 1px solid #d3dfff;
+    border-radius: 6px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .notif-item-cta-edit:hover {
+    background: #e0eaff;
+    border-color: #b6c8ff;
   }
 
   .icon-button {
