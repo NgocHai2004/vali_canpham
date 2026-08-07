@@ -13,6 +13,7 @@ const FIELD_LABELS = {
   hometown: "Nguyên quán",
   address: "Địa chỉ",
   cell_code: "Buồng giam",
+  search_index: "Chỉ mục tìm kiếm",
   height_cm: "Chiều cao",
   weight_kg: "Cân nặng",
   charge: "Tội danh",
@@ -47,7 +48,7 @@ const META_FIELDS = [
   "full_name", "gender", "dob", "cccd_number",
   "issued_date", "expiry_date",
   "ethnicity", "religion", "nationality",
-  "hometown", "address", "cell_code",
+  "hometown", "address", "cell_code", "search_index",
   "height_cm", "weight_kg", "charge",
 ];
 
@@ -95,6 +96,7 @@ function localToComparable(d) {
     hometown: String(d.hometown || "").trim(),
     address: String(d.address || "").trim(),
     cell_code: String(d.cell_code || "").trim(),
+    search_index: String(d.search_index || "").trim(),
     height_cm: normNumber(d.height_cm),
     weight_kg: normNumber(d.weight_kg),
     charge: String(d.charge || "").trim(),
@@ -118,6 +120,7 @@ function remoteToComparable(r) {
     hometown: String(r.nguyenQuan || "").trim(),
     address: String(r.noiDKThuongTru || "").trim(),
     cell_code: String(r.buongGiam || "").trim(),
+    search_index: String(r.chiMucTimKiem || r.searchIndex || "").trim(),
     height_cm: normNumber(r.chieuCao),
     weight_kg: normNumber(r.canNang),
     charge: String(r.toiDanh || "").trim(),

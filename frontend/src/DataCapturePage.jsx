@@ -1561,6 +1561,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     onPortraitRecognize={raiseFaceAlerts}
                     heightImage={heightImage}
                     heightOffset={heightOffset}
+                    useYolo={p.key === "portrait_front"}
                   />
                 </div>
               ))}
@@ -1622,9 +1623,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   placeholder={t("capture.form.personal_id_ph")} />
               </InfoField>
               {/* ---- 21 trường Thông tin can phạm (string) ---- */}
-              <InfoField label={t("detainee.field.cell_block")}>
-                <input className="control control-sm" value={form.cell_block}
-                  onChange={(e) => setField("cell_block", e.target.value)} />
+              <InfoField label={t("detainee.field.search_index")}>
+                <input className="control control-sm" value={form.search_index}
+                  onChange={(e) => setField("search_index", e.target.value)} />
               </InfoField>
               <InfoField label={t("detainee.field.status_detainee")}>
                 <input className="control control-sm" value={form.status_detainee}
@@ -1942,7 +1943,7 @@ function InfoField({ label, children, className = "" }) {
   );
 }
 
-function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, onPortraitRecognize, heightImage = 100, heightOffset = 103 }) {
+function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, onPortraitRecognize, heightImage = 100, heightOffset = 103, useYolo = false }) {
   const { t } = useI18n();
   const videoRef = useRef(null);
   const frameRef = useRef(null);
@@ -2020,8 +2021,10 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
         streamRef.current = null;
       }
       const file = new File([blob], `portrait_${Date.now()}.jpg`, { type: "image/jpeg" });
-      const res = await api.uploadPhoto(file, "portrait");
-      setHeadRatio(typeof res.head_ratio === "number" ? res.head_ratio : null);
+      // Chỉ ảnh thẳng (useYolo) mới gọi type=portrait để YOLO vẽ vạch đỏ + đo chiều cao.
+      // Ảnh trái/phải chụp thường, không cần YOLO.
+      const res = await api.uploadPhoto(file, useYolo ? "portrait" : "");
+      setHeadRatio(useYolo && typeof res.head_ratio === "number" ? res.head_ratio : null);
       onCapture(res.url);
       onPortraitRecognize?.(res.url);
       setPreview(true);

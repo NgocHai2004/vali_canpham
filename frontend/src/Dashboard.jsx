@@ -1558,7 +1558,6 @@ function SyncPage() {
       height_cm: d.height_cm || null,
       weight_kg: d.weight_kg || null,
       // ---- Nghiệp vụ giam giữ (21 trường) ----
-      cell_block: d.cell_block || null,
       status_detainee: d.status_detainee || null,
       squad: d.squad || null,
       health_intake: d.health_intake || null,

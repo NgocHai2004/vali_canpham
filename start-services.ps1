@@ -46,3 +46,22 @@ Start-Process -FilePath $py `
     -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $logs 'usb.out.log') `
     -RedirectStandardError  (Join-Path $logs 'usb.err.log')
+
+# CCCD Reader Service (Hanel HN-212) — chay nhu background process (khong phai
+# Windows service, tranh SCM kill). Chay tu publish/ de doc appsettings.json + DLL.
+$cccdExe = Join-Path $svc 'cccd_scanner\publish\CccdService.exe'
+if (Test-Path $cccdExe) {
+    # Neu Windows service CccdReaderService dang chay -> dung de tranh trung port/device.
+    $cccdSvc = Get-Service -Name 'CccdReaderService' -ErrorAction SilentlyContinue
+    if ($cccdSvc -and $cccdSvc.Status -eq 'Running') {
+        try { Stop-Service -Name 'CccdReaderService' -Force -ErrorAction Stop } catch {}
+    }
+    Start-Process -FilePath $cccdExe `
+        -WorkingDirectory (Split-Path $cccdExe) `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $logs 'cccd.out.log') `
+        -RedirectStandardError  (Join-Path $logs 'cccd.err.log')
+    Write-Host "  -> spawned: CCCD Reader Service (background)"
+} else {
+    Write-Warning "Khong tim thay CCCD service: $cccdExe"
+}
