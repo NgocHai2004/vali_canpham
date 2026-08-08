@@ -852,9 +852,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     (c) => c.level === "cell" && c.parent === cellParent
   );
 
-  // Khi đổi Diện → reset cơ sở/phân trại/buồng không còn hợp lệ
+  // Khi đổi Diện → reset cơ sở/phân trại/buồng không còn hợp lệ.
+  // Chỉ reset khi cells đã load xong (cells rỗng = chưa load → không xoá giá trị đã lưu).
   useEffect(() => {
     setForm((f) => {
+      if (cells.length === 0) return f;
       const validFacilities = cells.filter(
         (c) => c.level === "facility" && c.custody_type === f.custody_type
       );
@@ -868,6 +870,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // Khi đổi cơ sở → reset phân trại/buồng
   useEffect(() => {
     setForm((f) => {
+      if (cells.length === 0) return f;
       const validSub = cells.filter(
         (c) => c.level === "sub_camp" && c.parent === f.facility_code
       );
@@ -881,6 +884,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // Khi đổi phân trại → reset buồng
   useEffect(() => {
     setForm((f) => {
+      if (cells.length === 0) return f;
       const parent = f.custody_type === "tam_giam" ? f.sub_camp_code : f.facility_code;
       const validCells = cells.filter(
         (c) => c.level === "cell" && c.parent === parent
@@ -1901,7 +1905,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         </button>
         <button type="button" className="button secondary" disabled={saving}
           onClick={async () => {
-            const payload = { form, photos };
+            const payload = { form, photos, cells };
             const opened = await tryOpenOnSecondaryScreen(payload);
             if (opened) setPreviewOnSecondary(true);
             else setPreviewOpen(true);
@@ -1924,6 +1928,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <ProfilePreviewModal
           form={form}
           photos={photos}
+          cells={cells}
           onClose={() => setPreviewOpen(false)}
         />
       )}
@@ -2161,7 +2166,7 @@ function TimelineItem({ time, desc }) {
 }
 
 export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
-  { form, photos },
+  { form, photos, cells = [] },
   ref,
 ) {
   const { t, formatDateLong } = useI18n();
@@ -2389,7 +2394,7 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
   );
 });
 
-function ProfilePreviewModal({ form, photos, onClose }) {
+function ProfilePreviewModal({ form, photos, cells = [], onClose }) {
   const { t } = useI18n();
   const a4Ref = useRef(null);
   const [exporting, setExporting] = useState(false);
@@ -2440,7 +2445,7 @@ function ProfilePreviewModal({ form, photos, onClose }) {
 
       <div className="preview-scroll" onClick={onClose}>
         <div onClick={(e) => e.stopPropagation()}>
-          <ProfilePreviewContent ref={a4Ref} form={form} photos={photos} />
+          <ProfilePreviewContent ref={a4Ref} form={form} photos={photos} cells={cells} />
         </div>
       </div>
 

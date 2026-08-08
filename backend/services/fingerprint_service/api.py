@@ -56,6 +56,11 @@ FINGER_NAME = {f["code"]: f["name_vi"] for f in FINGERS}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Thoi gian toi da cho phep sensor "khoa" ngon tay khi chat luong anh kem
+# (bad_quality) truoc khi bao loi. Tang tu 3s len 5s de sensor co du thoi
+# gian on dinh (ngon kho, dat lech, ap luc khong deu...).
+BAD_QUALITY_TIMEOUT = float(os.getenv("FP_BAD_QUALITY_TIMEOUT", "5.0"))
+
 
 def load_users() -> dict[int, dict]:
     return {}
@@ -109,6 +114,11 @@ class DeviceManager:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._dev: Optional[zkfp.ZKFP] = None
+        # Sau khi fail vi chat luong kem (bad_quality), bat buoc nguoi dung
+        # nhac ngon tay ra khoi sensor (no_finger) truoc khi cho thu lai.
+        # Tranh ket vong lap: lan truoc 422, nguoi dung bam lai nhung ngon
+        # tay van con tren sensor -> se lap tuc bad_quality lai.
+        self._needs_lift = False
 
     def ensure_open(self) -> zkfp.ZKFP:
         with self._lock:
@@ -125,7 +135,8 @@ class DeviceManager:
             self._dev = dev
             return dev
 
-    def capture_once(self, timeout_s: float = 15.0) -> tuple[bytes, bytes]:
+    def capture_once(self, timeout_s: float = 15.0,
+                     bad_quality_timeout: float = BAD_QUALITY_TIMEOUT) -> tuple[bytes, bytes]:
         dev = self.ensure_open()
         deadline = time.time() + timeout_s
         bad_since: Optional[float] = None
@@ -133,20 +144,32 @@ class DeviceManager:
             with self._lock:
                 status, img, tmpl = dev.acquire_status()
             if status == "ok":
+                self._needs_lift = False
                 return img, tmpl
             if status == "bad_quality":
+                # Lan truoc da fail vi chat luong kem -> bat buoc nhac tay ra
+                # truoc khi dem lai. Neu nguoi dung van giu ngon tay, bao loi
+                # ngay thay vi cho het timeout.
+                if self._needs_lift:
+                    raise HTTPException(
+                        422,
+                        "Hay nhac ngon tay ra khoi sensor truoc khi thu lai.",
+                    )
                 # Co ngon tay nhung anh kem. Cho phep nguoi dung dieu chinh
                 # (lau kho/lam am, dat lai) trong vai giay truoc khi bao loi ro rang.
                 if bad_since is None:
                     bad_since = time.time()
-                if time.time() - bad_since > 3.0:
+                if time.time() - bad_since > bad_quality_timeout:
+                    self._needs_lift = True
                     raise HTTPException(
                         422,
                         "Da nhan dien ngon tay nhung chat luong anh kem. "
-                        "Hay lau kho/lam am ngon tay, dat lai va giu yên.",
+                        "Hay nhac ngon tay ra khoi sensor, lau kho/lam am, "
+                        "dat lai va giu yên.",
                     )
             else:  # no_finger
                 bad_since = None
+                self._needs_lift = False
             time.sleep(0.15)
         raise HTTPException(408, "Het thoi gian doi dat ngon tay.")
 

@@ -92,7 +92,7 @@ export default function PreviewWindow() {
         </button>
       </div>
       <div className="preview-scroll">
-        <ProfilePreviewContent ref={a4Ref} form={payload.form} photos={payload.photos} />
+        <ProfilePreviewContent ref={a4Ref} form={payload.form} photos={payload.photos} cells={payload.cells || []} />
       </div>
 
       {usbPicker.open && (
