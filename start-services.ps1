@@ -33,12 +33,33 @@ if (-not $env:DONGLE_SECRET) {
     Write-Warning "DONGLE_SECRET chua duoc set. usb_service se thu doc tu .env."
 }
 
-Start-Process -FilePath $py `
-    -ArgumentList '-m','uvicorn','--app-dir',(Join-Path $svc 'fingerprint_service'),'api:app','--host','127.0.0.1','--port','8765' `
-    -WorkingDirectory $appRoot `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $logs 'fingerprint.out.log') `
-    -RedirectStandardError  (Join-Path $logs 'fingerprint.err.log')
+# --- Guard chong trung: neu port da co process thi KHONG spawn lai. ---
+# (Truong hop 2 nguon auto-start: kiosk-shell + Task AppCCCD-Services cu.
+#  Chay 2 cung uvicorn cung port -> cuom device vân tay -> ZKFPM_Init code=1.)
+function Test-PortInUse([int]$Port) {
+    $c = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
+    return [bool]$c
+}
+if (Test-PortInUse 8765) {
+    Write-Warning "Port 8765 (fingerprint) da co service - bo qua spawn de tranh trung."
+} else {
+    Start-Process -FilePath $py `
+        -ArgumentList '-m','uvicorn','--app-dir',(Join-Path $svc 'fingerprint_service'),'api:app','--host','127.0.0.1','--port','8765' `
+        -WorkingDirectory $appRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $logs 'fingerprint.out.log') `
+        -RedirectStandardError  (Join-Path $logs 'fingerprint.err.log')
+}
+if (Test-PortInUse 8766) {
+    Write-Warning "Port 8766 (usb) da co service - bo qua spawn de tranh trung."
+} else {
+    Start-Process -FilePath $py `
+        -ArgumentList '-m','uvicorn','--app-dir',(Join-Path $svc 'usb_service'),'api:app','--host','127.0.0.1','--port','8766' `
+        -WorkingDirectory $appRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $logs 'usb.out.log') `
+        -RedirectStandardError  (Join-Path $logs 'usb.err.log')
+}
 
 Start-Process -FilePath $py `
     -ArgumentList '-m','uvicorn','--app-dir',(Join-Path $svc 'usb_service'),'api:app','--host','127.0.0.1','--port','8766' `

@@ -142,16 +142,16 @@ a:hover {
 
 /* ============================================================
    Login v2 — enterprise government (2026 design)
-   Tokens: #1E5EFF / #2F80FF / #F5F8FF / #E5EAF5 / #102A56 / #6B7280
+   Tokens: #DC2626 / #EF4444 / #FEF2F2 / #F5D5D5 / #7F1D1D / #9CA3AF
    ============================================================ */
 .lg-wrap {
-  --lg-primary: #1E5EFF;
-  --lg-primary-2: #2F80FF;
-  --lg-primary-hi: #0D47FF;
-  --lg-bg: #F5F8FF;
-  --lg-border: #E5EAF5;
-  --lg-text: #102A56;
-  --lg-muted: #6B7280;
+  --lg-primary: #DC2626;
+  --lg-primary-2: #EF4444;
+  --lg-primary-hi: #B91C1C;
+  --lg-bg: #FEF2F2;
+  --lg-border: #F5D5D5;
+  --lg-text: #7F1D1D;
+  --lg-muted: #9CA3AF;
   --lg-surface: #FFFFFF;
 
   position: fixed;
@@ -165,9 +165,9 @@ a:hover {
   color: var(--lg-text);
 
   background:
-    linear-gradient(180deg, rgba(245, 248, 255, 0.55) 0%, rgba(245, 248, 255, 0.72) 100%),
+    linear-gradient(180deg, rgba(254, 242, 242, 0.55) 0%, rgba(254, 242, 242, 0.72) 100%),
     url("/login-bg-hero.png") center center / cover no-repeat,
-    linear-gradient(180deg, #FFFFFF 0%, var(--lg-bg) 55%, #EEF2FF 100%);
+    linear-gradient(180deg, #FFFFFF 0%, var(--lg-bg) 55%, #FEE2E2 100%);
 }
 
 .lg-wrap::after {
@@ -177,8 +177,8 @@ a:hover {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(1200px 700px at 12% 20%, rgba(30, 94, 255, 0.10), transparent 60%),
-    radial-gradient(900px 600px at 88% 82%, rgba(47, 128, 255, 0.10), transparent 60%);
+    radial-gradient(1200px 700px at 12% 20%, rgba(220, 38, 38, 0.10), transparent 60%),
+    radial-gradient(900px 600px at 88% 82%, rgba(239, 68, 68, 0.10), transparent 60%);
 }
 
 .lg-inner {
@@ -215,8 +215,8 @@ a:hover {
   -webkit-backdrop-filter: blur(28px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow:
-    0 40px 80px -30px rgba(16, 42, 86, 0.28),
-    0 12px 32px -12px rgba(30, 94, 255, 0.18),
+    0 40px 80px -30px rgba(127, 29, 29, 0.28),
+    0 12px 32px -12px rgba(220, 38, 38, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
@@ -236,7 +236,7 @@ a:hover {
   height: 112px;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 10px 24px rgba(16, 42, 86, 0.18));
+  filter: drop-shadow(0 10px 24px rgba(127, 29, 29, 0.18));
 }
 
 .lg-title {
@@ -311,13 +311,13 @@ a:hover {
 
 .lg-input .lg-trail:hover {
   color: var(--lg-primary);
-  background: rgba(30, 94, 255, 0.08);
+  background: rgba(220, 38, 38, 0.08);
 }
 
 .lg-input .lg-trail:focus-visible {
   outline: none;
   color: var(--lg-primary);
-  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
 }
 
 .lg-input input {
@@ -340,7 +340,7 @@ a:hover {
 
 .lg-input input:focus {
   border-color: var(--lg-primary);
-  box-shadow: 0 0 0 4px rgba(30, 94, 255, 0.14);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
 }
 
 .lg-input input:focus~.lg-lead,
@@ -403,7 +403,7 @@ a:hover {
 }
 
 .lg-check input:focus-visible+.lg-box {
-  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
 }
 
 .lg-link {
@@ -422,7 +422,7 @@ a:hover {
 .lg-link:focus-visible {
   outline: none;
   border-radius: 4px;
-  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
 }
 
 /* ---- Submit ---- */
@@ -442,7 +442,7 @@ a:hover {
   gap: 10px;
   background: linear-gradient(135deg, var(--lg-primary-2) 0%, var(--lg-primary) 55%, var(--lg-primary-hi) 100%);
   box-shadow:
-    0 14px 30px -10px rgba(13, 71, 255, 0.55),
+    0 14px 30px -10px rgba(185, 28, 28, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition: transform 160ms ease, box-shadow 200ms ease, filter 200ms ease;
   overflow: hidden;
@@ -452,7 +452,7 @@ a:hover {
   transform: translateY(-1px);
   filter: brightness(1.06);
   box-shadow:
-    0 18px 40px -10px rgba(13, 71, 255, 0.60),
+    0 18px 40px -10px rgba(185, 28, 28, 0.60),
     inset 0 1px 0 rgba(255, 255, 255, 0.40);
 }
 
@@ -463,8 +463,8 @@ a:hover {
 .lg-submit:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 4px rgba(30, 94, 255, 0.28),
-    0 14px 30px -10px rgba(13, 71, 255, 0.55);
+    0 0 0 4px rgba(220, 38, 38, 0.28),
+    0 14px 30px -10px rgba(185, 28, 28, 0.55);
 }
 
 .lg-submit:disabled {
@@ -540,8 +540,8 @@ a:hover {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 1px solid rgba(30, 94, 255, 0.20);
-  background: linear-gradient(135deg, #EAF1FF 0%, #DAE6FF 100%);
+  border: 1px solid rgba(220, 38, 38, 0.20);
+  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
   color: var(--lg-primary);
   display: inline-flex;
   align-items: center;
@@ -550,7 +550,7 @@ a:hover {
   transition: transform 160ms ease, box-shadow 200ms ease, filter 160ms ease;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.7),
-    0 6px 18px -6px rgba(30, 94, 255, 0.35);
+    0 6px 18px -6px rgba(220, 38, 38, 0.35);
 }
 
 .lg-shield:hover {
@@ -558,14 +558,14 @@ a:hover {
   filter: brightness(1.03);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.7),
-    0 12px 26px -8px rgba(30, 94, 255, 0.45);
+    0 12px 26px -8px rgba(220, 38, 38, 0.45);
 }
 
 .lg-shield:focus-visible {
   outline: none;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.7),
-    0 0 0 4px rgba(30, 94, 255, 0.25);
+    0 0 0 4px rgba(220, 38, 38, 0.25);
 }
 
 .lg-alt-label {

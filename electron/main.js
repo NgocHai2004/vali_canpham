@@ -5,7 +5,7 @@ const { waitForHealthy } = require('./health')
 const { createProxyServer } = require('./proxy')
 const { ManagedProcess } = require('./process-manager')
 const { registerAppProtocol } = require('./app-protocol')
-const { createKioskWindow, lockKeyboard, registerDevEscape } = require('./window')
+const { createKioskWindow, lockKeyboard, registerDevEscape, registerKioskEscape } = require('./window')
 const { createPreviewWindow } = require('./preview-window')
 const { createSplash, setSplashText } = require('./splash')
 
@@ -130,7 +130,13 @@ async function boot() {
   })
 }
 
-app.whenReady().then(boot)
+app.whenReady().then(() => {
+  // Escape toan he thong (Ctrl+Q) dang ky TRUOC boot: co escape ca khi boot loi
+  // (splash bao loi) de ve desktop (kiosk-shell.ps1 mo Explorer). Escape chi co
+  // sau whenReady; cua so splash chua co input, luon co kha nang Ctrl+Alt+Del.
+  registerKioskEscape()
+  boot()
+})
 
 function teardown() {
   app.isQuiting = true

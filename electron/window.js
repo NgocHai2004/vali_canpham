@@ -48,6 +48,15 @@ function lockKeyboard() {
   // kiosk:true cua Electron da chan phan lon. Watchdog cua so se mo lai neu dong.
 }
 
+// Escape toan he thong (prod + dev): Ctrl+Q thoat app -> kiosk-shell.ps1 (shell
+// thay the) thay Explorer mo lai desktop de sua. Dang ky ngay khi app ready
+// (goi truoc boot()) de co escape ca khi boot loi / splash dang chieu.
+function registerKioskEscape() {
+  globalShortcut.register('CommandOrControl+Q', () => {
+    app.quit()
+  })
+}
+
 // Dev escape hatch: CHI dang ky khi IS_DEV. Prod khong chay nhanh nay
 // (guard boi IS_DEV; giai doan 2 se strip han).
 function registerDevEscape(win) {
@@ -58,4 +67,4 @@ function registerDevEscape(win) {
   })
 }
 
-module.exports = { createKioskWindow, lockKeyboard, registerDevEscape }
+module.exports = { createKioskWindow, lockKeyboard, registerDevEscape, registerKioskEscape }
