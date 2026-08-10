@@ -3012,12 +3012,14 @@ function DetaineeHistoryPage({ onEdit }) {
           <table className="detainees-table">
             <thead>
               <tr>
-                <th style={{ width: "18%" }}>{t("logs.col.time")}</th>
-                <th style={{ width: "14%" }}>{t("logs.col.session")}</th>
-                <th style={{ width: "22%" }}>{t("logs.col.officer")}</th>
-                <th style={{ width: "14%" }}>{t("logs.col.action")}</th>
-                <th style={{ width: "16%" }}>{t("history.col.code")}</th>
-                <th style={{ width: "16%" }}>{t("logs.col.actions")}</th>
+                <th style={{ width: "12%" }}>{t("logs.col.time")}</th>
+                <th style={{ width: "13%" }}>{t("logs.col.session")}</th>
+                <th style={{ width: "18%" }}>{t("logs.col.officer")}</th>
+                <th style={{ width: "11%" }}>{t("logs.col.action")}</th>
+                <th style={{ width: "12%" }}>{t("history.col.code")}</th>
+                <th style={{ width: "12%" }}>{t("logs.col.detainee_name")}</th>
+                <th style={{ width: "12%" }}>{t("logs.col.detainee_cccd")}</th>
+                <th style={{ width: "10%" }}>{t("logs.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -3056,6 +3058,8 @@ function DetaineeHistoryPage({ onEdit }) {
                     </td>
                     <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
                     <td>{log.ref || "—"}</td>
+                    <td>{log.detainee?.full_name || log.data?.full_name || "—"}</td>
+                    <td>{log.detainee?.cccd_number || "—"}</td>
                     <td>
                       {canAct ? (
                         <div className="row-actions">
@@ -3072,7 +3076,7 @@ function DetaineeHistoryPage({ onEdit }) {
                 );
               })}
               {!pagedLogs.length && (
-                <tr><td colSpan={6}><div className="empty">{t("common.empty")}</div></td></tr>
+                <tr><td colSpan={8}><div className="empty">{t("common.empty")}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -4056,12 +4060,12 @@ const styles = `
   :root {
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: #0f2344;
-    background: #f5f8fd;
+    background: #060c1c;
     font-synthesis: none;
   }
 
   * { box-sizing: border-box; }
-  body { margin: 0; background: #f5f8fd; }
+  body { margin: 0; background: #060c1c; }
   button, input, select { font: inherit; }
   button { cursor: pointer; }
   svg {
@@ -7376,16 +7380,37 @@ const styles = `
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
-    overflow: auto;        /* scroll cả trang theo trục dọc — các tier xếp tuần tự, không đè lên nhau */
+    overflow: hidden;      /* bỏ scroll — các khối co giãn vừa màn hình */
     padding-bottom: 8px;
   }
-  .case-tier-1,
-  .case-tier-2,
-  .case-tier-3,
-  .case-tier-4 { width: 100%; }
-  .case-aside  { width: 100%; }
-  .case-action-bar { width: 100%; }
+  .case-main {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* Hàng 2 cột: tier-3 (dấu vân tay 7/10) + kiểm tra dữ liệu (3/10) */
+  .case-tier3-row {
+    display: grid;
+    grid-template-columns: 7fr 3fr;
+    gap: 6px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .case-aside {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
   .case-action-bar {
+    width: 100%;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
@@ -7407,8 +7432,9 @@ const styles = `
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     min-height: 0;
+    overflow: hidden;
   }
-  .case-tier-1 .cap-block { min-height: 0; overflow: visible; display: flex; flex-direction: column; }
+  .case-tier-1 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 
   /* Body photos (3 khung ảnh + thước đo) */
   .body-shots {
@@ -7744,19 +7770,20 @@ const styles = `
   /* Tier 2: Personal info form (đã dời từ tier 1 xuống) — 1 cột fill chiều cao */
   .case-tier-2 {
     min-height: 0;
-    overflow: visible;   /* nội dung tràn ra, scroll cả trang */
+    overflow: hidden;
   }
-  .case-tier-2 .cap-block { min-height: 0; overflow: visible; display: flex; flex-direction: column; }
+  .case-tier-2 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 
-  /* Tier 3: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) */
+  /* Tier 3: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) — nằm trong tier3-row */
   .case-tier-3 {
     display: grid;
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
     gap: 10px;
     min-height: 0;
+    overflow: hidden;
   }
-  .case-tier-3 .cap-block { min-height: 0; overflow: visible; }
+  .case-tier-3 .cap-block { min-height: 0; overflow: hidden; }
   .fp-preview-grid {
     display: grid;
     grid-template-columns: 68px repeat(5, minmax(0, 1fr));

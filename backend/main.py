@@ -2187,6 +2187,27 @@ async def list_logs(
 
     session_cache: dict = {}
     user_cache: dict = {}
+    detainee_cache: dict = {}
+
+    async def _resolve_detainee(ref_id, ref):
+        # Trả về tên + số căn cước can phạm cho cột báo cáo.
+        if not ref_id and not ref:
+            return None
+        key = ref_id or ("ref:" + ref)
+        if key not in detainee_cache:
+            d = None
+            if ref_id:
+                try:
+                    d = await db.detainees.find_one({"_id": _oid(ref_id)})
+                except Exception:
+                    d = None
+            if d is None and ref:
+                d = await db.detainees.find_one({"personal_id": ref})
+            detainee_cache[key] = {
+                "full_name": (d or {}).get("full_name", "") or "",
+                "cccd_number": (d or {}).get("cccd_number", "") or "",
+            } if d else None
+        return detainee_cache[key]
 
     async def _resolve_session(sid):
         if sid is None:
@@ -2222,6 +2243,7 @@ async def list_logs(
         if sid is not None:
             l["session_id"] = str(sid)
         l["officer"] = await _resolve_user(l.get("actor"))
+        l["detainee"] = await _resolve_detainee(l.get("ref_id"), l.get("ref"))
         items.append(l)
 
     counts = {"create": 0, "update": 0, "delete": 0, "login": 0, "import": 0, "sync": 0}

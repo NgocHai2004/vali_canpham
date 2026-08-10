@@ -649,6 +649,8 @@
   "logs.col.action": "Hành động",
   "logs.col.resource": "Đối tượng",
   "logs.col.ref": "Tham chiếu",
+  "logs.col.detainee_name": "Tên can phạm",
+  "logs.col.detainee_cccd": "Số căn cước can phạm",
   "logs.col.ip": "IP",
   "logs.col.actions": "Thao tác",
   "logs.action.sync": "Đồng bộ",

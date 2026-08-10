@@ -649,6 +649,8 @@
   "logs.col.action": "Action",
   "logs.col.resource": "Resource",
   "logs.col.ref": "Reference",
+  "logs.col.detainee_name": "Detainee name",
+  "logs.col.detainee_cccd": "Detainee ID number",
   "logs.col.ip": "IP",
   "logs.col.actions": "Actions",
   "logs.action.sync": "Sync",

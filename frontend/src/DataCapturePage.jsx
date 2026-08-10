@@ -1783,6 +1783,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </section>
         </div>
 
+        {/* Hàng 2 cột: tier-3 (dấu vân tay 7/10) + kiểm tra dữ liệu (3/10) */}
+        <div className="case-tier3-row">
         {/* ================ Tier 3: Fingerprint + KPI ================ */}
         <div className="case-tier-3">
           <section className="cap-block">
@@ -1851,11 +1853,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </section>
         </div>
 
-      </div>
-
-      {/* ================ Aside: Data verification only ================ */}
-      <aside className="case-aside">
-        <section className="cap-block case-verify">
+          {/* ================ Aside: Data verification only ================ */}
+          <aside className="case-aside">
+            <section className="cap-block case-verify">
           <div className="cap-block-head">
             <h2 className="cap-block-title">{t("capture.section.verify")}</h2>
           </div>
@@ -1890,8 +1890,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               {allRequiredValid ? t("capture.verify.no_issue") : t("capture.verify.missing_required")}
             </div>
           </div>
-        </section>
-      </aside>
+            </section>
+          </aside>
+        </div>
+
+      </div>
 
       {/* ================ Action bar ================ */}
       <div className="case-action-bar">
