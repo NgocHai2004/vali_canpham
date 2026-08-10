@@ -838,8 +838,8 @@ function DonutGender({ male, female, malePct, femalePct }) {
   const c = 2 * Math.PI * r;
   const maleLen = total ? (malePct / 100) * c : 0;
   const femaleLen = total ? (femalePct / 100) * c : 0;
-  const MALE_COLOR = "#2371f4";
-  const FEMALE_COLOR = "#ec4899";
+  const MALE_COLOR = "#dc2626";
+  const FEMALE_COLOR = "#eab308";
   return (
     <div className="donut-wrap">
       <svg viewBox="0 0 140 140" className="donut">
@@ -4896,7 +4896,7 @@ const styles = `
     width: 100%;
     max-width: 32px;
     border-radius: 6px 6px 0 0;
-    background: linear-gradient(180deg, #4a95ff 0%, #2371f4 100%);
+    background: linear-gradient(180deg, #ef4444 0%, #b91c26 100%);
     transition: opacity .2s;
   }
   .bar-col:hover .bar-fill { opacity: .85; }

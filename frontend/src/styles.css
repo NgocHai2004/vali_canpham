@@ -4751,6 +4751,11 @@ textarea.input {
   padding: 18px 20px 22px !important;
 }
 
+.bar-fill {
+  background: linear-gradient(180deg, #ef4444, #dc2626);
+  border-radius: 4px 4px 0 0;
+}
+
 .donut-wrap {
   position: relative;
   flex-shrink: 0;
@@ -4810,13 +4815,13 @@ textarea.input {
 }
 
 .gender-dot.male {
-  background: #1e5eff;
-  box-shadow: 0 0 0 4px rgba(30, 94, 255, 0.14);
+  background: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
 }
 
 .gender-dot.female {
-  background: #ec4899;
-  box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.14);
+  background: #eab308;
+  box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.14);
 }
 
 .gender-lbl {
