@@ -3847,10 +3847,15 @@ function SyncLogDetailModal({ log, onClose }) {
       ) : (
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
           {list.map((x, i) => (
-            <li key={i}>
-              <span className="mono">{x.code || "—"}</span>
-              {x.full_name ? <> · {x.full_name}</> : null}
-              {x.cccd_number ? <> · CCCD {x.cccd_number}</> : null}
+            <li key={i} style={{
+              display: "grid",
+              gridTemplateColumns: "92px 1fr 168px",
+              gap: 10,
+              alignItems: "baseline",
+            }}>
+              <span className="mono" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.code || "—"}</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.full_name || ""}</span>
+              <span className="mono" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.cccd_number ? `CCCD ${x.cccd_number}` : ""}</span>
             </li>
           ))}
         </ul>

@@ -145,14 +145,16 @@ a:hover {
    Tokens: #DC2626 / #EF4444 / #FEF2F2 / #F5D5D5 / #7F1D1D / #9CA3AF
    ============================================================ */
 .lg-wrap {
-  --lg-primary: #DC2626;
-  --lg-primary-2: #EF4444;
-  --lg-primary-hi: #B91C1C;
-  --lg-bg: #FEF2F2;
-  --lg-border: #F5D5D5;
-  --lg-text: #7F1D1D;
-  --lg-muted: #9CA3AF;
-  --lg-surface: #FFFFFF;
+  /* Dark Futuristic Cybersecurity palette */
+  --lg-primary: #168BFF;
+  --lg-primary-2: #35D8FF;
+  --lg-primary-hi: #285DDE;
+  --lg-bg: #06142A;
+  --lg-bg-deep: #020817;
+  --lg-border: rgba(53, 216, 255, 0.18);
+  --lg-text: #EAF2FF;
+  --lg-muted: #7E93B8;
+  --lg-surface: rgba(8, 22, 46, 0.72);
 
   position: fixed;
   inset: 0;
@@ -165,31 +167,55 @@ a:hover {
   color: var(--lg-text);
 
   background:
-    linear-gradient(180deg, rgba(254, 242, 242, 0.55) 0%, rgba(254, 242, 242, 0.72) 100%),
-    url("/login-bg-hero.png") center center / cover no-repeat,
-    linear-gradient(180deg, #FFFFFF 0%, var(--lg-bg) 55%, #FEE2E2 100%);
+    /* darken the area behind the form for readability */
+    radial-gradient(900px 620px at 50% 46%, rgba(2, 8, 23, 0.62) 0%, rgba(2, 8, 23, 0.30) 55%, transparent 78%),
+    /* cold blue night architecture photo */
+    url("/login-bg-photo.jpg") center center / cover no-repeat,
+    /* deep navy fallback */
+    linear-gradient(180deg, var(--lg-bg-deep) 0%, var(--lg-bg) 55%, #0A1B38 100%);
 }
 
-.lg-wrap::after {
-  /* ambient wash + subtle blue tint so the card floats over the photo */
+/* digital grid floor + data particles */
+.lg-wrap::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(1200px 700px at 12% 20%, rgba(220, 38, 38, 0.10), transparent 60%),
-    radial-gradient(900px 600px at 88% 82%, rgba(239, 68, 68, 0.10), transparent 60%);
+    /* grid floor */
+    linear-gradient(rgba(53, 216, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(53, 216, 255, 0.05) 1px, transparent 1px),
+    /* faint data particles */
+    radial-gradient(1.5px 1.5px at 12% 22%, rgba(53, 216, 255, 0.55), transparent 100%),
+    radial-gradient(1.5px 1.5px at 78% 18%, rgba(22, 139, 255, 0.5), transparent 100%),
+    radial-gradient(1.5px 1.5px at 88% 64%, rgba(53, 216, 255, 0.45), transparent 100%),
+    radial-gradient(1.5px 1.5px at 20% 78%, rgba(22, 139, 255, 0.5), transparent 100%),
+    radial-gradient(1.5px 1.5px at 64% 88%, rgba(53, 216, 255, 0.4), transparent 100%);
+  background-size: 56px 56px, 56px 56px, auto, auto, auto, auto, auto;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 30%, #000 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 30%, #000 100%);
+}
+
+.lg-wrap::after {
+  /* ambient glow + subtle vignette so the card floats */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 640px at 50% 38%, rgba(22, 139, 255, 0.10), transparent 62%),
+    radial-gradient(900px 600px at 50% 88%, rgba(0, 0, 0, 0.42), transparent 72%);
 }
 
 .lg-inner {
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 600px;
+  max-width: 460px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   animation: lg-fade 380ms ease both;
 }
 
@@ -206,18 +232,34 @@ a:hover {
 }
 
 .lg-card {
+  position: relative;
   width: 100%;
-  padding: 40px 48px 32px;
-  border-radius: 28px;
+  padding: 38px 44px 30px;
+  border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(245, 248, 255, 0.62) 100%);
-  backdrop-filter: blur(28px) saturate(150%);
-  -webkit-backdrop-filter: blur(28px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+    linear-gradient(180deg, rgba(10, 26, 54, 0.82) 0%, rgba(6, 20, 42, 0.78) 100%);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(53, 216, 255, 0.16);
   box-shadow:
-    0 40px 80px -30px rgba(127, 29, 29, 0.28),
-    0 12px 32px -12px rgba(220, 38, 38, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    0 0 0 1px rgba(22, 139, 255, 0.06),
+    0 30px 70px -30px rgba(2, 8, 23, 0.9),
+    0 12px 34px -14px rgba(22, 139, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* top HUD accent line on the card */
+.lg-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, transparent, var(--lg-primary-2), transparent);
+  opacity: 0.7;
 }
 
 .lg-card form {
@@ -228,41 +270,43 @@ a:hover {
 .lg-emblem {
   display: flex;
   justify-content: center;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .lg-emblem img {
-  width: 112px;
-  height: 112px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 10px 24px rgba(127, 29, 29, 0.18));
+  filter: drop-shadow(0 8px 22px rgba(22, 139, 255, 0.22));
 }
 
 .lg-title {
   text-align: center;
   margin: 0 0 6px;
-  font-size: 26px;
+  font-size: 25px;
   font-weight: 700;
   line-height: 1.22;
-  letter-spacing: -0.4px;
-  color: var(--lg-text);
+  letter-spacing: -0.3px;
+  color: #F4F8FF;
 }
 
 .lg-subtitle {
   text-align: center;
   margin: 0;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--lg-muted);
   font-weight: 400;
+  letter-spacing: 0.2px;
 }
 
 .lg-divider {
-  width: 56px;
-  height: 3px;
+  width: 64px;
+  height: 2px;
   border-radius: 2px;
   margin: 14px auto 22px;
-  background: linear-gradient(90deg, var(--lg-primary), var(--lg-primary-2));
+  background: linear-gradient(90deg, transparent, var(--lg-primary-2), transparent);
+  box-shadow: 0 0 8px rgba(53, 216, 255, 0.35);
 }
 
 /* ---- Fields ---- */
@@ -272,11 +316,12 @@ a:hover {
 
 .lg-field label {
   display: block;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--lg-text);
+  color: #A9C0E6;
   margin: 0 0 8px 2px;
-  letter-spacing: 0.1px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
 }
 
 .lg-input {
@@ -287,10 +332,10 @@ a:hover {
 
 .lg-input .lg-lead {
   position: absolute;
-  left: 16px;
+  left: 15px;
   display: flex;
   align-items: center;
-  color: var(--lg-muted);
+  color: #5E7BA6;
   pointer-events: none;
   transition: color 180ms ease;
 }
@@ -302,7 +347,7 @@ a:hover {
   border: none;
   padding: 8px;
   border-radius: 10px;
-  color: var(--lg-muted);
+  color: #5E7BA6;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -310,23 +355,23 @@ a:hover {
 }
 
 .lg-input .lg-trail:hover {
-  color: var(--lg-primary);
-  background: rgba(220, 38, 38, 0.08);
+  color: var(--lg-primary-2);
+  background: rgba(53, 216, 255, 0.08);
 }
 
 .lg-input .lg-trail:focus-visible {
   outline: none;
-  color: var(--lg-primary);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+  color: var(--lg-primary-2);
+  box-shadow: 0 0 0 3px rgba(53, 216, 255, 0.22);
 }
 
 .lg-input input {
   width: 100%;
   height: 52px;
   padding: 0 48px;
-  border: 1.5px solid var(--lg-border);
-  background: #fff;
-  border-radius: 14px;
+  border: 1px solid rgba(53, 216, 255, 0.16);
+  background: rgba(4, 14, 34, 0.72);
+  border-radius: 13px;
   font: 500 15px/1.2 inherit;
   color: var(--lg-text);
   outline: none;
@@ -334,18 +379,23 @@ a:hover {
 }
 
 .lg-input input::placeholder {
-  color: #A5B0C2;
+  color: #4E6A94;
   font-weight: 400;
+}
+
+.lg-input input:hover {
+  border-color: rgba(53, 216, 255, 0.28);
 }
 
 .lg-input input:focus {
   border-color: var(--lg-primary);
-  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
+  background: rgba(6, 18, 42, 0.85);
+  box-shadow: 0 0 0 3px rgba(22, 139, 255, 0.16), 0 0 14px rgba(22, 139, 255, 0.12);
 }
 
 .lg-input input:focus~.lg-lead,
 .lg-input:focus-within .lg-lead {
-  color: var(--lg-primary);
+  color: var(--lg-primary-2);
 }
 
 /* ---- Row: remember + forgot ---- */
@@ -363,7 +413,7 @@ a:hover {
   align-items: center;
   gap: 10px;
   font-size: 13.5px;
-  color: var(--lg-text);
+  color: #A9C0E6;
   cursor: pointer;
   user-select: none;
 }
@@ -378,14 +428,14 @@ a:hover {
 .lg-box {
   width: 18px;
   height: 18px;
-  border: 1.5px solid #C8D0E4;
+  border: 1px solid rgba(53, 216, 255, 0.28);
   border-radius: 5px;
-  background: #fff;
+  background: rgba(4, 14, 34, 0.6);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  transition: background 150ms ease, border-color 150ms ease;
+  color: #06142A;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .lg-box svg {
@@ -394,8 +444,9 @@ a:hover {
 }
 
 .lg-check input:checked+.lg-box {
-  background: var(--lg-primary);
+  background: linear-gradient(135deg, var(--lg-primary), var(--lg-primary-hi));
   border-color: var(--lg-primary);
+  box-shadow: 0 0 10px rgba(22, 139, 255, 0.35);
 }
 
 .lg-check input:checked+.lg-box svg {
@@ -403,26 +454,27 @@ a:hover {
 }
 
 .lg-check input:focus-visible+.lg-box {
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+  box-shadow: 0 0 0 3px rgba(22, 139, 255, 0.25);
 }
 
 .lg-link {
   background: none;
   border: none;
   padding: 0;
-  color: var(--lg-primary);
+  color: var(--lg-primary-2);
   font: 600 13px/1.2 inherit;
   cursor: pointer;
 }
 
 .lg-link:hover {
   text-decoration: underline;
+  color: #6FE0FF;
 }
 
 .lg-link:focus-visible {
   outline: none;
   border-radius: 4px;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+  box-shadow: 0 0 0 3px rgba(53, 216, 255, 0.25);
 }
 
 /* ---- Submit ---- */
@@ -431,29 +483,31 @@ a:hover {
   width: 100%;
   height: 54px;
   border: none;
-  border-radius: 14px;
+  border-radius: 13px;
   color: #fff;
   font: 700 15.5px/1 inherit;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.3px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: linear-gradient(135deg, var(--lg-primary-2) 0%, var(--lg-primary) 55%, var(--lg-primary-hi) 100%);
+  background: linear-gradient(135deg, var(--lg-primary) 0%, var(--lg-primary-hi) 100%);
   box-shadow:
-    0 14px 30px -10px rgba(185, 28, 28, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 12px 28px -10px rgba(22, 139, 255, 0.45),
+    0 0 18px rgba(22, 139, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
   transition: transform 160ms ease, box-shadow 200ms ease, filter 200ms ease;
   overflow: hidden;
 }
 
 .lg-submit:hover:not(:disabled) {
   transform: translateY(-1px);
-  filter: brightness(1.06);
+  filter: brightness(1.08);
   box-shadow:
-    0 18px 40px -10px rgba(185, 28, 28, 0.60),
-    inset 0 1px 0 rgba(255, 255, 255, 0.40);
+    0 16px 36px -10px rgba(22, 139, 255, 0.55),
+    0 0 26px rgba(22, 139, 255, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .lg-submit:active:not(:disabled) {
@@ -463,12 +517,12 @@ a:hover {
 .lg-submit:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 4px rgba(220, 38, 38, 0.28),
-    0 14px 30px -10px rgba(185, 28, 28, 0.55);
+    0 0 0 4px rgba(22, 139, 255, 0.28),
+    0 12px 28px -10px rgba(22, 139, 255, 0.45);
 }
 
 .lg-submit:disabled {
-  opacity: 0.75;
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
@@ -483,7 +537,7 @@ a:hover {
 .lg-spin {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.35);
   border-top-color: #fff;
   border-radius: 50%;
   animation: lg-spin 0.75s linear infinite;
@@ -502,10 +556,11 @@ a:hover {
   gap: 10px;
   padding: 12px 14px;
   margin-bottom: 18px;
-  border-radius: 12px;
-  background: #FEF2F2;
-  color: #B42318;
-  border-left: 3px solid #DC2626;
+  border-radius: 11px;
+  background: rgba(185, 28, 28, 0.10);
+  color: #FF9B9B;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-left: 3px solid #EF4444;
   font-size: 13.5px;
 }
 
@@ -515,8 +570,10 @@ a:hover {
   align-items: center;
   gap: 12px;
   margin: 22px 0 14px;
-  color: var(--lg-muted);
-  font-size: 12.5px;
+  color: #5E7BA6;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 .lg-or::before,
@@ -524,7 +581,7 @@ a:hover {
   content: "";
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--lg-border), transparent);
+  background: linear-gradient(90deg, transparent, rgba(53, 216, 255, 0.22), transparent);
 }
 
 /* ---- Secondary shield button ---- */
@@ -540,39 +597,40 @@ a:hover {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 1px solid rgba(220, 38, 38, 0.20);
-  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
-  color: var(--lg-primary);
+  border: 1px solid rgba(53, 216, 255, 0.22);
+  background: linear-gradient(135deg, rgba(22, 139, 255, 0.12) 0%, rgba(6, 20, 42, 0.6) 100%);
+  color: var(--lg-primary-2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 200ms ease, filter 160ms ease;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
-    0 6px 18px -6px rgba(220, 38, 38, 0.35);
+    inset 0 0 0 1px rgba(53, 216, 255, 0.12),
+    0 6px 18px -6px rgba(22, 139, 255, 0.35);
 }
 
 .lg-shield:hover {
   transform: translateY(-2px);
-  filter: brightness(1.03);
+  filter: brightness(1.1);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
-    0 12px 26px -8px rgba(220, 38, 38, 0.45);
+    inset 0 0 0 1px rgba(53, 216, 255, 0.18),
+    0 0 22px rgba(22, 139, 255, 0.25),
+    0 12px 26px -8px rgba(22, 139, 255, 0.4);
 }
 
 .lg-shield:focus-visible {
   outline: none;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
-    0 0 0 4px rgba(220, 38, 38, 0.25);
+    inset 0 0 0 1px rgba(53, 216, 255, 0.18),
+    0 0 0 4px rgba(22, 139, 255, 0.25);
 }
 
 .lg-alt-label {
-  font-size: 12.5px;
-  color: var(--lg-muted);
+  font-size: 12px;
+  color: #7E93B8;
   font-weight: 500;
-  letter-spacing: 0.1px;
+  letter-spacing: 0.3px;
 }
 
 /* ---- Footer ---- */
@@ -582,9 +640,10 @@ a:hover {
   align-items: center;
   gap: 4px;
   text-align: center;
-  color: var(--lg-muted);
+  color: rgba(174, 196, 232, 0.85);
   font-size: 11.5px;
-  letter-spacing: 0.1px;
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .lg-meta {
@@ -7994,12 +8053,14 @@ textarea.input {
   padding: 3px 6px 3px 10px;
   height: 36px;
   border-radius: 999px;
-  background: #eef2f8;
-  border: 1px solid #dbe3ef;
-  box-shadow: inset 0 1px 2px rgba(15, 25, 50, 0.03);
+  background: rgba(6, 20, 42, 0.72);
+  border: 1px solid rgba(53, 216, 255, 0.16);
+  box-shadow: inset 0 1px 2px rgba(2, 8, 23, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   user-select: none;
   font: 600 12.5px/1 "Inter", "Segoe UI", Roboto, system-ui, "Segoe UI Symbol", sans-serif;
-  color: #4a5878;
+  color: #8FA8CC;
 }
 
 .lang-switch-globe {
@@ -8009,7 +8070,7 @@ textarea.input {
   width: 20px;
   height: 20px;
   margin-right: 6px;
-  color: #4a5878;
+  color: #8FA8CC;
   flex-shrink: 0;
 }
 .lang-switch-globe svg { display: block; }
@@ -8021,7 +8082,7 @@ textarea.input {
 
 .lang-switch-sep {
   display: inline-block;
-  color: #cbd5e6;
+  color: #3A5478;
   padding: 0 2px;
   font-weight: 400;
   user-select: none;
@@ -8031,7 +8092,7 @@ textarea.input {
   appearance: none;
   border: 0;
   background: transparent;
-  color: #4a5878;
+  color: #8FA8CC;
   font: inherit;
   letter-spacing: 0.15px;
   padding: 0 10px;
@@ -8046,18 +8107,18 @@ textarea.input {
 }
 
 .lang-switch button:hover {
-  color: #102a56;
-  background: rgba(255, 255, 255, 0.6);
+  color: #C9DCFF;
+  background: rgba(53, 216, 255, 0.08);
 }
 
 .lang-switch button.active {
-  background: #ffffff;
-  color: #0d47a1;
-  box-shadow: 0 1px 2px rgba(15, 25, 50, 0.08), 0 0 0 1px rgba(13, 71, 161, 0.15);
+  background: rgba(22, 139, 255, 0.18);
+  color: #6FE0FF;
+  box-shadow: 0 0 0 1px rgba(53, 216, 255, 0.25), 0 0 12px rgba(22, 139, 255, 0.15);
 }
 
 .lang-switch button:focus-visible {
-  outline: 2px solid #2f80ff;
+  outline: 2px solid #168BFF;
   outline-offset: 2px;
 }
 
