@@ -1,20 +1,19 @@
 :root {
-  --primary: #b71c1c;
-  --primary-dark: #8e0000;
-  --secondary: #0d47a1;
-  --secondary-light: #1565c0;
-  --gold: #d4a017;
-  --bg: #f4f6f9;
-  --card: #ffffff;
-  --text: #212529;
-  --muted: #6c757d;
-  --border: #dee2e6;
-  --success: #2e7d32;
-  --success-bg: #e8f5e9;
-  --danger: #c62828;
-  --warn: #ef6c00;
-  --shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+  /* Dark Futuristic Cybersecurity palette (matches login screen) */
+  --primary: #168BFF;        /* electric blue */
+  --primary-2: #35D8FF;      /* cyan */
+  --primary-hi: #285DDE;     /* deep blue */
+  --bg: #06142A;             /* navy */
+  --bg-deep: #020817;        /* deep navy-black */
+  --bg-panel: rgba(8, 22, 46, 0.72);   /* glassmorphism surface */
+  --border: rgba(53, 216, 255, 0.18);  /* thin glowing border */
+  --text: #EAF2FF;
+  --muted: #7E93B8;
+  --success: #24d777;
+  --danger: #ff6b6b;
+  --warn: #ffb020;
+  --shadow: 0 12px 34px -14px rgba(22, 139, 255, 0.18);
+  --shadow-hover: 0 16px 40px -14px rgba(22, 139, 255, 0.28);
 }
 
 * {
@@ -30,10 +29,13 @@ body,
 }
 
 body {
-  font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 14px;
   color: var(--text);
-  background: var(--bg);
+  background:
+    radial-gradient(900px 620px at 50% 46%, rgba(2, 8, 23, 0.62) 0%, rgba(2, 8, 23, 0.30) 55%, transparent 78%),
+    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg) 55%, #0A1B38 100%);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -43,7 +45,7 @@ button {
 }
 
 a {
-  color: var(--secondary);
+  color: var(--primary-2);
   text-decoration: none;
 }
 
@@ -260,6 +262,123 @@ a:hover {
   border-radius: 0 0 2px 2px;
   background: linear-gradient(90deg, transparent, var(--lg-primary-2), transparent);
   opacity: 0.7;
+}
+
+/* ---- Animated rotating neon border ---- */
+@property --lg-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* static navy border layer underneath (keeps card shape) */
+.lg-card {
+  border: 1px solid rgba(53, 216, 255, 0.20);
+}
+
+/* sharp neon ring that travels clockwise around the card (two symmetric streams) */
+.lg-card::after {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background:
+    conic-gradient(
+      from var(--lg-angle),
+      transparent 0deg,
+      transparent 320deg,
+      rgba(22, 139, 255, 0.18) 332deg,
+      rgba(22, 139, 255, 0.42) 342deg,
+      #168BFF 350deg,
+      #35D8FF 356deg,
+      #EAF6FF 360deg,
+      #35D8FF 6deg,
+      #168BFF 12deg,
+      rgba(22, 139, 255, 0.36) 20deg,
+      rgba(22, 139, 255, 0.12) 28deg,
+      transparent 36deg,
+      transparent 360deg
+    ),
+    conic-gradient(
+      from calc(var(--lg-angle) + 180deg),
+      transparent 0deg,
+      transparent 320deg,
+      rgba(22, 139, 255, 0.18) 332deg,
+      rgba(22, 139, 255, 0.42) 342deg,
+      #168BFF 350deg,
+      #35D8FF 356deg,
+      #EAF6FF 360deg,
+      #35D8FF 6deg,
+      #168BFF 12deg,
+      rgba(22, 139, 255, 0.36) 20deg,
+      rgba(22, 139, 255, 0.12) 28deg,
+      transparent 36deg,
+      transparent 360deg
+    );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+  animation: lg-border-rotate 6s linear infinite;
+}
+
+/* soft bloom / glow layer behind the sharp ring (two symmetric streams) */
+.lg-card-glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  padding: 8px;
+  background:
+    conic-gradient(
+      from var(--lg-angle),
+      transparent 0deg,
+      transparent 320deg,
+      rgba(22, 139, 255, 0.18) 332deg,
+      rgba(22, 139, 255, 0.42) 342deg,
+      #168BFF 350deg,
+      #35D8FF 356deg,
+      #EAF6FF 360deg,
+      #35D8FF 6deg,
+      #168BFF 12deg,
+      rgba(22, 139, 255, 0.36) 20deg,
+      rgba(22, 139, 255, 0.12) 28deg,
+      transparent 36deg,
+      transparent 360deg
+    ),
+    conic-gradient(
+      from calc(var(--lg-angle) + 180deg),
+      transparent 0deg,
+      transparent 320deg,
+      rgba(22, 139, 255, 0.18) 332deg,
+      rgba(22, 139, 255, 0.42) 342deg,
+      #168BFF 350deg,
+      #35D8FF 356deg,
+      #EAF6FF 360deg,
+      #35D8FF 6deg,
+      #168BFF 12deg,
+      rgba(22, 139, 255, 0.36) 20deg,
+      rgba(22, 139, 255, 0.12) 28deg,
+      transparent 36deg,
+      transparent 360deg
+    );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  filter: blur(7px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+  animation: lg-border-rotate 6s linear infinite;
+}
+
+@keyframes lg-border-rotate {
+  to {
+    --lg-angle: 360deg;
+  }
 }
 
 .lg-card form {
@@ -743,6 +862,12 @@ a:hover {
 
   .lg-spin {
     animation: none !important;
+  }
+
+  .lg-card::after,
+  .lg-card-glow {
+    animation: none !important;
+    opacity: 0.5;
   }
 }
 

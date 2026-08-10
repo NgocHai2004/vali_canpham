@@ -88,6 +88,7 @@ export default function Login({ onLogin }) {
 
       <div className="lg-inner">
         <div className="lg-card" role="dialog" aria-labelledby="lg-title">
+          <span className="lg-card-glow" aria-hidden="true" />
           <div className="lg-emblem">
             <img src="/pyxis-logo.png" alt={t("login.emblem_alt")} />
           </div>
