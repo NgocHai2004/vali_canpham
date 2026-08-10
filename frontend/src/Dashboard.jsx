@@ -7629,7 +7629,38 @@ const styles = `
   /* Biến thể 4 cột cho khối THÔNG TIN CAN PHẠM — 27 trường chia 4 cột × 7 hàng */
   .personal-info--4col {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(7, minmax(0, 1fr));
+    /* Hàng tự co theo nội dung (không kéo giãn) để bỏ khoảng cách dòng lớn */
+    grid-template-rows: repeat(7, auto);
+    align-content: start;
+    /* Thu gọn khối: giảm chiều cao ~1/3, label & value nhỏ lại */
+    gap: 2px 8px;
+    padding: 3px 8px 4px;
+  }
+  /* Thu nhỏ label + input riêng cho khối can phạm (không ảnh hưởng personal-info) */
+  .personal-info--4col .info-field { gap: 4px; }
+  .personal-info--4col .info-field-label {
+    font-size: 8.5px;
+    line-height: 1;
+  }
+  .personal-info--4col .info-field .control-sm {
+    height: 18px;
+    font-size: 10px;
+    padding: 0 6px;
+    border-radius: 4px;
+  }
+  .personal-info--4col .info-field select.control-sm { padding-right: 16px; }
+  /* Thu nhỏ radio "Diện giam giữ" (tạm giữ / tạm giam) trong khối can phạm */
+  .personal-info--4col .radio-group-sm {
+    height: 18px;
+    gap: 8px;
+  }
+  .personal-info--4col .radio-group-sm .radio-option {
+    font-size: 10px;
+    gap: 4px;
+  }
+  .personal-info--4col .radio-group-sm input[type="radio"] {
+    width: 12px;
+    height: 12px;
   }
   /* Trường Ghi chú — trong lưới can phạm giữ 1 ô như các trường khác để cột cân */
   .personal-info--3col .span-2col,
