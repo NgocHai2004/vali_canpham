@@ -127,8 +127,8 @@ export default function App() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "linear-gradient(135deg, #f4f7ff 0%, #e6eeff 100%)",
-        color: "#5b6b85",
+        background: "linear-gradient(135deg, #06142A 0%, #020817 100%)",
+        color: "#7E93B8",
         fontFamily: "Inter, system-ui, sans-serif",
         fontSize: 14,
       }}>

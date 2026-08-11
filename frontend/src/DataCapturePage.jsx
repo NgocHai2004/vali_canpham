@@ -1814,7 +1814,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 return (
                   <div
                     key={f.key}
-                    className={"fp-preview-cell " + (filled ? "done" : "empty") + (isActive ? " active" : "")}
+                    className={"fp-preview-cell " + (filled ? "done" : "empty") + (isActive ? " active neon-active" : "")}
                     onDoubleClick={() => !fpRunning && retryFingerprint(f.key, fpCode)}
                     title={filled ? t("capture.fp.dbl_retake") : t("capture.fp.dbl_take")}
                     style={{ cursor: fpRunning ? "default" : "pointer" }}

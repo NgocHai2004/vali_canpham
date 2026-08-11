@@ -168,10 +168,10 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
       </div>
 
       {current && (
-        <div className="session-list-current">
+        <div className="session-list-current neon-active">
           <span className="badge badge-open">{t("session.status.open_dot")}</span>
           <span className="mono">{current.code}</span>
-          <span style={{ color: "#6b7280", fontSize: 13 }}>
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>
             {t("session.banner.current", { officer: current.officer_full_name || current.officer, n: current.detainee_count || 0 })}
           </span>
           <button

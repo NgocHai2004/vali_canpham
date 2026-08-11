@@ -49,10 +49,10 @@ export default function UsbDrivePickerModal({ drives, onPick, onCancel }) {
                   alignItems: "center",
                   gap: 12,
                   padding: "10px 12px",
-                  border: "1px solid var(--border, #d0d0d0)",
+                  border: "1px solid var(--border, rgba(53, 216, 255, 0.18))",
                   borderRadius: 6,
                   cursor: "pointer",
-                  background: selected === d.path ? "var(--selected-bg, #eef4ff)" : "transparent",
+                  background: selected === d.path ? "var(--selected-bg, rgba(22, 139, 255, 0.14))" : "transparent",
                 }}
               >
                 <input
