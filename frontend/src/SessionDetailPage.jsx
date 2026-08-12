@@ -203,7 +203,7 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
       </div>
 
       <div className="session-list-table-wrap">
-        <table className="session-list-table">
+        <table className="session-list-table session-detail-table">
           <thead>
             <tr>
               <th>{t("detainee.field.personal_id")}</th>

@@ -14,6 +14,11 @@
   --warn: #ffb020;
   --shadow: 0 12px 34px -14px rgba(22, 139, 255, 0.18);
   --shadow-hover: 0 16px 40px -14px rgba(22, 139, 255, 0.28);
+  /* Modern High-Tech Enterprise UI tokens */
+  --glow: 0 0 0 1px rgba(53, 216, 255, 0.12), 0 8px 24px -8px rgba(22, 139, 255, 0.35);
+  --glow-hover: 0 0 0 1px rgba(53, 216, 255, 0.22), 0 12px 32px -8px rgba(22, 139, 255, 0.5);
+  --trail: rgba(53, 216, 255, 0.9);
+  --surface-hi: rgba(10, 26, 54, 0.82);
 }
 
 * {
@@ -869,6 +874,23 @@ a:hover {
     animation: none !important;
     opacity: 0.5;
   }
+
+  /* Modern High-Tech Enterprise UI — disable all new animations */
+  .btn-primary::after,
+  .btn-ghost::after,
+  .btn-mini::after,
+  .btn-fp-collect::after {
+    animation: none !important;
+    transform: none !important;
+    opacity: 0;
+  }
+  .modal::before,
+  .modal-panel::before {
+    animation: none !important;
+  }
+  .tbl tbody tr {
+    transition: none !important;
+  }
 }
 
 
@@ -1674,6 +1696,8 @@ a:hover {
 
 /* ================= Buttons ================= */
 .btn-primary {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(135deg, var(--primary), var(--primary-hi));
   color: #fff;
   border: none;
@@ -1690,10 +1714,37 @@ a:hover {
   text-decoration: none;
 }
 
+/* Light sweep: one pass across the button on hover (not a loop) */
+.btn-primary::after,
+.btn-ghost::after,
+.btn-mini::after,
+.btn-fp-collect::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+
+.btn-primary:hover:not(:disabled)::after,
+.btn-ghost:hover::after,
+.btn-mini:hover::after,
+.btn-fp-collect:hover:not(:disabled)::after {
+  animation: btn-sweep 0.55s ease;
+}
+
+@keyframes btn-sweep {
+  to { transform: translateX(320%) skewX(-18deg); }
+}
+
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.08);
-  box-shadow: 0 6px 18px -4px rgba(22, 139, 255, 0.6);
+  box-shadow: var(--glow-hover);
 }
 
 .btn-primary:disabled {
@@ -1702,6 +1753,8 @@ a:hover {
 }
 
 .btn-ghost {
+  position: relative;
+  overflow: hidden;
   background: rgba(8, 22, 46, 0.6);
   color: var(--text);
   border: 1px solid var(--border);
@@ -1721,9 +1774,12 @@ a:hover {
   background: rgba(53, 216, 255, 0.1);
   border-color: var(--primary-2);
   color: var(--primary-2);
+  box-shadow: var(--glow);
 }
 
 .btn-mini {
+  position: relative;
+  overflow: hidden;
   background: rgba(8, 22, 46, 0.6);
   border: 1px solid var(--border);
   padding: 4px 10px;
@@ -1821,7 +1877,7 @@ textarea.input {
 }
 
 .tbl thead th {
-  background: rgba(22, 139, 255, 0.08);
+  background: linear-gradient(180deg, rgba(22, 139, 255, 0.12), rgba(22, 139, 255, 0.05));
   text-align: left;
   padding: 12px 14px;
   font-size: 12px;
@@ -1839,8 +1895,12 @@ textarea.input {
   vertical-align: middle;
 }
 
+.tbl tbody tr {
+  transition: background 0.15s ease;
+}
+
 .tbl tbody tr:hover {
-  background: rgba(53, 216, 255, 0.05);
+  background: rgba(53, 216, 255, 0.07);
 }
 
 .tbl .truncate {
@@ -1945,6 +2005,7 @@ textarea.input {
 }
 
 .modal {
+  position: relative;
   background:
     linear-gradient(180deg, rgba(10, 26, 54, 0.92) 0%, rgba(6, 20, 42, 0.9) 100%);
   backdrop-filter: blur(18px) saturate(140%);
@@ -1956,6 +2017,29 @@ textarea.input {
   max-height: calc(100vh - 40px);
   overflow-y: auto;
   animation: slideUp 0.2s ease;
+}
+
+/* Subtle static conic-gradient border (no rotation) */
+.modal::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 210deg,
+    rgba(53, 216, 255, 0.5),
+    rgba(22, 139, 255, 0.12) 90deg,
+    rgba(53, 216, 255, 0.06) 180deg,
+    rgba(22, 139, 255, 0.35) 270deg,
+    rgba(53, 216, 255, 0.5)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .camera-modal {
@@ -2016,6 +2100,7 @@ textarea.input {
 }
 
 .modal-panel {
+  position: relative;
   width: min(480px, 100%);
   background:
     linear-gradient(180deg, rgba(10, 26, 54, 0.92) 0%, rgba(6, 20, 42, 0.9) 100%);
@@ -2028,6 +2113,28 @@ textarea.input {
   color: var(--text);
   font-size: 14px;
   animation: modalPanelIn .18s ease-out;
+}
+
+.modal-panel::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 210deg,
+    rgba(53, 216, 255, 0.5),
+    rgba(22, 139, 255, 0.12) 90deg,
+    rgba(53, 216, 255, 0.06) 180deg,
+    rgba(22, 139, 255, 0.35) 270deg,
+    rgba(53, 216, 255, 0.5)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
 }
 
 @keyframes modalPanelIn {
@@ -5492,6 +5599,7 @@ textarea.input {
 }
 
 .session-list-table-wrap {
+  width: 100%;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -5509,6 +5617,16 @@ textarea.input {
 .session-list-table {
   width: 100%;
   border-collapse: collapse;
+}
+
+/* Session detail: spread columns evenly across full width */
+.session-detail-table {
+  table-layout: fixed;
+}
+.session-detail-table th:last-child,
+.session-detail-table td:last-child {
+  width: 90px;
+  text-align: right;
 }
 
 .session-list-table th {
@@ -5637,8 +5755,7 @@ textarea.input {
 /* ============ Session Detail Page ============ */
 .session-detail-page {
   padding: 20px 24px;
-  max-width: 1280px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .session-detail-back {
@@ -6431,6 +6548,8 @@ textarea.input {
 }
 
 .btn-fp-collect {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -6443,12 +6562,13 @@ textarea.input {
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(22, 139, 255, 0.25);
-  transition: transform 0.15s, filter 0.15s;
+  transition: transform 0.15s, filter 0.15s, box-shadow 0.15s;
 }
 
 .btn-fp-collect:hover {
   transform: translateY(-1px);
   filter: brightness(1.06);
+  box-shadow: var(--glow-hover);
 }
 
 .btn-fp-collect svg {
