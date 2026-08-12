@@ -41,8 +41,9 @@ def test_draw_boxes_zero_persons_with_fake_model():
         def predict(self, img, **kw):
             return [_FakeRes()]
     person_detect._model = _FakeModel()
-    boxed, n = person_detect.draw_person_boxes(make_jpeg_bytes())
+    boxed, n, head_ratio = person_detect.draw_person_boxes(make_jpeg_bytes())
     assert n == 0
+    assert head_ratio is None
     assert boxed[:3] == b"\xff\xd8\xff"   # JPEG magic
     person_detect._model = None
 
@@ -60,7 +61,8 @@ def test_draw_boxes_one_person_with_fake_model():
         def predict(self, img, **kw):
             return [_FakeRes()]
     person_detect._model = _FakeModel()
-    boxed, n = person_detect.draw_person_boxes(make_jpeg_bytes(200, 200))
+    boxed, n, head_ratio = person_detect.draw_person_boxes(make_jpeg_bytes(200, 200))
     assert n == 1
+    assert head_ratio == pytest.approx(10.0 / 200)
     assert boxed[:3] == b"\xff\xd8\xff"
     person_detect._model = None

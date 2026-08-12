@@ -1,4 +1,6 @@
+import base64
 import io
+import os
 import pytest
 from PIL import Image
 from httpx import AsyncClient, ASGITransport
@@ -29,11 +31,18 @@ async def token(client):
     return r.json()["access_token"]
 
 
+BOXED_MARKER = b"BOXED-FAKE-BYTES"
+
+
 @pytest.fixture
 def fake_model_ready(monkeypatch):
-    """Bật is_ready=True, draw_person_boxes trả (ảnh gốc, 1)."""
+    """Bật is_ready=True; draw_person_boxes trả (ảnh CÓ vạch, n_persons, head_ratio).
+
+    Trả bytes khác hẳn ảnh gốc để test khẳng định được: bản có vạch chỉ đi vào
+    preview_url, KHÔNG bao giờ được ghi xuống đĩa.
+    """
     def fake_draw(b):
-        return b, 1
+        return BOXED_MARKER, 1, 0.25
     monkeypatch.setattr(main.person_detect, "is_ready", lambda: True)
     monkeypatch.setattr(main.person_detect, "draw_person_boxes", fake_draw)
 
@@ -49,7 +58,31 @@ async def test_upload_portrait_returns_boxed(client, token, fake_model_ready):
     body = r.json()
     assert body["boxed"] is True
     assert body["n_persons"] == 1
+    assert body["head_ratio"] == 0.25
     assert body["url"].startswith("/uploads/")
+    # Ảnh CÓ vạch đỏ trả về dạng data URI để frontend xem tạm.
+    assert body["preview_url"].startswith("data:image/jpeg;base64,")
+    assert base64.b64decode(body["preview_url"].split(",", 1)[1]) == BOXED_MARKER
+
+
+async def test_upload_portrait_saves_clean_image(client, token, fake_model_ready):
+    """File ghi xuống đĩa (và URL vào DB) phải là ẢNH GỐC SẠCH, không có vạch đỏ."""
+    original = _jpg_bytes()
+    files = {"file": ("p.jpg", original, "image/jpeg")}
+    r = await client.post(
+        "/api/upload/photo?type=portrait",
+        files=files,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    saved = os.path.join(main.UPLOAD_DIR, os.path.basename(body["url"]))
+    with open(saved, "rb") as f:
+        on_disk = f.read()
+    assert on_disk == original
+    assert BOXED_MARKER not in on_disk
+    assert body["size"] == len(original)
+    os.remove(saved)
 
 
 async def test_upload_no_type_skips_detect(client, token, monkeypatch):

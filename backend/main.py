@@ -1,6 +1,7 @@
 import os
 import io
 import re
+import base64
 import threading
 import anyio
 import httpx
@@ -1519,30 +1520,33 @@ async def upload_photo(
     boxed = False
     n_persons = None
     head_ratio = None
-    save_bytes = data
+    # Ảnh có vạch đỏ CHỈ để frontend xem tạm ngay sau khi chụp (data URI, không ghi đĩa).
+    # File lưu xuống đĩa + URL vào DB luôn là ẢNH GỐC SẠCH, không có vạch.
+    preview_b64 = None
     if type == "portrait" and person_detect.is_ready():
         try:
             boxed_bytes, n_persons, head_ratio = await anyio.to_thread.run_sync(
                 person_detect.draw_person_boxes, data
             )
-            save_bytes = boxed_bytes
+            preview_b64 = base64.b64encode(boxed_bytes).decode("ascii")
             boxed = True
         except Exception:  # noqa: BLE001 — không hỏng flow chụp
             boxed = False
             n_persons = None
             head_ratio = None
-            save_bytes = data
+            preview_b64 = None
 
     name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
     path = os.path.join(UPLOAD_DIR, name)
     with open(path, "wb") as f:
-        f.write(save_bytes)
+        f.write(data)
     return {
         "url": f"/uploads/{name}",
-        "size": len(save_bytes),
+        "size": len(data),
         "boxed": boxed,
         "n_persons": n_persons,
         "head_ratio": head_ratio,
+        "preview_url": f"data:image/jpeg;base64,{preview_b64}" if preview_b64 else None,
     }
 
 

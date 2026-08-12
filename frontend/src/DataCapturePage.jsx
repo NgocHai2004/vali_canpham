@@ -1966,6 +1966,9 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
   const [err, setErr] = useState("");
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState(false);
+  // Ảnh CÓ vạch đỏ (data URI) của lần chụp hiện tại — chỉ để xem tạm tại màn thu nhận.
+  // Giữ kèm url ảnh sạch tương ứng để không hiện nhầm vạch cho ảnh khác. Không lưu DB.
+  const [redLinePreview, setRedLinePreview] = useState({ url: "", src: "" });
   // head_ratio = y1_đỉnh_đầu / chiều_cao_ảnh (0..1) do YOLO trả về khi upload.
   // Chiều cao tự động = (1 - head_ratio) * height_image + 103. null = chưa detect được.
   const [headRatio, setHeadRatio] = useState(null);
@@ -2039,6 +2042,11 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
       // Ảnh trái/phải chụp thường, không cần YOLO.
       const res = await api.uploadPhoto(file, useYolo ? "portrait" : "");
       setHeadRatio(useYolo && typeof res.head_ratio === "number" ? res.head_ratio : null);
+      // res.url = ảnh SẠCH (đã lưu đĩa, đi vào DB, dùng cho xem trước hồ sơ + in).
+      // res.preview_url = ảnh CÓ vạch đỏ (data URI, không lưu) — chỉ xem tạm ở màn này.
+      setRedLinePreview(
+        useYolo && res.preview_url ? { url: res.url, src: res.preview_url } : { url: "", src: "" },
+      );
       onCapture(res.url);
       onPortraitRecognize?.(res.url);
       setPreview(true);
@@ -2052,11 +2060,15 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
   const retake = () => {
     setPreview(false);
     setHeadRatio(null);
+    setRedLinePreview({ url: "", src: "" });
     onCapture("");
   };
 
   const showLive = !value && !preview;
   const captured = Boolean(value);
+  // Chỉ dùng ảnh có vạch đỏ khi nó đúng là bản preview của ảnh đang hiển thị.
+  // Mọi nơi khác (xem trước hồ sơ, in, DB) luôn dùng `value` = ảnh sạch.
+  const displaySrc = redLinePreview.src && redLinePreview.url === value ? redLinePreview.src : value;
   // Chiều cao TỰ ĐỘNG = (1 - head_ratio) * height_image + height_offset.
   // head_ratio = vị trí vạch đỉnh đầu tính từ đỉnh ảnh (0..1) → khoảng tới đáy = 1 - head_ratio.
   const measuredHeight = showRuler && headRatio != null
@@ -2082,7 +2094,7 @@ function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasure
         <div ref={frameRef} className={"body-shot-frame" + (captured ? " body-shot-frame--done" : "") + (showRuler ? " body-shot-frame--measure" : "")}>
           {captured ? (
             <>
-              <img src={value} alt={label} />
+              <img src={displaySrc} alt={label} />
               {showRuler && headRatio != null && (
                 <div className="height-measure-overlay" aria-label="Đo chiều cao">
                   <div

@@ -7612,7 +7612,8 @@ const styles = `
     z-index: 4;
     pointer-events: none;
   }
-  /* Vạch đỏ đỉnh đầu đã được backend (YOLO) vẽ sẵn vào ảnh.
+  /* Vạch đỏ đỉnh đầu do backend (YOLO) vẽ vào ảnh preview (data URI) — chỉ hiển thị
+     ngay sau khi chụp ở màn thu nhận. Ảnh lưu DB/xem trước hồ sơ là ảnh sạch.
      Overlay này chỉ dùng để đặt nhãn số cm — KHÔNG vẽ thêm đường/vạch nào. */
   .height-measure-line {
     position: absolute;

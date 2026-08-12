@@ -6362,8 +6362,8 @@ textarea.input {
 .cccd-mf-name {
   left: 31%;
   right: 5%;
-  top: 55%;
-  font-size: clamp(9px, 1.85cqw, 15px);
+  top: 56%;
+  font-size: clamp(10px, 1.85cqw, 15px);
   font-weight: 400;
   text-transform: uppercase;
   line-height: 1.1;
