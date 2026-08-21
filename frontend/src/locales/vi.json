@@ -100,7 +100,7 @@
   "login.internal_alert": "Tính năng đăng nhập nội bộ đang phát triển",
   "login.internal_aria": "Đăng nhập bằng tài khoản nội bộ",
   "login.footer": "© {year} · Dự án CCCD lưu động",
-  "login.demo": "Demo: admin / admin123",
+  "login.demo": "Demo: Vali can phạm",
   "login.show_pw": "Hiện mật khẩu",
   "login.hide_pw": "Ẩn mật khẩu",
   "login.err.usb_down": "Chưa đủ điều kiện đăng nhập — USB service chưa chạy (port 8766)",

@@ -100,7 +100,7 @@
   "login.internal_alert": "Internal login is under development",
   "login.internal_aria": "Log in with internal account",
   "login.footer": "© {year} · Mobile CCCD Project",
-  "login.demo": "Demo: admin / admin123",
+  "login.demo": "Demo: Prisoner transport van",
   "login.show_pw": "Show password",
   "login.hide_pw": "Hide password",
   "login.err.usb_down": "Cannot log in — USB service is not running (port 8766)",

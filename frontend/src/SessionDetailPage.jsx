@@ -13,8 +13,10 @@ function fmtTime(iso) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, onEditDetainee, onSessionClosed }) {
+export default function SessionDetailPage({ sessionId, role, onBack, onAddDetainee, onEditDetainee, onSessionClosed }) {
   const { t, formatDate, formatDateTime } = useI18n();
+  // Admin giám sát phiên của cán bộ: xem, đóng, xoá, tải báo cáo — nhưng không thu nhận hồ sơ.
+  const isAdmin = role === "admin";
   const openEditFull = async (d, session) => {
     if (!onEditDetainee) return;
     try {
@@ -183,7 +185,10 @@ export default function SessionDetailPage({ sessionId, onBack, onAddDetainee, on
         <div className="session-detail-toolbar-actions">
           {isOpen ? (
             <>
-              <button className="btn-primary" onClick={() => onAddDetainee && onAddDetainee(session.id)}>{t("session.detail.add_new")}</button>
+              {/* Admin không thu nhận hồ sơ (backend cũng chặn) → không hiện nút này. */}
+              {!isAdmin && (
+                <button className="btn-primary" onClick={() => onAddDetainee && onAddDetainee(session.id)}>{t("session.detail.add_new")}</button>
+              )}
               <button className="btn-danger-outline" onClick={doClose} disabled={closing}>
                 {closing ? t("session.detail.closing") : t("session.detail.close")}
               </button>

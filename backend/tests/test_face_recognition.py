@@ -152,7 +152,7 @@ async def test_face_recognize_by_url(app_client, admin_token, monkeypatch):
     assert len(r.json()["matches"]) == 1
 
 
-async def test_create_detainee_stores_face_embedding(app_client, admin_token, monkeypatch):
+async def test_create_detainee_stores_face_embedding(app_client, officer_headers, monkeypatch):
     """Tạo detainee có portrait_front local + model ready → lưu photos.face_embedding."""
     emb = np.ones(512, dtype=np.float32)
     url = _write_test_upload("test_create_face.jpg")
@@ -160,7 +160,7 @@ async def test_create_detainee_stores_face_embedding(app_client, admin_token, mo
     monkeypatch.setattr(main.face_recognition_service, "get_embedding",
                         lambda b: (emb, 1, "insightface"))
     s = await app_client.post("/api/sessions", json={"location": "x", "note": ""},
-                              headers={"Authorization": f"Bearer {admin_token}"})
+                              headers=officer_headers)
     sid = s.json()["id"]
     body = {
         "full_name": "Test Face", "gender": "male", "dob": "1990-01-01",
@@ -168,20 +168,19 @@ async def test_create_detainee_stores_face_embedding(app_client, admin_token, mo
         "session_id": sid,
         "photos": {"cccd_front": url, "portrait_front": url},
     }
-    r = await app_client.post("/api/detainees", json=body,
-                              headers={"Authorization": f"Bearer {admin_token}"})
+    r = await app_client.post("/api/detainees", json=body, headers=officer_headers)
     assert r.status_code == 200, r.text
     doc = await main.db.detainees.find_one({"personal_id": "PF001"})
     fe = (doc.get("photos") or {}).get("face_embedding")
     assert fe is not None and len(fe) == 512
 
 
-async def test_create_detainee_skips_embedding_when_not_ready(app_client, admin_token, monkeypatch):
+async def test_create_detainee_skips_embedding_when_not_ready(app_client, officer_headers, monkeypatch):
     """Model chưa ready → không crash, KHÔNG có face_embedding."""
     monkeypatch.setattr(main.face_recognition_service, "is_ready", lambda: False)
     url = _write_test_upload("test_create_face2.jpg")
     s = await app_client.post("/api/sessions", json={"location": "x", "note": ""},
-                              headers={"Authorization": f"Bearer {admin_token}"})
+                              headers=officer_headers)
     sid = s.json()["id"]
     body = {
         "full_name": "Test Face2", "gender": "male", "dob": "1990-01-01",
@@ -189,8 +188,7 @@ async def test_create_detainee_skips_embedding_when_not_ready(app_client, admin_
         "session_id": sid,
         "photos": {"cccd_front": url, "portrait_front": url},
     }
-    r = await app_client.post("/api/detainees", json=body,
-                              headers={"Authorization": f"Bearer {admin_token}"})
+    r = await app_client.post("/api/detainees", json=body, headers=officer_headers)
     assert r.status_code == 200, r.text
     doc = await main.db.detainees.find_one({"personal_id": "PF002"})
     assert (doc.get("photos") or {}).get("face_embedding") is None

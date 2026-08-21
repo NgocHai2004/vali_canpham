@@ -117,6 +117,12 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   };
 
   const editDetainee = async (detainee) => {
+    // Admin không có phiên của riêng mình nên getCurrentSession() luôn 404.
+    // Vẫn giữ quyền SỬA hồ sơ → mở form trực tiếp, không gắn phiên.
+    if (isAdmin) {
+      await openEditForm(detainee);
+      return;
+    }
     setEditingDetainee(detainee);
     try {
       const cur = await api.getCurrentSession();
@@ -230,7 +236,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
         </aside>
 
         <main className="content">
-          {page === "dashboard" && <DashboardHome go={goPage} />}
+          {page === "dashboard" && <DashboardHome go={goPage} isAdmin={isAdmin} fullName={fullName} />}
           {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
           {page === "cells" && <CellsPage />}
           {page === "sessions" && (
@@ -244,6 +250,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           {page === "sessions_detail" && activeSessionId && (
             <SessionDetailPage
               sessionId={activeSessionId}
+              role={role}
               onBack={backToSessionList}
               onAddDetainee={addDetaineeToSession}
               onEditDetainee={editDetaineeInSession}
@@ -604,7 +611,7 @@ function makeHwSample() {
   };
 }
 
-function DashboardHome({ go }) {
+function DashboardHome({ go, isAdmin = false, fullName = "" }) {
   const { t, greeting, dayNames, formatNumber } = useI18n();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
@@ -650,10 +657,11 @@ function DashboardHome({ go }) {
     <div className="page dashboard-page">
       <div className="dash-hero">
         <div>
-          <h1>{greet}, {stats.open_session?.officer_full_name || t("dashboard.greet_officer_default")}</h1>
+          <h1>{greet}, {stats.open_session?.officer_full_name || fullName || t("dashboard.greet_officer_default")}</h1>
           <p>{timeStr} • {dateStr}</p>
         </div>
-        {openSession ? (
+        {/* Admin quản lý phiên chứ không chạy phiên → không có khối phiên ở trang chủ. */}
+        {isAdmin ? null : openSession ? (
           <div className="dash-hero-session">
             <div className="dash-hero-session-info">
               <span className="dash-hero-badge">{t("dashboard.session.open_badge")}</span>
@@ -677,7 +685,8 @@ function DashboardHome({ go }) {
         )}
       </div>
 
-      <div className="stat-grid">
+      {/* Admin không có card "Phiên đang mở" → grid còn 3 cột (stat-grid-3). */}
+      <div className={isAdmin ? "stat-grid stat-grid-3" : "stat-grid"}>
         <StatCard
           tone="green"
           icon={Icon.file}
@@ -695,13 +704,15 @@ function DashboardHome({ go }) {
           note={t("dashboard.stat.total.note")}
           onClick={() => go("detainees")}
         />
-        <StatCard
-          tone="purple"
-          icon={Icon.clipboard}
-          label={t("dashboard.stat.open_session")}
-          value={openSession ? 1 : 0}
-          note={openSession ? openSession.code : t("dashboard.stat.open_session.none")}
-        />
+        {!isAdmin && (
+          <StatCard
+            tone="purple"
+            icon={Icon.clipboard}
+            label={t("dashboard.stat.open_session")}
+            value={openSession ? 1 : 0}
+            note={openSession ? openSession.code : t("dashboard.stat.open_session.none")}
+          />
+        )}
         <StatCard
           tone={missing > 0 ? "orange" : "green"}
           icon={Icon.shield}
@@ -4628,6 +4639,8 @@ const styles = `
     gap: 14px;
     flex-shrink: 0;
   }
+  /* Admin không có card "Phiên đang mở" → chỉ còn 3 card, chia đều 3 cột. */
+  .stat-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
   .stat-card {
     position: relative;
@@ -7361,6 +7374,8 @@ const styles = `
     gap: 12px;
     margin-bottom: 0;
   }
+  /* Cần đủ specificity (2 class) để thắng .dashboard-page .stat-grid ở trên. */
+  .dashboard-page .stat-grid-3 { grid-template-columns: repeat(3, 1fr); }
   .dashboard-page .stat-card { padding: 10px 12px; min-height: 74px; }
   .dashboard-page .stat-content > span { font-size: 11.5px; }
   .dashboard-page .stat-content strong { font-size: 20px; }

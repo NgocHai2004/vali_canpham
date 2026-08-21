@@ -51,6 +51,9 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
   const [err, setErr] = useState("");
   const [confirmDel, setConfirmDel] = useState(null);
   const [statusFilter, setStatusFilter] = useState("");
+  // Admin là quản trị hệ thống: giám sát phiên của mọi cán bộ (xem, xoá, tải báo cáo)
+  // nhưng không tự mở phiên và không tự thu nhận hồ sơ.
+  const isAdmin = role === "admin";
   const [mineOnly, setMineOnly] = useState(role !== "admin");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -95,7 +98,8 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           skip: String((page - 1) * pageSize),
           limit: String(pageSize),
         }),
-        api.getCurrentSession().catch(() => null),
+        // Admin không có phiên của riêng mình → khỏi gọi API (backend trả 404).
+        isAdmin ? Promise.resolve(null) : api.getCurrentSession().catch(() => null),
         api.listLogs({ resource: "detainee" }).catch(() => ({ counts: {} })),
       ]);
       setItems(resp.items || []);
@@ -196,19 +200,22 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           >
             {t("session.open.add_cell")}
           </button>
-          <div
-            className="session-list-newwrap"
-            title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
-          >
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={openNew}
-              disabled={hasOpenSession}
+          {/* Admin không mở phiên (backend cũng chặn) → không hiện nút này. */}
+          {!isAdmin && (
+            <div
+              className="session-list-newwrap"
+              title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
             >
-              {t("session.new")}
-            </button>
-          </div>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={openNew}
+                disabled={hasOpenSession}
+              >
+                {t("session.new")}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -42,3 +42,33 @@ async def admin_token(app_client):
 @pytest.fixture
 def admin_headers(admin_token):
     return {"Authorization": f"Bearer {admin_token}"}
+
+
+OFFICER_USERNAME = "canbo1"
+OFFICER_PASSWORD = "canbo123456"
+
+
+@pytest.fixture
+async def officer_headers(app_client, admin_headers):
+    """Tài khoản cán bộ thu nhận (role=user) — vai duy nhất được mở phiên làm việc.
+
+    Admin là quản trị hệ thống, không đi thu nhận can phạm nên bị chặn mở phiên
+    và tạo hồ sơ; mọi test về luồng phiên/hồ sơ phải dùng fixture này.
+    """
+    r = await app_client.post(
+        "/api/users",
+        json={
+            "username": OFFICER_USERNAME,
+            "password": OFFICER_PASSWORD,
+            "role": "user",
+            "full_name": "Cán bộ Một",
+        },
+        headers=admin_headers,
+    )
+    assert r.status_code == 200, r.text
+    r2 = await app_client.post(
+        "/api/auth/login",
+        data={"username": OFFICER_USERNAME, "password": OFFICER_PASSWORD},
+    )
+    assert r2.status_code == 200, r2.text
+    return {"Authorization": f"Bearer {r2.json()['access_token']}"}

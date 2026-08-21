@@ -207,7 +207,7 @@ export default function Login({ onLogin }) {
         <div className="lg-footer">
           <div>{t("login.footer", { year: new Date().getFullYear() })}</div>
           <div className="lg-meta">
-            <span>v1.0.0</span>
+            <span>Version 5.3.4.1</span>
             <span className="lg-dot" aria-hidden="true">•</span>
             <span>{t("login.demo")}</span>
           </div>

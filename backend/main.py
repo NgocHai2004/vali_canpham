@@ -997,6 +997,10 @@ async def _compute_face_embedding(portrait_url: str) -> list[float] | None:
 
 @app.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
+    # Quản trị hệ thống không đi thu nhận can phạm → không TẠO hồ sơ mới.
+    # Vẫn giữ quyền SỬA/XOÁ hồ sơ để chữa dữ liệu cán bộ nhập sai.
+    if user.get("role") == "admin":
+        raise HTTPException(403, "Tài khoản quản trị hệ thống không thu nhận hồ sơ. Việc này do cán bộ thu nhận thực hiện.")
     if not body.session_id:
         raise HTTPException(400, "Bạn phải mở 1 phiên làm việc trước khi tạo hồ sơ.")
     session_doc = await db.work_sessions.find_one({"_id": _oid(body.session_id)})
@@ -1149,6 +1153,10 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
 @app.post("/api/sessions")
 async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
     officer_username = user["username"]
+    # Quản trị hệ thống không đi thu nhận can phạm → không mở phiên làm việc.
+    # Admin vẫn xem/đóng/xoá phiên + tải báo cáo của cán bộ (vai giám sát).
+    if user.get("role") == "admin":
+        raise HTTPException(403, "Tài khoản quản trị hệ thống không mở phiên thu nhận. Phiên làm việc do cán bộ thu nhận mở.")
     existing = await _get_open_session_or_none(officer_username)
     if existing:
         raise HTTPException(409, f"Bạn đang có 1 phiên đang mở ({existing.get('code','?')}). Đóng phiên đó trước khi mở phiên mới.")
@@ -1177,6 +1185,10 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
 
 @app.get("/api/sessions/current")
 async def get_current_session(user: dict = Depends(get_current_user)):
+    # Admin không chạy phiên → luôn coi như không có phiên đang mở, kể cả khi
+    # dữ liệu cũ còn phiên do admin mở từ trước.
+    if user.get("role") == "admin":
+        raise HTTPException(404, "Tài khoản quản trị hệ thống không có phiên làm việc.")
     doc = await _get_open_session_or_none(user["username"])
     if not doc:
         raise HTTPException(404, "Bạn chưa có phiên làm việc nào đang mở.")
@@ -2086,7 +2098,10 @@ async def stats(user: dict = Depends(get_current_user)):
             "count": row["count"],
         })
 
-    open_session_doc = await _get_open_session_or_none(user["username"])
+    # Admin quản lý phiên chứ không chạy phiên → không có "phiên đang mở" của riêng mình.
+    open_session_doc = None
+    if user.get("role") != "admin":
+        open_session_doc = await _get_open_session_or_none(user["username"])
     open_session = _s_session(open_session_doc) if open_session_doc else None
 
     sess_filt: dict = {}
