@@ -56,6 +56,77 @@ const FP_CODE_TO_KEY = {
   right_little: "fp_r5",
 };
 
+// 3 cum dung bang dung cum may Morfin chup 1 lan (khop STEPS cua morfin_service):
+// 4 ngon trai | 2 ngon cai | 4 ngon phai. Nhap nhay theo CA CUM, khong nhay le tung o.
+const FP_CLUSTERS = [
+  { step: "left_hand", codes: ["left_little", "left_ring", "left_middle", "left_index"] },
+  { step: "thumbs", codes: ["left_thumb", "right_thumb"] },
+  { step: "right_hand", codes: ["right_index", "right_middle", "right_ring", "right_little"] },
+];
+
+// Hinh ban tay so do: 4 ngon + ngon cai, ngon dang can lan thi sang len.
+// Ban tay TRAI la hinh goc (nhin tu mu ban tay, ngon cai o ben phai);
+// ban tay PHAI la ban lat ngang cua no => chi 1 bo path duy nhat.
+// Mau lay theo currentColor nen tu an theo class .done / .active / .empty.
+const HAND_FINGERS = [
+  { name: "little", x: 4, y: 17 },
+  { name: "ring", x: 10.5, y: 11 },
+  { name: "middle", x: 17, y: 8.5 },
+  { name: "index", x: 23.5, y: 12 },
+];
+
+// active = ngon DA thu (sang len). blink = ngon DANG lan (nhay).
+// Class .hg-finger/.on/.blink de CSS to mau rieng theo ngu canh (o luoi vs icon KPI),
+// vi fill dung currentColor thi ca ban tay se cung mot mau.
+function HandGlyph({ side = "left", active = [], blink = [], className = "" }) {
+  const cls = (n) =>
+    "hg-finger" + (active.includes(n) ? " on" : "") + (blink.includes(n) ? " blink" : "");
+  const lit = { fill: "currentColor", fillOpacity: 0.9, stroke: "currentColor" };
+  const dim = { fill: "none", fillOpacity: 0, stroke: "currentColor", strokeOpacity: 0.75 };
+  const skin = (n) => (active.includes(n) ? lit : dim);
+  return (
+    <svg
+      className={"hand-glyph " + className}
+      /* viewBox bo sat hinh (x 2->39, y 7->45; da tinh ca ngon cai xoay 38do
+         va nua do day vien). Cu la "0 0 40 48" => ti le 0.83, cao thua nhieu
+         cho trong nen hinh bi co lai. Gio ti le ~0.97 (gan vuong) => cung 1
+         khung render, hinh to hon ro ret. */
+      viewBox="2 7 37 38"
+      aria-hidden="true"
+      style={side === "right" ? { transform: "scaleX(-1)" } : undefined}
+    >
+      <g strokeWidth="1.6" strokeLinejoin="round">
+        {/* long ban tay */}
+        <rect className="hg-palm" x="3" y="27" width="28" height="17" rx="5" {...dim} />
+        {/* 4 ngon */}
+        {HAND_FINGERS.map((f) => (
+          <rect
+            key={f.name}
+            className={cls(f.name)}
+            x={f.x}
+            y={f.y}
+            width="5.5"
+            height={31 - f.y}
+            rx="2.7"
+            {...skin(f.name)}
+          />
+        ))}
+        {/* ngon cai — nghieng ra phia ngoai long ban tay */}
+        <rect
+          className={cls("thumb")}
+          x="29"
+          y="26"
+          width="5.5"
+          height="14"
+          rx="2.7"
+          transform="rotate(38 31.7 33)"
+          {...skin("thumb")}
+        />
+      </g>
+    </svg>
+  );
+}
+
 // So lan chup lai toi da cho MOI cum truoc khi dung ca vong thu. Voi nguong 50%
 // nguoi dan thuong can vai lan de chinh cach ap tay, nen 5 la qua it: het 5 lan
 // la vong thu dung giua duong va cac cum sau khong bao gio duoc chay.
@@ -1457,6 +1528,33 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   }, [sessionReadOnly]);
 
   const fpCount = FINGERS.filter((f) => photos[f.key]).length;
+  // Ngon nao da thu -> sang len tren 2 icon ban tay tong quan o khoi KPI.
+  const fpDoneByHand = useMemo(() => {
+    const out = { left: [], right: [] };
+    for (const f of FINGERS) {
+      if (!photos[f.key]) continue;
+      const hand = f.code.startsWith("left") ? "left" : "right";
+      out[hand].push(f.code.replace(/^(left|right)_/, ""));
+    }
+    return out;
+  }, [photos]);
+  // Ngon dang lan -> nhay tren icon KPI. Mo rong ra CA CUM vi may Morfin chup
+  // ca cum 1 lan => cum thumbs nhay ngon cai o CA HAI ban tay.
+  const fpBlinkByHand = useMemo(() => {
+    const out = { left: [], right: [] };
+    if (!fpRunning) return out;
+    const cluster = FP_CLUSTERS.find((c) =>
+      fpActiveCodes.length
+        ? c.codes.some((x) => fpActiveCodes.includes(x))
+        : c.codes.includes(fpNextCode)
+    );
+    if (!cluster) return out;
+    for (const code of cluster.codes) {
+      const hand = code.startsWith("left") ? "left" : "right";
+      out[hand].push(code.replace(/^(left|right)_/, ""));
+    }
+    return out;
+  }, [fpRunning, fpActiveCodes, fpNextCode]);
   const portraitCount = PORTRAITS.filter((p) => photos[p.key]).length;
   useEffect(() => { fpRunningRef.current = fpRunning; }, [fpRunning]);
   useEffect(() => { fpCountRef.current = fpCount; }, [fpCount]);
@@ -1943,63 +2041,79 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               </button>
             </div>
             <div className="fp-preview-grid fp-preview-grid--single-row">
-              {[...LEFT_HAND, ...RIGHT_HAND].map((f) => {
-                const label = t(`fp.finger.${f.code}.long`);
-                const filled = !!photos[f.key];
-                const fpCode = Object.entries(FP_CODE_TO_KEY).find(([, k]) => k === f.key)?.[0];
-                // Nhap nhay CA CUM dang chup (Morfin lay 4 ngon / 2 ngon cai
-                // trong 1 lan), fallback ve 1 ngon neu chua biet cum.
-                const isActive = fpRunning && (
+              {FP_CLUSTERS.map((cluster) => {
+                // Ca cum nhap nhay cung luc = dung 1 lan chup cua may Morfin.
+                const clusterActive = fpRunning && (
                   fpActiveCodes.length
-                    ? fpActiveCodes.includes(fpCode)
-                    : fpNextCode === fpCode
+                    ? cluster.codes.some((c) => fpActiveCodes.includes(c))
+                    : cluster.codes.includes(fpNextCode)
                 );
-                const q = fpQuality[fpCode];
+                const clusterDone = cluster.codes.every((c) => photos[FP_CODE_TO_KEY[c]]);
                 return (
                   <div
-                    key={f.key}
-                    className={"fp-preview-cell " + (filled ? "done" : "empty") + (isActive ? " active neon-active" : "")}
-                    onDoubleClick={() => !fpRunning && retryFingerprint(f.key, fpCode)}
-                    title={filled ? t("capture.fp.dbl_retake") : t("capture.fp.dbl_take")}
-                    style={{ cursor: fpRunning ? "default" : "pointer" }}
+                    key={cluster.step}
+                    className={
+                      "fp-cluster fp-cluster--" + cluster.step +
+                      (clusterDone ? " done" : "") +
+                      (clusterActive ? " active neon-active" : "")
+                    }
                   >
-                    <div className="fp-preview-thumb">
-                      {filled ? (
-                        <img src={photos[f.key]} alt={label} />
-                      ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 10.5c-.9 0-1.6.7-1.6 1.6v2.4c0 1.7.4 3.4 1.1 5" />
-                          <path d="M9.2 8.5A4 4 0 0 1 16 11v3.4c0 1.4.2 2.7.6 4" />
-                          <path d="M7 7.6A6 6 0 0 1 18 11v3.3c0 1 .1 2 .4 3" />
-                          <path d="M5.2 9.8A8 8 0 0 1 20 11" />
-                          <path d="M4.5 13.5c-.1-.9-.1-1.8 0-2.7" />
-                          <path d="M6 18.5c-.5-1-.8-2.1-.9-3.2" />
-                          <path d="M8.7 20.6c-.6-1-1-2-1.3-3.1" />
-                          <path d="M15.7 20.7c.7-1.4 1-2.9 1.1-4.4" />
-                        </svg>
-                      )}
-                      {typeof q === "number" && (() => {
-                        // Nguong RIENG tung ngon (service tra min_quality_by_code).
-                        // Ngon ut thap hon 50 vi tren platen phang chi dau ngon
-                        // tiep xuc => hardcode 50 se to do du no da dat.
-                        const need = fpMinQ[fpCode] ?? 50;
-                        const cls = q >= need + 20 ? "good" : q >= need ? "ok" : "bad";
-                        return <span className={"fp-cell-quality " + cls}>{q}%</span>;
-                      })()}
-                    </div>
-                    <span className="fp-name">{label}</span>
+                    {cluster.codes.map((fpCode) => {
+                      const key = FP_CODE_TO_KEY[fpCode];
+                      const label = t(`fp.finger.${fpCode}.long`);
+                      const filled = !!photos[key];
+                      const q = fpQuality[fpCode];
+                      return (
+                        <div
+                          key={key}
+                          className={"fp-preview-cell " + (filled ? "done" : "empty")}
+                          onDoubleClick={() => !fpRunning && retryFingerprint(key, fpCode)}
+                          title={filled ? t("capture.fp.dbl_retake") : t("capture.fp.dbl_take")}
+                          style={{ cursor: fpRunning ? "default" : "pointer" }}
+                        >
+                          <div className="fp-preview-thumb">
+                            {filled ? (
+                              <img src={photos[key]} alt={label} />
+                            ) : (
+                              <HandGlyph
+                                side={fpCode.startsWith("left") ? "left" : "right"}
+                                active={[fpCode.replace(/^(left|right)_/, "")]}
+                              />
+                            )}
+                            {typeof q === "number" && (() => {
+                              // Nguong RIENG tung ngon (service tra min_quality_by_code).
+                              // Ngon ut thap hon 50 vi tren platen phang chi dau ngon
+                              // tiep xuc => hardcode 50 se to do du no da dat.
+                              const need = fpMinQ[fpCode] ?? 50;
+                              const cls = q >= need + 20 ? "good" : q >= need ? "ok" : "bad";
+                              return <span className={"fp-cell-quality " + cls}>{q}%</span>;
+                            })()}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
-            <div className="fp-kpi fp-kpi-inline fp-kpi-3col">
+            <div className="fp-kpi fp-kpi-inline fp-kpi-2col">
               <div className="fp-kpi-cell">
                 <span className="fp-kpi-num">{fpCount}</span>
                 <span className="fp-kpi-divider">/ 10</span>
               </div>
-              <div className="fp-kpi-cell">{t("capture.quality.collected", { n: fpCount })}</div>
-              <div className="fp-kpi-cell">
-                <span className="fp-kpi-percent">{fpCount === 10 ? "100%" : `${Math.round(fpCount * 10)}%`}</span>
+              <div className="fp-kpi-cell fp-kpi-hands">
+                <HandGlyph
+                  side="left"
+                  active={fpDoneByHand.left}
+                  blink={fpBlinkByHand.left}
+                  className="kpi"
+                />
+                <HandGlyph
+                  side="right"
+                  active={fpDoneByHand.right}
+                  blink={fpBlinkByHand.right}
+                  className="kpi"
+                />
               </div>
             </div>
           </section>

@@ -6901,8 +6901,8 @@ const styles = `
 
   .btn-cccd-scan {
     display: inline-flex; align-items: center; gap: 6px;
-    height: 28px;
-    padding: 0 10px; border-radius: 6px;
+    height: 22px;
+    padding: 0 7px; border-radius: 5px;
     border: 1px solid rgba(255,255,255,.35);
     background: rgba(255,255,255,.15);
     color: white; font-size: 11.5px; font-weight: 700;
@@ -8096,10 +8096,13 @@ const styles = `
   .case-tier-2 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 
   /* Tier 3: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) — nằm trong tier3-row */
+  /* Chi con 1 con (section.cap-block) vi KPI da gop vao trong section do.
+     "auto" => panel chi cao bang noi dung roi dung, thap hon panel KIEM TRA
+     DU LIEU ben canh (khoi do co flex: 1 nen cang het chieu cao). */
   .case-tier-3 {
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
+    grid-template-rows: minmax(0, 1fr);
     gap: 10px;
     min-height: 0;
     overflow: hidden;
@@ -8134,19 +8137,23 @@ const styles = `
     line-height: 1.1;
     writing-mode: horizontal-tb;
   }
-  /* Single-row variant: label xuống hàng 2, span 5 cột, không nền pill */
+  /* Single-row variant: 3 cum 4-2-4 tren 1 hang (khop cum may Morfin chup) */
   .fp-preview-grid.fp-preview-grid--single-row {
     display: grid;
-    grid-template-columns: repeat(10, minmax(0, 1fr));
+    grid-template-columns: 4fr 2fr 4fr;
     grid-template-rows: auto auto;
-    gap: 6px;
+    gap: 6px 14px;
     padding: 8px 10px 10px;
     align-content: center;
     justify-content: center;
     align-items: center;
   }
-  .fp-preview-grid.fp-preview-grid--single-row .fp-preview-cell {
+  .fp-preview-grid.fp-preview-grid--single-row .fp-cluster {
     grid-row: 1;
+    display: grid;
+    grid-auto-flow: column;
+    gap: 5px;
+    min-width: 0;
   }
   .fp-preview-grid.fp-preview-grid--single-row .fp-hand-below {
     grid-row: 2;
@@ -8329,6 +8336,58 @@ const styles = `
   .fp-kpi-3col .fp-kpi-num { font-size: 22px; letter-spacing: -.5px; }
   .fp-kpi-3col .fp-kpi-divider { font-size: 13px; color: var(--muted); font-weight: 700; }
   .fp-kpi-3col .fp-kpi-percent { font-size: 22px; letter-spacing: -.5px; }
+  /* Bien the 2 cot: so dem ben trai + 2 icon ban tay tong quan ben phai
+     (thay cho 2 o cu vi ca 3 o deu noi lai cung 1 con so). */
+  .fp-kpi-2col {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: center;
+    justify-content: stretch;
+    text-align: center;
+    gap: 0;
+    padding: 6px 0 4px;
+    border-top: 1px solid var(--border);
+  }
+  .fp-kpi-2col .fp-kpi-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: var(--primary-hi);
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1;
+    border-right: 1px solid var(--border);
+  }
+  .fp-kpi-2col .fp-kpi-cell:last-child { border-right: none; }
+  .fp-kpi-2col .fp-kpi-num { font-size: 22px; letter-spacing: -.5px; }
+  .fp-kpi-2col .fp-kpi-divider { font-size: 13px; color: var(--muted); font-weight: 700; }
+  .fp-kpi-hands { gap: 20px; }
+  /* 2 ban tay LUON hien. Khung dung dung ti le viewBox (37x38) de vien 1.6px
+     khong bi co lai => nhin ro tren panel toi. */
+  .fp-kpi-hands .hand-glyph {
+    width: 78px;
+    height: 80px;
+    color: var(--muted);
+    overflow: visible;
+    /* Day len ~5px cho do sat vien duoi. Dung margin lech (khong dung
+       transform) vi ban tay PHAI da co inline transform scaleX(-1),
+       CSS transform se ghi de mat phan lat. */
+    margin-top: -5px;
+    margin-bottom: 5px;
+  }
+  /* color dat tren tung <rect>: fill/stroke dung currentColor nen moi ngon
+     to mau doc lap duoc, khong keo ca ban tay theo. */
+  .fp-kpi-hands .hg-finger.on { color: #24d777; }
+  .fp-kpi-hands .hg-finger.blink {
+    color: #35D8FF;
+    animation: fp-hand-blink 1.1s infinite ease-in-out;
+  }
+  @keyframes fp-hand-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
 
   /* Tier 4: 4 cột phụ */
   .case-tier-4 {

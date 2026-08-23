@@ -7872,22 +7872,29 @@ textarea.input {
   border-radius: 6px;
   transition: box-shadow .2s ease;
 }
-.fp-preview-cell.active {
+/* ===== Cum van tay (layer): 4 ngon trai | 2 ngon cai | 4 ngon phai =====
+   May Morfin chup CA CUM 1 lan => nhap nhay theo cum, khong nhay le tung o. */
+.fp-cluster {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 6px;
+  min-width: 0;
+  border-radius: 8px;
+  /* Vien + pulse dung box-shadow nen KHONG chiem cho => layout giu nguyen. */
+  transition: box-shadow .2s ease;
+}
+.fp-cluster.active {
   animation: fp-cell-pulse 1.1s infinite ease-in-out;
 }
-.fp-preview-cell.active .fp-preview-thumb {
+.fp-cluster.active .fp-preview-thumb {
   border-color: #35D8FF !important;
   background: rgba(53, 216, 255, 0.12) !important;
   animation: fp-thumb-blink 1.1s infinite ease-in-out;
   box-shadow: 0 0 0 2px rgba(53, 216, 255, 0.35);
 }
-.fp-preview-cell.active .fp-preview-thumb svg {
+.fp-cluster.active .fp-preview-thumb svg {
   color: #35D8FF !important;
   animation: fp-icon-scale 1.1s infinite ease-in-out;
-}
-.fp-preview-cell.active .fp-name {
-  color: #35D8FF;
-  font-weight: 800;
 }
 @keyframes fp-cell-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(53, 216, 255, 0.45); }
@@ -7941,30 +7948,25 @@ textarea.input {
 }
 .fp-cell-quality.ok  { background: #ffc94d; }
 .fp-cell-quality.bad { background: #ff5f6d; color: #fff; }
+/* Icon ban tay to hon icon van tay cu (32px) de nhin ro ngon nao dang sang,
+   nhung khung .fp-preview-thumb khong doi nen layout giu nguyen. */
 .fp-preview-thumb svg {
-  width: 32px;
-  height: 32px;
+  width: 54px;
+  height: 54px;
   color: var(--muted);
 }
-.fp-preview-cell .fp-name {
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  color: var(--text);
-  letter-spacing: 0.3px;
-  line-height: 1.2;
-}
-.fp-preview-cell.empty .fp-name { color: var(--muted); }
+.fp-preview-cell.done .fp-preview-thumb svg { color: #24d777; }
 
-/* 10 vân tay 1 hàng + 2 label bàn tay bên dưới */
+/* 10 van tay 1 hang, gom thanh 3 cum 4-2-4 (khop cum may Morfin chup).
+   Cum ngon cai chi 2 o nen cot giua hep hon => 4fr 2fr 4fr, tile deu nhau. */
 .fp-preview-grid.fp-preview-grid--single-row {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: 4fr 2fr 4fr;
   grid-auto-rows: auto;
-  gap: 6px 6px;
+  gap: 6px 16px;
   align-items: start;
 }
-.fp-preview-grid.fp-preview-grid--single-row .fp-preview-cell {
+.fp-preview-grid.fp-preview-grid--single-row .fp-cluster {
   grid-row: 1;
 }
 .fp-preview-grid.fp-preview-grid--single-row .fp-hand-below {
