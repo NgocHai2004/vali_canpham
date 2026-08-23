@@ -7604,6 +7604,133 @@ textarea.input {
   margin-bottom: 18px;
 }
 
+/* --- Morfin slap: 3 cum (4 ngon trai / 2 ngon cai / 4 ngon phai) --- */
+.fp-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.fp-group {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(53, 216, 255, 0.05);
+  border: 1.5px solid transparent;
+  transition: all 0.15s;
+}
+
+.fp-group.active {
+  background: rgba(53, 216, 255, 0.12);
+  border-color: #35D8FF;
+}
+
+.fp-group.done {
+  background: rgba(36, 215, 119, 0.10);
+  border-color: rgba(36, 215, 119, 0.35);
+  cursor: pointer;
+  user-select: none;
+}
+
+.fp-group.done:hover {
+  border-color: #35D8FF;
+  box-shadow: 0 0 0 2px rgba(53, 216, 255, 0.15);
+}
+
+.fp-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.fp-group-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.fp-group-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.fp-group.done .fp-group-badge { color: #24d777; }
+.fp-group.active .fp-group-badge { color: #35D8FF; }
+
+.fp-group-redo {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #35D8FF;
+}
+
+.fp-group-tiles {
+  display: flex;
+  gap: 10px;
+}
+
+.fp-tile {
+  flex: 1;
+  min-width: 0;
+}
+
+.fp-tile-img {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(10, 22, 40, 0.55);
+  border: 1px solid rgba(126, 147, 184, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fp-tile-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.fp-tile-empty {
+  color: var(--muted);
+  font-size: 18px;
+}
+
+/* Chat luong hien de tren anh: nguoi dan thay ngay ngon nao yeu. */
+.fp-quality {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #04121f;
+  background: #24d777;
+}
+
+.fp-quality.ok  { background: #ffc94d; }
+.fp-quality.bad { background: #ff5f6d; color: #fff; }
+
+.fp-tile-name {
+  margin-top: 4px;
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-minq {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 .fp-col {
   display: flex;
   flex-direction: column;
@@ -7797,6 +7924,23 @@ textarea.input {
   object-fit: contain;
   display: block;
 }
+/* Chat luong (%) de len anh trong luoi 10 ngon o trang thu thap. */
+.fp-preview-thumb { position: relative; }
+.fp-cell-quality {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #04121f;
+  background: #24d777;
+  pointer-events: none;
+}
+.fp-cell-quality.ok  { background: #ffc94d; }
+.fp-cell-quality.bad { background: #ff5f6d; color: #fff; }
 .fp-preview-thumb svg {
   width: 32px;
   height: 32px;

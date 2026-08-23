@@ -3584,6 +3584,21 @@ function UsersPage({ currentUser }) {
   );
 }
 
+// Nguong nghiep vu da thong nhat cho chat luong van tay. Admin duoc phep ha
+// xuong duoi muc nay nhung phai thay canh bao - ha nguong = chap nhan template
+// kem, lam sai ket qua tra cuu ve sau.
+const FP_QUALITY_RECOMMENDED = 50;
+
+// Thu tu hien thi: tung ban tay tu ngon cai ra ngon ut. Phai khop thu tu
+// FP_FINGER_CODES cua backend de admin doc bang theo dung thu tu quen thuoc.
+const FP_SETTINGS_HANDS = [
+  { hand: "left", codes: ["left_thumb", "left_index", "left_middle", "left_ring", "left_little"] },
+  { hand: "right", codes: ["right_thumb", "right_index", "right_middle", "right_ring", "right_little"] },
+];
+const FP_SETTINGS_CODES = FP_SETTINGS_HANDS.flatMap((h) => h.codes);
+// Tieu de 5 cot cua ma tran. Thu tu phai khop codes cua tung ban tay o tren.
+const FP_SETTINGS_DIGITS = ["thumb", "index", "middle", "ring", "little"];
+
 function SettingsPage() {
   const { t } = useI18n();
   const [heightImage, setHeightImage] = useState("");
@@ -3591,22 +3606,88 @@ function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // { left_thumb: "50", ... } - giu dang STRING de o input trong duoc trong khi
+  // dang sua, khong bi Number("") = 0 bien thanh nguong 0.
+  const [fpQ, setFpQ] = useState({});
+  const [fpSaving, setFpSaving] = useState(false);
+  const [fpError, setFpError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    api.measurementConfig()
-      .then((cfg) => {
-        if (!cancelled) {
-          const v = Number(cfg?.height_image);
+    // Hai config doc song song. Loi cua config nay KHONG duoc lam an config kia:
+    // neu service van tay tat thi phan chieu cao van phai dung duoc.
+    Promise.allSettled([api.measurementConfig(), api.fingerprintConfig()])
+      .then(([m, fp]) => {
+        if (cancelled) return;
+        if (m.status === "fulfilled") {
+          const v = Number(m.value?.height_image);
           setHeightImage(Number.isFinite(v) && v > 0 ? String(v) : "");
-          const o = Number(cfg?.height_offset);
+          const o = Number(m.value?.height_offset);
           setHeightOffset(Number.isFinite(o) && o > 0 ? String(o) : "");
+        } else {
+          setError(m.reason?.message || String(m.reason));
+        }
+        // Doc that bai (service tat, backend chua co route) van phai dien
+        // FP_QUALITY_RECOMMENDED vao 10 o: o trong khong noi len dieu gi, con
+        // hien so mac dinh cho admin biet he thong dang chay o muc nao. Loi
+        // ghi ra console thay vi do len UI - admin khong lam gi duoc voi no,
+        // va bam Luu van hoat dong binh thuong.
+        const by = fp.status === "fulfilled" ? (fp.value?.by_finger || {}) : {};
+        const def = Number(fp.status === "fulfilled" ? fp.value?.default : NaN);
+        const fallback = Number.isFinite(def) ? def : FP_QUALITY_RECOMMENDED;
+        const next = {};
+        for (const c of FP_SETTINGS_CODES) {
+          const q = Number(by[c]);
+          next[c] = String(Number.isFinite(q) ? q : fallback);
+        }
+        setFpQ(next);
+        if (fp.status !== "fulfilled") {
+          console.warn("[settings] doc nguong van tay loi:", fp.reason);
         }
       })
-      .catch((e) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  const submitFp = async (e) => {
+    e.preventDefault();
+    // Validate TRUOC khi gui: gui ca 10 ngon nen 1 o sai phai chi ro o nao,
+    // khong de BE tra loi chung chung roi admin phai tu do tim.
+    const payload = {};
+    for (const c of FP_SETTINGS_CODES) {
+      const raw = (fpQ[c] ?? "").trim();
+      const n = Number(raw);
+      if (raw === "" || !Number.isInteger(n) || n < 0 || n > 100) {
+        setFpError(t("settings.fp.err.invalid_at", {
+          f: t(`fp.finger.${c}.long`),
+        }));
+        return;
+      }
+      payload[c] = n;
+    }
+    setFpSaving(true);
+    setFpError("");
+    try {
+      const res = await api.updateFingerprintConfig({ by_finger: payload });
+      const by = res?.by_finger || {};
+      setFpQ((prev) => {
+        const next = { ...prev };
+        for (const c of FP_SETTINGS_CODES) {
+          if (by[c] !== undefined) next[c] = String(by[c]);
+        }
+        return next;
+      });
+      // applied=false: Mongo da luu nhung service van tay dang tat, nguong moi
+      // chua co tac dung. Phai noi ro, khong de admin tuong da ap dung.
+      toast.success(res?.applied === false
+        ? t("settings.fp.saved_pending")
+        : t("settings.saved"));
+    } catch (e) {
+      setFpError(e.message);
+    } finally {
+      setFpSaving(false);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -3634,6 +3715,15 @@ function SettingsPage() {
   const ho = Number(heightOffset);
   const hiValid = Number.isFinite(hi) && hi > 0;
   const previewRows = [0.15, 0.2, 0.25, 0.3];
+  // Canh bao ngay khi dang nhap, khong doi bam Luu - admin phai thay truoc khi
+  // chot rang minh dang ha duoi nguong nghiep vu. Liet ke DUNG ngon nao dang
+  // thap, khong bao chung chung: co 10 o nen admin phai biet o nao.
+  const fpLowCodes = FP_SETTINGS_CODES.filter((c) => {
+    const raw = (fpQ[c] ?? "").trim();
+    if (raw === "") return false;
+    const n = Number(raw);
+    return Number.isFinite(n) && n < FP_QUALITY_RECOMMENDED;
+  });
 
   return (
     <div className="page">
@@ -3700,7 +3790,7 @@ function SettingsPage() {
                 <p>{t("settings.formula.desc")}</p>
               </div>
             </div>
-            <div className="settings-formula">height_cm = (1 − head_ratio) × height_image + height_offset</div>
+            <div className="settings-formula settings-formula-compact">height_cm = (1 − head_ratio) × height_image + height_offset</div>
             <p className="settings-preview-caption">
               {hiValid
                 ? t("settings.preview.caption", { v: hi })
@@ -3722,6 +3812,73 @@ function SettingsPage() {
                 ))}
               </tbody>
             </table>
+          </section>
+
+          <section className="table-card settings-card settings-card-fp">
+            <form className="form" onSubmit={submitFp}>
+              <div className="settings-card-head settings-card-head-row">
+                <span className="settings-card-icon">{Icon.gear}</span>
+                <div>
+                  <h2>{t("settings.fp.title")}</h2>
+                  <p>{t("settings.fp.min_quality.desc", { v: FP_QUALITY_RECOMMENDED })}</p>
+                </div>
+                <button type="submit" className="button primary" disabled={fpSaving}>
+                  {fpSaving ? t("common.saving") : t("common.save")}
+                </button>
+              </div>
+              {fpError && <StateBox type="error">{fpError}</StateBox>}
+              {/* Ma tran: hang tieu de 5 ngon, roi 1 hang cho moi ban tay. */}
+              <div className="settings-fp-matrix">
+                <span />
+                {FP_SETTINGS_DIGITS.map((d) => (
+                  <div key={d} className="settings-fp-col-head">
+                    {t(`settings.fp.digit.${d}`)}
+                  </div>
+                ))}
+                {FP_SETTINGS_HANDS.map((h) => (
+                  <Fragment key={h.hand}>
+                    <span className="settings-fp-hand-label">
+                      {t(`settings.fp.hand.${h.hand}`)}
+                    </span>
+                    {h.codes.map((c) => {
+                      const raw = (fpQ[c] ?? "").trim();
+                      const n = Number(raw);
+                      const low = raw !== "" && Number.isFinite(n)
+                        && n < FP_QUALITY_RECOMMENDED;
+                      return (
+                        <div key={c} className="settings-fp-cell">
+                          <input
+                            className="control settings-fp-input"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={fpQ[c] ?? ""}
+                            onChange={(e) => setFpQ((p) => ({ ...p, [c]: e.target.value }))}
+                            aria-label={t("settings.fp.aria_input", {
+                              f: t(`fp.finger.${c}.long`),
+                            })}
+                            aria-invalid={low ? "true" : undefined}
+                            required
+                          />
+                          <span className="settings-fp-unit">%</span>
+                        </div>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </div>
+              {fpLowCodes.length > 0 ? (
+                <p className="settings-fp-note" style={{ color: "var(--danger, #e5484d)" }}>
+                  {t("settings.fp.warn_low", {
+                    v: FP_QUALITY_RECOMMENDED,
+                    list: fpLowCodes.map((c) => t(`fp.finger.${c}.long`)).join(", "),
+                  })}
+                </p>
+              ) : (
+                <p className="settings-fp-note">{t("settings.fp.desc")}</p>
+              )}
+            </form>
           </section>
         </div>
       )}
@@ -5742,44 +5899,55 @@ const styles = `
   }
 
   /* ===== Trang Cài đặt ===== */
+  /* Layout 2 hang TUONG MINH thay vi auto-fit: hang 1 la 2 card tham so (cot
+     trai rong hon vi co form nhap), hang 2 la card van tay chiem ca chieu ngang.
+     overflow:hidden + rows "auto 1fr" giu toan bo trang vua trong khung, khong
+     sinh thanh cuon; card van tay tu gian theo 1fr nen khong de lai khoang trong
+     o man hinh cao. */
   .settings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-    gap: 18px;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    gap: 14px;
     align-content: start;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
   }
   .settings-card {
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 20px 22px;
+    padding: 16px 18px;
     flex: 0 0 auto;
+    min-height: 0;
   }
   .settings-card-head {
     display: flex;
-    gap: 14px;
+    gap: 12px;
     align-items: flex-start;
-    margin-bottom: 18px;
-    padding-bottom: 16px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--border);
   }
   .settings-card-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
     background: rgba(120, 170, 255, .14);
     color: var(--primary);
     flex-shrink: 0;
   }
-  .settings-card-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .settings-card-head h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--text); }
-  .settings-card-head p { font-size: 12.5px; color: var(--muted); margin: 0; line-height: 1.5; }
+  .settings-card-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .settings-card-head h2 { font-size: 13.5px; font-weight: 700; margin: 0 0 3px; color: var(--text); }
+  .settings-card-head p { font-size: 11.5px; color: var(--muted); margin: 0; line-height: 1.45; }
+  /* Nut Luu day sang phai cua header, tiet kiem 1 hang cuoi card. */
+  .settings-card-head-row { align-items: center; }
+  .settings-card-head-row > div { flex: 1 1 auto; min-width: 0; }
+  .settings-card-head-row > .button { flex: 0 0 auto; }
   .settings-formula {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 13px;
@@ -5790,24 +5958,73 @@ const styles = `
     text-align: center;
     letter-spacing: .3px;
   }
-  .settings-preview-caption { font-size: 12.5px; color: var(--muted); margin: 14px 0 8px; }
+  .settings-formula-compact { font-size: 12px; padding: 9px 11px; }
+  .settings-preview-caption { font-size: 11.5px; color: var(--muted); margin: 10px 0 6px; }
   .settings-preview-table { width: 100%; border-collapse: collapse; }
   .settings-preview-table th {
     text-align: left;
-    font-size: 11.5px;
+    font-size: 10.5px;
     text-transform: uppercase;
     letter-spacing: .4px;
     color: var(--muted);
     font-weight: 600;
-    padding: 8px 10px;
+    padding: 4px 8px;
     border-bottom: 1px solid var(--border);
   }
   .settings-preview-table td {
-    padding: 9px 10px;
-    font-size: 13.5px;
+    padding: 4px 8px;
+    font-size: 11.5px;
     color: var(--text);
     border-bottom: 1px solid var(--border);
   }
+  /* Card nguong van tay chiem CA HANG rieng ben duoi. Ma tran 5 cot (5 ngon) x
+     2 hang (2 ban tay) thay vi 2 cot x 5 hang: tiet kiem ~110px chieu cao, day
+     la phan giup ca trang vua khung khong sinh thanh cuon. Ten ngon chi hien 1
+     lan o tieu de cot thay vi lap lai 10 lan. */
+  .settings-card-fp { grid-column: 1 / -1; }
+  .settings-fp-matrix {
+    display: grid;
+    grid-template-columns: 72px repeat(5, minmax(0, 1fr));
+    gap: 6px 10px;
+    align-items: center;
+  }
+  .settings-fp-col-head {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: var(--muted);
+    font-weight: 600;
+    text-align: center;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-fp-hand-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .settings-fp-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .settings-fp-input {
+    width: 56px;
+    height: 26px;
+    padding: 0 7px;
+    font-size: 12px;
+    text-align: right;
+  }
+  .settings-fp-input[aria-invalid="true"] { border-color: var(--danger, #e5484d); }
+  .settings-fp-unit {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .settings-fp-note { font-size: 11px; color: var(--muted); margin: 12px 0 0; }
   .settings-preview-table td:last-child { font-weight: 600; }
   .settings-preview-table tr:last-child td { border-bottom: none; }
 

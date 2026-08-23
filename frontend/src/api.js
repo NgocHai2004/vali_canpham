@@ -186,6 +186,8 @@ export const api = {
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
   measurementConfig: () => request("/api/config/measurement"),
   updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
+  fingerprintConfig: () => request("/api/config/fingerprint"),
+  updateFingerprintConfig: (body) => request("/api/config/fingerprint", { method: "PUT", body: JSON.stringify(body) }),
 
   stats: () => request("/api/stats"),
 
@@ -305,12 +307,18 @@ async function fpRequest(path, opts = {}) {
 export const fpApi = {
   health: () => fpRequest("/fp/api/health"),
   listFingers: () => fpRequest("/fp/api/fingers"),
+  // Cac cum chup (4 ngon trai / 2 ngon cai / 4 ngon phai) + ma ngon trong cum.
+  listSteps: () => fpRequest("/fp/api/steps"),
   startSession: (userName) => fpRequest("/fp/api/session/start", {
     method: "POST",
     body: JSON.stringify({ user_name: userName }),
   }),
   getSession: (sid) => fpRequest(`/fp/api/session/${sid}`),
-  capture: (sid) => fpRequest(`/fp/api/session/${sid}/capture`, { method: "POST" }),
+  // Morfin: chup theo CUM (step). Bo trong step => service tu chon cum ke tiep.
+  capture: (sid, step) => fpRequest(`/fp/api/session/${sid}/capture`, {
+    method: "POST",
+    body: JSON.stringify({ step: step || null }),
+  }),
   redo: (sid, code) => fpRequest(`/fp/api/session/${sid}/redo/${code}`, { method: "POST" }),
   cancel: (sid) => fpRequest(`/fp/api/session/${sid}`, { method: "DELETE" }),
 };

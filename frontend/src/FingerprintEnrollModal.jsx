@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, fpApi, b64PngToFile } from "./api";
 import { useI18n } from "./i18n";
 
@@ -15,27 +15,46 @@ const CODE_TO_KEY = {
   right_little: "fp_r5",
 };
 
-const LEFT_ORDER = ["left_thumb", "left_index", "left_middle", "left_ring", "left_little"];
-const RIGHT_ORDER = ["right_thumb", "right_index", "right_middle", "right_ring", "right_little"];
-
+// Morfin la slap scanner: 1 lan chup lay ca cum, khong tach le 1 ngon duoc.
+// => Chup lai = chup lai CA CUM (4 ngon ban tay, hoac 2 ngon cai).
+// Thu tu: 4 ngon trai -> 2 ngon cai -> 4 ngon phai (do backend /api/steps quyet dinh).
 export default function FingerprintEnrollModal({ open, userName, onClose, onDone }) {
   const { t } = useI18n();
   const fingerName = (code) => t(`fp.finger.${code}.side_short`);
+  const stepName = (step) => t(`fpenroll.step.${step}`);
+
   const [health, setHealth] = useState(null);
   const [healthErr, setHealthErr] = useState("");
   const [sid, setSid] = useState(null);
+  const [steps, setSteps] = useState([]);
   const [fingers, setFingers] = useState([]);
-  const [nextCode, setNextCode] = useState(null);
+  const [nextStep, setNextStep] = useState(null);
+  const [minQuality, setMinQuality] = useState(50);
+  const [thumbs, setThumbs] = useState({});
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [err, setErr] = useState("");
-  const [previewB64, setPreviewB64] = useState(null);
   const [finished, setFinished] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Anh goc (full size) chi dung luc upload; state chi giu thumb cho nhe.
   const capturedRef = useRef({});
+
+  const byCode = useMemo(() => {
+    const m = {};
+    for (const f of fingers) m[f.code] = f;
+    return m;
+  }, [fingers]);
 
   const done = fingers.filter((f) => f.done).length;
   const total = fingers.length || 10;
+
+  const applyState = useCallback((r) => {
+    if (r.steps) setSteps(r.steps);
+    if (r.fingers) setFingers(r.fingers);
+    setNextStep(r.next_step || null);
+    setFinished(!!r.finished);
+    if (r.min_quality) setMinQuality(r.min_quality);
+  }, []);
 
   const checkHealth = useCallback(async () => {
     setHealthErr("");
@@ -49,57 +68,55 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
     }
   }, [t]);
 
-  const start = useCallback(async () => {
-    setErr("");
-    setStatus("");
-    setPreviewB64(null);
-    setFinished(false);
-    capturedRef.current = {};
-    setBusy(true);
-    try {
-      const r = await fpApi.startSession(userName || t("fpenroll.anon"));
-      setSid(r.session_id);
-      setFingers(r.fingers.map((f) => ({ ...f, done: false })));
-      setNextCode(r.next_finger ? r.next_finger.code : null);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }, [userName, t]);
-
-  useEffect(() => {
-    if (!open) return;
+  const reset = useCallback(() => {
     setSid(null);
+    setSteps([]);
     setFingers([]);
-    setNextCode(null);
-    setPreviewB64(null);
+    setNextStep(null);
+    setThumbs({});
     setErr("");
     setStatus("");
     setFinished(false);
     setSaving(false);
     capturedRef.current = {};
-    checkHealth();
-  }, [open, checkHealth]);
+  }, []);
 
-  const capture = async () => {
-    if (!sid || !nextCode) return;
+  const start = useCallback(async () => {
+    reset();
+    setBusy(true);
+    try {
+      const r = await fpApi.startSession(userName || t("fpenroll.anon"));
+      setSid(r.session_id);
+      applyState(r);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }, [userName, t, reset, applyState]);
+
+  useEffect(() => {
+    if (!open) return;
+    reset();
+    checkHealth();
+  }, [open, reset, checkHealth]);
+
+  const capture = async (step) => {
+    const target = step || (nextStep && nextStep.step);
+    if (!sid || !target || busy || saving) return;
     setBusy(true);
     setErr("");
-    setStatus(t("fpenroll.status.reading", { finger: fingerName(nextCode) }));
+    setStatus(t("fpenroll.status.reading_step", { step: stepName(target) }));
     try {
-      const r = await fpApi.capture(sid);
-      const code = r.finger.code;
-      capturedRef.current[code] = r.finger.image_b64;
-      // Hiển thị thumbnail nhỏ cho nhanh; ảnh gốc (image_b64) chỉ dùng khi upload.
-      setPreviewB64(r.finger.thumb_b64 || r.finger.image_b64);
-      setFingers((list) => list.map((f) => (f.code === code ? { ...f, done: true } : f)));
-      setNextCode(r.next_finger ? r.next_finger.code : null);
-      setStatus(r.message || t("fpenroll.status.saved", { finger: fingerName(code) }));
-      if (r.finished) {
-        setFinished(true);
-        setStatus(t("fpenroll.status.done_all"));
+      const r = await fpApi.capture(sid, target);
+      applyState(r);
+      const nextThumbs = {};
+      for (const c of r.captured || []) {
+        capturedRef.current[c.code] = c.image_b64;
+        nextThumbs[c.code] = c.thumb_b64 || c.image_b64;
       }
+      setThumbs((prev) => ({ ...prev, ...nextThumbs }));
+      setStatus(r.finished ? t("fpenroll.status.done_all") : r.message || "");
     } catch (e) {
       setErr(e.message);
       setStatus("");
@@ -108,29 +125,26 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
     }
   };
 
-  const redoFinger = async (code) => {
-    if (!sid || busy || saving) return;
+  // Nhap DOI vao 1 cum da chup => xoa ca cum va cho chup lai.
+  const retakeStep = async (stepObj) => {
+    if (!sid || busy || saving || !stepObj || !stepObj.done) return;
     setBusy(true);
     setErr("");
     try {
-      await fpApi.redo(sid, code);
-      delete capturedRef.current[code];
-      setFingers((list) => list.map((f) => (f.code === code ? { ...f, done: false } : f)));
-      setNextCode(code);
-      setStatus(t("fpenroll.status.retake", { finger: fingerName(code) }));
-      setPreviewB64(null);
+      const r = await fpApi.redo(sid, stepObj.codes[0]);
+      applyState(r);
+      setThumbs((prev) => {
+        const nx = { ...prev };
+        for (const c of stepObj.codes) delete nx[c];
+        return nx;
+      });
+      for (const c of stepObj.codes) delete capturedRef.current[c];
+      setStatus(t("fpenroll.status.retake_step", { step: stepName(stepObj.step) }));
     } catch (e) {
       setErr(e.message);
     } finally {
       setBusy(false);
     }
-  };
-
-  const redoCurrent = async () => {
-    if (!sid) return;
-    const lastDone = [...fingers].reverse().find((f) => f.done);
-    if (!lastDone) return;
-    await redoFinger(lastDone.code);
   };
 
   const cancel = async () => {
@@ -146,8 +160,7 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
     setErr("");
     try {
       const mapping = {};
-      const codes = Object.keys(capturedRef.current);
-      for (const code of codes) {
+      for (const code of Object.keys(capturedRef.current)) {
         const key = CODE_TO_KEY[code];
         if (!key) continue;
         const file = await b64PngToFile(capturedRef.current[code], `${key}.png`);
@@ -164,32 +177,47 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
 
   if (!open) return null;
 
-  const renderCol = (order) => (
-    <div className="fp-col">
-      {order.map((code) => {
-        const f = fingers.find((x) => x.code === code);
-        const isNext = nextCode === code;
-        const isDone = !!(f && f.done);
-        return (
-          <div
-            key={code}
-            className={"fp-row" + (isDone ? " done redoable" : "") + (isNext ? " active" : "")}
-            onClick={isDone ? () => redoFinger(code) : undefined}
-            title={isDone ? t("fpenroll.retake_last") : undefined}
-          >
-            <span className="fp-row-dot" />
-            <span className="fp-row-name">{fingerName(code)}</span>
-            <span className="fp-row-status">
-              {isDone ? t("fpenroll.done_label") : isNext ? t("fpenroll.waiting_label") : ""}
-            </span>
-            {isDone && <span className="fp-row-redo">↻</span>}
-          </div>
-        );
-      })}
+  const qClass = (q) => (q >= 70 ? "good" : q >= minQuality ? "ok" : "bad");
+  const notReady = !health || !health.ok;
+  const isNext = (s) => !!nextStep && nextStep.step === s.step;
+
+  const renderGroup = (s) => (
+    <div
+      key={s.step}
+      className={"fp-group" + (s.done ? " done" : "") + (isNext(s) ? " active" : "")}
+      onDoubleClick={s.done ? () => retakeStep(s) : undefined}
+      title={s.done ? t("fpenroll.dblclick_retake") : undefined}
+    >
+      <div className="fp-group-head">
+        <span className="fp-group-name">{stepName(s.step)}</span>
+        <span className="fp-group-badge">
+          {s.done ? t("fpenroll.done_label") : isNext(s) ? t("fpenroll.waiting_label") : ""}
+        </span>
+        {s.done && (
+          <span className="fp-group-redo">↻ {t("fpenroll.dblclick_hint")}</span>
+        )}
+      </div>
+      <div className="fp-group-tiles">
+        {s.codes.map((code) => {
+          const f = byCode[code] || {};
+          const img = thumbs[code];
+          return (
+            <div className={"fp-tile" + (f.done ? " has-img" : "")} key={code}>
+              <div className="fp-tile-img">
+                {img
+                  ? <img alt={fingerName(code)} src={`data:image/png;base64,${img}`} />
+                  : <span className="fp-tile-empty">—</span>}
+                {f.done && (
+                  <span className={"fp-quality " + qClass(f.quality)}>{f.quality}%</span>
+                )}
+              </div>
+              <div className="fp-tile-name">{fingerName(code)}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
-
-  const notReady = !health || !health.ok;
 
   return (
     <div className="modal-backdrop" onClick={cancel}>
@@ -204,7 +232,7 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
             <span className={"fp-badge " + (health && health.ok ? "ok" : "off")}>
               <span className="dot" />
               {health && health.ok
-                ? t("fpenroll.sensor.ok", { w: health.width, h: health.height, users: health.users || 0 })
+                ? t("fpenroll.sensor.ok", { w: health.width, h: health.height, users: 0 })
                 : t("fpenroll.sensor.not_ready")}
             </span>
             {healthErr && <span className="fp-err-inline">{healthErr}</span>}
@@ -214,7 +242,10 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
               </button>
             )}
             {sid && (
-              <span className="fp-progress-text">{t("fpenroll.progress", { done, total })}</span>
+              <>
+                <span className="fp-progress-text">{t("fpenroll.progress", { done, total })}</span>
+                <span className="fp-minq">{t("fpenroll.min_quality", { min: minQuality })}</span>
+              </>
             )}
           </div>
 
@@ -224,48 +255,24 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
                 <div style={{ width: `${(done / total) * 100}%` }} />
               </div>
 
-              <div className="fp-grid">
-                {renderCol(LEFT_ORDER)}
+              <div className="fp-groups">{steps.map(renderGroup)}</div>
 
-                <div className="fp-center">
-                  <div className="fp-preview">
-                    {previewB64
-                      ? <img alt="" src={`data:image/png;base64,${previewB64}`} />
-                      : <span>{t("fpenroll.image_placeholder")}</span>}
-                  </div>
-                  <div className="fp-next">
-                    <div className="fp-next-label">{t("fpenroll.next_finger")}</div>
-                    <div className="fp-next-name">
-                      {nextCode ? fingerName(nextCode) : t("fpenroll.complete")}
-                    </div>
-                  </div>
-                  {status && <div className="fp-msg">{status}</div>}
-                  {err && <div className="fp-err">{err}</div>}
-                </div>
-
-                {renderCol(RIGHT_ORDER)}
-              </div>
+              {status && <div className="fp-msg">{status}</div>}
+              {err && <div className="fp-err">{err}</div>}
 
               <div className="fp-actions">
                 <button
                   className="btn-primary"
-                  onClick={capture}
-                  disabled={busy || saving || !nextCode || finished}
+                  onClick={() => capture()}
+                  disabled={busy || saving || !nextStep}
                 >
-                  {busy ? t("fpenroll.capturing") : nextCode ? t("fpenroll.capture_next", { finger: fingerName(nextCode) }) : t("fpenroll.enough")}
+                  {busy
+                    ? t("fpenroll.capturing")
+                    : nextStep
+                      ? t("fpenroll.capture_step", { step: stepName(nextStep.step) })
+                      : t("fpenroll.enough")}
                 </button>
-                <button
-                  className="btn-ghost"
-                  onClick={redoCurrent}
-                  disabled={busy || saving || !fingers.some((f) => f.done)}
-                >
-                  {t("fpenroll.retake_last")}
-                </button>
-                <button
-                  className="btn-ghost"
-                  onClick={apply}
-                  disabled={!finished || saving}
-                >
+                <button className="btn-ghost" onClick={apply} disabled={!finished || saving}>
                   {saving ? t("fpenroll.uploading") : t("fpenroll.apply")}
                 </button>
                 <button className="btn-ghost" onClick={cancel} disabled={saving}>
@@ -275,9 +282,7 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
             </>
           )}
 
-          {!sid && (
-            <div className="fp-hint">{t("fpenroll.hint")}</div>
-          )}
+          {!sid && <div className="fp-hint">{t("fpenroll.hint")}</div>}
         </div>
       </div>
     </div>

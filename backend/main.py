@@ -1,6 +1,7 @@
 import os
 import io
 import re
+import asyncio
 import base64
 import threading
 import anyio
@@ -95,6 +96,27 @@ def get_height_offset() -> float:
     """Giá trị height_offset hiện hành (cache in-memory, đồng bộ với DB)."""
     return _height_offset_cache
 
+
+# Ngưỡng chất lượng vân tay tối thiểu cho TỪNG ngón (0-100). Khác
+# height_image/height_offset ở một điểm quan trọng: giá trị này KHÔNG được
+# backend này dùng để tính toán, mà do service Morfin (port 8765) dùng để CHẶN
+# khi thu vân tay. Nên sau khi lưu vào db.settings phải đẩy sang service đó,
+# xem _push_fp_quality().
+#
+# Thứ tự trong list là thứ tự hiển thị trên UI (trái ngón cái → út, rồi phải).
+FP_FINGER_CODES = [
+    "left_thumb", "left_index", "left_middle", "left_ring", "left_little",
+    "right_thumb", "right_index", "right_middle", "right_ring", "right_little",
+]
+FP_MIN_QUALITY_DEFAULT = int(_env_float("morfin_min_quality", 50))
+FP_MIN_QUALITY_MAX = 100
+_fp_min_quality_cache: dict = {c: FP_MIN_QUALITY_DEFAULT for c in FP_FINGER_CODES}
+
+
+def get_fp_min_quality() -> dict:
+    """Ngưỡng chất lượng từng ngón hiện hành (cache in-memory, đồng bộ với DB)."""
+    return dict(_fp_min_quality_cache)
+
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 
@@ -159,8 +181,13 @@ async def lifespan(app: FastAPI):
         await _ensure_default_cells()
         await _ensure_indexes()
         await _load_measurement_config()
+        await _load_fp_config()
     except Exception:
         pass
+    # Đẩy ngưỡng vân tay sang service Morfin (8765) ở background: service đó có
+    # thể chưa kịp bật, và nó tự respawn nên phải đồng bộ lại mỗi lần backend
+    # start. Không await để không block app ready.
+    asyncio.create_task(_push_fp_quality_safe())
     # Load YOLO person-detect model o background (khong block app ready)
     threading.Thread(target=person_detect.load_blocking, daemon=True, name="yolo-load").start()
     # Load InsightFace (buffalo_sc) o background cho nhan dien khuon mat
@@ -212,6 +239,69 @@ async def _load_measurement_config():
                 _height_offset_cache = val
         except (TypeError, ValueError):
             pass
+
+
+def _sanitize_fp_map(raw) -> dict:
+    """Lọc lấy các mã ngón hợp lệ, giá trị 0-100. Bỏ qua key lạ.
+
+    Bỏ qua thay vì báo lỗi: config trong Mongo có thể còn key cũ từ phiên bản
+    trước, và một key rác không được làm cả cấu hình ngưỡng không đọc được.
+    """
+    out: dict = {}
+    if isinstance(raw, dict):
+        for code, val in raw.items():
+            if code in _fp_min_quality_cache:
+                try:
+                    n = int(val)
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= n <= FP_MIN_QUALITY_MAX:
+                    out[code] = n
+    return out
+
+
+async def _load_fp_config():
+    """Đọc ngưỡng chất lượng từng ngón từ db.settings; seed mặc định nếu chưa có."""
+    doc = await db.settings.find_one({"_id": "fingerprint"})
+    if doc is None:
+        await db.settings.insert_one({
+            "_id": "fingerprint",
+            "by_finger": dict(_fp_min_quality_cache),
+        })
+        return
+    got = _sanitize_fp_map(doc.get("by_finger"))
+    # Tương thích bản trước: khi còn là một ngưỡng chung, áp cho cả 10 ngón.
+    if not got and doc.get("min_quality") is not None:
+        one = _sanitize_fp_map({c: doc.get("min_quality") for c in _fp_min_quality_cache})
+        got = one
+    if got:
+        _fp_min_quality_cache.update(got)
+
+
+async def _push_fp_quality(by_finger: dict) -> bool:
+    """Đẩy ngưỡng từng ngón sang service Morfin (8765) - nơi thực sự chặn.
+
+    Mongo là nguồn thật; hàm này chỉ đồng bộ. Trả False nếu service không nhận
+    (đang tắt / lỗi) để caller báo cho admin biết là chưa áp dụng ngay.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{FP_SERVICE_URL}/api/config/quality",
+                json={"by_finger": dict(by_finger)},
+            )
+        return resp.status_code == 200
+    except Exception:  # noqa: BLE001 - service tắt là bình thường, không được raise
+        return False
+
+
+async def _push_fp_quality_safe():
+    """Đồng bộ ngưỡng lúc backend startup. Service Morfin tự respawn nên giá trị
+    trong RAM của nó có thể cũ hơn Mongo; push lại để hai bên khớp nhau."""
+    try:
+        await _push_fp_quality(get_fp_min_quality())
+    except Exception:  # noqa: BLE001 - task background, không được làm sập app
+        pass
 
 
 async def _ensure_default_cells():
@@ -1695,6 +1785,61 @@ async def update_measurement_config(body: MeasurementConfigIn, request: Request,
     _height_offset_cache = offset
     await _log(request, admin, "update", "setting", "measurement", {"height_image": value, "height_offset": offset})
     return {"height_image": value, "height_offset": offset}
+
+
+@app.get("/api/config/fingerprint")
+async def fingerprint_config(user: dict = Depends(get_current_user)):
+    return {
+        "by_finger": get_fp_min_quality(),
+        "default": FP_MIN_QUALITY_DEFAULT,
+        "codes": FP_FINGER_CODES,
+    }
+
+
+class FingerprintConfigIn(BaseModel):
+    by_finger: dict
+
+
+@app.put("/api/config/fingerprint")
+async def update_fingerprint_config(body: FingerprintConfigIn, request: Request, admin: dict = Depends(require_admin)):
+    """Đổi ngưỡng chất lượng cho từng ngón vân tay. Chỉ admin.
+
+    Ngưỡng này quyết định vân tay nào được LƯU vào hệ thống: hạ ngưỡng nghĩa là
+    chấp nhận template kém hơn, làm sai kết quả tra cứu về sau. Vì vậy phải ghi
+    audit log, và giá trị cũ được lưu kèm để truy được ai hạ và hạ từ mức nào.
+    """
+    got = _sanitize_fp_map(body.by_finger)
+    if not got:
+        raise HTTPException(
+            400,
+            "Cần ít nhất 1 mã ngón hợp lệ, giá trị nguyên 0-"
+            f"{FP_MIN_QUALITY_MAX}.",
+        )
+    previous = {c: _fp_min_quality_cache[c] for c in got}
+    merged = dict(_fp_min_quality_cache)
+    merged.update(got)
+    await db.settings.update_one(
+        {"_id": "fingerprint"},
+        {"$set": {"by_finger": merged}},
+        upsert=True,
+    )
+    _fp_min_quality_cache.update(got)
+    # Mongo đã lưu (nguồn thật) nên đẩy sang service Morfin thất bại KHÔNG làm
+    # request fail - service có thể đang tắt. Trả applied để UI nói rõ là đã lưu
+    # nhưng chưa áp dụng, thay vì để admin tưởng ngưỡng mới đang có tác dụng.
+    applied = await _push_fp_quality(merged)
+    # Chỉ log ngón THỰC SỰ đổi giá trị: log cả 10 ngón mỗi lần bấm Lưu sẽ làm
+    # audit trail không còn đọc được ai đã hạ ngưỡng ngón nào.
+    changed = {c: v for c, v in got.items() if previous.get(c) != v}
+    await _log(request, admin, "update", "setting", "fingerprint",
+               {"changed": changed, "previous": {c: previous[c] for c in changed},
+                "applied": applied})
+    return {
+        "by_finger": merged,
+        "default": FP_MIN_QUALITY_DEFAULT,
+        "codes": FP_FINGER_CODES,
+        "applied": applied,
+    }
 
 
 # ==================== CCCD READER (watch folder data_cccd) ====================
