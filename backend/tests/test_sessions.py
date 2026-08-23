@@ -302,3 +302,65 @@ async def test_open_session_location_empty_by_default(app_client, officer_header
         "/api/sessions", json=_session_body(), headers=officer_headers
     )
     assert r.json()["location"] == ""
+
+
+@pytest.mark.asyncio
+async def test_detainee_inherits_commune_from_session(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    r2 = await app_client.post(
+        "/api/detainees", json=_sample_detainee(sid), headers=officer_headers
+    )
+    assert r2.status_code == 200, r2.text
+    body = r2.json()
+    assert body["province_code"] == "01"
+    assert body["commune_code"] == COMMUNE_CODE
+    assert body["commune_name"] == "Phường Ba Đình"
+
+
+@pytest.mark.asyncio
+async def test_detainee_patch_cannot_change_commune(app_client, officer_headers):
+    """3 trường tỉnh/xã thuộc PHIÊN, không thuộc hồ sơ. DetaineeIn không khai báo
+    chúng nên Pydantic bỏ qua — client gửi kèm cũng không ghi được."""
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    r2 = await app_client.post(
+        "/api/detainees", json=_sample_detainee(sid), headers=officer_headers
+    )
+    det_id = r2.json()["id"]
+
+    body = _sample_detainee(sid)
+    body["commune_code"] = "01502"
+    body["commune_name"] = "Xã Gia Lâm"
+    r3 = await app_client.patch(
+        f"/api/detainees/{det_id}", json=body, headers=officer_headers
+    )
+    assert r3.status_code == 200, r3.text
+    doc = await main.db.detainees.find_one({"_id": main._oid(det_id)})
+    assert doc["commune_code"] == COMMUNE_CODE
+    assert doc["commune_name"] == "Phường Ba Đình"
+
+
+@pytest.mark.asyncio
+async def test_list_detainees_filters_by_commune(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    await app_client.post(
+        "/api/detainees", json=_sample_detainee(sid), headers=officer_headers
+    )
+    r2 = await app_client.get(
+        f"/api/detainees?commune_code={COMMUNE_CODE}", headers=officer_headers
+    )
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["total"] == 1
+
+    r3 = await app_client.get(
+        "/api/detainees?commune_code=01502", headers=officer_headers
+    )
+    assert r3.json()["total"] == 0

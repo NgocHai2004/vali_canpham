@@ -423,6 +423,7 @@ async def _ensure_indexes():
     await db.detainees.create_index("personal_id", unique=True, sparse=True)
     await db.detainees.create_index([("full_name", 1), ("dob", 1)])
     await db.detainees.create_index("cccd_number", sparse=True)
+    await db.detainees.create_index([("commune_code", 1), ("created_at", -1)])
     await db.cells.create_index("code", unique=True)
     await db.admin_units.create_index("code", unique=True)
     await db.admin_units.create_index([("province_code", 1), ("name", 1)])
@@ -1012,6 +1013,7 @@ async def _find_duplicates(full_name: str, dob: Optional[str], gender: str, excl
 async def list_detainees(
     q: str = Query("", alias="q"),
     cell_code: str = Query(""),
+    commune_code: str = Query(""),
     gender: str = Query(""),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
@@ -1027,6 +1029,8 @@ async def list_detainees(
         ]
     if cell_code:
         filt["cell_code"] = cell_code
+    if commune_code:
+        filt["commune_code"] = commune_code
     if gender:
         filt["gender"] = gender
     total = await db.detainees.count_documents(filt)
@@ -1049,6 +1053,7 @@ def _ensure_can_touch(doc: dict, user: dict) -> None:
 _MATCH_PROJECTION = {
     "personal_id": 1, "full_name": 1, "cccd_number": 1, "gender": 1, "dob": 1,
     "cell_code": 1, "custody_type": 1, "facility_code": 1, "sub_camp_code": 1,
+    "commune_name": 1,
     "charge": 1, "hometown": 1, "address": 1,
     "photos.portrait_front": 1, "photos.cccd_front": 1,
     "created_at": 1, "created_by": 1,
@@ -1314,6 +1319,13 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         "updated_at": now,
         "created_by": user["username"],
         "session_id": session_doc["_id"],
+        # Denormalize địa bàn thu thập từ phiên (cùng pattern cell_code/facility_code).
+        # Bắt buộc, không phải tối ưu: xã đổi tên thì hồ sơ cũ phải giữ giá trị
+        # tại thời điểm thu, và lọc/thống kê theo xã không phải join.
+        # Phiên cũ (trước tính năng này) không có 4 trường → .get() trả None.
+        "province_code": session_doc.get("province_code"),
+        "commune_code": session_doc.get("commune_code"),
+        "commune_name": session_doc.get("commune_name"),
     })
     try:
         res = await db.detainees.insert_one(doc)
