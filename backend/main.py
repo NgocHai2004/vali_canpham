@@ -1,6 +1,7 @@
 import os
 import io
 import re
+import json
 import asyncio
 import base64
 import threading
@@ -190,6 +191,7 @@ async def lifespan(app: FastAPI):
         await client.admin.command("ping")
         await _ensure_admin()
         await _ensure_default_cells()
+        await _ensure_default_admin_units()
         await _ensure_indexes()
         await _load_measurement_config()
         await _load_deployment_config()
@@ -377,11 +379,53 @@ async def _ensure_default_cells():
         await db.cells.insert_many(seeds)
 
 
+ADMIN_UNITS_FILE = os.path.join(os.path.dirname(__file__), "data", "admin_units_vn.json")
+
+
+async def _ensure_default_admin_units():
+    """Seed danh mục xã/phường từ file JSON. Chỉ chạy khi collection rỗng.
+
+    Cùng cơ chế _ensure_default_cells: seed 1 lần rồi để admin quản lý trong app.
+    Sáp nhập/đổi tên về sau sửa qua /api/admin-units, KHÔNG sửa file này.
+    """
+    if await db.admin_units.count_documents({}) > 0:
+        return
+    try:
+        with open(ADMIN_UNITS_FILE, encoding="utf-8") as f:
+            payload = json.load(f)
+    except (OSError, ValueError):
+        # Thiếu/hỏng file danh mục không được làm chết app: admin vẫn thêm tay được.
+        return
+    units = payload.get("units") or []
+    if not units:
+        return
+    now = datetime.utcnow()
+    docs = []
+    for u in units:
+        code = (u.get("code") or "").strip()
+        name = (u.get("name") or "").strip()
+        if not code or not name:
+            continue
+        docs.append({
+            "code": code,
+            "name": name,
+            "province_code": (u.get("province_code") or PROVINCE_CODE_DEFAULT).strip(),
+            "unit_type": (u.get("unit_type") or "xa").strip(),
+            "active": True,
+            "created_at": now,
+            "updated_at": now,
+        })
+    if docs:
+        await db.admin_units.insert_many(docs)
+
+
 async def _ensure_indexes():
     await db.detainees.create_index("personal_id", unique=True, sparse=True)
     await db.detainees.create_index([("full_name", 1), ("dob", 1)])
     await db.detainees.create_index("cccd_number", sparse=True)
     await db.cells.create_index("code", unique=True)
+    await db.admin_units.create_index("code", unique=True)
+    await db.admin_units.create_index([("province_code", 1), ("name", 1)])
 
 
 class LoginResp(BaseModel):
@@ -806,6 +850,109 @@ async def delete_cell(cell_id: str, request: Request, user: dict = Depends(get_c
     await db.cells.delete_one({"_id": _oid(cell_id)})
     await _log(request, user, "delete", "cell", code)
     return {"ok": True}
+
+
+# ==================== ĐƠN VỊ HÀNH CHÍNH (XÃ/PHƯỜNG) ====================
+# Cây hành chính này ĐỘC LẬP với cây giam giữ (db.cells): xã là địa bàn thu
+# thập, buồng/phân trại là nơi giam giữ. Không trộn hai trục vào nhau.
+class AdminUnitIn(BaseModel):
+    code: str = Field(min_length=1, max_length=20)
+    name: str = Field(min_length=1, max_length=150)
+    unit_type: str = Field(default="xa", pattern=r"^(phuong|xa|dac_khu)$")
+
+
+class AdminUnitPatch(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=150)
+    unit_type: Optional[str] = Field(default=None, pattern=r"^(phuong|xa|dac_khu)$")
+    active: Optional[bool] = None
+
+
+async def _resolve_commune(code: str) -> dict:
+    """Tra 1 xã/phường thuộc tỉnh triển khai và còn hiệu lực.
+
+    Raise HTTPException(400) nếu không hợp lệ — caller không cần tự kiểm tra.
+    """
+    prov = _get_province()
+    unit = await db.admin_units.find_one({
+        "code": (code or "").strip(),
+        "province_code": prov["province_code"],
+        "active": True,
+    })
+    if not unit:
+        raise HTTPException(400, "Xã/phường không hợp lệ hoặc không thuộc tỉnh triển khai.")
+    return unit
+
+
+@app.get("/api/admin-units")
+async def list_admin_units(user: dict = Depends(get_current_user)):
+    """Danh mục xã/phường của tỉnh triển khai, chỉ những đơn vị còn hiệu lực.
+
+    Sort theo unit_type rồi name để frontend nhóm Phường/Xã bằng optgroup.
+    """
+    prov = _get_province()
+    filt = {"province_code": prov["province_code"], "active": True}
+    return [
+        _s(u)
+        async for u in db.admin_units.find(filt).sort([("unit_type", 1), ("name", 1)])
+    ]
+
+
+@app.post("/api/admin-units")
+async def create_admin_unit(body: AdminUnitIn, request: Request, admin: dict = Depends(require_admin)):
+    prov = _get_province()
+    code = body.code.strip()
+    if await db.admin_units.find_one({"code": code}):
+        raise HTTPException(400, f"Mã đơn vị '{code}' đã có trong danh mục.")
+    now = datetime.utcnow()
+    doc = {
+        "code": code,
+        "name": body.name.strip(),
+        "province_code": prov["province_code"],
+        "unit_type": body.unit_type,
+        "active": True,
+        "created_at": now,
+        "updated_at": now,
+    }
+    res = await db.admin_units.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    await _log(request, admin, "create", "admin_unit", code, {"name": doc["name"]})
+    return _s(doc)
+
+
+@app.patch("/api/admin-units/{unit_id}")
+async def update_admin_unit(unit_id: str, body: AdminUnitPatch, request: Request, admin: dict = Depends(require_admin)):
+    """Sửa tên/loại/hiệu lực. KHÔNG cho đổi code: phiên và hồ sơ cũ trỏ vào code đó."""
+    upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not upd:
+        raise HTTPException(400, "Không có thông tin nào để cập nhật.")
+    if "name" in upd:
+        upd["name"] = upd["name"].strip()
+    upd["updated_at"] = datetime.utcnow()
+    doc = await db.admin_units.find_one_and_update(
+        {"_id": _oid(unit_id)}, {"$set": upd}, return_document=True
+    )
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy đơn vị hành chính.")
+    await _log(request, admin, "update", "admin_unit", doc.get("code", ""), upd)
+    return _s(doc)
+
+
+@app.delete("/api/admin-units/{unit_id}")
+async def delete_admin_unit(unit_id: str, request: Request, admin: dict = Depends(require_admin)):
+    """Soft delete (active=False), KHÔNG xoá cứng.
+
+    Phiên và hồ sơ đã thu vẫn tham chiếu code này; xoá cứng là mất tên xã của
+    dữ liệu lịch sử.
+    """
+    doc = await db.admin_units.find_one({"_id": _oid(unit_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy đơn vị hành chính.")
+    await db.admin_units.update_one(
+        {"_id": doc["_id"]},
+        {"$set": {"active": False, "updated_at": datetime.utcnow()}},
+    )
+    await _log(request, admin, "delete", "admin_unit", doc.get("code", ""))
+    return {"ok": True, "deactivated": doc.get("code", "")}
 
 
 # ==================== DETAINEES ====================

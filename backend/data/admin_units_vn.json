@@ -1,0 +1,27 @@
+{
+  "source": "Chua xac nhan tu nguon chinh thuc — seed khoi diem, admin bo sung trong app qua /api/admin-units",
+  "fetched_at": "2026-08-23",
+  "note": "province_code 01 = Ha Noi. unit_type: phuong | xa | dac_khu",
+  "units": [
+    {"code": "01001", "name": "Phường Ba Đình", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01002", "name": "Phường Hoàn Kiếm", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01003", "name": "Phường Hai Bà Trưng", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01004", "name": "Phường Đống Đa", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01005", "name": "Phường Cầu Giấy", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01006", "name": "Phường Thanh Xuân", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01007", "name": "Phường Hoàng Mai", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01008", "name": "Phường Long Biên", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01009", "name": "Phường Tây Hồ", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01010", "name": "Phường Hà Đông", "province_code": "01", "unit_type": "phuong"},
+    {"code": "01501", "name": "Xã Đông Anh", "province_code": "01", "unit_type": "xa"},
+    {"code": "01502", "name": "Xã Gia Lâm", "province_code": "01", "unit_type": "xa"},
+    {"code": "01503", "name": "Xã Sóc Sơn", "province_code": "01", "unit_type": "xa"},
+    {"code": "01504", "name": "Xã Thanh Trì", "province_code": "01", "unit_type": "xa"},
+    {"code": "01505", "name": "Xã Hoài Đức", "province_code": "01", "unit_type": "xa"},
+    {"code": "01506", "name": "Xã Đan Phượng", "province_code": "01", "unit_type": "xa"},
+    {"code": "01507", "name": "Xã Thường Tín", "province_code": "01", "unit_type": "xa"},
+    {"code": "01508", "name": "Xã Ba Vì", "province_code": "01", "unit_type": "xa"},
+    {"code": "01509", "name": "Xã Sơn Tây", "province_code": "01", "unit_type": "xa"},
+    {"code": "01510", "name": "Xã Chương Mỹ", "province_code": "01", "unit_type": "xa"}
+  ]
+}

@@ -18,6 +18,7 @@ async def mock_db(monkeypatch):
     monkeypatch.setattr(main, "db", db)
     await main._ensure_admin()
     await main._ensure_default_cells()
+    await main._ensure_default_admin_units()
     await main._ensure_indexes()
     await main._load_deployment_config()
     yield db
