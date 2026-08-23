@@ -1505,6 +1505,7 @@ async def list_sessions_full(
     mine_only: bool = Query(False),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    commune_code: Optional[str] = Query(None),
     include_detainees: bool = Query(True),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
@@ -1517,6 +1518,8 @@ async def list_sessions_full(
         filt["status"] = status
     if mine_only or user.get("role") != "admin":
         filt["officer"] = user["username"]
+    if commune_code:
+        filt["commune_code"] = commune_code
     dt_from = _parse_dt(date_from)
     dt_to = _parse_dt(date_to)
     if dt_from or dt_to:
@@ -1597,6 +1600,7 @@ async def list_sessions(
     mine_only: bool = Query(False),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    commune_code: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     user: dict = Depends(get_current_user),
@@ -1606,6 +1610,8 @@ async def list_sessions(
         filt["status"] = status
     if mine_only or user.get("role") != "admin":
         filt["officer"] = user["username"]
+    if commune_code:
+        filt["commune_code"] = commune_code
     dt_from = _parse_dt(date_from)
     dt_to = _parse_dt(date_to)
     if dt_from or dt_to:
@@ -1638,6 +1644,10 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
         [],
         ["Mã phiên:", session_doc.get("code", "")],
         ["Cán bộ:", session_doc.get("officer_full_name", "") or session_doc.get("officer", "")],
+        # Tỉnh/xã lấy từ snapshot trên phiên, KHÔNG tra lại db.admin_units: xã có
+        # thể đã đổi tên sau khi phiên đóng.
+        ["Tỉnh/Thành phố:", session_doc.get("province_name", "") or ""],
+        ["Xã/Phường:", session_doc.get("commune_name", "") or ""],
         ["Địa điểm:", session_doc.get("location", "") or ""],
         ["Ghi chú:", session_doc.get("note", "") or ""],
         ["Mở lúc:", _fmt_dt(opened)],
@@ -1751,6 +1761,54 @@ async def log_session_sync(
         session_id=doc["_id"],
     )
     return {"ok": True}
+
+
+class WorkSessionPatch(BaseModel):
+    commune_code: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    location: Optional[str] = Field(default=None, max_length=200)
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@app.patch("/api/sessions/{session_id}")
+async def update_session(session_id: str, body: WorkSessionPatch, request: Request, user: dict = Depends(get_current_user)):
+    """Sửa xã/địa điểm/ghi chú của phiên đang mở.
+
+    Xã chỉ đổi được khi phiên CHƯA có hồ sơ: hồ sơ đã lưu snapshot xã của phiên,
+    đổi xã lúc đó sẽ khiến hồ sơ mâu thuẫn với phiên chứa nó.
+    """
+    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
+    is_admin = user.get("role") == "admin"
+    _ensure_session_editable(doc, user["username"], is_admin)
+
+    upd: dict = {}
+    if body.commune_code is not None:
+        if doc.get("detainee_count", 0) > 0:
+            raise HTTPException(
+                409,
+                "Phiên đã có hồ sơ, không thể đổi xã/phường. "
+                "Đóng phiên và mở phiên mới cho xã khác.",
+            )
+        unit = await _resolve_commune(body.commune_code)
+        upd["commune_code"] = unit["code"]
+        upd["commune_name"] = unit["name"]
+    if body.location is not None:
+        upd["location"] = body.location.strip()
+    if body.note is not None:
+        upd["note"] = body.note.strip()
+    if not upd:
+        raise HTTPException(400, "Không có thông tin nào để cập nhật.")
+
+    upd["updated_at"] = datetime.utcnow()
+    doc = await db.work_sessions.find_one_and_update(
+        {"_id": doc["_id"]}, {"$set": upd}, return_document=True
+    )
+    await _log(
+        request, user, "update", "work_session", doc.get("code", ""),
+        upd, ref_id=session_id, session_id=doc["_id"],
+    )
+    return _s_session(doc)
 
 
 @app.post("/api/sessions/{session_id}/close")

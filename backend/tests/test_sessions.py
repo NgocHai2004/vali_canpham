@@ -2,7 +2,7 @@ import pytest
 
 import backend.main as main
 
-COMMUNE_CODE = "01001"   # Phường Ba Đình — có trong seed admin_units_vn.json
+COMMUNE_CODE = "00004"   # Phường Ba Đình — có trong seed admin_units_vn.json
 
 
 def _session_body(**over) -> dict:
@@ -334,8 +334,8 @@ async def test_detainee_patch_cannot_change_commune(app_client, officer_headers)
     det_id = r2.json()["id"]
 
     body = _sample_detainee(sid)
-    body["commune_code"] = "01502"
-    body["commune_name"] = "Xã Gia Lâm"
+    body["commune_code"] = "00376"
+    body["commune_name"] = "Xã Sóc Sơn"
     r3 = await app_client.patch(
         f"/api/detainees/{det_id}", json=body, headers=officer_headers
     )
@@ -361,6 +361,148 @@ async def test_list_detainees_filters_by_commune(app_client, officer_headers):
     assert r2.json()["total"] == 1
 
     r3 = await app_client.get(
-        "/api/detainees?commune_code=01502", headers=officer_headers
+        "/api/detainees?commune_code=00376", headers=officer_headers
     )
     assert r3.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_patch_session_changes_commune_when_empty(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    r2 = await app_client.patch(
+        f"/api/sessions/{sid}", json={"commune_code": "00376"}, headers=officer_headers
+    )
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["commune_code"] == "00376"
+    assert r2.json()["commune_name"] == "Xã Sóc Sơn"
+
+
+@pytest.mark.asyncio
+async def test_patch_session_commune_locked_after_first_detainee(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    await app_client.post(
+        "/api/detainees", json=_sample_detainee(sid), headers=officer_headers
+    )
+    r2 = await app_client.patch(
+        f"/api/sessions/{sid}", json={"commune_code": "00376"}, headers=officer_headers
+    )
+    assert r2.status_code == 409
+    assert "đã có hồ sơ" in r2.json()["detail"]
+
+    doc = await main.db.work_sessions.find_one({"_id": main._oid(sid)})
+    assert doc["commune_code"] == COMMUNE_CODE
+
+
+@pytest.mark.asyncio
+async def test_patch_session_location_allowed_after_detainee(app_client, officer_headers):
+    """location/note không lan xuống hồ sơ nên sửa lúc nào cũng được (phiên còn mở)."""
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    await app_client.post(
+        "/api/detainees", json=_sample_detainee(sid), headers=officer_headers
+    )
+    r2 = await app_client.patch(
+        f"/api/sessions/{sid}",
+        json={"location": "Buồng tiếp nhận 3", "note": "Ca chiều"},
+        headers=officer_headers,
+    )
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["location"] == "Buồng tiếp nhận 3"
+    assert r2.json()["note"] == "Ca chiều"
+
+
+@pytest.mark.asyncio
+async def test_patch_session_rejects_closed(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    await app_client.post(f"/api/sessions/{sid}/close", headers=officer_headers)
+    r2 = await app_client.patch(
+        f"/api/sessions/{sid}", json={"location": "x"}, headers=officer_headers
+    )
+    assert r2.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_patch_session_rejects_unknown_commune(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    r2 = await app_client.patch(
+        f"/api/sessions/{sid}", json={"commune_code": "99999"}, headers=officer_headers
+    )
+    assert r2.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_patch_session_empty_body_rejected(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    r2 = await app_client.patch(f"/api/sessions/{sid}", json={}, headers=officer_headers)
+    assert r2.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_filters_by_commune(app_client, officer_headers):
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    await app_client.post(f"/api/sessions/{sid}/close", headers=officer_headers)
+
+    r2 = await app_client.get(
+        f"/api/sessions?commune_code={COMMUNE_CODE}", headers=officer_headers
+    )
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["total"] == 1
+
+    r3 = await app_client.get(
+        "/api/sessions?commune_code=00376", headers=officer_headers
+    )
+    assert r3.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_sessions_full_filters_by_commune(app_client, officer_headers):
+    await app_client.post("/api/sessions", json=_session_body(), headers=officer_headers)
+    r = await app_client.get(
+        f"/api/sessions/full?commune_code={COMMUNE_CODE}", headers=officer_headers
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 1
+    assert r.json()["items"][0]["commune_code"] == COMMUNE_CODE
+
+
+@pytest.mark.asyncio
+async def test_report_sheet_contains_commune(app_client, officer_headers):
+    """Phiếu báo cáo phải in tên xã đã snapshot, không tra lại danh mục."""
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    r1 = await app_client.post(
+        "/api/sessions", json=_session_body(), headers=officer_headers
+    )
+    sid = r1.json()["id"]
+    await app_client.post(f"/api/sessions/{sid}/close", headers=officer_headers)
+    r2 = await app_client.get(f"/api/sessions/{sid}/report", headers=officer_headers)
+    assert r2.status_code == 200
+
+    wb = load_workbook(BytesIO(r2.content))
+    ws = wb["Thông tin phiên"]
+    text = "\n".join(
+        str(c.value) for row in ws.iter_rows() for c in row if c.value is not None
+    )
+    assert "Phường Ba Đình" in text
+    assert "Hà Nội" in text

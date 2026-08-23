@@ -8,6 +8,7 @@ import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
+import SceneTracesPage from "./SceneTracesPage";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { useI18n, LanguageSwitch } from "./i18n";
 
@@ -74,6 +75,7 @@ const Icon = {
 const NAV_BASE = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: Icon.dashboard },
   { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
+  { key: "scene_traces", labelKey: "nav.scene_traces", icon: Icon.folder },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
   { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
   { key: "search", labelKey: "nav.search", icon: Icon.search },
@@ -269,6 +271,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
               onEditProfile={editDetainee}
             />
           )}
+          {page === "scene_traces" && <SceneTracesPage go={goPage} />}
           {page === "search" && <SearchPage />}
           {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
           {page === "sync" && <SyncPage />}
@@ -1515,7 +1518,8 @@ function SyncPage() {
       (s.code || "").toLowerCase().includes(kw) ||
       (s.officer || "").toLowerCase().includes(kw) ||
       (s.officer_full_name || "").toLowerCase().includes(kw) ||
-      (s.location || "").toLowerCase().includes(kw)
+      (s.location || "").toLowerCase().includes(kw) ||
+      (s.commune_name || "").toLowerCase().includes(kw)
     );
   });
   const totalRows = filtered.length;
@@ -1682,6 +1686,8 @@ function SyncPage() {
           officer: session.officer || null,
           officer_full_name: session.officer_full_name || null,
           location: session.location || null,
+          commune_code: session.commune_code || null,
+          commune_name: session.commune_name || null,
           opened_at: session.opened_at || null,
           closed_at: session.closed_at || null,
           detainees: mappedDetainees,
@@ -1782,6 +1788,7 @@ function SyncPage() {
               <th>{t("sync.col.code")}</th>
               <th>{t("sync.col.status")}</th>
               <th>{t("sync.col.officer")}</th>
+              <th>{t("sync.col.commune")}</th>
               <th>{t("sync.col.location")}</th>
               <th>{t("sync.col.opened")}</th>
               <th>{t("sync.col.closed")}</th>
@@ -1805,6 +1812,7 @@ function SyncPage() {
                     </span>
                   </td>
                   <td>{s.officer_full_name || s.officer}</td>
+                  <td>{s.commune_name || "—"}</td>
                   <td>{s.location || "—"}</td>
                   <td>{fmtDT(s.opened_at)}</td>
                   <td>{fmtDT(s.closed_at)}</td>

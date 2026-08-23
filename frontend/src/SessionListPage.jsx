@@ -261,6 +261,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
               <th>{t("session.col.officer")}</th>
               <th>{t("session.col.opened_at")}</th>
               <th>{t("session.col.closed_at")}</th>
+              <th>{t("session.col.commune")}</th>
               <th>{t("session.col.location")}</th>
               <th style={{ textAlign: "right" }}>{t("session.col.detainees")}</th>
               <th></th>
@@ -287,6 +288,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                   <td>{s.officer_full_name || s.officer}</td>
                   <td>{formatDateTime(s.opened_at)}</td>
                   <td>{formatDateTime(s.closed_at)}</td>
+                  <td>{s.commune_name || "—"}</td>
                   <td>{s.location || "—"}</td>
                   <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
                   <td style={{ textAlign: "right" }}>
