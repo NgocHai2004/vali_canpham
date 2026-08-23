@@ -87,6 +87,17 @@ HEIGHT_OFFSET_MAX = 1000.0
 _height_offset_cache: float = HEIGHT_OFFSET_DEFAULT
 
 
+PROVINCE_CODE_DEFAULT = (_env_str_from_dotenv("DEPLOY_PROVINCE_CODE") or "01").strip()
+PROVINCE_NAME_DEFAULT = (_env_str_from_dotenv("DEPLOY_PROVINCE_NAME") or "Thành phố Hà Nội").strip()
+
+# Tỉnh/thành triển khai của thiết bị. 1 thiết bị = 1 tỉnh nên dùng singleton doc
+# trong db.settings, không tạo collection riêng cho 1 dòng dữ liệu.
+_province_cache: dict = {
+    "province_code": PROVINCE_CODE_DEFAULT,
+    "province_name": PROVINCE_NAME_DEFAULT,
+}
+
+
 def get_height_image() -> float:
     """Giá trị height_image hiện hành (cache in-memory, đồng bộ với DB)."""
     return _height_image_cache
@@ -181,6 +192,7 @@ async def lifespan(app: FastAPI):
         await _ensure_default_cells()
         await _ensure_indexes()
         await _load_measurement_config()
+        await _load_deployment_config()
         await _load_fp_config()
     except Exception:
         pass
@@ -239,6 +251,36 @@ async def _load_measurement_config():
                 _height_offset_cache = val
         except (TypeError, ValueError):
             pass
+
+
+async def _load_deployment_config():
+    """Đọc tỉnh triển khai từ db.settings; seed từ .env nếu chưa có.
+
+    Cùng cơ chế với _load_measurement_config: .env chỉ là giá trị mặc định lần
+    đầu, sau đó DB là nguồn thật để admin đổi được trong app.
+    """
+    global _province_cache
+    doc = await db.settings.find_one({"_id": "deployment"})
+    if doc is None:
+        await db.settings.insert_one({
+            "_id": "deployment",
+            "province_code": PROVINCE_CODE_DEFAULT,
+            "province_name": PROVINCE_NAME_DEFAULT,
+        })
+        _province_cache = {
+            "province_code": PROVINCE_CODE_DEFAULT,
+            "province_name": PROVINCE_NAME_DEFAULT,
+        }
+    else:
+        _province_cache = {
+            "province_code": (doc.get("province_code") or PROVINCE_CODE_DEFAULT).strip(),
+            "province_name": (doc.get("province_name") or PROVINCE_NAME_DEFAULT).strip(),
+        }
+
+
+def _get_province() -> dict:
+    """Bản copy của cache tỉnh — tránh caller sửa trực tiếp vào global."""
+    return dict(_province_cache)
 
 
 def _sanitize_fp_map(raw) -> dict:
@@ -1840,6 +1882,37 @@ async def update_fingerprint_config(body: FingerprintConfigIn, request: Request,
         "codes": FP_FINGER_CODES,
         "applied": applied,
     }
+
+
+# ==================== DEPLOYMENT (TỈNH TRIỂN KHAI) ====================
+class DeploymentIn(BaseModel):
+    province_code: str = Field(min_length=1, max_length=10)
+    province_name: str = Field(min_length=1, max_length=100)
+
+
+@app.get("/api/deployment")
+async def get_deployment(user: dict = Depends(get_current_user)):
+    """Tỉnh/thành triển khai của thiết bị. Frontend hiển thị ở modal mở phiên."""
+    return _get_province()
+
+
+@app.patch("/api/deployment")
+async def update_deployment(body: DeploymentIn, request: Request, admin: dict = Depends(require_admin)):
+    """Đổi tỉnh triển khai. Chỉ admin, dùng khi mang thiết bị sang tỉnh khác.
+
+    KHÔNG sửa lại phiên/hồ sơ cũ: chúng đã snapshot tỉnh tại thời điểm thu.
+    """
+    global _province_cache
+    code = body.province_code.strip()
+    name = body.province_name.strip()
+    await db.settings.update_one(
+        {"_id": "deployment"},
+        {"$set": {"province_code": code, "province_name": name}},
+        upsert=True,
+    )
+    _province_cache = {"province_code": code, "province_name": name}
+    await _log(request, admin, "update", "deployment", code, {"province_name": name})
+    return _get_province()
 
 
 # ==================== CCCD READER (watch folder data_cccd) ====================
