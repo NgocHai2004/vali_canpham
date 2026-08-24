@@ -673,7 +673,7 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
         pass
 
 
-app = FastAPI(title="Thiết bị thu thập & quản lý căn cước can phạm", lifespan=lifespan)
+app = FastAPI(title="Thiết bị thu thập & quản lý căn cước nghi phạm", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
@@ -851,7 +851,7 @@ async def delete_cell(cell_id: str, request: Request, user: dict = Depends(get_c
     # Không xoá buồng nếu còn can phạm
     n = await db.detainees.count_documents({"cell_code": code})
     if n > 0:
-        raise HTTPException(400, f"Buồng đang có {n} can phạm, không thể xoá")
+        raise HTTPException(400, f"Buồng đang có {n} nghi phạm, không thể xoá")
     await db.cells.delete_one({"_id": _oid(cell_id)})
     await _log(request, user, "delete", "cell", code)
     return {"ok": True}
@@ -1302,9 +1302,9 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
 
     personal_id = (body.personal_id or "").strip()
     if not personal_id:
-        raise HTTPException(400, "Thiếu mã can phạm (personal_id).")
+        raise HTTPException(400, "Thiếu mã nghi phạm (personal_id).")
     if await db.detainees.find_one({"personal_id": personal_id}):
-        raise HTTPException(400, f"Mã can phạm '{personal_id}' đã có trong hệ thống.")
+        raise HTTPException(400, f"Mã nghi phạm '{personal_id}' đã có trong hệ thống.")
 
     doc = body.model_dump()
     doc.pop("session_id", None)
@@ -1369,7 +1369,7 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     if new_pid:
         conflict = await db.detainees.find_one({"personal_id": new_pid, "_id": {"$ne": _oid(det_id)}})
         if conflict:
-            raise HTTPException(400, f"Mã can phạm '{new_pid}' đã có trong hồ sơ khác.")
+            raise HTTPException(400, f"Mã nghi phạm '{new_pid}' đã có trong hồ sơ khác.")
         upd["personal_id"] = new_pid
         upd["cccd_number"] = body.cccd_number or upd.get("cccd_number", "")
     upd["updated_at"] = datetime.utcnow()
@@ -1432,7 +1432,7 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
         raise HTTPException(400, f"Buồng {new_code} không tồn tại")
     old_code = doc.get("cell_code") or ""
     if old_code == new_code:
-        raise HTTPException(400, "Can phạm đã ở buồng này")
+        raise HTTPException(400, "Nghi phạm đã ở buồng này")
     await db.detainees.update_one(
         {"_id": _oid(det_id)},
         {"$set": {"cell_code": new_code or None, "updated_at": datetime.utcnow()}},
@@ -2715,7 +2715,7 @@ async def import_xlsx(file: UploadFile = File(...), request: Request = None, use
             date_in = _parse_dob(get("date_in"))
             personal_id = (get("personal_id") or "").strip()
             if not personal_id:
-                errors.append(f"Dòng {i}: thiếu mã can phạm (personal_id)")
+                errors.append(f"Dòng {i}: thiếu mã nghi phạm (personal_id)")
                 continue
             doc = {
                 "personal_id": personal_id,

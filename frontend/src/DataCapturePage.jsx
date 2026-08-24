@@ -2,8 +2,6 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "r
 import { api, fpApi, cccdApi, b64PngToFile, weightApi, usbApi } from "./api";
 import { notify } from "./notifications";
 import { toast } from "./Toast";
-import cccdTemplateBg from "./assets/cccd-template.png";
-import cccdBackTemplateBg from "./assets/cccd-back-template.jpg";
 import { useI18n, apiT } from "./i18n";
 import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
@@ -185,205 +183,6 @@ const EMPTY_FORM = {
   literacy: "",
   alias: "",
 };
-
-async function cropPortraitFromCCCD(file) {
-  const dataUrl = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = () => reject(new Error(apiT("capture.err.no_file")));
-    r.readAsDataURL(file);
-  });
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error(apiT("capture.err.bad_image")));
-    i.src = dataUrl;
-  });
-  const targetRatio = (22.5 * 1024) / (55 * 596);
-  const imgRatio = img.width / img.height;
-  let cropW, cropH;
-  if (imgRatio > targetRatio) {
-    cropH = img.height;
-    cropW = Math.round(cropH * targetRatio);
-  } else {
-    cropW = img.width;
-    cropH = Math.round(cropW / targetRatio);
-  }
-  const cropX = Math.round((img.width - cropW) / 2);
-  const cropY = Math.round((img.height - cropH) / 2);
-  const outW = 300;
-  const outH = Math.round(outW / targetRatio);
-  const canvas = document.createElement("canvas");
-  canvas.width = outW;
-  canvas.height = outH;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
-  const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
-  return new File([blob], "portrait_from_cccd.jpg", { type: "image/jpeg" });
-}
-
-function CccdField({ value, onChange, className, ...rest }) {
-  // Ô hiển thị thông tin trên ảnh CCCD, sửa tại chỗ. Click vào ô KHÔNG mở upload
-  // (stopPropagation). onBlur mới ghi giá trị về form để tránh re-render mỗi ký tự.
-  const ref = useRef(null);
-  return (
-    <div
-      ref={ref}
-      className={className}
-      contentEditable
-      suppressContentEditableWarning
-      spellCheck={false}
-      onClick={(e) => e.stopPropagation()}
-      onBlur={(e) => onChange(e.currentTarget.textContent)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-      }}
-      {...rest}
-    >
-      {value}
-    </div>
-  );
-}
-
-function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardPortraitPreview, onFieldChange }) {
-  const { t } = useI18n();
-  const inputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
-  const setF = onFieldChange || (() => {});
-
-  const pick = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setUploading(true);
-    setErr("");
-
-    if (onCardPortraitPreview) {
-      try {
-        const portraitFile = await cropPortraitFromCCCD(f);
-        const dataUrl = await new Promise((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(r.result);
-          r.onerror = () => reject(new Error("read fail"));
-          r.readAsDataURL(portraitFile);
-        });
-        onCardPortraitPreview(dataUrl);
-      } catch (cropEx) {
-        console.error("[CCCD crop] error:", cropEx);
-      }
-    }
-
-    try {
-      const res = await api.uploadPhoto(f);
-      onUpload(res.url);
-    } catch (ex) {
-      setErr(ex.message);
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  };
-
-  const uploaded = photos.cccd_front;
-
-  return (
-    <div className="cccd-card-mock" onClick={() => inputRef.current?.click()} style={{ cursor: "pointer" }}>
-      <img className="cccd-card-mock-bg" src={cccdTemplateBg} alt="" />
-      <div className="cccd-card-mock-photo">
-        {cardPortrait && <img src={cardPortrait} alt="" />}
-      </div>
-      <div className="cccd-card-mock-fields">
-        <CccdField className="cccd-mf cccd-mf-no" value={form.cccd_number || ""}
-          onChange={(v) => setF("cccd_number", v.replace(/\D/g, "").slice(0, 12))} />
-        <CccdField className="cccd-mf cccd-mf-name" value={form.full_name || ""}
-          onChange={(v) => setF("full_name", v)} />
-        <CccdField className="cccd-mf cccd-mf-dob" value={form.dob || ""}
-          onChange={(v) => setF("dob", v)} />
-        <CccdField className="cccd-mf cccd-mf-sex"
-          value={form.gender ? (form.gender === "female" ? t("common.female") : t("common.male")) : ""}
-          onChange={(v) => {
-            const s = (v || "").trim().toLowerCase();
-            setF("gender", s.startsWith("n") && s.includes("ữ") ? "female"
-              : s === "female" || s === "nữ" || s === "nu" ? "female"
-              : s ? "male" : "");
-          }} />
-        <CccdField className="cccd-mf cccd-mf-nat" value={form.nationality || ""}
-          onChange={(v) => setF("nationality", v)} />
-        <CccdField className="cccd-mf cccd-mf-origin" value={form.hometown || ""}
-          onChange={(v) => setF("hometown", v)} />
-        <CccdField className="cccd-mf cccd-mf-res" value={form.address || ""}
-          onChange={(v) => setF("address", v)} />
-        <CccdField className="cccd-mf cccd-mf-exp" value={form.expiry_date || ""}
-          onChange={(v) => setF("expiry_date", v)} />
-      </div>
-      {uploaded && (
-        <button
-          type="button"
-          className="cccd-card-mock-clear"
-          onClick={(e) => { e.stopPropagation(); onClear(); }}
-          aria-label={t("capture.cccd.aria_delete")}
-        >×</button>
-      )}
-      {(uploading || err) && (
-        <div className="cccd-card-mock-hint">
-          {uploading ? t("capture.cccd.loading") : err}
-        </div>
-      )}
-      <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
-    </div>
-  );
-}
-
-function CccdCardBackUpload({ form, onFieldChange }) {
-  const { t } = useI18n();
-  const setF = onFieldChange || (() => {});
-  // MRZ chuẩn TD1 = 3 dòng × 30 ký tự. Máy đọc push lên thường là 1 chuỗi
-  // liền 90 ký tự (không có \n) — tự chia 30 ký tự/dòng cho giống thẻ thật.
-  // Nếu chuỗi đã có sẵn xuống dòng thì tôn trọng nguyên trạng.
-  const mrzRaw = (form.mrz || "").trim();
-  const mrzLines = mrzRaw.includes("\n")
-    ? mrzRaw.split(/\r?\n/).filter((ln) => ln.length > 0)
-    : (mrzRaw.match(/.{1,30}/g) || []);
-  return (
-    <div className="cccd-card-back">
-      <img className="cccd-card-mock-bg" src={cccdBackTemplateBg} alt="" />
-      <div className="cccd-card-mock-fields">
-        {/* Tọa độ căn theo template mặt sau thật (cccd-back-template.jpg, 1024x601) */}
-        {/* Đặc điểm nhận dạng — 2 dòng kẻ phía trên */}
-        <CccdField className="cccd-mf cccd-mf-back-features" value={form.distinguishing_features || ""}
-          onChange={(v) => setF("distinguishing_features", v)} />
-        {/* Ngày cấp */}
-        <CccdField className="cccd-mf cccd-mf-back-issued" value={form.issued_date || ""}
-          onChange={(v) => setF("issued_date", v)} />
-        {/* Nơi cấp */}
-        <CccdField className="cccd-mf cccd-mf-back-place" value={form.issued_place || ""}
-          onChange={(v) => setF("issued_place", v)} />
-        {/* MRZ — 3 dòng monospace, chữ to, căn đều hai bên. Sửa tại chỗ: click mở ô nhập,
-            các ký tự < biểu diễn khoảng trắng chuẩn MRZ; onBlur ghép lại thành 1 chuỗi. */}
-        <div className="cccd-mf cccd-mf-back-mrz"
-          contentEditable
-          suppressContentEditableWarning
-          spellCheck={false}
-          onClick={(e) => e.stopPropagation()}
-          onBlur={(e) => {
-            // gộp mọi dòng thành 1 chuỗi, bỏ khoảng trắng thừa, viết hoa
-            const raw = (e.currentTarget.textContent || "").replace(/\s+/g, "").toUpperCase();
-            setF("mrz", raw);
-          }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
-        >
-          {mrzLines.length > 0 ? mrzLines.map((ln, i) => (
-            <div className="cccd-mf-mrz-line" key={i}>
-              {Array.from(ln).map((ch, j) => (
-                <span className="cccd-mf-mrz-char" key={j}>{ch}</span>
-              ))}
-            </div>
-          )) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 async function resizeImageFile(file, maxW, maxH, mime = "image/jpeg", quality = 0.9) {
   const dataUrl = await new Promise((resolve, reject) => {
@@ -740,7 +539,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
   const [photos, setPhotos] = useState(seed.photos);
-  const [cccdCardPortrait, setCccdCardPortrait] = useState(seed.photos?.cccd_front || seed.photos?.portrait_front || "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
@@ -871,115 +669,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setPhotos(seed.photos);
     setErr("");
     setOk("");
-
-    const savedUrl = seed.photos?.cccd_front;
-    if (!savedUrl) {
-      setCccdCardPortrait("");
-      return;
-    }
-    // Hiển thị tạm ảnh CCCD gốc trong khung; re-crop bất đồng bộ ở dưới
-    setCccdCardPortrait(savedUrl);
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const img = await new Promise((resolve, reject) => {
-          const i = new Image();
-          i.onload = () => resolve(i);
-          i.onerror = () => reject(new Error(apiT("capture.err.load_cccd_photo")));
-          i.src = savedUrl;
-        });
-        const targetRatio = (22.5 * 1024) / (55 * 596);
-        const imgRatio = img.width / img.height;
-        let cropW, cropH;
-        if (imgRatio > targetRatio) {
-          cropH = img.height;
-          cropW = Math.round(cropH * targetRatio);
-        } else {
-          cropW = img.width;
-          cropH = Math.round(cropW / targetRatio);
-        }
-        const cropX = Math.round((img.width - cropW) / 2);
-        const cropY = Math.round((img.height - cropH) / 2);
-        const outW = 300;
-        const outH = Math.round(outW / targetRatio);
-        const canvas = document.createElement("canvas");
-        canvas.width = outW;
-        canvas.height = outH;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-        if (!cancelled) setCccdCardPortrait(dataUrl);
-      } catch {
-        // giữ savedUrl làm fallback nếu re-crop lỗi
-      }
-    })();
-    return () => { cancelled = true; };
   }, [seed]);
-
-  useEffect(() => {
-    api.listCells().then(setCells).catch(() => setCells([]));
-  }, []);
-
-  // ---- Phân cấp cơ sở giam giữ (cây) ----
-  // cells từ backend giờ có { code, name, level, parent, custody_type }
-  const facilities = cells.filter(
-    (c) => c.level === "facility" && c.custody_type === form.custody_type
-  );
-  const subCamps = cells.filter(
-    (c) => c.level === "sub_camp" && c.parent === form.facility_code
-  );
-  // Buồng con của phân trại (Tạm giam) hoặc con của cơ sở (Tạm giữ)
-  const cellParent = form.custody_type === "tam_giam"
-    ? form.sub_camp_code
-    : form.facility_code;
-  const availableCells = cells.filter(
-    (c) => c.level === "cell" && c.parent === cellParent
-  );
-
-  // Khi đổi Diện → reset cơ sở/phân trại/buồng không còn hợp lệ.
-  // Chỉ reset khi cells đã load xong (cells rỗng = chưa load → không xoá giá trị đã lưu).
-  useEffect(() => {
-    setForm((f) => {
-      if (cells.length === 0) return f;
-      const validFacilities = cells.filter(
-        (c) => c.level === "facility" && c.custody_type === f.custody_type
-      );
-      if (f.facility_code && !validFacilities.some((c) => c.code === f.facility_code)) {
-        return { ...f, facility_code: "", sub_camp_code: "", cell_code: "" };
-      }
-      return f;
-    });
-  }, [form.custody_type, cells]);
-
-  // Khi đổi cơ sở → reset phân trại/buồng
-  useEffect(() => {
-    setForm((f) => {
-      if (cells.length === 0) return f;
-      const validSub = cells.filter(
-        (c) => c.level === "sub_camp" && c.parent === f.facility_code
-      );
-      if (f.sub_camp_code && !validSub.some((c) => c.code === f.sub_camp_code)) {
-        return { ...f, sub_camp_code: "", cell_code: "" };
-      }
-      return f;
-    });
-  }, [form.facility_code, cells]);
-
-  // Khi đổi phân trại → reset buồng
-  useEffect(() => {
-    setForm((f) => {
-      if (cells.length === 0) return f;
-      const parent = f.custody_type === "tam_giam" ? f.sub_camp_code : f.facility_code;
-      const validCells = cells.filter(
-        (c) => c.level === "cell" && c.parent === parent
-      );
-      if (f.cell_code && !validCells.some((c) => c.code === f.cell_code)) {
-        return { ...f, cell_code: "" };
-      }
-      return f;
-    });
-  }, [form.sub_camp_code, form.facility_code, form.custody_type, cells]);
 
   // WebSocket lắng nghe cân nặng từ máy cân ngoài (POST /api/weight/push -> broadcast)
   const [weightFlash, setWeightFlash] = useState(false);
@@ -1392,25 +1082,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       distinguishing_features: d.distinguishing_features || d.personal_identification || f.distinguishing_features,
       mrz: d.mrz || f.mrz,
     }));
-    if (d.facePhoto) {
-      const fp = d.facePhoto;
-      if (fp.startsWith("/uploads/") || fp.startsWith("http://") || fp.startsWith("https://") || fp.startsWith("data:")) {
-        setCccdCardPortrait(fp);
-        setPhoto("cccd_front", fp);
-      } else {
-        const dataUrl = `data:image/jpeg;base64,${fp}`;
-        setCccdCardPortrait(dataUrl);
-        try {
-          const file = await b64PngToFile(fp, `cccd_face_${d.cccd_number || Date.now()}.jpg`);
-          const jpgFile = new File([file], file.name, { type: "image/jpeg" });
-          const res = await api.uploadPhoto(jpgFile);
-          setPhoto("cccd_front", res.url);
-        } catch (uploadEx) {
-          console.error("[CCCD] portrait upload failed:", uploadEx);
-          setErr(t("capture.err.cccd_saved_photo", { message: uploadEx.message }));
-        }
-      }
-    }
+    // Ảnh thẻ CCCD đã bỏ khỏi form: chỉ nhận dữ liệu chữ từ máy quét,
+    // không lưu ảnh mặt trước/mặt sau nữa (d.facePhoto bị bỏ qua).
 
     // Cảnh báo nếu số CCCD vừa quét đã có trong danh sách (toàn hệ thống).
     const cccd = (d.cccd_number || "").replace(/\D/g, "");
@@ -1763,7 +1436,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const captureTimeStr = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-  const readyState = fpCount === 10 && portraitCount === 3 && !!photos.cccd_front && allRequiredValid;
+  // Ảnh thẻ CCCD đã bỏ khỏi form nên không còn là điều kiện hoàn tất.
+  const readyState = fpCount === 10 && portraitCount === 3 && allRequiredValid;
   const overallProgress = Math.round(checks.reduce((s, c) => s + (c.ok ? 1 : 0), 0) * 100 / checks.length);
 
   return (
@@ -1783,7 +1457,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       )}
 
       <div className="case-main">
-        {/* ================ Tier 1: 3 cols — Photo + CCCD front + CCCD back ================ */}
+        {/* Hàng trên: ẢNH TOÀN THÂN | THÔNG TIN NGHI PHẠM — mỗi khối 1 cột */}
+        <div className="case-tier-top">
+        {/* ================ Tier 1: ảnh chụp toàn thân ================ */}
         <div className="case-tier-1">
           <section className="cap-block">
             <div className="cap-block-head">
@@ -1812,9 +1488,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             </div>
           </section>
 
+        </div>
+
+        {/* ================ Tier 2: Personal info ================ */}
+        <div className="case-tier-2">
           <section className="cap-block">
             <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.cccd_card")}</h2>
+              <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
+              {/* Đèn báo đầu đọc CCCD + nút chốt — trước ở khối ảnh thẻ (đã bỏ).
+                  Chốt để lần chạm thẻ sau không ghi đè form đang nhập. */}
               {cccdLocked && (
                 <span className="cccd-listen-badge locked">
                   <span className="cccd-listen-dot" />
@@ -1830,129 +1512,83 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 {cccdLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
               </button>
             </div>
-            <div className="cccd-preview-wrap">
-              <CccdCardUpload
-                form={form}
-                photos={photos}
-                cardPortrait={cccdCardPortrait}
-                onUpload={(url) => setPhoto("cccd_front", url)}
-                onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
-                onCardPortraitPreview={setCccdCardPortrait}
-                onFieldChange={setField}
-              />
-            </div>
-          </section>
-
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.cccd_back")}</h2>
-            </div>
-            <div className="cccd-preview-wrap">
-              <CccdCardBackUpload form={form} onFieldChange={setField} />
-            </div>
-          </section>
-        </div>
-
-        {/* ================ Tier 2: Personal info ================ */}
-        <div className="case-tier-2">
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
-            </div>
-            <div className="personal-info personal-info--4col">
-              {/* Mã can phạm — giữ lại (nghiệp vụ, không phải trường CCCD) */}
+            {/* Khối thông tin gọn: chỉ các trường cơ bản trên thẻ CCCD + chiều cao/cân nặng.
+                Máy quét CCCD ghi thẳng vào các input này (applyCccdData), không còn 2 ảnh thẻ. */}
+            <div className="personal-info personal-info--basic">
+              {/* Mã nghi phạm — nghiệp vụ, không phải trường CCCD */}
               <InfoField label={t("capture.form.personal_id")}>
                 <input className="control control-sm" value={form.personal_id}
                   onChange={(e) => setField("personal_id", e.target.value)}
                   placeholder={t("capture.form.personal_id_ph")} />
               </InfoField>
-              {/* ---- 21 trường Thông tin can phạm (string) ---- */}
-              <InfoField label={t("detainee.field.search_index")}>
-                <input className="control control-sm" value={form.search_index}
-                  onChange={(e) => setField("search_index", e.target.value)} />
+              <InfoField label={t("detainee.field.full_name")}>
+                <input className="control control-sm" value={form.full_name}
+                  onChange={(e) => setField("full_name", e.target.value)}
+                  placeholder={t("capture.form.full_name_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.status_detainee")}>
-                <input className="control control-sm" value={form.status_detainee}
-                  onChange={(e) => setField("status_detainee", e.target.value)} />
+              <InfoField label={t("detainee.field.cccd")}>
+                <input className="control control-sm" inputMode="numeric" value={form.cccd_number}
+                  onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                  placeholder={t("capture.form.cccd_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.squad")}>
-                <input className="control control-sm" value={form.squad}
-                  onChange={(e) => setField("squad", e.target.value)} />
+              <InfoField label={t("detainee.field.dob")}>
+                <input className="control control-sm" value={form.dob}
+                  onChange={(e) => setField("dob", e.target.value)}
+                  placeholder={t("capture.form.dob_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.health_intake")}>
-                <input className="control control-sm" value={form.health_intake}
-                  onChange={(e) => setField("health_intake", e.target.value)} />
+              <InfoField label={t("detainee.field.gender")}>
+                <select className="control control-sm" value={form.gender}
+                  onChange={(e) => setField("gender", e.target.value)}>
+                  <option value="">{t("common.select")}</option>
+                  <option value="male">{t("common.male")}</option>
+                  <option value="female">{t("common.female")}</option>
+                </select>
               </InfoField>
-              <InfoField label={t("detainee.field.disease_current")}>
-                <input className="control control-sm" value={form.disease_current}
-                  onChange={(e) => setField("disease_current", e.target.value)} />
+              <InfoField label={t("detainee.field.nationality")}>
+                <input className="control control-sm" value={form.nationality}
+                  onChange={(e) => setField("nationality", e.target.value)}
+                  placeholder={t("detainee.field.nationality_default")} />
               </InfoField>
-              <InfoField label={t("detainee.field.disease_intake")}>
-                <input className="control control-sm" value={form.disease_intake}
-                  onChange={(e) => setField("disease_intake", e.target.value)} />
+              <InfoField label={t("detainee.field.ethnicity")}>
+                <input className="control control-sm" value={form.ethnicity}
+                  onChange={(e) => setField("ethnicity", e.target.value)}
+                  placeholder={t("capture.form.ethnicity_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.alcohol_use")}>
-                <input className="control control-sm" value={form.alcohol_use}
-                  onChange={(e) => setField("alcohol_use", e.target.value)} />
+              <InfoField label={t("detainee.field.religion")}>
+                <input className="control control-sm" value={form.religion}
+                  onChange={(e) => setField("religion", e.target.value)}
+                  placeholder={t("capture.form.religion_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.address_before_arrest")}>
-                <input className="control control-sm" value={form.address_before_arrest}
-                  onChange={(e) => setField("address_before_arrest", e.target.value)} />
+              <InfoField label={t("detainee.field.hometown")}>
+                <input className="control control-sm" value={form.hometown}
+                  onChange={(e) => setField("hometown", e.target.value)}
+                  placeholder={t("capture.form.hometown_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.release_residence")}>
-                <input className="control control-sm" value={form.release_residence}
-                  onChange={(e) => setField("release_residence", e.target.value)} />
+              <InfoField label={t("detainee.field.address")}>
+                <input className="control control-sm" value={form.address}
+                  onChange={(e) => setField("address", e.target.value)}
+                  placeholder={t("capture.form.address_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.occupation")}>
-                <input className="control control-sm" value={form.occupation}
-                  onChange={(e) => setField("occupation", e.target.value)} />
+              <InfoField label={t("detainee.field.issued_date")}>
+                <input className="control control-sm" value={form.issued_date}
+                  onChange={(e) => setField("issued_date", e.target.value)}
+                  placeholder={t("capture.form.date_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.occupation_detail")}>
-                <input className="control control-sm" value={form.occupation_detail}
-                  onChange={(e) => setField("occupation_detail", e.target.value)} />
+              <InfoField label={t("detainee.field.expiry_date")}>
+                <input className="control control-sm" value={form.expiry_date}
+                  onChange={(e) => setField("expiry_date", e.target.value)}
+                  placeholder={t("capture.form.date_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.file_number")}>
-                <input className="control control-sm" value={form.file_number}
-                  onChange={(e) => setField("file_number", e.target.value)} />
+              <InfoField label={t("detainee.field.issued_place")}>
+                <input className="control control-sm" value={form.issued_place}
+                  onChange={(e) => setField("issued_place", e.target.value)}
+                  placeholder={t("capture.form.issued_place_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.file_number_sub")}>
-                <input className="control control-sm" value={form.file_number_sub}
-                  onChange={(e) => setField("file_number_sub", e.target.value)} />
+              <InfoField label={t("detainee.field.distinguishing_features")}>
+                <input className="control control-sm" value={form.distinguishing_features}
+                  onChange={(e) => setField("distinguishing_features", e.target.value)}
+                  placeholder={t("capture.form.distinguishing_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.disease_current_detail")}>
-                <input className="control control-sm" value={form.disease_current_detail}
-                  onChange={(e) => setField("disease_current_detail", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.disease_intake_detail")}>
-                <input className="control control-sm" value={form.disease_intake_detail}
-                  onChange={(e) => setField("disease_intake_detail", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.education_level")}>
-                <input className="control control-sm" value={form.education_level}
-                  onChange={(e) => setField("education_level", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.professional_level")}>
-                <input className="control control-sm" value={form.professional_level}
-                  onChange={(e) => setField("professional_level", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.study_status")}>
-                <input className="control control-sm" value={form.study_status}
-                  onChange={(e) => setField("study_status", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.literacy")}>
-                <input className="control control-sm" value={form.literacy}
-                  onChange={(e) => setField("literacy", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.alias")}>
-                <input className="control control-sm" value={form.alias}
-                  onChange={(e) => setField("alias", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.note")} className="span-2col">
-                <input className="control control-sm" value={form.note}
-                  onChange={(e) => setField("note", e.target.value)}
-                  placeholder={t("capture.field.note_ph")} />
-              </InfoField>
-
               <InfoField label={t("detainee.field.height_cm")}>
                 <input className="control control-sm" type="number" min="50" max="250"
                   value={form.height_cm}
@@ -1965,57 +1601,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   onChange={(e) => setField("weight_kg", e.target.value)}
                   placeholder="---" />
               </InfoField>
-
-              <InfoField label={t("detainee.field.custody_type")}>
-                <div className="radio-group radio-group-sm">
-                  <label className="radio-option">
-                    <input type="radio" name="capture-custody-type" value="tam_giu"
-                      checked={form.custody_type === "tam_giu"}
-                      onChange={(e) => setField("custody_type", e.target.value)} />
-                    <span>{t("detainee.custody_type.temporary_hold")}</span>
-                  </label>
-                  <label className="radio-option">
-                    <input type="radio" name="capture-custody-type" value="tam_giam"
-                      checked={form.custody_type === "tam_giam"}
-                      onChange={(e) => setField("custody_type", e.target.value)} />
-                    <span>{t("detainee.custody_type.detention")}</span>
-                  </label>
-                </div>
-              </InfoField>
-              <InfoField label={t("detainee.field.facility_type")}>
-                <select className="control control-sm"
-                  value={form.facility_code}
-                  onChange={(e) => setField("facility_code", e.target.value)}>
-                  <option value="">{t("detainee.form.select_facility")}</option>
-                  {facilities.map((f) => (
-                    <option key={f.code} value={f.code}>{f.name}</option>
-                  ))}
-                </select>
-              </InfoField>
-              {form.custody_type === "tam_giam" && (
-                <InfoField label={t("detainee.field.sub_camp")}>
-                  <select className="control control-sm"
-                    value={form.sub_camp_code}
-                    onChange={(e) => setField("sub_camp_code", e.target.value)}>
-                    <option value="">{t("detainee.form.select_sub_camp")}</option>
-                    {subCamps.map((s) => (
-                      <option key={s.code} value={s.code}>{s.name}</option>
-                    ))}
-                  </select>
-                </InfoField>
-              )}
-              <InfoField label={t("detainee.field.cell")}>
-                <select className="control control-sm"
-                  value={form.cell_code}
-                  onChange={(e) => setField("cell_code", e.target.value)}>
-                  <option value="">{t("detainee.form.select_cell")}</option>
-                  {availableCells.map((c) => (
-                    <option key={c.code} value={c.code}>{c.name || c.code}</option>
-                  ))}
-                </select>
+              <InfoField label={t("detainee.field.note")}>
+                <input className="control control-sm" value={form.note}
+                  onChange={(e) => setField("note", e.target.value)}
+                  placeholder={t("capture.field.note_ph")} />
               </InfoField>
             </div>
           </section>
+        </div>
         </div>
 
         {/* Hàng 2 cột: tier-3 (dấu vân tay 7/10) + kiểm tra dữ liệu (3/10) */}
@@ -2174,7 +1767,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         </button>
         <button type="button" className="button secondary" disabled={saving}
           onClick={async () => {
-            const payload = { form, photos, cells };
+            const payload = { form, photos };
             const opened = await tryOpenOnSecondaryScreen(payload);
             if (opened) setPreviewOnSecondary(true);
             else setPreviewOpen(true);
@@ -2197,7 +1790,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <ProfilePreviewModal
           form={form}
           photos={photos}
-          cells={cells}
           onClose={() => setPreviewOpen(false)}
         />
       )}
@@ -2447,7 +2039,7 @@ function TimelineItem({ time, desc }) {
 }
 
 export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
-  { form, photos, cells = [] },
+  { form, photos },
   ref,
 ) {
   const { t, formatDateLong } = useI18n();
@@ -2458,17 +2050,6 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
       : "";
   const dateLong = formatDateLong(new Date());
   const val = (v) => (v && String(v).trim() ? v : t("pdf.blank"));
-  const custLabel = (v) => {
-    if (!v) return t("pdf.blank");
-    if (v === "tam_giu") return t("detainee.custody_type.temporary_hold");
-    if (v === "tam_giam") return t("detainee.custody_type.detention");
-    return v;
-  };
-  const cellName = (code) => {
-    if (!code) return t("pdf.blank");
-    const c = cells.find((x) => x.code === code);
-    return c ? c.name : code;
-  };
   const alcoholLabel = (v) => {
     if (v === true || v === "true") return t("common.yes");
     if (v === false || v === "false") return t("common.no");
@@ -2479,14 +2060,18 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
     <div ref={ref} className="preview-a4 preview-a4-portrait">
       {/* ===== Header: ảnh CCCD (góc trên trái) + emblem/motto (bên phải) ===== */}
       <div className="pv-header-row pv-header-row-v3">
-        <div className="pv-cccd-strip">
-          {photos.cccd_front
-            ? <img src={photos.cccd_front} alt={t("pdf.cccd_photo")} />
-            : <span className="pv-cccd-strip-empty">{t("pdf.cccd_photo")}</span>}
-          {photos.cccd_back
-            ? <img src={photos.cccd_back} alt={t("pdf.cccd_photo")} />
-            : null}
-        </div>
+        {/* Form đăng ký không còn thu ảnh thẻ CCCD, nên chỉ hiện dải này với
+            hồ sơ cũ đã có ảnh — không in ô trống cho hồ sơ mới. */}
+        {(photos.cccd_front || photos.cccd_back) && (
+          <div className="pv-cccd-strip">
+            {photos.cccd_front
+              ? <img src={photos.cccd_front} alt={t("pdf.cccd_photo")} />
+              : null}
+            {photos.cccd_back
+              ? <img src={photos.cccd_back} alt={t("pdf.cccd_photo")} />
+              : null}
+          </div>
+        )}
         <div className="pv-header-left pv-header-left-v3">
           <div className="pv-org1">{t("pdf.emblem")}</div>
           <div className="pv-org2">{t("pdf.motto")}</div>
@@ -2542,29 +2127,8 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
 
         {/* ---- Cột phải ---- */}
         <div className="pv-info-col">
-          <h3 className="pv-section">{t("pdf.section2.custody")}</h3>
-          <div className="pv-info-grid">
-            <div className="pv-g-label">{t("detainee.field.custody_type")}</div>
-            <div>{custLabel(form.custody_type)}</div>
-            <div className="pv-g-label">{t("detainee.field.facility_type")}</div>
-            <div>{cellName(form.facility_code)}</div>
-            {form.custody_type === "tam_giam" && (
-              <>
-                <div className="pv-g-label">{t("detainee.field.sub_camp")}</div>
-                <div>{cellName(form.sub_camp_code)}</div>
-              </>
-            )}
-            <div className="pv-g-label">{t("detainee.field.cell_block")}</div>
-            <div>{cellName(form.cell_code)}</div>
-            <div className="pv-g-label">{t("detainee.field.squad")}</div>
-            <div>{val(form.squad)}</div>
-            <div className="pv-g-label">{t("detainee.field.status_detainee")}</div>
-            <div>{val(form.status_detainee)}</div>
-            <div className="pv-g-label">{t("pdf.field.date_in")}</div>
-            <div>{toDobInput(form.date_in) || toDobInput(new Date())}</div>
-          </div>
-
-          <h3 className="pv-section pv-section-sub">{t("pdf.section2.health")}</h3>
+          {/* Khối "Diện giam giữ" đã bỏ cùng chức năng cơ sở giam giữ. */}
+          <h3 className="pv-section">{t("pdf.section2.health")}</h3>
           <div className="pv-info-grid">
             <div className="pv-g-label">{t("detainee.field.health_intake")}</div>
             <div>{val(form.health_intake)}</div>
@@ -2675,7 +2239,7 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
   );
 });
 
-function ProfilePreviewModal({ form, photos, cells = [], onClose }) {
+function ProfilePreviewModal({ form, photos, onClose }) {
   const { t } = useI18n();
   const a4Ref = useRef(null);
   const [exporting, setExporting] = useState(false);

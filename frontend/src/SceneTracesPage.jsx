@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import SceneMatchReportModal from "./SceneMatchReportModal";
 import { useI18n } from "./i18n";
 
 // Ảnh dấu vết hiện trường của 1 vụ án (= 1 phiên làm việc).
@@ -32,6 +33,8 @@ export default function SceneTracesPage({ go }) {
   // Chỉ là vỏ giao diện — engine đối sánh vân tay latent chưa có, xem scope.notice.
   const [scope, setScope] = useState("session");
   const [dragOver, setDragOver] = useState(false);
+  // Engine đối sánh chưa có => bấm Phân tích chỉ dựng báo cáo PDF với ô kết quả trống.
+  const [showReport, setShowReport] = useState(false);
   const [noteEdit, setNoteEdit] = useState({ id: "", text: "" });
 
   const load = useCallback(async () => {
@@ -195,10 +198,13 @@ export default function SceneTracesPage({ go }) {
           ))}
         </div>
         <div className="scene-match-run">
-          <button className="btn-primary" disabled title={t("scene.match.notice")}>
+          <button
+            className="btn-primary"
+            onClick={() => setShowReport(true)}
+            disabled={busy || loading || items.length === 0}
+          >
             {t("scene.match.run")}
           </button>
-          <span className="scene-match-notice">{t("scene.match.notice")}</span>
         </div>
       </div>
 
@@ -258,6 +264,15 @@ export default function SceneTracesPage({ go }) {
             </figure>
           ))}
         </div>
+      )}
+
+      {showReport && (
+        <SceneMatchReportModal
+          session={session}
+          items={items}
+          scope={scope}
+          onClose={() => setShowReport(false)}
+        />
       )}
 
       {confirmDel && (

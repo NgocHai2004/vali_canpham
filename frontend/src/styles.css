@@ -8872,3 +8872,488 @@ textarea.input {
   0%, 100% { box-shadow: 0 0 0 0 rgba(53, 216, 255, 0); }
   50% { box-shadow: 0 0 0 4px rgba(53, 216, 255, 0.10); }
 }
+
+/* ==================== DẤU VẾT HIỆN TRƯỜNG ==================== */
+.scene-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ---------- Header: tên vụ án + mã phiên ---------- */
+.scene-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.scene-head-main h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  letter-spacing: 0.2px;
+}
+.scene-head-sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.scene-code,
+.scene-count {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.scene-code {
+  color: var(--primary-2);
+  background: rgba(53, 216, 255, 0.10);
+  border: 1px solid var(--border);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+.scene-count {
+  color: var(--muted);
+  background: rgba(126, 147, 184, 0.10);
+  border: 1px solid rgba(126, 147, 184, 0.18);
+}
+.scene-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- Ô upload lớn giữa màn ---------- */
+.scene-drop {
+  position: relative;
+  width: 100%;
+  max-width: 760px;
+  margin: 6px auto 0;
+  padding: 40px 28px 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  cursor: pointer;
+  border-radius: 16px;
+  border: 1.5px dashed rgba(53, 216, 255, 0.32);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(22, 139, 255, 0.10), transparent 70%),
+    var(--surface-hi);
+  box-shadow: var(--glow);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease,
+    transform 0.18s ease, background-color 0.18s ease;
+}
+.scene-drop:hover,
+.scene-drop:focus-visible {
+  border-color: rgba(53, 216, 255, 0.6);
+  box-shadow: var(--glow-hover);
+  transform: translateY(-1px);
+  outline: none;
+}
+/* Kéo file vào: viền liền + sáng rõ để biết đã "bắt" được. */
+.scene-drop.over {
+  border-style: solid;
+  border-color: var(--primary-2);
+  box-shadow: var(--glow-hover), 0 0 0 4px rgba(53, 216, 255, 0.10) inset;
+}
+.scene-drop.busy {
+  cursor: progress;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.scene-drop-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 2px;
+  border-radius: 50%;
+  color: var(--primary-2);
+  background: rgba(53, 216, 255, 0.10);
+  border: 1px solid var(--border);
+}
+.scene-drop-icon svg {
+  width: 26px;
+  height: 26px;
+}
+.scene-drop.busy .scene-drop-icon {
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+.scene-drop-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.scene-drop-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------- Thanh đối sánh (vỏ giao diện) ---------- */
+.scene-match-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.scene-match-scopes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.scene-match-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.scene-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--muted);
+  border: 1px solid rgba(126, 147, 184, 0.20);
+  background: rgba(126, 147, 184, 0.06);
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.scene-scope:hover {
+  color: var(--text);
+  border-color: rgba(53, 216, 255, 0.35);
+}
+.scene-scope.on {
+  color: var(--text);
+  border-color: rgba(53, 216, 255, 0.55);
+  background: rgba(22, 139, 255, 0.14);
+}
+.scene-scope input {
+  accent-color: var(--primary-2);
+  margin: 0;
+}
+.scene-match-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* ---------- Lưới ảnh ---------- */
+.scene-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+.scene-card {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-hi);
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+.scene-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+.scene-card-img {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+.scene-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.scene-card figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 11px 11px;
+}
+.scene-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.scene-card-top strong {
+  font-size: 13.5px;
+}
+.scene-src {
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1px solid transparent;
+}
+.scene-src-push {
+  color: var(--primary-2);
+  background: rgba(53, 216, 255, 0.12);
+  border-color: var(--border);
+}
+.scene-src-upload {
+  color: var(--success);
+  background: rgba(36, 215, 119, 0.12);
+  border-color: rgba(36, 215, 119, 0.22);
+}
+.scene-src-camera {
+  color: var(--warn);
+  background: rgba(255, 176, 32, 0.12);
+  border-color: rgba(255, 176, 32, 0.22);
+}
+.scene-card-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.scene-note {
+  text-align: left;
+  padding: 6px 8px;
+  min-height: 30px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: text;
+  border-radius: 7px;
+  border: 1px dashed rgba(126, 147, 184, 0.28);
+  background: transparent;
+  transition: border-color 0.15s ease;
+}
+.scene-note:hover {
+  border-color: rgba(53, 216, 255, 0.45);
+}
+.scene-note-edit {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.scene-note-edit .control {
+  flex: 1 1 100%;
+}
+.scene-del {
+  align-self: flex-start;
+}
+
+/* ---------- Trạng thái rỗng / chưa có phiên ---------- */
+.scene-empty {
+  padding: 26px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+  border-radius: 12px;
+  border: 1px dashed rgba(126, 147, 184, 0.22);
+}
+.scene-need-session {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 46px 24px;
+}
+.scene-need-session p {
+  margin: 0;
+  max-width: 460px;
+  color: var(--muted);
+}
+
+/* ---------- Báo cáo đối sánh (A4, in đen trắng) ---------- */
+/* Kế thừa .preview-a4: 210mm, Times New Roman, chữ đen nền trắng. */
+.scene-report {
+  gap: 4mm;
+}
+.scene-report .sr-head {
+  text-align: center;
+}
+.scene-report .sr-org1 {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.scene-report .sr-org2 {
+  font-weight: 700;
+  font-size: 11.5px;
+}
+.scene-report .sr-org-underline {
+  width: 55mm;
+  margin: 1mm auto 3mm;
+  border-bottom: 1px solid #000;
+}
+.scene-report .sr-title {
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+.scene-report .sr-subtitle {
+  font-size: 11px;
+  font-style: italic;
+  margin-top: 1mm;
+}
+
+/* Bảng thông tin vụ án + bảng kết quả dùng chung kiểu kẻ ô. */
+.scene-report table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+.scene-report th,
+.scene-report td {
+  border: 1px solid #000;
+  padding: 1.4mm 2mm;
+  vertical-align: top;
+  text-align: left;
+}
+.scene-report th {
+  width: 26mm;
+  font-weight: 700;
+  background: #f0f0f0;
+}
+.scene-report .sr-info {
+  margin-top: 1mm;
+}
+
+/* Khối 1 dấu vết. break-inside tránh cắt giữa khối khi chia trang. */
+.scene-report .sr-block {
+  border: 1px solid #000;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.scene-report .sr-block-head {
+  padding: 1.4mm 2mm;
+  font-weight: 700;
+  font-size: 10.5px;
+  text-align: center;
+  text-transform: uppercase;
+  background: #e4e4e4;
+  border-bottom: 1px solid #000;
+}
+.scene-report .sr-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.scene-report .sr-pane {
+  margin: 0;
+  padding: 2mm;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+}
+.scene-report .sr-pane + .sr-pane {
+  border-left: 1px solid #000;
+}
+.scene-report .sr-pane-cap {
+  font-weight: 700;
+  font-size: 10px;
+  text-align: center;
+  text-transform: uppercase;
+}
+.scene-report .sr-pane-img {
+  height: 52mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #666;
+  background: #fafafa;
+}
+.scene-report .sr-pane-img img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+/* Ô ứng viên rỗng: engine chưa chạy nên chưa có ảnh đối sánh. */
+.scene-report .sr-pane-empty {
+  font-size: 10px;
+  font-style: italic;
+  color: #555;
+  border-style: dashed;
+}
+.scene-report .sr-pane figcaption {
+  font-size: 9.5px;
+  text-align: center;
+  min-height: 4mm;
+}
+.scene-report .sr-result {
+  border-top: 1px solid #000;
+}
+.scene-report .sr-result th {
+  width: 24mm;
+  background: #f7f7f7;
+}
+.scene-report .sr-none {
+  padding: 6mm;
+  text-align: center;
+  font-style: italic;
+  border: 1px dashed #666;
+}
+.scene-report .sr-notice {
+  padding: 2mm;
+  font-size: 9.5px;
+  font-style: italic;
+  border: 1px solid #666;
+  background: #f7f7f7;
+}
+.scene-report .sr-sign {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6mm;
+  margin-top: 3mm;
+  text-align: center;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.scene-report .sr-sign-date {
+  font-size: 10.5px;
+  font-style: italic;
+  margin-bottom: 1mm;
+}
+.scene-report .sr-sign-role {
+  font-weight: 700;
+  font-size: 10.5px;
+  text-transform: uppercase;
+}
+.scene-report .sr-sign-note {
+  font-size: 9.5px;
+  font-style: italic;
+  margin-bottom: 18mm;
+}
+
+/* Thông báo trên thanh công cụ của modal xem trước (nền tối, không in ra). */
+.sr-toolbar-ok,
+.sr-toolbar-err {
+  font-size: 12px;
+  max-width: 46ch;
+}
+.sr-toolbar-ok { color: #8ef5b5; }
+.sr-toolbar-err { color: #ff9a9a; }
+
+@media (max-width: 640px) {
+  .scene-drop {
+    padding: 30px 18px 26px;
+  }
+  .scene-match-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

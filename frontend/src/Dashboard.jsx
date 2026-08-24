@@ -77,7 +77,6 @@ const NAV_BASE = [
   { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
   { key: "scene_traces", labelKey: "nav.scene_traces", icon: Icon.folder },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
-  { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
   { key: "search", labelKey: "nav.search", icon: Icon.search },
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
   { key: "sync", labelKey: "nav.sync", icon: Icon.sync },
@@ -240,7 +239,6 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
         <main className="content">
           {page === "dashboard" && <DashboardHome go={goPage} isAdmin={isAdmin} fullName={fullName} />}
           {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
-          {page === "cells" && <CellsPage />}
           {page === "sessions" && (
             <SessionListPage
               role={role}
@@ -7720,12 +7718,13 @@ const styles = `
     min-height: 0;
     overflow: hidden;
   }
-  /* Hàng 2 cột: tier-3 (dấu vân tay 7/10) + kiểm tra dữ liệu (3/10) */
+  /* Hàng 2 cột: tier-3 (dấu vân tay 7/10) + kiểm tra dữ liệu (3/10).
+     flex 2 (vs 3 của hàng trên) => hàng này hẹp chiều cao lại, nhường cho ảnh. */
   .case-tier3-row {
     display: grid;
     grid-template-columns: 7fr 3fr;
     gap: 6px;
-    flex: 1 1 0;
+    flex: 2 1 0;
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -7755,10 +7754,23 @@ const styles = `
   }
   .case-action-bar .button.danger:hover { background: rgba(22, 139, 255, 0.08); }
 
+  /* Hàng trên: ẢNH TOÀN THÂN | THÔNG TIN NGHI PHẠM — mỗi khối chiếm 1 cột.
+     flex 3 (vs 2 của hàng vân tay) => hàng này cao hơn, ảnh chụp to ra. */
+  .case-tier-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    flex: 3 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* Chỉ còn 1 khối (2 ảnh thẻ CCCD đã bỏ) => 1 cột chiếm hết chiều ngang */
   .case-tier-1 {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
@@ -8022,6 +8034,38 @@ const styles = `
   .personal-info--4col .span-2col {
     grid-column: span 1;
   }
+  /* Biến thể gọn cho THÔNG TIN NGHI PHẠM — 17 trường cơ bản CCCD + cao/nặng.
+     2 cột × 9 hàng = 18 ô. grid-auto-flow: column (kế thừa) => đổ hết
+     cột trái 9 trường rồi mới sang cột phải. */
+  .personal-info--basic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* 9 hàng chia đều hết chiều cao panel (không phải auto + align start,
+       vì như vậy các trường dồn lên trên và chừa khoảng trắng dưới đáy). */
+    grid-template-rows: repeat(9, minmax(0, 1fr));
+    /* Ghi rõ (không dựa vào kế thừa từ .personal-info): đổ đủ 9 trường
+       xuống cột 1 rồi mới sang cột 2, chứ không zigzag ngang. */
+    grid-auto-flow: column;
+    align-content: stretch;
+    gap: 6px 14px;
+    padding: 8px 12px 10px;
+  }
+  /* Label + input căn giữa theo chiều dọc trong ô hàng đã giãn */
+  .personal-info--basic .info-field {
+    gap: 4px;
+    justify-content: center;
+    min-height: 0;
+  }
+  .personal-info--basic .info-field-label {
+    font-size: 9.5px;
+    line-height: 1.1;
+  }
+  .personal-info--basic .info-field .control-sm {
+    height: 24px;
+    font-size: 11px;
+    padding: 0 8px;
+    border-radius: 5px;
+  }
+  .personal-info--basic .info-field select.control-sm { padding-right: 18px; }
   /* Ô MRZ — textarea 2-3 dòng, cao hơn input thường, kéo dài cả ô grid */
   .info-field-mrz { grid-row: span 2; }
   .control-mrz {
@@ -8097,11 +8141,21 @@ const styles = `
   }
 
   /* Tier 2: Personal info form (đã dời từ tier 1 xuống) — 1 cột fill chiều cao */
+  /* Cột phải của hàng trên — phải cao bằng cột ẢNH TOÀN THÂN bên cạnh,
+     nên panel bên trong căng hết chiều cao thay vì co theo nội dung. */
   .case-tier-2 {
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     overflow: hidden;
   }
-  .case-tier-2 .cap-block { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .case-tier-2 .cap-block {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
 
   /* Tier 3: Fingerprints (trên) + CHẤT LƯỢNG (dưới, chiều cao thấp) — nằm trong tier3-row */
   /* Chi con 1 con (section.cap-block) vi KPI da gop vao trong section do.
