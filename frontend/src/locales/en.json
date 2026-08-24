@@ -422,6 +422,8 @@
   "capture.err.fp_not_ready": "Fingerprint scanner is not ready.",
   "capture.err.fp_incomplete": "Not all 10 fingers were captured. Check the empty cells, then double-click to retake that group.",
   "capture.err.fp_too_many_fails": "Tried {count} times without reaching 50% quality. Collection stopped. Dry your hand, press gently on the back of the hand so all 4 fingers contact evenly, then double-click a finger cell to retry.",
+  "capture.status.fp_waiting_device": "Waiting for the scanner to release the device...",
+  "capture.err.fp_device_busy": "The scanner is still held by the previous capture. Wait a few seconds then double-click a finger cell to retry, or restart the fingerprint service.",
   "capture.err.fp_locked": "Fingerprints are locked. Press \"Collect fingerprints\" to unlock before retaking.",
   "capture.status.retry_attempt": "Retaking {name} — attempt {n}/{max}. Quality below 50%, retrying...",
   "capture.err.retry_finger": "— Reposition finger and try again.",

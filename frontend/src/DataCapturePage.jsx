@@ -132,6 +132,14 @@ function HandGlyph({ side = "left", active = [], blink = [], className = "" }) {
 // la vong thu dung giua duong va cac cum sau khong bao gio duoc chay.
 const FP_MAX_FAILS = 15;
 
+// So lan cho thiet bi nha lock (409) truoc khi bao loi. Dem RIENG voi FP_MAX_FAILS
+// vi 409 khong phai loi cua nguoi dan: lan chup TRUOC (luc roi trang) con giu
+// thiet bi, cho vai giay la xong. Moi lan cho 1s => tha 20s, du cho truong hop
+// service chua kip nha.
+const FP_MAX_BUSY = 20;
+
+const sleepFp = (ms) => new Promise((r) => setTimeout(r, ms));
+
 const PORTRAITS = [
   { key: "portrait_left", labelKey: "capture.portrait.left" },
   { key: "portrait_front", labelKey: "capture.portrait.front" },
@@ -770,6 +778,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [fpStatus, setFpStatus] = useState("");
   const [fpError, setFpError] = useState("");
   const fpAbortRef = useRef(false);
+  // Session id dang mo tren service vân tay. PHAI giu o ref (khong chi bien local
+  // trong startFpCollect) de cleanup luc roi trang con biet ma nao can dong —
+  // khong dong thi service giu thiet bi, vao lai trang khong thu duoc nua.
+  const fpSidRef = useRef(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewOnSecondary, setPreviewOnSecondary] = useState(false);
   const [heightImage, setHeightImage] = useState(100);
@@ -1128,6 +1140,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     try {
       const r = await fpApi.startSession("__retry__" + group.step);
       sid = r.session_id;
+      fpSidRef.current = sid;
 
       // Chup lai CA CUM, THU NHIEU LAN nhu vong thu chinh.
       //
@@ -1197,6 +1210,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       if (sid) {
         try { await fpApi.cancel(sid); } catch { /* noop */ }
       }
+      if (fpSidRef.current === sid) fpSidRef.current = null;
       // Nha co ngay tai day (xem giai thich o finally cua startFpCollect).
       fpRunningRef.current = false;
       setFpRunning(false);
@@ -1233,10 +1247,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     try {
       const r = await fpApi.startSession(form.full_name.trim() || t("fpenroll.anon"));
       sid = r.session_id;
+      fpSidRef.current = sid;
       // Morfin slap: moi lan chup lay CA CUM (4 ngon trai -> 2 ngon cai ->
       // 4 ngon phai), khong con vong 10 lan theo tung ngon.
       let step = r.next_step;
       let fails = 0;
+      // Dem RIENG so lan gap 409 (thiet bi con bi lan chup truoc giu).
+      let busy = 0;
 
       while (step && !fpAbortRef.current) {
         setFpNextCode(step.codes[0]);
@@ -1254,11 +1271,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           // ap tay (hai ngon ria luon ep nhe hon hai ngon giua). Het 5 lan la
           // ca vong thu dung han giua duong - dung hien tuong "dang lay xong lai
           // bi tat", va nang hon la CHUA BAO GIO chay tiep sang cum sau.
+          // 409 = thiet bi con bi lan chup TRUOC giu (roi trang giua lenh chup).
+          // Day KHONG phai tay dat kem, nen khong tinh vao `fails`: truoc day
+          // tinh chung => 15 lan thu ban het trong ~1 giay roi bao "thu qua
+          // nhieu lan", trong khi cai can lam la CHO lock nha ra.
+          if (/dang co lenh chup khac/i.test(e.message || "")) {
+            if (++busy > FP_MAX_BUSY) {
+              setFpError(t("capture.err.fp_device_busy"));
+              break;
+            }
+            setFpStatus(t("capture.status.fp_waiting_device"));
+            await sleepFp(1000);
+            continue;
+          }
           setFpError(e.message);
           if (++fails >= FP_MAX_FAILS) {
             setFpError(t("capture.err.fp_too_many_fails", { count: FP_MAX_FAILS }));
             break;
           }
+          // Nghi ngan truoc khi chup lai: chup lien tay khong kip nhac tay len,
+          // va neu loi la loi he thong thi vong lap se quay 15 lan trong 1 giay.
+          await sleepFp(600);
           continue;
         }
         fails = 0;
@@ -1352,6 +1385,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       if (sid && fpAbortRef.current) {
         try { await fpApi.cancel(sid); } catch { /* noop */ }
       }
+      if (fpSidRef.current === sid) fpSidRef.current = null;
       // Nha co NGAY tai day, khong cho effect [fpRunning] cap nhat.
       // fpRunningRef duoc chot = true o dau ham; neu chi de effect nha thi co
       // 1 nhip render ma fpRunning=false nhung anh chua upload xong => vong
@@ -1524,7 +1558,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       }
     })();
 
-    return () => { stopped = true; };
+    return () => {
+      stopped = true;
+      // Roi trang giua luc dang cho tay: chi set cac ref la KHONG du —
+      // startFpCollect van tiep tuc await capture() va session tren service van
+      // song, giu thiet bi => vao lai trang bi 409, khong thu duoc nua.
+      fpAbortRef.current = true;
+      fpRunningRef.current = false;
+      const sid = fpSidRef.current;
+      fpSidRef.current = null;
+      // THU TU BAT BUOC: stopCapture() truoc, cancel() sau.
+      fpApi.stopCapture()
+        .then(() => { if (sid) return fpApi.cancel(sid); })
+        .catch(() => { /* noop */ });
+    };
   }, [sessionReadOnly]);
 
   const fpCount = FINGERS.filter((f) => photos[f.key]).length;

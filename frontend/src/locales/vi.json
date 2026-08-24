@@ -422,6 +422,8 @@
   "capture.err.fp_not_ready": "Máy quét vân tay chưa sẵn sàng.",
   "capture.err.fp_incomplete": "Chưa thu đủ 10 ngón. Kiểm tra lại các ô còn trống rồi nháy đôi để thu lại cụm đó.",
   "capture.err.fp_too_many_fails": "Đã thử {count} lần mà chất lượng chưa đạt 50%. Dừng thu. Lau khô tay, ấn nhẹ mu bàn tay cho 4 ngón áp đều rồi nháy đôi vào ô ngón để thu lại.",
+  "capture.status.fp_waiting_device": "Đang chờ máy quét nhả thiết bị...",
+  "capture.err.fp_device_busy": "Máy quét vẫn đang bị chiếm bởi lần chụp trước. Chờ vài giây rồi nháy đôi vào ô ngón để thu lại, hoặc khởi động lại dịch vụ vân tay.",
   "capture.err.fp_locked": "Vân tay đang khóa. Bấm \"Thu thập vân tay\" để mở khóa rồi mới thu lại được.",
   "capture.status.retry_attempt": "Thu lại {name} — lần {n}/{max}. Chất lượng chưa đạt 50%, đang thử lại...",
   "capture.err.retry_finger": "— Đặt lại ngón tay để thử lại.",
