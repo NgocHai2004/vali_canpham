@@ -138,7 +138,10 @@ const PORTRAITS = [
 
 const EMPTY_FORM = {
   full_name: "",
+  // cccd | passport — người nước ngoài không có CCCD 12 số
+  doc_type: "cccd",
   cccd_number: "",
+  passport_number: "",
   personal_id: "",
   dob: "",
   gender: "",
@@ -484,7 +487,10 @@ function normalizeInitial(initial) {
     form: {
       ...EMPTY_FORM,
       full_name: initial.full_name || "",
+      // Hồ sơ cũ không có doc_type => mặc định cccd
+      doc_type: initial.doc_type === "passport" ? "passport" : "cccd",
       cccd_number: initial.cccd_number || "",
+      passport_number: initial.passport_number || "",
       personal_id: initial.personal_id || "",
       dob: toDobInput(initial.dob),
       gender: initial.gender || "",
@@ -1232,12 +1238,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   useEffect(() => { fpRunningRef.current = fpRunning; }, [fpRunning]);
   useEffect(() => { fpCountRef.current = fpCount; }, [fpCount]);
 
+  const isPassport = form.doc_type === "passport";
   const checks = useMemo(() => {
     const personalOk = !!(form.personal_id || "").trim();
-    const cccdOk =
-      !!form.full_name.trim() &&
-      /^\d{12}$/.test(form.cccd_number || "") &&
-      !!form.dob;
+    // Hộ chiếu: chữ + số 6-12 ký tự (người nước ngoài không có CCCD 12 số).
+    const docNumOk = isPassport
+      ? /^[A-Z0-9]{6,12}$/i.test((form.passport_number || "").trim())
+      : /^\d{12}$/.test(form.cccd_number || "");
+    const cccdOk = !!form.full_name.trim() && docNumOk && !!form.dob;
     return [
       { key: "personal_id", label: t("capture.verify.item.code"), ok: personalOk, required: true },
       { key: "cccd", label: t("capture.verify.item.cccd"), ok: cccdOk, required: true },
@@ -1270,7 +1278,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         full_name: form.full_name.trim(),
         gender: form.gender || "male",
         dob: strOrNull(form.dob),
-        cccd_number: digitsOrNull(form.cccd_number),
+        doc_type: isPassport ? "passport" : "cccd",
+        // Mỗi loại chỉ gửi số của nó, tránh sót số cũ khi officer đổi radio.
+        cccd_number: isPassport ? null : digitsOrNull(form.cccd_number),
+        passport_number: isPassport
+          ? strOrNull((form.passport_number || "").toUpperCase())
+          : null,
         personal_id: strOrNull(form.personal_id),
         nationality: strOrNull(form.nationality),
         hometown: strOrNull(form.hometown),
@@ -1346,7 +1359,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // hồ sơ trùng → mở modal xác nhận (officer tự quyết). Không trùng → lưu luôn.
   const submit = async () => {
     if (!allRequiredValid) return;
-    const cccd = (form.cccd_number || "").replace(/\D/g, "");
+    // Hộ chiếu: bỏ qua check trùng CCCD (API strip non-digit nên tra sai).
+    const cccd = isPassport ? "" : (form.cccd_number || "").replace(/\D/g, "");
     const dupBody = {
       full_name: form.full_name.trim(),
       gender: form.gender || "male",
@@ -1526,11 +1540,36 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   onChange={(e) => setField("full_name", e.target.value)}
                   placeholder={t("capture.form.full_name_ph")} />
               </InfoField>
-              <InfoField label={t("detainee.field.cccd")}>
-                <input className="control control-sm" inputMode="numeric" value={form.cccd_number}
-                  onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
-                  placeholder={t("capture.form.cccd_ph")} />
+              {/* Loại giấy tờ: người nước ngoài không có CCCD 12 số => chọn hộ chiếu.
+                  Đổi radio thì đổi luôn ô số bên dưới, không dùng chung 1 ô. */}
+              <InfoField label={t("capture.form.doc_type")}>
+                <div className="radio-group radio-group-sm">
+                  <label className="radio-option">
+                    <input type="radio" name="doc_type" checked={!isPassport}
+                      onChange={() => setField("doc_type", "cccd")} />
+                    <span>{t("capture.form.doc_cccd")}</span>
+                  </label>
+                  <label className="radio-option">
+                    <input type="radio" name="doc_type" checked={isPassport}
+                      onChange={() => setField("doc_type", "passport")} />
+                    <span>{t("capture.form.doc_passport")}</span>
+                  </label>
+                </div>
               </InfoField>
+              {isPassport ? (
+                <InfoField label={t("capture.form.passport")}>
+                  <input className="control control-sm" value={form.passport_number}
+                    onChange={(e) => setField("passport_number",
+                      e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 12))}
+                    placeholder={t("capture.form.passport_ph")} />
+                </InfoField>
+              ) : (
+                <InfoField label={t("detainee.field.cccd")}>
+                  <input className="control control-sm" inputMode="numeric" value={form.cccd_number}
+                    onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                    placeholder={t("capture.form.cccd_ph")} />
+                </InfoField>
+              )}
               <InfoField label={t("detainee.field.dob")}>
                 <input className="control control-sm" value={form.dob}
                   onChange={(e) => setField("dob", e.target.value)}
