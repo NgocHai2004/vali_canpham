@@ -109,6 +109,13 @@ class CaptureEngine:
         # Trang thai live cua lan capture dang chay, cho endpoint /api/live doc.
         self._live: dict = {"active": False, "fingers": [], "message": "", "frames": 0}
         self._live_lock = threading.Lock()
+        # Event cua lan capture DANG cho SDK tra ket qua, + co danh dau bi huy.
+        # stop() phai set duoc event nay, khong thi vong cho trong capture_slap
+        # nam den het timeout SDK (30s) va api.py giu _capture_lock ca quang do
+        # => vao lai trang la 409 "Dang co lenh chup khac chay".
+        self._cur_done: Optional[threading.Event] = None
+        self._cancelled = False
+        self._cur_lock = threading.Lock()
 
     # ---------- vong doi ----------
     def _load(self) -> M.Morfin:
@@ -191,6 +198,11 @@ class CaptureEngine:
         """
         sdk = self.ensure_open()
         done = threading.Event()
+        # Dang ky event cho stop() danh thuc. Xoa co _cancelled cua lan truoc,
+        # neu khong lan chup MOI se thay co con bat va tu huy ngay.
+        with self._cur_lock:
+            self._cur_done = done
+            self._cancelled = False
         # "best" giu quality CAO NHAT tung slot qua cac frame preview. Dung
         # max thay vi frame cuoi vi frame cuoi co the la luc nguoi dan nhac
         # tay ra (quality tut ve 0) du SDK da thay frame dep truoc do.
@@ -297,13 +309,25 @@ class CaptureEngine:
 
         # Cho complete callback. +10s dem so voi timeout cua SDK vi SDK con
         # phai tach ngon + tinh NFIQ sau khi het thoi gian cho.
-        if not done.wait(timeout + 10):
-            with self._lock:
-                sdk.stop_capture()
-            self._set_live(active=False)
-            raise MorfinError(-1, "SDK khong tra ket qua capture (treo).")
+        try:
+            if not done.wait(timeout + 10):
+                with self._lock:
+                    sdk.stop_capture()
+                self._set_live(active=False)
+                raise MorfinError(-1, "SDK khong tra ket qua capture (treo).")
+        finally:
+            with self._cur_lock:
+                if self._cur_done is done:
+                    self._cur_done = None
+                cancelled = self._cancelled
+                self._cancelled = False
 
         self._set_live(active=False)
+        # Bi stop() danh thuc (roi trang / bam huy), KHONG phai SDK tra ket qua.
+        # Phai raise de api.py nha _capture_lock ngay, khong doc tiep get_image
+        # (chua co du lieu) va khong luu nua cum vao session.
+        if cancelled:
+            raise MorfinError(-2, "Lenh chup da bi huy.")
         result = CaptureResult(code=state["code"], finger_count=state["count"],
                               frames=state["frames"], message=state["msg"],
                               dropped=state["dropped"], diag=state["diag"])
@@ -361,10 +385,24 @@ class CaptureEngine:
         return result
 
     def stop(self) -> int:
+        """Huy lenh chup dang chay VA danh thuc vong cho trong capture_slap.
+
+        StopCapture cua SDK khong bao complete callback, nen chi goi no thi
+        capture_slap van nam trong done.wait() den het timeout+10 (30s) va
+        api.py giu _capture_lock ca quang do => moi lenh chup moi bi 409. Phai
+        tu set event de tra luong ve ngay.
+        """
         sdk = self._sdk
         if sdk is None:
             return M.SUCCESS
-        return sdk.stop_capture()
+        rc = sdk.stop_capture()
+        with self._cur_lock:
+            cur = self._cur_done
+            if cur is not None:
+                self._cancelled = True
+                cur.set()
+        self._set_live(active=False)
+        return rc
 
     # ---------- match ----------
     def match(self, t1: bytes, t2: bytes) -> int:

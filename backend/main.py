@@ -496,12 +496,6 @@ class DetaineeIn(BaseModel):
     dob: Optional[str] = None
     gender: str = "male"
     cccd_number: Optional[str] = Field(None, pattern=r"^\d{12}$")
-    # Loại giấy tờ: cccd (mặc định) | passport. Hồ sơ cũ không có field này
-    # nên .get("doc_type") trả None => coi như cccd.
-    doc_type: str = "cccd"
-    # Người nước ngoài không có CCCD 12 số — số hộ chiếu để riêng, không nhét
-    # vào cccd_number (giữ index + chống trùng CCCD đúng nghĩa).
-    passport_number: Optional[str] = Field(None, max_length=20)
     personal_id: Optional[str] = Field(None, min_length=1, max_length=50)
     cmnd_old: Optional[str] = Field(None, max_length=20)
     nationality: Optional[str] = "Việt Nam"
@@ -1317,8 +1311,6 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
     doc.update({
         "personal_id": personal_id,
         "cccd_number": body.cccd_number or "",
-        "doc_type": body.doc_type or "cccd",
-        "passport_number": (body.passport_number or "").strip().upper(),
         "dob": dob,
         "date_in": _parse_dob(body.date_in),
         "issued_date": _parse_dob(body.issued_date),
@@ -1373,8 +1365,6 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     upd["date_in"] = _parse_dob(body.date_in)
     upd["issued_date"] = _parse_dob(body.issued_date)
     upd["expiry_date"] = _parse_dob(body.expiry_date)
-    upd["doc_type"] = body.doc_type or "cccd"
-    upd["passport_number"] = (body.passport_number or "").strip().upper()
     new_pid = (body.personal_id or "").strip()
     if new_pid:
         conflict = await db.detainees.find_one({"personal_id": new_pid, "_id": {"$ne": _oid(det_id)}})
@@ -1570,8 +1560,6 @@ async def list_sessions_full(
                     "personal_id": d.get("personal_id", "") or d.get("cccd_number", "") or "",
                     "full_name": d.get("full_name", ""),
                     "cccd_number": d.get("cccd_number", "") or "",
-                    "doc_type": d.get("doc_type") or "cccd",
-                    "passport_number": d.get("passport_number", "") or "",
                     "gender": d.get("gender", "male"),
                     "dob": d.get("dob") or None,
                     "nationality": d.get("nationality", "") or "",
@@ -1685,7 +1673,7 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
             d.get("full_name", ""),
             gender,
             dob_str,
-            d.get("cccd_number", "") or d.get("passport_number", "") or "",
+            d.get("cccd_number", "") or "",
             d.get("hometown", "") or "",
             d.get("cell_code", "") or "",
             d.get("note", "") or "",
@@ -2635,7 +2623,6 @@ EXCEL_COLS = [
     ("gender", "Giới tính"),
     ("dob", "Ngày sinh"),
     ("cccd_number", "Số CCCD"),
-    ("passport_number", "Số hộ chiếu"),
     ("hometown", "Quê quán"),
     ("address", "Địa chỉ"),
     ("ethnicity", "Dân tộc"),

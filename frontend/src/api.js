@@ -350,6 +350,10 @@ export const fpApi = {
   }),
   redo: (sid, code) => fpRequest(`/fp/api/session/${sid}/redo/${code}`, { method: "POST" }),
   cancel: (sid) => fpRequest(`/fp/api/session/${sid}`, { method: "DELETE" }),
+  // Abort lenh chup dang cho tay o tang THIET BI. Bat buoc phai goi truoc cancel():
+  // DELETE session KHONG nha thiet bi (da test: sau DELETE, /api/live van active
+  // = true va session moi capture bi 409 "Dang co lenh chup khac chay").
+  stopCapture: () => fpRequest("/fp/api/capture/stop", { method: "POST" }),
 };
 
 // ============ CCCD reader API (watch folder backend/data_cccd via /api/cccd/*) ============
