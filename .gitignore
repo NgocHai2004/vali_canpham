@@ -71,6 +71,7 @@ Thumbs.db
 # ===== Claude Code local =====
 .claude/
 graphify-out/
+.superpowers/
 
 # ===== Scratch images at project root =====
 /image.png
