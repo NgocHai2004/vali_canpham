@@ -196,6 +196,14 @@ export const api = {
   updateCell: (id, body) => request(`/api/cells/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteCell: (id) => request(`/api/cells/${id}`, { method: "DELETE" }),
 
+  getDeployment: () => request("/api/deployment"),
+  updateDeployment: (body) => request("/api/deployment", { method: "PATCH", body: JSON.stringify(body) }),
+
+  listAdminUnits: () => request("/api/admin-units"),
+  createAdminUnit: (body) => request("/api/admin-units", { method: "POST", body: JSON.stringify(body) }),
+  updateAdminUnit: (id, body) => request(`/api/admin-units/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteAdminUnit: (id) => request(`/api/admin-units/${id}`, { method: "DELETE" }),
+
   getDetainee: (id) => request(`/api/detainees/${id}`),
   getDetaineeByPersonalId: (personalId) => request(`/api/detainees/by-personal-id/${encodeURIComponent(personalId)}`),
   createDetainee: (body) => request("/api/detainees", { method: "POST", body: JSON.stringify(body) }),
@@ -281,6 +289,27 @@ export const api = {
     method: "POST",
     body: JSON.stringify(summary || {}),
   }),
+
+  // ===== Dấu vết hiện trường (ảnh vụ án theo phiên) =====
+  // Không truyền sessionId => backend lấy phiên đang mở của cán bộ.
+  listSceneTraces: (sessionId) => request(
+    `/api/scene/traces${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`
+  ),
+  // source: "camera" (chụp tại chỗ) | "upload" (chọn file). Ảnh do máy ngoài
+  // bắn sang đi qua /api/scene/push nên không có ở đây.
+  createSceneTrace: async (file, { sessionId = "", note = "", source = "upload" } = {}) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (sessionId) fd.append("session_id", sessionId);
+    if (note) fd.append("note", note);
+    fd.append("source", source);
+    return request("/api/scene/traces", { method: "POST", body: fd });
+  },
+  updateSceneTrace: (id, note) => request(`/api/scene/traces/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ note: note || "" }),
+  }),
+  deleteSceneTrace: (id) => request(`/api/scene/traces/${id}`, { method: "DELETE" }),
 };
 
 // ============ ZKFinger fingerprint sensor API (python service :8765) ============

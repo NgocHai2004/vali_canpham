@@ -173,6 +173,8 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
         <div className="session-detail-meta">
           <span>{t("session.detail.opened")}: <strong>{formatDateTime(session.opened_at)}</strong></span>
           {!isOpen && <span>{t("session.detail.closed")}: <strong>{formatDateTime(session.closed_at)}</strong></span>}
+          {session.province_name && <span>{t("session.detail.province")}: <strong>{session.province_name}</strong></span>}
+          {session.commune_name && <span>{t("session.detail.commune")}: <strong>{session.commune_name}</strong></span>}
           {session.location && <span>{t("session.detail.location")}: <strong>{session.location}</strong></span>}
         </div>
         {session.note && <div className="session-detail-note">{t("session.detail.note")}: {session.note}</div>}

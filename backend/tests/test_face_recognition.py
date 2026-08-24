@@ -63,7 +63,9 @@ async def app_client(monkeypatch):
     monkeypatch.setattr(main, "db", db)
     await main._ensure_admin()
     await main._ensure_default_cells()
+    await main._ensure_default_admin_units()
     await main._ensure_indexes()
+    await main._load_deployment_config()
     transport = ASGITransport(app=main.app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -159,7 +161,7 @@ async def test_create_detainee_stores_face_embedding(app_client, officer_headers
     monkeypatch.setattr(main.face_recognition_service, "is_ready", lambda: True)
     monkeypatch.setattr(main.face_recognition_service, "get_embedding",
                         lambda b: (emb, 1, "insightface"))
-    s = await app_client.post("/api/sessions", json={"location": "x", "note": ""},
+    s = await app_client.post("/api/sessions", json={"case_name": "Vu an test", "commune_code": "00004", "location": "x", "note": ""},
                               headers=officer_headers)
     sid = s.json()["id"]
     body = {
@@ -179,7 +181,7 @@ async def test_create_detainee_skips_embedding_when_not_ready(app_client, office
     """Model chưa ready → không crash, KHÔNG có face_embedding."""
     monkeypatch.setattr(main.face_recognition_service, "is_ready", lambda: False)
     url = _write_test_upload("test_create_face2.jpg")
-    s = await app_client.post("/api/sessions", json={"location": "x", "note": ""},
+    s = await app_client.post("/api/sessions", json={"case_name": "Vu an test", "commune_code": "00004", "location": "x", "note": ""},
                               headers=officer_headers)
     sid = s.json()["id"]
     body = {
