@@ -71,7 +71,6 @@ Thumbs.db
 # ===== Claude Code local =====
 .claude/
 graphify-out/
-.superpowers/
 
 # ===== Scratch images at project root =====
 /image.png
@@ -79,12 +78,6 @@ graphify-out/
 /background.png
 /Capture.PNG
 /Annotation *.png
-
-# ===== File vuot gioi han 100MB cua GitHub (giu tren disk, khong day len remote) =====
-mongodb/
-.venv_broken/
-backend/services/cccd_scanner/publish/Sdcb.PaddleOCR.Models.LocalV3.dll
-backend/services/cccd_scanner/publish/Sdcb.PaddleOCR.Models.LocalV4.dll
 
 # ===== Misc =====
 *.tmp

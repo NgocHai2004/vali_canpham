@@ -1,7 +1,6 @@
 import os
 import io
 import re
-import json
 import asyncio
 import base64
 import threading
@@ -86,17 +85,6 @@ _height_image_cache: float = HEIGHT_IMAGE_DEFAULT
 HEIGHT_OFFSET_DEFAULT = _env_float("height_offset", 103)
 HEIGHT_OFFSET_MAX = 1000.0
 _height_offset_cache: float = HEIGHT_OFFSET_DEFAULT
-
-
-PROVINCE_CODE_DEFAULT = (_env_str_from_dotenv("DEPLOY_PROVINCE_CODE") or "01").strip()
-PROVINCE_NAME_DEFAULT = (_env_str_from_dotenv("DEPLOY_PROVINCE_NAME") or "Thành phố Hà Nội").strip()
-
-# Tỉnh/thành triển khai của thiết bị. 1 thiết bị = 1 tỉnh nên dùng singleton doc
-# trong db.settings, không tạo collection riêng cho 1 dòng dữ liệu.
-_province_cache: dict = {
-    "province_code": PROVINCE_CODE_DEFAULT,
-    "province_name": PROVINCE_NAME_DEFAULT,
-}
 
 
 def get_height_image() -> float:
@@ -191,10 +179,8 @@ async def lifespan(app: FastAPI):
         await client.admin.command("ping")
         await _ensure_admin()
         await _ensure_default_cells()
-        await _ensure_default_admin_units()
         await _ensure_indexes()
         await _load_measurement_config()
-        await _load_deployment_config()
         await _load_fp_config()
     except Exception:
         pass
@@ -253,36 +239,6 @@ async def _load_measurement_config():
                 _height_offset_cache = val
         except (TypeError, ValueError):
             pass
-
-
-async def _load_deployment_config():
-    """Đọc tỉnh triển khai từ db.settings; seed từ .env nếu chưa có.
-
-    Cùng cơ chế với _load_measurement_config: .env chỉ là giá trị mặc định lần
-    đầu, sau đó DB là nguồn thật để admin đổi được trong app.
-    """
-    global _province_cache
-    doc = await db.settings.find_one({"_id": "deployment"})
-    if doc is None:
-        await db.settings.insert_one({
-            "_id": "deployment",
-            "province_code": PROVINCE_CODE_DEFAULT,
-            "province_name": PROVINCE_NAME_DEFAULT,
-        })
-        _province_cache = {
-            "province_code": PROVINCE_CODE_DEFAULT,
-            "province_name": PROVINCE_NAME_DEFAULT,
-        }
-    else:
-        _province_cache = {
-            "province_code": (doc.get("province_code") or PROVINCE_CODE_DEFAULT).strip(),
-            "province_name": (doc.get("province_name") or PROVINCE_NAME_DEFAULT).strip(),
-        }
-
-
-def _get_province() -> dict:
-    """Bản copy của cache tỉnh — tránh caller sửa trực tiếp vào global."""
-    return dict(_province_cache)
 
 
 def _sanitize_fp_map(raw) -> dict:
@@ -379,56 +335,11 @@ async def _ensure_default_cells():
         await db.cells.insert_many(seeds)
 
 
-ADMIN_UNITS_FILE = os.path.join(os.path.dirname(__file__), "data", "admin_units_vn.json")
-
-
-async def _ensure_default_admin_units():
-    """Seed danh mục xã/phường từ file JSON. Chỉ chạy khi collection rỗng.
-
-    Cùng cơ chế _ensure_default_cells: seed 1 lần rồi để admin quản lý trong app.
-    Sáp nhập/đổi tên về sau sửa qua /api/admin-units, KHÔNG sửa file này.
-    """
-    if await db.admin_units.count_documents({}) > 0:
-        return
-    try:
-        with open(ADMIN_UNITS_FILE, encoding="utf-8") as f:
-            payload = json.load(f)
-    except (OSError, ValueError):
-        # Thiếu/hỏng file danh mục không được làm chết app: admin vẫn thêm tay được.
-        return
-    units = payload.get("units") or []
-    if not units:
-        return
-    now = datetime.utcnow()
-    docs = []
-    for u in units:
-        code = (u.get("code") or "").strip()
-        name = (u.get("name") or "").strip()
-        if not code or not name:
-            continue
-        docs.append({
-            "code": code,
-            "name": name,
-            "province_code": (u.get("province_code") or PROVINCE_CODE_DEFAULT).strip(),
-            "unit_type": (u.get("unit_type") or "xa").strip(),
-            "active": True,
-            "created_at": now,
-            "updated_at": now,
-        })
-    if docs:
-        await db.admin_units.insert_many(docs)
-
-
 async def _ensure_indexes():
     await db.detainees.create_index("personal_id", unique=True, sparse=True)
     await db.detainees.create_index([("full_name", 1), ("dob", 1)])
     await db.detainees.create_index("cccd_number", sparse=True)
-    await db.detainees.create_index([("commune_code", 1), ("created_at", -1)])
     await db.cells.create_index("code", unique=True)
-    await db.admin_units.create_index("code", unique=True)
-    await db.admin_units.create_index([("province_code", 1), ("name", 1)])
-    # Dau vet hien truong: liet ke theo phien (vu an), sap theo so thu tu anh.
-    await db.scene_traces.create_index([("session_id", 1), ("seq", 1)])
 
 
 class LoginResp(BaseModel):
@@ -545,8 +456,6 @@ class DetaineeIn(BaseModel):
 
 
 class WorkSessionIn(BaseModel):
-    case_name: str = Field(min_length=1, max_length=200)   # tên vụ án — bắt buộc
-    commune_code: str = Field(min_length=1, max_length=20)
     location: str = Field(default="", max_length=200)
     note: str = Field(default="", max_length=500)
     officer_full_name: Optional[str] = Field(default=None, max_length=100)
@@ -673,7 +582,7 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
         pass
 
 
-app = FastAPI(title="Thiết bị thu thập & quản lý căn cước nghi phạm", lifespan=lifespan)
+app = FastAPI(title="Thiết bị thu thập & quản lý căn cước can phạm", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
@@ -851,113 +760,10 @@ async def delete_cell(cell_id: str, request: Request, user: dict = Depends(get_c
     # Không xoá buồng nếu còn can phạm
     n = await db.detainees.count_documents({"cell_code": code})
     if n > 0:
-        raise HTTPException(400, f"Buồng đang có {n} nghi phạm, không thể xoá")
+        raise HTTPException(400, f"Buồng đang có {n} can phạm, không thể xoá")
     await db.cells.delete_one({"_id": _oid(cell_id)})
     await _log(request, user, "delete", "cell", code)
     return {"ok": True}
-
-
-# ==================== ĐƠN VỊ HÀNH CHÍNH (XÃ/PHƯỜNG) ====================
-# Cây hành chính này ĐỘC LẬP với cây giam giữ (db.cells): xã là địa bàn thu
-# thập, buồng/phân trại là nơi giam giữ. Không trộn hai trục vào nhau.
-class AdminUnitIn(BaseModel):
-    code: str = Field(min_length=1, max_length=20)
-    name: str = Field(min_length=1, max_length=150)
-    unit_type: str = Field(default="xa", pattern=r"^(phuong|xa|dac_khu)$")
-
-
-class AdminUnitPatch(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=150)
-    unit_type: Optional[str] = Field(default=None, pattern=r"^(phuong|xa|dac_khu)$")
-    active: Optional[bool] = None
-
-
-async def _resolve_commune(code: str) -> dict:
-    """Tra 1 xã/phường thuộc tỉnh triển khai và còn hiệu lực.
-
-    Raise HTTPException(400) nếu không hợp lệ — caller không cần tự kiểm tra.
-    """
-    prov = _get_province()
-    unit = await db.admin_units.find_one({
-        "code": (code or "").strip(),
-        "province_code": prov["province_code"],
-        "active": True,
-    })
-    if not unit:
-        raise HTTPException(400, "Xã/phường không hợp lệ hoặc không thuộc tỉnh triển khai.")
-    return unit
-
-
-@app.get("/api/admin-units")
-async def list_admin_units(user: dict = Depends(get_current_user)):
-    """Danh mục xã/phường của tỉnh triển khai, chỉ những đơn vị còn hiệu lực.
-
-    Sort theo unit_type rồi name để frontend nhóm Phường/Xã bằng optgroup.
-    """
-    prov = _get_province()
-    filt = {"province_code": prov["province_code"], "active": True}
-    return [
-        _s(u)
-        async for u in db.admin_units.find(filt).sort([("unit_type", 1), ("name", 1)])
-    ]
-
-
-@app.post("/api/admin-units")
-async def create_admin_unit(body: AdminUnitIn, request: Request, admin: dict = Depends(require_admin)):
-    prov = _get_province()
-    code = body.code.strip()
-    if await db.admin_units.find_one({"code": code}):
-        raise HTTPException(400, f"Mã đơn vị '{code}' đã có trong danh mục.")
-    now = datetime.utcnow()
-    doc = {
-        "code": code,
-        "name": body.name.strip(),
-        "province_code": prov["province_code"],
-        "unit_type": body.unit_type,
-        "active": True,
-        "created_at": now,
-        "updated_at": now,
-    }
-    res = await db.admin_units.insert_one(doc)
-    doc["_id"] = res.inserted_id
-    await _log(request, admin, "create", "admin_unit", code, {"name": doc["name"]})
-    return _s(doc)
-
-
-@app.patch("/api/admin-units/{unit_id}")
-async def update_admin_unit(unit_id: str, body: AdminUnitPatch, request: Request, admin: dict = Depends(require_admin)):
-    """Sửa tên/loại/hiệu lực. KHÔNG cho đổi code: phiên và hồ sơ cũ trỏ vào code đó."""
-    upd = {k: v for k, v in body.model_dump().items() if v is not None}
-    if not upd:
-        raise HTTPException(400, "Không có thông tin nào để cập nhật.")
-    if "name" in upd:
-        upd["name"] = upd["name"].strip()
-    upd["updated_at"] = datetime.utcnow()
-    doc = await db.admin_units.find_one_and_update(
-        {"_id": _oid(unit_id)}, {"$set": upd}, return_document=True
-    )
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy đơn vị hành chính.")
-    await _log(request, admin, "update", "admin_unit", doc.get("code", ""), upd)
-    return _s(doc)
-
-
-@app.delete("/api/admin-units/{unit_id}")
-async def delete_admin_unit(unit_id: str, request: Request, admin: dict = Depends(require_admin)):
-    """Soft delete (active=False), KHÔNG xoá cứng.
-
-    Phiên và hồ sơ đã thu vẫn tham chiếu code này; xoá cứng là mất tên xã của
-    dữ liệu lịch sử.
-    """
-    doc = await db.admin_units.find_one({"_id": _oid(unit_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy đơn vị hành chính.")
-    await db.admin_units.update_one(
-        {"_id": doc["_id"]},
-        {"$set": {"active": False, "updated_at": datetime.utcnow()}},
-    )
-    await _log(request, admin, "delete", "admin_unit", doc.get("code", ""))
-    return {"ok": True, "deactivated": doc.get("code", "")}
 
 
 # ==================== DETAINEES ====================
@@ -1013,7 +819,6 @@ async def _find_duplicates(full_name: str, dob: Optional[str], gender: str, excl
 async def list_detainees(
     q: str = Query("", alias="q"),
     cell_code: str = Query(""),
-    commune_code: str = Query(""),
     gender: str = Query(""),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
@@ -1029,8 +834,6 @@ async def list_detainees(
         ]
     if cell_code:
         filt["cell_code"] = cell_code
-    if commune_code:
-        filt["commune_code"] = commune_code
     if gender:
         filt["gender"] = gender
     total = await db.detainees.count_documents(filt)
@@ -1053,7 +856,6 @@ def _ensure_can_touch(doc: dict, user: dict) -> None:
 _MATCH_PROJECTION = {
     "personal_id": 1, "full_name": 1, "cccd_number": 1, "gender": 1, "dob": 1,
     "cell_code": 1, "custody_type": 1, "facility_code": 1, "sub_camp_code": 1,
-    "commune_name": 1,
     "charge": 1, "hometown": 1, "address": 1,
     "photos.portrait_front": 1, "photos.cccd_front": 1,
     "created_at": 1, "created_by": 1,
@@ -1302,9 +1104,9 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
 
     personal_id = (body.personal_id or "").strip()
     if not personal_id:
-        raise HTTPException(400, "Thiếu mã nghi phạm (personal_id).")
+        raise HTTPException(400, "Thiếu mã can phạm (personal_id).")
     if await db.detainees.find_one({"personal_id": personal_id}):
-        raise HTTPException(400, f"Mã nghi phạm '{personal_id}' đã có trong hệ thống.")
+        raise HTTPException(400, f"Mã can phạm '{personal_id}' đã có trong hệ thống.")
 
     doc = body.model_dump()
     doc.pop("session_id", None)
@@ -1319,13 +1121,6 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         "updated_at": now,
         "created_by": user["username"],
         "session_id": session_doc["_id"],
-        # Denormalize địa bàn thu thập từ phiên (cùng pattern cell_code/facility_code).
-        # Bắt buộc, không phải tối ưu: xã đổi tên thì hồ sơ cũ phải giữ giá trị
-        # tại thời điểm thu, và lọc/thống kê theo xã không phải join.
-        # Phiên cũ (trước tính năng này) không có 4 trường → .get() trả None.
-        "province_code": session_doc.get("province_code"),
-        "commune_code": session_doc.get("commune_code"),
-        "commune_name": session_doc.get("commune_name"),
     })
     try:
         res = await db.detainees.insert_one(doc)
@@ -1369,7 +1164,7 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     if new_pid:
         conflict = await db.detainees.find_one({"personal_id": new_pid, "_id": {"$ne": _oid(det_id)}})
         if conflict:
-            raise HTTPException(400, f"Mã nghi phạm '{new_pid}' đã có trong hồ sơ khác.")
+            raise HTTPException(400, f"Mã can phạm '{new_pid}' đã có trong hồ sơ khác.")
         upd["personal_id"] = new_pid
         upd["cccd_number"] = body.cccd_number or upd.get("cccd_number", "")
     upd["updated_at"] = datetime.utcnow()
@@ -1432,7 +1227,7 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
         raise HTTPException(400, f"Buồng {new_code} không tồn tại")
     old_code = doc.get("cell_code") or ""
     if old_code == new_code:
-        raise HTTPException(400, "Nghi phạm đã ở buồng này")
+        raise HTTPException(400, "Can phạm đã ở buồng này")
     await db.detainees.update_one(
         {"_id": _oid(det_id)},
         {"$set": {"cell_code": new_code or None, "updated_at": datetime.utcnow()}},
@@ -1458,22 +1253,13 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
     officer_doc = await db.users.find_one({"username": officer_username}) or {}
     default_full_name = officer_doc.get("full_name", "") or officer_username
     override = (body.officer_full_name or "").strip()
-    unit = await _resolve_commune(body.commune_code)
-    prov = _get_province()
     now = datetime.utcnow()
     doc = {
         "code": await _next_session_code(),
-        "case_name": body.case_name.strip(),
         "status": "open",
         "officer": officer_username,
         "officer_full_name": override or default_full_name,
-        # Snapshot cả TÊN, không chỉ code: xã sáp nhập/đổi tên về sau thì phiếu
-        # báo cáo in lại vẫn ra tên đúng thời điểm thu.
-        "province_code": prov["province_code"],
-        "province_name": prov["province_name"],
-        "commune_code": unit["code"],
-        "commune_name": unit["name"],
-        "location": body.location.strip(),
+        "location": body.location.strip() or "Trung tâm thu thập dữ liệu",
         "note": body.note.strip(),
         "opened_at": now,
         "closed_at": None,
@@ -1505,7 +1291,6 @@ async def list_sessions_full(
     mine_only: bool = Query(False),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    commune_code: Optional[str] = Query(None),
     include_detainees: bool = Query(True),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
@@ -1518,8 +1303,6 @@ async def list_sessions_full(
         filt["status"] = status
     if mine_only or user.get("role") != "admin":
         filt["officer"] = user["username"]
-    if commune_code:
-        filt["commune_code"] = commune_code
     dt_from = _parse_dt(date_from)
     dt_to = _parse_dt(date_to)
     if dt_from or dt_to:
@@ -1600,7 +1383,6 @@ async def list_sessions(
     mine_only: bool = Query(False),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    commune_code: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     user: dict = Depends(get_current_user),
@@ -1610,8 +1392,6 @@ async def list_sessions(
         filt["status"] = status
     if mine_only or user.get("role") != "admin":
         filt["officer"] = user["username"]
-    if commune_code:
-        filt["commune_code"] = commune_code
     dt_from = _parse_dt(date_from)
     dt_to = _parse_dt(date_to)
     if dt_from or dt_to:
@@ -1644,10 +1424,6 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
         [],
         ["Mã phiên:", session_doc.get("code", "")],
         ["Cán bộ:", session_doc.get("officer_full_name", "") or session_doc.get("officer", "")],
-        # Tỉnh/xã lấy từ snapshot trên phiên, KHÔNG tra lại db.admin_units: xã có
-        # thể đã đổi tên sau khi phiên đóng.
-        ["Tỉnh/Thành phố:", session_doc.get("province_name", "") or ""],
-        ["Xã/Phường:", session_doc.get("commune_name", "") or ""],
         ["Địa điểm:", session_doc.get("location", "") or ""],
         ["Ghi chú:", session_doc.get("note", "") or ""],
         ["Mở lúc:", _fmt_dt(opened)],
@@ -1761,54 +1537,6 @@ async def log_session_sync(
         session_id=doc["_id"],
     )
     return {"ok": True}
-
-
-class WorkSessionPatch(BaseModel):
-    commune_code: Optional[str] = Field(default=None, min_length=1, max_length=20)
-    location: Optional[str] = Field(default=None, max_length=200)
-    note: Optional[str] = Field(default=None, max_length=500)
-
-
-@app.patch("/api/sessions/{session_id}")
-async def update_session(session_id: str, body: WorkSessionPatch, request: Request, user: dict = Depends(get_current_user)):
-    """Sửa xã/địa điểm/ghi chú của phiên đang mở.
-
-    Xã chỉ đổi được khi phiên CHƯA có hồ sơ: hồ sơ đã lưu snapshot xã của phiên,
-    đổi xã lúc đó sẽ khiến hồ sơ mâu thuẫn với phiên chứa nó.
-    """
-    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
-    is_admin = user.get("role") == "admin"
-    _ensure_session_editable(doc, user["username"], is_admin)
-
-    upd: dict = {}
-    if body.commune_code is not None:
-        if doc.get("detainee_count", 0) > 0:
-            raise HTTPException(
-                409,
-                "Phiên đã có hồ sơ, không thể đổi xã/phường. "
-                "Đóng phiên và mở phiên mới cho xã khác.",
-            )
-        unit = await _resolve_commune(body.commune_code)
-        upd["commune_code"] = unit["code"]
-        upd["commune_name"] = unit["name"]
-    if body.location is not None:
-        upd["location"] = body.location.strip()
-    if body.note is not None:
-        upd["note"] = body.note.strip()
-    if not upd:
-        raise HTTPException(400, "Không có thông tin nào để cập nhật.")
-
-    upd["updated_at"] = datetime.utcnow()
-    doc = await db.work_sessions.find_one_and_update(
-        {"_id": doc["_id"]}, {"$set": upd}, return_document=True
-    )
-    await _log(
-        request, user, "update", "work_session", doc.get("code", ""),
-        upd, ref_id=session_id, session_id=doc["_id"],
-    )
-    return _s_session(doc)
 
 
 @app.post("/api/sessions/{session_id}/close")
@@ -2114,37 +1842,6 @@ async def update_fingerprint_config(body: FingerprintConfigIn, request: Request,
     }
 
 
-# ==================== DEPLOYMENT (TỈNH TRIỂN KHAI) ====================
-class DeploymentIn(BaseModel):
-    province_code: str = Field(min_length=1, max_length=10)
-    province_name: str = Field(min_length=1, max_length=100)
-
-
-@app.get("/api/deployment")
-async def get_deployment(user: dict = Depends(get_current_user)):
-    """Tỉnh/thành triển khai của thiết bị. Frontend hiển thị ở modal mở phiên."""
-    return _get_province()
-
-
-@app.patch("/api/deployment")
-async def update_deployment(body: DeploymentIn, request: Request, admin: dict = Depends(require_admin)):
-    """Đổi tỉnh triển khai. Chỉ admin, dùng khi mang thiết bị sang tỉnh khác.
-
-    KHÔNG sửa lại phiên/hồ sơ cũ: chúng đã snapshot tỉnh tại thời điểm thu.
-    """
-    global _province_cache
-    code = body.province_code.strip()
-    name = body.province_name.strip()
-    await db.settings.update_one(
-        {"_id": "deployment"},
-        {"$set": {"province_code": code, "province_name": name}},
-        upsert=True,
-    )
-    _province_cache = {"province_code": code, "province_name": name}
-    await _log(request, admin, "update", "deployment", code, {"province_name": name})
-    return _get_province()
-
-
 # ==================== CCCD READER (watch folder data_cccd) ====================
 from cccd_watcher import (
     cccd_health as _cccd_health,
@@ -2309,269 +2006,6 @@ async def cccd_upload_image(request: Request, file: UploadFile = File(...)):
     return {"url": f"/uploads/cccd_push/{name}", "size": len(data)}
 
 
-# ==================== DẤU VẾT HIỆN TRƯỜNG (ảnh vụ án) ====================
-# Vụ án = work_session (không tách collection riêng). Mỗi ảnh là 1 doc trong
-# scene_traces, seq tự tăng trong phiên => hiển thị "Ảnh 001", "Ảnh 002"...
-# Nguồn ảnh: máy ngoài bắn sang (/api/scene/push, xác thực bằng header) hoặc
-# cán bộ tự chụp/chọn file trên UI (/api/scene/traces, xác thực bằng JWT).
-SCENE_API_KEY = os.getenv("SCENE_API_KEY", "")
-SCENE_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "scene")
-os.makedirs(SCENE_UPLOAD_DIR, exist_ok=True)
-
-SCENE_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-SCENE_MAX_BYTES = 10 * 1024 * 1024          # ảnh hiện trường thường to hơn ảnh chân dung
-
-
-def _require_scene_key(request: Request) -> None:
-    if SCENE_API_KEY and request.headers.get("X-Scene-Key", "") != SCENE_API_KEY:
-        raise HTTPException(401, "Sai X-Scene-Key")
-
-
-def _s_scene(doc: dict) -> dict:
-    if not doc:
-        return doc
-    out = dict(doc)
-    out["id"] = str(out.pop("_id"))
-    out["session_id"] = str(out.get("session_id") or "")
-    for k in ("created_at", "captured_at"):
-        v = out.get(k)
-        if isinstance(v, datetime):
-            out[k] = v.isoformat()
-    # embedding là vector 512 số, không cần trả về UI cho nhẹ payload.
-    out.pop("face_embedding", None)
-    return out
-
-
-async def _next_scene_seq(session_oid) -> int:
-    """Số thứ tự ảnh trong phiên. Dùng counters như _next_session_code để 2 máy
-    bắn ảnh cùng lúc không nhận trùng seq."""
-    doc = await db.counters.find_one_and_update(
-        {"_id": f"scene_seq_{session_oid}"},
-        {"$inc": {"seq": 1}},
-        upsert=True,
-        return_document=True,
-    )
-    return int(doc.get("seq", 1))
-
-
-async def _save_scene_image(data: bytes, ext: str) -> tuple[str, str]:
-    ext = (ext or "").lower()
-    if ext not in SCENE_ALLOWED_EXT:
-        raise HTTPException(400, "Chỉ hỗ trợ ảnh jpg/png/webp")
-    if not data:
-        raise HTTPException(400, "Ảnh rỗng")
-    if len(data) > SCENE_MAX_BYTES:
-        raise HTTPException(400, "Ảnh vượt quá 10MB")
-    name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
-    path = os.path.join(SCENE_UPLOAD_DIR, name)
-    with open(path, "wb") as f:
-        f.write(data)
-    return f"/uploads/scene/{name}", name
-
-
-async def _insert_scene_trace(
-    session_doc: dict,
-    url: str,
-    size: int,
-    ext: str,
-    *,
-    source: str,
-    note: str = "",
-    device_id: str = "",
-    captured_at: Optional[datetime] = None,
-    created_by: str = "",
-) -> dict:
-    now = datetime.utcnow()
-    doc = {
-        "session_id": session_doc["_id"],
-        "seq": await _next_scene_seq(session_doc["_id"]),
-        "url": url,
-        "size": size,
-        "mime": f"image/{'jpeg' if ext in ('.jpg', '.jpeg') else ext.lstrip('.')}",
-        "note": (note or "").strip(),
-        "source": source,
-        "device_id": (device_id or "").strip(),
-        "captured_at": captured_at or now,
-        "created_at": now,
-        "created_by": created_by,
-        # Để sẵn cho tính năng matching sau này, chưa tính lúc upload.
-        "face_embedding": None,
-        "face_count": None,
-    }
-    res = await db.scene_traces.insert_one(doc)
-    doc["_id"] = res.inserted_id
-    return doc
-
-
-async def _scene_session_or_400(session_id: Optional[str], username: str) -> dict:
-    """Ảnh hiện trường BẮT BUỘC thuộc 1 phiên. Có session_id thì dùng, không có
-    thì lấy phiên đang mở; không có phiên nào mở thì báo cần khởi tạo phiên."""
-    if session_id:
-        doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
-        if not doc:
-            raise HTTPException(400, "Phiên làm việc không tồn tại.")
-        return doc
-    doc = await _get_open_session_or_none(username) if username else None
-    if not doc:
-        doc = await db.work_sessions.find_one({"status": "open"})
-    if not doc:
-        raise HTTPException(409, "Chưa có phiên làm việc nào đang mở. Cần khởi tạo phiên trước khi thêm dấu vết hiện trường.")
-    return doc
-
-
-@app.get("/api/scene/health")
-async def scene_health(request: Request):
-    """Máy ngoài tự kiểm tra kết nối + xem có phiên nào đang mở để bắn ảnh vào."""
-    _require_scene_key(request)
-    sess = await db.work_sessions.find_one({"status": "open"})
-    return {
-        "ok": True,
-        "has_open_session": bool(sess),
-        "session_id": str(sess["_id"]) if sess else None,
-        "session_code": (sess or {}).get("code"),
-        "case_name": (sess or {}).get("case_name", ""),
-        "max_bytes": SCENE_MAX_BYTES,
-        "allowed_ext": sorted(SCENE_ALLOWED_EXT),
-    }
-
-
-@app.post("/api/scene/push")
-async def scene_push(
-    request: Request,
-    file: Optional[UploadFile] = File(default=None),
-    session_id: Optional[str] = Form(default=None),
-    note: str = Form(default=""),
-    device_id: str = Form(default=""),
-):
-    """Máy ngoài bắn ảnh hiện trường lên. Nhận cả 2 kiểu để không phụ thuộc
-    thiết bị: multipart (field `file`) hoặc JSON {image_b64, filename, ...}."""
-    _require_scene_key(request)
-
-    if file is not None:
-        data = await file.read()
-        ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
-        sid, note_in, dev = session_id, note, device_id
-    else:
-        try:
-            body = await request.json()
-        except Exception:
-            raise HTTPException(400, "Thiếu ảnh: gửi multipart field 'file' hoặc JSON 'image_b64'.")
-        b64 = (body.get("image_b64") or "").strip()
-        if not b64:
-            raise HTTPException(400, "Thiếu ảnh: gửi multipart field 'file' hoặc JSON 'image_b64'.")
-        if "," in b64[:64] and b64.lstrip().startswith("data:"):
-            b64 = b64.split(",", 1)[1]                       # bỏ tiền tố data:image/...;base64,
-        try:
-            data = base64.b64decode(b64, validate=False)
-        except Exception:
-            raise HTTPException(400, "image_b64 không phải base64 hợp lệ")
-        ext = os.path.splitext(body.get("filename") or "")[1].lower() or ".jpg"
-        sid = body.get("session_id") or session_id
-        note_in = body.get("note") or ""
-        dev = body.get("device_id") or ""
-
-    session_doc = await _scene_session_or_400(sid, "")
-    url, _ = await _save_scene_image(data, ext)
-    doc = await _insert_scene_trace(
-        session_doc, url, len(data), ext,
-        source="push", note=note_in, device_id=dev, created_by="",
-    )
-    return _s_scene(doc)
-
-
-@app.get("/api/scene/traces")
-async def list_scene_traces(
-    session_id: Optional[str] = Query(default=None),
-    user: dict = Depends(get_current_user),
-):
-    session_doc = await _scene_session_or_400(session_id, user["username"])
-    items = [
-        _s_scene(d)
-        async for d in db.scene_traces.find({"session_id": session_doc["_id"]}).sort([("seq", 1)])
-    ]
-    return {
-        "session": {
-            "id": str(session_doc["_id"]),
-            "code": session_doc.get("code", ""),
-            "case_name": session_doc.get("case_name", ""),
-            "status": session_doc.get("status", ""),
-            "opened_at": (session_doc.get("opened_at").isoformat()
-                          if isinstance(session_doc.get("opened_at"), datetime) else None),
-        },
-        "items": items,
-        "total": len(items),
-    }
-
-
-@app.post("/api/scene/traces")
-async def create_scene_trace(
-    request: Request,
-    file: UploadFile = File(...),
-    session_id: Optional[str] = Form(default=None),
-    note: str = Form(default=""),
-    source: str = Form(default="upload"),
-    user: dict = Depends(get_current_user),
-):
-    """Cán bộ chụp camera hoặc chọn file trên UI."""
-    session_doc = await _scene_session_or_400(session_id, user["username"])
-    data = await file.read()
-    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
-    url, _ = await _save_scene_image(data, ext)
-    doc = await _insert_scene_trace(
-        session_doc, url, len(data), ext,
-        source="camera" if source == "camera" else "upload",
-        note=note, created_by=user["username"],
-    )
-    await _log(request, user, "create", "scene_trace", f"#{doc['seq']}",
-               ref_id=str(doc["_id"]), session_id=session_doc["_id"])
-    return _s_scene(doc)
-
-
-class SceneTracePatch(BaseModel):
-    note: str = Field(default="", max_length=500)
-
-
-@app.patch("/api/scene/traces/{trace_id}")
-async def update_scene_trace(
-    trace_id: str,
-    body: SceneTracePatch,
-    request: Request,
-    user: dict = Depends(get_current_user),
-):
-    doc = await db.scene_traces.find_one({"_id": _oid(trace_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
-    await db.scene_traces.update_one(
-        {"_id": doc["_id"]}, {"$set": {"note": body.note.strip()}}
-    )
-    doc["note"] = body.note.strip()
-    await _log(request, user, "update", "scene_trace", f"#{doc.get('seq')}",
-               ref_id=trace_id, session_id=doc.get("session_id"))
-    return _s_scene(doc)
-
-
-@app.delete("/api/scene/traces/{trace_id}")
-async def delete_scene_trace(
-    trace_id: str,
-    request: Request,
-    user: dict = Depends(get_current_user),
-):
-    doc = await db.scene_traces.find_one({"_id": _oid(trace_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
-    await db.scene_traces.delete_one({"_id": doc["_id"]})
-    # Xoá luôn file trên đĩa; lỗi xoá file không được làm hỏng API.
-    url = doc.get("url") or ""
-    if url.startswith("/uploads/scene/"):
-        try:
-            os.remove(os.path.join(SCENE_UPLOAD_DIR, os.path.basename(url)))
-        except OSError:
-            pass
-    await _log(request, user, "delete", "scene_trace", f"#{doc.get('seq')}",
-               ref_id=trace_id, session_id=doc.get("session_id"))
-    return {"ok": True}
-
-
 # ==================== WEIGHT SCALE (push từ máy cân ngoài + WS broadcast) ====================
 from weight_hub import hub as _weight_hub
 
@@ -2715,7 +2149,7 @@ async def import_xlsx(file: UploadFile = File(...), request: Request = None, use
             date_in = _parse_dob(get("date_in"))
             personal_id = (get("personal_id") or "").strip()
             if not personal_id:
-                errors.append(f"Dòng {i}: thiếu mã nghi phạm (personal_id)")
+                errors.append(f"Dòng {i}: thiếu mã can phạm (personal_id)")
                 continue
             doc = {
                 "personal_id": personal_id,
