@@ -66,3 +66,16 @@ Tất cả API dưới `/api/*`, đều yêu cầu header `Authorization: Bearer
 | DELETE | `/api/tasks/{id}` | Xoá |
 | GET | `/api/stats` | Thống kê tổng, theo category, theo member |
 | GET | `/api/health` | Kiểm tra kết nối Mongo |
+Kill (cần PowerShell chạy Administrator — shell của tôi bị Access denied):
+
+taskkill /PID 52640 /T /F
+
+Nếu PID đã đổi, tìm lại rồi kill:
+
+Get-NetTCPConnection -LocalPort 8000 -State Listen | ForEach-Object { taskkill /PID $_.OwningProcess /T /F }
+
+Backend — chạy từ app_cccd (không cần cd backend, dùng --app-dir nên tránh được lỗi path bạn gặp):
+
+cd C:\Users\vali-01\Documents\App_CCCD\app_cccd
+$env:DONGLE_SECRET='4wYaZj6PURKzLJ2FlAf0thSvuWdH8cIC'
+.\.venv\Scripts\python.exe -m uvicorn --app-dir backend main:app --host 0.0.0.0 --port 8000

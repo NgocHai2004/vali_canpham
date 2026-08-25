@@ -10,6 +10,9 @@ from datetime import datetime, timedelta, date
 
 import person_detect
 import face_recognition_service
+# Secret doc qua DPAPI (.secrets.dat) thay vi plaintext .env. Van fallback ve
+# .env de may chua migrate con chay duoc — xem secret_store.py.
+import secret_store
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
@@ -51,7 +54,7 @@ def _env_str_from_dotenv(name: str) -> str:
 
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "app_cccd")
-JWT_SECRET = _env_str_from_dotenv("JWT_SECRET") or "change-me-in-production-please-abc123xyz"
+JWT_SECRET = secret_store.get("JWT_SECRET", _env_str_from_dotenv) or "change-me-in-production-please-abc123xyz"
 JWT_ALGO = "HS256"
 TOKEN_TTL_MINUTES = 60 * 8
 
@@ -340,8 +343,6 @@ async def _ensure_indexes():
     await db.detainees.create_index([("full_name", 1), ("dob", 1)])
     await db.detainees.create_index("cccd_number", sparse=True)
     await db.cells.create_index("code", unique=True)
-    # Dau vet hien truong: liet ke theo phien (vu an), sap theo so thu tu anh.
-    await db.scene_traces.create_index([("session_id", 1), ("seq", 1)])
 
 
 class LoginResp(BaseModel):
@@ -1892,7 +1893,7 @@ async def cccd_session_delete(sid: str, user: dict = Depends(get_current_user)):
 
 
 # ---------- CCCD PUSH (máy ngoài bắn dữ liệu quét CCCD lên) ----------
-CCCD_API_KEY = os.getenv("CCCD_API_KEY", "")
+CCCD_API_KEY = secret_store.get("CCCD_API_KEY", _env_str_from_dotenv)
 CCCD_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "cccd_push")
 os.makedirs(CCCD_UPLOAD_DIR, exist_ok=True)
 
@@ -2008,272 +2009,10 @@ async def cccd_upload_image(request: Request, file: UploadFile = File(...)):
     return {"url": f"/uploads/cccd_push/{name}", "size": len(data)}
 
 
-# ==================== DẤU VẾT HIỆN TRƯỜNG (ảnh vụ án) ====================
-# Vụ án = work_session (không tách collection riêng). Mỗi ảnh là 1 doc trong
-# scene_traces, seq tự tăng trong phiên => hiển thị "Ảnh 001", "Ảnh 002"...
-# Nguồn ảnh: máy ngoài bắn sang (/api/scene/push, xác thực bằng header) hoặc
-# cán bộ tự chụp/chọn file trên UI (/api/scene/traces, xác thực bằng JWT).
-SCENE_API_KEY = os.getenv("SCENE_API_KEY", "")
-SCENE_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "scene")
-os.makedirs(SCENE_UPLOAD_DIR, exist_ok=True)
-
-SCENE_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-SCENE_MAX_BYTES = 10 * 1024 * 1024          # ảnh hiện trường thường to hơn ảnh chân dung
-
-
-def _require_scene_key(request: Request) -> None:
-    if SCENE_API_KEY and request.headers.get("X-Scene-Key", "") != SCENE_API_KEY:
-        raise HTTPException(401, "Sai X-Scene-Key")
-
-
-def _s_scene(doc: dict) -> dict:
-    if not doc:
-        return doc
-    out = dict(doc)
-    out["id"] = str(out.pop("_id"))
-    out["session_id"] = str(out.get("session_id") or "")
-    for k in ("created_at", "captured_at"):
-        v = out.get(k)
-        if isinstance(v, datetime):
-            out[k] = v.isoformat()
-    # embedding là vector 512 số, không cần trả về UI cho nhẹ payload.
-    out.pop("face_embedding", None)
-    return out
-
-
-async def _next_scene_seq(session_oid) -> int:
-    """Số thứ tự ảnh trong phiên. Dùng counters như _next_session_code để 2 máy
-    bắn ảnh cùng lúc không nhận trùng seq."""
-    doc = await db.counters.find_one_and_update(
-        {"_id": f"scene_seq_{session_oid}"},
-        {"$inc": {"seq": 1}},
-        upsert=True,
-        return_document=True,
-    )
-    return int(doc.get("seq", 1))
-
-
-async def _save_scene_image(data: bytes, ext: str) -> tuple[str, str]:
-    ext = (ext or "").lower()
-    if ext not in SCENE_ALLOWED_EXT:
-        raise HTTPException(400, "Chỉ hỗ trợ ảnh jpg/png/webp")
-    if not data:
-        raise HTTPException(400, "Ảnh rỗng")
-    if len(data) > SCENE_MAX_BYTES:
-        raise HTTPException(400, "Ảnh vượt quá 10MB")
-    name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
-    path = os.path.join(SCENE_UPLOAD_DIR, name)
-    with open(path, "wb") as f:
-        f.write(data)
-    return f"/uploads/scene/{name}", name
-
-
-async def _insert_scene_trace(
-    session_doc: dict,
-    url: str,
-    size: int,
-    ext: str,
-    *,
-    source: str,
-    note: str = "",
-    device_id: str = "",
-    captured_at: Optional[datetime] = None,
-    created_by: str = "",
-) -> dict:
-    now = datetime.utcnow()
-    doc = {
-        "session_id": session_doc["_id"],
-        "seq": await _next_scene_seq(session_doc["_id"]),
-        "url": url,
-        "size": size,
-        "mime": f"image/{'jpeg' if ext in ('.jpg', '.jpeg') else ext.lstrip('.')}",
-        "note": (note or "").strip(),
-        "source": source,
-        "device_id": (device_id or "").strip(),
-        "captured_at": captured_at or now,
-        "created_at": now,
-        "created_by": created_by,
-        # Để sẵn cho tính năng matching sau này, chưa tính lúc upload.
-        "face_embedding": None,
-        "face_count": None,
-    }
-    res = await db.scene_traces.insert_one(doc)
-    doc["_id"] = res.inserted_id
-    return doc
-
-
-async def _scene_session_or_400(session_id: Optional[str], username: str) -> dict:
-    """Ảnh hiện trường BẮT BUỘC thuộc 1 phiên. Có session_id thì dùng, không có
-    thì lấy phiên đang mở; không có phiên nào mở thì báo cần khởi tạo phiên."""
-    if session_id:
-        doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
-        if not doc:
-            raise HTTPException(400, "Phiên làm việc không tồn tại.")
-        return doc
-    doc = await _get_open_session_or_none(username) if username else None
-    if not doc:
-        doc = await db.work_sessions.find_one({"status": "open"})
-    if not doc:
-        raise HTTPException(409, "Chưa có phiên làm việc nào đang mở. Cần khởi tạo phiên trước khi thêm dấu vết hiện trường.")
-    return doc
-
-
-@app.get("/api/scene/health")
-async def scene_health(request: Request):
-    """Máy ngoài tự kiểm tra kết nối + xem có phiên nào đang mở để bắn ảnh vào."""
-    _require_scene_key(request)
-    sess = await db.work_sessions.find_one({"status": "open"})
-    return {
-        "ok": True,
-        "has_open_session": bool(sess),
-        "session_id": str(sess["_id"]) if sess else None,
-        "session_code": (sess or {}).get("code"),
-        "case_name": (sess or {}).get("case_name", ""),
-        "max_bytes": SCENE_MAX_BYTES,
-        "allowed_ext": sorted(SCENE_ALLOWED_EXT),
-    }
-
-
-@app.post("/api/scene/push")
-async def scene_push(
-    request: Request,
-    file: Optional[UploadFile] = File(default=None),
-    session_id: Optional[str] = Form(default=None),
-    note: str = Form(default=""),
-    device_id: str = Form(default=""),
-):
-    """Máy ngoài bắn ảnh hiện trường lên. Nhận cả 2 kiểu để không phụ thuộc
-    thiết bị: multipart (field `file`) hoặc JSON {image_b64, filename, ...}."""
-    _require_scene_key(request)
-
-    if file is not None:
-        data = await file.read()
-        ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
-        sid, note_in, dev = session_id, note, device_id
-    else:
-        try:
-            body = await request.json()
-        except Exception:
-            raise HTTPException(400, "Thiếu ảnh: gửi multipart field 'file' hoặc JSON 'image_b64'.")
-        b64 = (body.get("image_b64") or "").strip()
-        if not b64:
-            raise HTTPException(400, "Thiếu ảnh: gửi multipart field 'file' hoặc JSON 'image_b64'.")
-        if "," in b64[:64] and b64.lstrip().startswith("data:"):
-            b64 = b64.split(",", 1)[1]                       # bỏ tiền tố data:image/...;base64,
-        try:
-            data = base64.b64decode(b64, validate=False)
-        except Exception:
-            raise HTTPException(400, "image_b64 không phải base64 hợp lệ")
-        ext = os.path.splitext(body.get("filename") or "")[1].lower() or ".jpg"
-        sid = body.get("session_id") or session_id
-        note_in = body.get("note") or ""
-        dev = body.get("device_id") or ""
-
-    session_doc = await _scene_session_or_400(sid, "")
-    url, _ = await _save_scene_image(data, ext)
-    doc = await _insert_scene_trace(
-        session_doc, url, len(data), ext,
-        source="push", note=note_in, device_id=dev, created_by="",
-    )
-    return _s_scene(doc)
-
-
-@app.get("/api/scene/traces")
-async def list_scene_traces(
-    session_id: Optional[str] = Query(default=None),
-    user: dict = Depends(get_current_user),
-):
-    session_doc = await _scene_session_or_400(session_id, user["username"])
-    items = [
-        _s_scene(d)
-        async for d in db.scene_traces.find({"session_id": session_doc["_id"]}).sort([("seq", 1)])
-    ]
-    return {
-        "session": {
-            "id": str(session_doc["_id"]),
-            "code": session_doc.get("code", ""),
-            "case_name": session_doc.get("case_name", ""),
-            "status": session_doc.get("status", ""),
-            "opened_at": (session_doc.get("opened_at").isoformat()
-                          if isinstance(session_doc.get("opened_at"), datetime) else None),
-        },
-        "items": items,
-        "total": len(items),
-    }
-
-
-@app.post("/api/scene/traces")
-async def create_scene_trace(
-    request: Request,
-    file: UploadFile = File(...),
-    session_id: Optional[str] = Form(default=None),
-    note: str = Form(default=""),
-    source: str = Form(default="upload"),
-    user: dict = Depends(get_current_user),
-):
-    """Cán bộ chụp camera hoặc chọn file trên UI."""
-    session_doc = await _scene_session_or_400(session_id, user["username"])
-    data = await file.read()
-    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
-    url, _ = await _save_scene_image(data, ext)
-    doc = await _insert_scene_trace(
-        session_doc, url, len(data), ext,
-        source="camera" if source == "camera" else "upload",
-        note=note, created_by=user["username"],
-    )
-    await _log(request, user, "create", "scene_trace", f"#{doc['seq']}",
-               ref_id=str(doc["_id"]), session_id=session_doc["_id"])
-    return _s_scene(doc)
-
-
-class SceneTracePatch(BaseModel):
-    note: str = Field(default="", max_length=500)
-
-
-@app.patch("/api/scene/traces/{trace_id}")
-async def update_scene_trace(
-    trace_id: str,
-    body: SceneTracePatch,
-    request: Request,
-    user: dict = Depends(get_current_user),
-):
-    doc = await db.scene_traces.find_one({"_id": _oid(trace_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
-    await db.scene_traces.update_one(
-        {"_id": doc["_id"]}, {"$set": {"note": body.note.strip()}}
-    )
-    doc["note"] = body.note.strip()
-    await _log(request, user, "update", "scene_trace", f"#{doc.get('seq')}",
-               ref_id=trace_id, session_id=doc.get("session_id"))
-    return _s_scene(doc)
-
-
-@app.delete("/api/scene/traces/{trace_id}")
-async def delete_scene_trace(
-    trace_id: str,
-    request: Request,
-    user: dict = Depends(get_current_user),
-):
-    doc = await db.scene_traces.find_one({"_id": _oid(trace_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
-    await db.scene_traces.delete_one({"_id": doc["_id"]})
-    # Xoá luôn file trên đĩa; lỗi xoá file không được làm hỏng API.
-    url = doc.get("url") or ""
-    if url.startswith("/uploads/scene/"):
-        try:
-            os.remove(os.path.join(SCENE_UPLOAD_DIR, os.path.basename(url)))
-        except OSError:
-            pass
-    await _log(request, user, "delete", "scene_trace", f"#{doc.get('seq')}",
-               ref_id=trace_id, session_id=doc.get("session_id"))
-    return {"ok": True}
-
 # ==================== WEIGHT SCALE (push từ máy cân ngoài + WS broadcast) ====================
 from weight_hub import hub as _weight_hub
 
-WEIGHT_API_KEY = os.getenv("WEIGHT_API_KEY", "")
+WEIGHT_API_KEY = secret_store.get("WEIGHT_API_KEY", _env_str_from_dotenv)
 
 
 class WeightPushBody(BaseModel):
