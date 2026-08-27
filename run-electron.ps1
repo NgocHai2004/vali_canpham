@@ -77,12 +77,19 @@ Write-Step "2/5 Services (usb 8766 + fingerprint 8765)..."
 
 # ---- 3. Backend uvicorn (bind 127.0.0.1, khong 0.0.0.0 nhu run.ps1 cu) ----
 Write-Step "3/5 Backend uvicorn (127.0.0.1:8000)..."
-Start-Process -FilePath $py `
-    -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','127.0.0.1','--port','8000' `
-    -WorkingDirectory $root `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $root 'logs\backend.out.log') `
-    -RedirectStandardError  (Join-Path $root 'logs\backend.err.log')
+# Guard chong trung giong start-services.ps1: chay lai script khi backend da song
+# thi instance thu hai chet voi "[Errno 10048] ... only one usage of each socket
+# address", va ghi de luon backend.err.log cua instance dang chay - mat log cu.
+if (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue) {
+    Write-Host "  Backend da lang nghe 8000 - bo qua spawn."
+} else {
+    Start-Process -FilePath $py `
+        -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','127.0.0.1','--port','8000' `
+        -WorkingDirectory $root `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $root 'logs\backend.out.log') `
+        -RedirectStandardError  (Join-Path $root 'logs\backend.err.log')
+}
 # Cho backend ready (poll /api/health).
 $healthUrl = 'http://127.0.0.1:8000/api/health'
 for ($i=0; $i -lt 60; $i++) {

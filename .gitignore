@@ -94,6 +94,9 @@ backend/services/weight/pending_queue.jsonl
 backend/services/weight/logs/
 backend/services/cccd_scanner/bin/
 backend/services/cccd_scanner/Logs/
+# Model OCR PaddleOCR >100MB (vuot gioi han file GitHub, phai tai ve local)
+backend/services/cccd_scanner/publish/Sdcb.PaddleOCR.Models.LocalV3.dll
+backend/services/cccd_scanner/publish/Sdcb.PaddleOCR.Models.LocalV4.dll
 backend/data_cccd/
 backend/uploads/
 backend/fp/

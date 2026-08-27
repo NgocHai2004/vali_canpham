@@ -1,5 +1,5 @@
 // window.js - cua so kiosk, khoa phim, dev/prod escape hatch. Cham Electron API.
-const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron')
+const { app, BrowserWindow, globalShortcut } = require('electron')
 const path = require('node:path')
 const config = require('./config')
 

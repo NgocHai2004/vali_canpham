@@ -44,13 +44,49 @@ TEMPLATE_FORMAT = TemplateFormat.FMR_V2005
 
 
 # Quality tu SDK la thang 0-100 (app.py hien thi thang, fingers.py cho dat
-# threshold 0..100 va ve bar theo min(quality,100)). Nhung tren thuc te da doc
-# duoc 128 => co frame SDK tra field chua duoc ghi. Loc TAI CHO DOC: gia tri
-# ngoai mien la rac, bo han, khong clamp. Clamp bien 128 thanh "100%" - dung
-# la cai te nhat: 1 frame rac se thanh 1 ngon "hoan hao" va lot qua cong
-# MIN_QUALITY, luu template kem vao Mongo ma khong ai biet.
-def _plausible(d: dict) -> bool:
-    return 0 <= d["quality"] <= 100 and 0 <= d["nfiq"] <= 100
+# threshold 0..100 va ve bar theo min(quality,100)). Gia tri ngoai mien la rac:
+# bo han, KHONG clamp. Clamp bien 128 hay 240 thanh "100%" la cai te nhat - 1
+# gia tri rac se thanh 1 ngon "hoan hao", lot cong MIN_QUALITY va luu template
+# kem vao Mongo ma khong ai biet.
+#
+# Slot 1 (ngon ngoai cung ben TRAI anh slap = ut trai o left_hand, tro phai o
+# right_hand) LUON tra ImageInfo.Quality ngoai mien 0-100 trong complete
+# callback: do duoc 193/215/223/230/240/305 qua 7 lan chup, ca hai tay, khong
+# lan nao slot 2/3/4 bi. Truoc day loc theo mien roi de quality = 0 MAC DINH
+# => ngon ro rang van hien 0%.
+#
+# NFIQScore la duong ra: voi slot 2/3/4 no BANG DUNG Quality tung lan
+# (48/48, 52/52, 54/54, 65/65, 67/67) => hai field mang cung mot so do, cung
+# thang 0-100. Rieng slot 1 thi Quality hong ma NFIQScore van hop ly (45, 54).
+# Nen day la doc field lanh thay field hong, KHONG phai doi thang do hay doan.
+#
+# NFIQScore di TRUOC, khong phai lam fallback cho Quality. Ly do la so hoc, do
+# duoc tu log that:
+#     slot1.Quality=193 == 45+48+48+52 = sum(NFIQScore ca 4 ngon)
+#     slot1.Quality=240 == 54+54+65+67 = sum(NFIQScore ca 4 ngon)
+# Khop tuyet doi 2/2 lan => ImageInfo[0].Quality trong complete callback KHONG
+# phai quality cua ngon ngoai cung, no la TONG quality ca cum. Suy nguoc cho 5
+# lan chup truoc do cung nhat quan (230-170=60, 223-172=51, 215-173=42,
+# 215-157=58, 305-225=80 - deu trong 0-100 va hop ly).
+#
+# Vi vay "Quality truoc, NFIQ sau" la BAY: 4 ngon moi ngon 18% -> tong 72 -> lot
+# mien 0-100 -> bao ngon ngoai cung 72% thay vi 18%. Sai kieu nay con kho phat
+# hien hon 0% vi no trong nhu so do that.
+#
+# NFIQScore la so do per-finger dung cho MOI slot: voi slot 2/3/4 no bang dung
+# Quality tung lan (48/48, 52/52, 54/54, 65/65, 67/67 - hai field cung mot so
+# do, cung thang 0-100), voi slot 1 no la so duy nhat khong bi nhiem tong.
+# Gia tri quan sat duoc (26..86) dung thang NFIQ 2.0 (0-100, cao = tot), khop
+# nguong 0-100 va spinbox 0..100 trong UI cua hang, khong phai NFIQ 1.0 (1-5).
+#
+# Ca hai field ngoai mien -> None = "khong co so do", de api.py xu ly nhu
+# no_quality thay vi bao 0% oan cho ngon.
+def _quality_of(raw_quality: int, raw_nfiq: int) -> tuple[Optional[int], str]:
+    if 0 <= raw_nfiq <= 100:
+        return raw_nfiq, "NFIQScore"
+    if 0 <= raw_quality <= 100:
+        return raw_quality, "Quality"
+    return None, "none"
 
 
 @dataclass
@@ -58,7 +94,6 @@ class FingerCapture:
     """Ket qua 1 ngon trong 1 lan slap."""
     slot: int                      # 1..4, vi tri trong anh slap tu trai sang
     quality: int = 0
-    nfiq: int = 0
     x: int = 0
     y: int = 0
     template: bytes = b""
@@ -73,7 +108,7 @@ class CaptureResult:
     fingers: list[FingerCapture] = field(default_factory=list)
     message: str = ""
     frames: int = 0
-    # Cac gia tri quality/nfiq bi loai vi ngoai mien 0-100. Neu list nay day
+    # Cac gia tri quality bi loai vi ngoai mien 0-100. Neu list nay day
     # ma fingers[].quality toan 0 => thang do cua SDK KHONG phai 0-100 va
     # _plausible dang loai sach; luc do phai calibrate lai chu khong phai
     # noi long cong MIN_QUALITY.
@@ -183,19 +218,39 @@ class CaptureEngine:
         timeout: int = DEFAULT_TIMEOUT,
         gate: int = DEFAULT_GATE,
         on_frame: Optional[Callable[[list, str], None]] = None,
+        absent: Optional[list[str]] = None,
     ) -> CaptureResult:
         """Chup 1 slap va cho den khi SDK bao hoan tat.
 
-        expect = so ngon mong doi (4 cho ban tay, 1 cho ngon cai). Dung de
-        canh bao khi nguoi dan dat thieu ngon, khong dung de chan.
+        expect = so ngon mong doi CON LAI cua cum (da tru ngon danh dau khong co
+        van tay). Chi de bao vao diag cho caller dung khi dung thong bao loi -
+        SDK khong nhan tham so nay.
+
+        absent = danh sach ma ngon KHONG CO VAN TAY (vd ["left_middle"]), truyen
+        vao SDK qua tham so exceptions cua StartCapture. Day la duong DUY NHAT
+        noi cho SDK biet dung cho du ngon: auto_capture chi chot frame khi thay
+        du so ngon cua slap position, nen nguoi thieu 1 ngon ma khong khai bao se
+        lam moi lan chup chay het timeout roi tra -2019, khong bao gio co anh.
         """
         sdk = self.ensure_open()
+        # Ma ngon -> ten field trong FingerPosition ("left_middle" ->
+        # "LEFT_MIDDLE"). hasattr de mot ma sai khong lam do ca lan chup: bo qua
+        # con tra ve timeout, dung hon la nem AttributeError tu giua capture.
+        exceptions = None
+        if absent:
+            exceptions = M.FingerPosition()
+            for code in absent:
+                fld = code.upper()
+                if hasattr(exceptions, fld):
+                    setattr(exceptions, fld, True)
         done = threading.Event()
-        # "best" giu quality CAO NHAT tung slot qua cac frame preview. Dung
-        # max thay vi frame cuoi vi frame cuoi co the la luc nguoi dan nhac
-        # tay ra (quality tut ve 0) du SDK da thay frame dep truoc do.
+        # Quality chi lay tu ImageParams cua complete callback (state["final"]),
+        # la gia tri SDK CHOT luc ket thuc capture. Frame preview chi dung de
+        # hien thi live, KHONG dung de tinh quality: max qua preview la mot phep
+        # lac quan - 1 frame nhieu luc nguoi dang dat tay co the cho quality cao
+        # bat thuong, khong tuong ung voi anh duoc GetImage tra ve.
         state = {"code": M.CAPTURE_TIMEOUT, "count": 0, "frames": 0,
-                 "per": [], "best": {}, "final": {}, "msg": "",
+                 "per": [], "final": {}, "msg": "",
                  "dropped": [], "diag": {}}
 
         def on_preview(code: int, p) -> None:
@@ -205,29 +260,36 @@ class CaptureEngine:
                 ip = p.contents.ImageParams
                 n = max(0, min(ip.ImageCount, 4))
                 per = []
+                praw = []
                 for i in range(n):
                     fi = ip.ImageInfo[i]
-                    d = {
+                    q, src = _quality_of(fi.Quality, fi.NFIQScore)
+                    praw.append({"slot": i + 1, "Quality": fi.Quality,
+                                 "NFIQScore": fi.NFIQScore,
+                                 "Intensity": fi.Intensity,
+                                 "out_score": round(float(fi.out_score), 3),
+                                 "result": fi.result, "used": src})
+                    if q is None:
+                        if len(state["dropped"]) < 20:
+                            state["dropped"].append(
+                                {"slot": i + 1, "Quality": fi.Quality,
+                                 "NFIQScore": fi.NFIQScore, "where": "preview"})
+                        continue
+                    per.append({
                         "slot": i + 1,
-                        "quality": fi.Quality,
-                        "nfiq": fi.NFIQScore,
+                        "quality": q,
                         "x": fi.LeftTopCordinates[0],
                         "y": fi.LeftTopCordinates[1],
-                    }
-                    if _plausible(d):
-                        per.append(d)
-                    elif len(state["dropped"]) < 20:
-                        state["dropped"].append(d)
+                    })
+                # Chi giu frame preview CUOI: du de biet slot 1 co so do dung duoc
+                # o field nao, khong lam phinh log. Phai nam TRONG state["diag"]
+                # moi ra tới CaptureResult.diag => api.py moi in ra.
+                state["diag"]["preview_raw_last"] = praw
                 msg = ip.FingerRoiInfo.FingerPreviewMessage.decode(
                     errors="replace").strip()
                 state["frames"] += 1
                 state["per"] = per
                 state["msg"] = msg
-                # Giu quality tot nhat tung slot qua toan bo frame.
-                for d in per:
-                    cur = state["best"].get(d["slot"])
-                    if cur is None or d["quality"] > cur["quality"]:
-                        state["best"][d["slot"]] = d
                 self._set_live(active=True, fingers=per, message=msg,
                                frames=state["frames"])
                 if on_frame:
@@ -238,8 +300,8 @@ class CaptureEngine:
         def on_complete(code: int, params, lst) -> None:
             state["code"] = code
             state["count"] = lst.contents.FingerCount if lst else 0
-            # Doc THEM quality tu ImageParams cua complete callback, lam nguon
-            # DU PHONG cho preview.
+            # Doc quality tu ImageParams cua complete callback - day la NGUON
+            # DUY NHAT cho quality cua moi ngon (da bo max qua preview).
             #
             # Truoc day o day khong doc params, vi params bi nghi la nguon gia
             # tri rac (128%). Nhung nguyen nhan that cua 128 la doc slot >=
@@ -262,22 +324,30 @@ class CaptureEngine:
                 raw: list[tuple] = []
                 for i in range(n):
                     fi = ip.ImageInfo[i]
-                    d = {
+                    q, src = _quality_of(fi.Quality, fi.NFIQScore)
+                    # Ghi lai MOI gia tri doc duoc, ke ca gia tri bi loai, cung
+                    # voi field da dung ("used"). Neu khong log thi khong phan
+                    # biet duoc "SDK khong bao slot nay" voi "SDK bao gia tri rac",
+                    # va khong kiem chung lai duoc gia thuyet tong-quality.
+                    raw.append({"slot": i + 1, "Quality": fi.Quality,
+                                "NFIQScore": fi.NFIQScore,
+                                "Intensity": fi.Intensity,
+                                "out_score": round(float(fi.out_score), 3),
+                                "result": fi.result, "used": src,
+                                "x": fi.LeftTopCordinates[0],
+                                "y": fi.LeftTopCordinates[1]})
+                    if q is None:
+                        if len(state["dropped"]) < 20:
+                            state["dropped"].append(
+                                {"slot": i + 1, "Quality": fi.Quality,
+                                 "NFIQScore": fi.NFIQScore, "where": "complete"})
+                        continue
+                    state["final"][i + 1] = {
                         "slot": i + 1,
-                        "quality": fi.Quality,
-                        "nfiq": fi.NFIQScore,
+                        "quality": q,
                         "x": fi.LeftTopCordinates[0],
                         "y": fi.LeftTopCordinates[1],
                     }
-                    # Ghi lai MOI gia tri doc duoc, ke ca gia tri se bi
-                    # _plausible() loai. Neu khong log thi khong phan biet duoc
-                    # "SDK khong bao slot nay" voi "SDK bao nhung gia tri rac".
-                    raw.append((i, fi.Quality, fi.NFIQScore, fi.result,
-                                fi.LeftTopCordinates[0], fi.LeftTopCordinates[1]))
-                    if _plausible(d):
-                        state["final"][d["slot"]] = d
-                    elif len(state["dropped"]) < 20:
-                        state["dropped"].append(d)
                 state["diag"]["complete_raw"] = raw
             except Exception as e:  # noqa: BLE001 - callback tu thread SDK, khong duoc raise
                 state["diag"]["complete_error"] = repr(e)
@@ -289,7 +359,8 @@ class CaptureEngine:
             # auto_capture=True bat buoc: o che do False SDK chi preview, khong
             # chot frame nao -> GetImage tra -2038.
             rc = sdk.start_capture(on_preview, on_complete, timeout=timeout,
-                                   slap=slap, auto_capture=True,
+                                   slap=slap, exceptions=exceptions,
+                                   auto_capture=True,
                                    nfiq_quality=gate)
             if rc != M.SUCCESS:
                 self._set_live(active=False)
@@ -321,19 +392,16 @@ class CaptureEngine:
         result.slap_image = images[0] if images else b""
         # index 0 la anh slap tong; tung ngon bat dau tu index 1.
         #
-        # Quality co HAI nguon, gop lai vi moi nguon deu co the thieu slot:
-        #   - state["final"]: ImageParams cua complete callback = gia tri SDK
-        #     CHOT lai luc ket thuc. Uu tien nguon nay.
-        #   - state["best"] : quality cao nhat qua cac frame preview. Du phong
-        #     cho slot ma complete khong bao.
-        # Ca hai da qua _plausible() nen khong con duong nao dua gia tri rac vao.
+        # Quality chi co MOT nguon: state["final"] - ImageParams cua complete
+        # callback, da qua _plausible() nen khong con duong nao dua gia tri rac
+        # vao. Da bo max qua preview frames (best): max la phep lac quan, 1
+        # frame nhiue co the cho quality cao bat thuong khong tuong ung voi anh
+        # duoc GetImage tra ve, gay ra "quality cao ma anh mo".
         #
-        # Chi dung 1 nguon la sinh loi: neu slot khong co so do nao thi nhan
-        # quality = 0 mac dinh cua Python, roi cong MIN_QUALITY tuong la van tay
-        # qua kem va tu choi ca cum (da thay buoc thumbs log (1,0,0),(2,0,0) 4
-        # lan lien du anh + template tach duoc binh thuong).
-        per_meta = dict(state["best"])
-        per_meta.update(state["final"])
+        # Slot nao final khong bao so do -> khong co so do de danh gia (khong
+        # phai "van tay qua kem") -> roi vao no_quality, api.py xu ly tach biet
+        # voi truong hop do duoc va that su kem (xem phia duoi).
+        per_meta = state["final"]
         # Slot co anh/template nhung KHONG co so do nao tu ca 2 nguon. Khong the
         # bao 0 (cong chan se tuong la van tay kem, tu choi ca cum) va khong the
         # bao 100 (lot cong ma khong biet that gia). Bao ra ngoai de api.py xu ly
@@ -351,7 +419,6 @@ class CaptureEngine:
             result.fingers.append(FingerCapture(
                 slot=slot,
                 quality=meta.get("quality", 0),
-                nfiq=meta.get("nfiq", 0),
                 x=meta.get("x", 0),
                 y=meta.get("y", 0),
                 template=tmpl,

@@ -36,6 +36,9 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
   const [err, setErr] = useState("");
   const [finished, setFinished] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Cum co ngon loi (partial=true): {step, failing:[{code,reason,quality,need}]}.
+  // Luu lai de can bo quyet dinh "xac nhan thieu" hoac "chup lai cum".
+  const [partial, setPartial] = useState(null);
   // Anh goc (full size) chi dung luc upload; state chi giu thumb cho nhe.
   const capturedRef = useRef({});
 
@@ -78,6 +81,7 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
     setStatus("");
     setFinished(false);
     setSaving(false);
+    setPartial(null);
     capturedRef.current = {};
   }, []);
 
@@ -116,6 +120,12 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
         nextThumbs[c.code] = c.thumb_b64 || c.image_b64;
       }
       setThumbs((prev) => ({ ...prev, ...nextThumbs }));
+      // Con ngon loi trong cum: mo panel cho can bo quyet dinh.
+      if (r.partial) {
+        setPartial({ step: target, failing: r.failing || [] });
+      } else {
+        setPartial(null);
+      }
       setStatus(r.finished ? t("fpenroll.status.done_all") : r.message || "");
     } catch (e) {
       setErr(e.message);
@@ -147,6 +157,31 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
     }
   };
 
+  // Can bo xac nhan nhung ngon da that bai trong cum la "khong co van tay".
+  // KHONG kich hoat quet lai - backend dung lai data cua lan chup gan nhat.
+  const confirmMissing = async (codes) => {
+    if (!sid || !partial || busy || saving) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await fpApi.confirmMissing(sid, partial.step, codes);
+      applyState(r);
+      // Ngong duoc danh dau thieu khong co anh -> xoa thumb + cache.
+      setThumbs((prev) => {
+        const nx = { ...prev };
+        for (const c of codes) delete nx[c];
+        return nx;
+      });
+      for (const c of codes) delete capturedRef.current[c];
+      setPartial(null);
+      setStatus(r.message || "");
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const cancel = async () => {
     if (sid) {
       try { await fpApi.cancel(sid); } catch { /* noop */ }
@@ -167,6 +202,10 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
         const up = await api.uploadPhoto(file);
         mapping[key] = up.url;
       }
+      // Danh sach ngon can bo xac nhan "khong co van tay" (ma CO CODE trong
+      // morfin). DataCapturePage luu vao photos.fp_missing de admin phan biet
+      // "da xac nhan thieu" voi "chua thu thap duoc" khi xem lai ho so.
+      mapping.fp_missing = fingers.filter((f) => f.missing).map((f) => f.code);
       onDone(mapping);
     } catch (e) {
       setErr(t("fpenroll.err.upload", { message: e.message }));
@@ -201,17 +240,28 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
         {s.codes.map((code) => {
           const f = byCode[code] || {};
           const img = thumbs[code];
+          const tileCls =
+            "fp-tile" +
+            (f.done ? " has-img" : "") +
+            (f.missing ? " has-missing" : "");
           return (
-            <div className={"fp-tile" + (f.done ? " has-img" : "")} key={code}>
+            <div className={tileCls} key={code}>
               <div className="fp-tile-img">
                 {img
                   ? <img alt={fingerName(code)} src={`data:image/png;base64,${img}`} />
                   : <span className="fp-tile-empty">—</span>}
-                {f.done && (
+                {f.missing ? (
+                  <span className="fp-quality missing" title={t("fpenroll.tile.missing_label")}>
+                    ⊘
+                  </span>
+                ) : f.done ? (
                   <span className={"fp-quality " + qClass(f.quality)}>{f.quality}%</span>
-                )}
+                ) : null}
               </div>
-              <div className="fp-tile-name">{fingerName(code)}</div>
+              <div className="fp-tile-name">
+                {fingerName(code)}
+                {f.missing && <em className="fp-tile-missing">{t("fpenroll.tile.missing_label")}</em>}
+              </div>
             </div>
           );
         })}
@@ -259,6 +309,52 @@ export default function FingerprintEnrollModal({ open, userName, onClose, onDone
 
               {status && <div className="fp-msg">{status}</div>}
               {err && <div className="fp-err">{err}</div>}
+
+              {partial && partial.failing.length > 0 && (
+                <div className="fp-partial">
+                  <div className="fp-partial-title">{t("fpenroll.partial.title")}</div>
+                  <ul className="fp-partial-list">
+                    {partial.failing.map((w) => (
+                      <li key={w.code}>
+                        {w.reason === "weak"
+                          ? t("fpenroll.partial.reason_weak", {
+                              name: fingerName(w.code),
+                              q: w.quality,
+                              need: w.need,
+                            })
+                          : t("fpenroll.partial.reason_no_quality", {
+                              name: fingerName(w.code),
+                            })}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="fp-partial-hint">
+                    {partial.failing.some((w) => w.reason === "no_quality")
+                      ? t("fpenroll.partial.hint")
+                      : t("fpenroll.partial.hint_weak_only")}
+                  </div>
+                  <div className="fp-partial-actions">
+                    {partial.failing.some((w) => w.reason === "no_quality") && (
+                      <button
+                        className="btn-ghost"
+                        onClick={() => confirmMissing(
+                          partial.failing.filter((w) => w.reason === "no_quality")
+                            .map((w) => w.code))}
+                        disabled={busy || saving}
+                      >
+                        {t("fpenroll.confirm_missing_btn")}
+                      </button>
+                    )}
+                    <button
+                      className="btn-primary"
+                      onClick={() => capture(partial.step)}
+                      disabled={busy || saving}
+                    >
+                      {t("fpenroll.retake_cluster_btn")}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="fp-actions">
                 <button

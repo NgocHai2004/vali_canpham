@@ -320,6 +320,18 @@ export const fpApi = {
     body: JSON.stringify({ step: step || null }),
   }),
   redo: (sid, code) => fpRequest(`/fp/api/session/${sid}/redo/${code}`, { method: "POST" }),
+  // Can bo chap nhan CA CUM sau khi xem anh. Buoc BAT BUOC cho moi cum: chua
+  // confirm thi service khong coi cum la xong, next_step van tra ve chinh cum do.
+  confirmStep: (sid, step) => fpRequest(`/fp/api/session/${sid}/confirm_step`, {
+    method: "POST",
+    body: JSON.stringify({ step }),
+  }),
+  // Danh dau / bo danh dau ngon "khong co van tay" => ghi none, khong co anh.
+  // Danh dau TRUOC khi chup: cum se chi cho dung so ngon that su co.
+  markNone: (sid, codes, value = true) => fpRequest(`/fp/api/session/${sid}/mark_none`, {
+    method: "POST",
+    body: JSON.stringify({ codes, value }),
+  }),
   cancel: (sid) => fpRequest(`/fp/api/session/${sid}`, { method: "DELETE" }),
   // Abort lenh chup dang cho tay o tang THIET BI. Bat buoc phai goi truoc cancel():
   // DELETE session KHONG nha thiet bi (da test: sau DELETE, /api/live van active

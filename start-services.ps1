@@ -82,12 +82,25 @@ if (Test-Path $cccdExe) {
     if ($cccdSvc -and $cccdSvc.Status -eq 'Running') {
         try { Stop-Service -Name 'CccdReaderService' -Force -ErrorAction Stop } catch {}
     }
-    Start-Process -FilePath $cccdExe `
-        -WorkingDirectory (Split-Path $cccdExe) `
-        -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $logs 'cccd.out.log') `
-        -RedirectStandardError  (Join-Path $logs 'cccd.err.log')
-    Write-Host "  -> spawned: CCCD Reader Service (background)"
+    # Guard chong trung o TANG PROCESS (khong phai port: service nay khong listen).
+    # Instance thu hai lam StartMonitor throw "Multiple reader initialization is not
+    # allowed" -> Program.cs Environment.Exit(1) sau 3 giay, nen moi lan chay
+    # run-electron lai spawn mot process chet yeu. Ca hai instance con redirect
+    # stdout vao cung cccd.out.log (truncate) => log bi cat nat, kho doc.
+    # LUU Y: loi "[DOC] SCANCARD -> FAILURE" KHONG phai do double-spawn. Da kiem
+    # chung 26/08: kill sach, chay dung 1 instance, StartMonitor OK + "Dau doc:
+    # ADDED" nhung van FAILURE. Do la loi rieng (nghi thieu nap SDK tu _runtime).
+    $cccdRunning = @(Get-Process -Name 'CccdService' -ErrorAction SilentlyContinue)
+    if ($cccdRunning.Count -gt 0) {
+        Write-Warning "CccdService.exe da chay (PID $($cccdRunning.Id -join ', ')) - bo qua spawn de tranh cuom reader."
+    } else {
+        Start-Process -FilePath $cccdExe `
+            -WorkingDirectory (Split-Path $cccdExe) `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $logs 'cccd.out.log') `
+            -RedirectStandardError  (Join-Path $logs 'cccd.err.log')
+        Write-Host "  -> spawned: CCCD Reader Service (background)"
+    }
 } else {
     Write-Warning "Khong tim thay CCCD service: $cccdExe"
 }

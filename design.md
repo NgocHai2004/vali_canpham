@@ -114,6 +114,12 @@ Grid: `grid-template-columns: 1fr 260px;`
   - Grayscale fingerprint thumbnail
   - Quality chip below: `Chất lượng: Xuất sắc` (green) / `Trung bình` (orange)
     / `Kém` (red)
+- Ngón thật sự không có vân tay (cán bộ đã xác nhận — xem `photos.fp_missing`):
+  cell hiển thị chip xám `Không có vân tay` (thay vì thumbnail), coi là **đã
+  xử lý**, KHÔNG đếm vào hàng "Thiếu" trong `5.2. Data Verification`. Ngón
+  trong `fp_missing` vẫn tính vào tổng `10 / 10` như ngón đã thu thập bình
+  thường. Phân biệt với ngón chưa thu thập được (không có trong cả `fp_templates`
+  lẫn `fp_missing`) — ngón đó vẫn là `Thiếu` đỏ.
 
 ### 3.2. Circular KPI (right of the fingerprint grid)
 - Single square-ish card, centered content

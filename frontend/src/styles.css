@@ -7725,6 +7725,25 @@ textarea.input {
   white-space: nowrap;
 }
 
+/* Ngon duoc xac nhan "khong co van tay": lam xam, khong con badge %. */
+.fp-tile.has-missing .fp-tile-img {
+  background: rgba(30, 38, 54, 0.65);
+  border-color: rgba(126, 147, 184, 0.15);
+}
+.fp-quality.missing {
+  right: auto;
+  left: 4px;
+  font-size: 12px;
+  background: #55607a;
+  color: #e7ebf2;
+}
+.fp-tile-missing {
+  display: block;
+  font-size: 10px;
+  font-style: normal;
+  color: #9aa7bf;
+}
+
 .fp-minq {
   font-size: 11.5px;
   font-weight: 600;
@@ -7943,6 +7962,48 @@ textarea.input {
 }
 .fp-cell-quality.ok  { background: #ffc94d; }
 .fp-cell-quality.bad { background: #ff5f6d; color: #fff; }
+/* "Khong co van tay" (none): mau xam trung tinh, KHONG do - day khong phai loi
+   chup ma la su that ve ban tay, can bo khong can thu lai. */
+.fp-cell-quality.none {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  font-size: 9.5px;
+  letter-spacing: 0.3px;
+}
+/* O ngon danh dau none: mo di + gach cheo nen nhin phat la biet bo qua. */
+.fp-preview-cell.fp-cell-none {
+  opacity: 0.62;
+  border-style: dashed;
+}
+.fp-preview-cell.fp-cell-none .fp-preview-thumb svg { color: var(--muted); }
+/* Nut bat/tat none: an o goc tren-trai o, chi ro khi hover hoac dang bat, de
+   khong tranh cho voi badge chat luong o goc duoi-phai. */
+.fp-cell-none-btn {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(4, 18, 31, 0.55);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+.fp-preview-cell:hover .fp-cell-none-btn,
+.fp-cell-none-btn:focus-visible { opacity: 1; }
+.fp-cell-none-btn.on {
+  opacity: 1;
+  color: #ffd27a;
+  background: rgba(4, 18, 31, 0.8);
+}
+.fp-cell-none-btn:disabled { opacity: 0; cursor: default; }
+.fp-cell-none-btn.on:disabled { opacity: 0.5; }
 /* Icon ban tay to hon icon van tay cu (32px) de nhin ro ngon nao dang sang,
    nhung khung .fp-preview-thumb khong doi nen layout giu nguyen. */
 .fp-preview-thumb svg {
@@ -7951,6 +8012,25 @@ textarea.input {
   color: var(--muted);
 }
 .fp-preview-cell.done .fp-preview-thumb svg { color: #24d777; }
+
+/* Mode "chon ngon thieu": o ngon co vien highlight de can bo biet bam vao se
+   danh dau thieu (thay vi chup lai cum). O da danh none giu vien do de phan
+   biet voi o con thu duoc. */
+.fp-preview-cell.fp-cell-select {
+  outline: 2px solid #ffd27a;
+  outline-offset: 2px;
+  cursor: pointer;
+}
+.fp-preview-cell.fp-cell-select.fp-cell-none {
+  outline-color: #ff7a7a;
+}
+/* Nut "Ngón thiếu" dang bat mode chon: lat mau cho can bo thay dang o che do
+   chon ngon, khong phai trang thai thu thap. */
+.fp-none-mode-btn.active {
+  background: #ffd27a;
+  color: #04121f;
+  border-color: #ffd27a;
+}
 
 /* 10 van tay 1 hang, gom thanh 3 cum 4-2-4 (khop cum may Morfin chup).
    Cum ngon cai chi 2 o nen cot giua hep hon => 4fr 2fr 4fr, tile deu nhau. */
@@ -8017,6 +8097,40 @@ textarea.input {
   padding: 6px 10px;
   border-radius: 6px;
   width: 100%;
+}
+
+/* Panel xac nhan "khong co van tay" khi 1 cum co ngon loi (partial). */
+.fp-partial {
+  width: 100%;
+  border: 1.5px solid rgba(255, 201, 77, 0.45);
+  background: rgba(255, 201, 77, 0.07);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fp-partial-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffd27a;
+}
+.fp-partial-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.fp-partial-hint {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.fp-partial-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .fp-actions {

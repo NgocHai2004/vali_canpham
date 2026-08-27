@@ -49,7 +49,11 @@ const IconAlert = ({ s = 16 }) => (
 /* ---------- Login screen ---------- */
 export default function Login({ onLogin }) {
   const { t } = useI18n();
-  const [username, setUsername] = useState("admin");
+  // KHONG dien san "admin". Truoc day mac dinh la "admin" => o ten dang nhap
+  // luon co san chu, che mat placeholder "Nhap ten dang nhap", va can bo phai
+  // xoa tay truoc khi go ten minh. De trong cho giong o mat khau: chu mo huong
+  // dan hien ra, con tro nhay vao la go duoc ngay.
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [remember, setRemember] = useState(true);

@@ -6,6 +6,8 @@ Giu nguyen contract cua service cu de frontend doi it nhat:
     POST /api/session/start           {user_name}
     GET  /api/session/{sid}
     POST /api/session/{sid}/capture   {step?}   <-- chup 1 CUM, khong phai 1 ngon
+    POST /api/session/{sid}/confirm_step  {step}          <-- chap nhan ca cum
+    POST /api/session/{sid}/mark_none {codes, value?}     <-- ghi none cho 1 ngon
     POST /api/session/{sid}/redo/{finger_code}
     GET  /api/session/{sid}/preview/{finger_code}.png
     DELETE /api/session/{sid}
@@ -40,6 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import engine as E  # noqa: E402
 from engine import MorfinError, engine  # noqa: E402
+from morfin import CAPTURE_TIMEOUT as MORFIN_TIMEOUT  # noqa: E402
 from morfin import SlapPosition  # noqa: E402
 
 # ---------- Mapping slap -> ma ngon ----------
@@ -203,19 +206,31 @@ class FingerRecord:
     template_b64: Optional[str] = None
     image_b64: Optional[str] = None
     quality: int = 0
-    nfiq: int = 0
+    # SDK khong tra so do quality cho ngon nay. quality=0 luc do KHONG co nghia
+    # "van tay te" ma la "khong do duoc" - phai phan biet, neu khong UI hien 0%
+    # va can bo tuong ngon hong roi chup lai vo ich.
+    no_quality: bool = False
     captured_at: Optional[float] = None
+    # Can bo da danh dau ngon nay "khong co van tay" => ghi none, KHONG co anh.
+    # Dat qua POST /mark_none. Danh dau TRUOC khi chup: cum se chi cho dung so
+    # ngon that su co, nho do mapping slot->ngon khong the lech (xem capture()).
+    missing: bool = False
 
     @property
     def done(self) -> bool:
-        return self.template_b64 is not None
+        # "Da xu ly xong" = da thu duoc template HAY da xac nhan khong co van.
+        return self.template_b64 is not None or self.missing
 
     def to_public(self, include_template: bool = False) -> dict:
         out = {
             "code": self.code, "name_vi": self.name_vi, "hand": self.hand,
             "step": self.step, "done": self.done, "quality": self.quality,
-            "nfiq": self.nfiq,
-            "low_quality": self.done and self.quality < _min_quality(self.code),
+            "missing": self.missing, "no_quality": self.no_quality,
+            # Chi danh dau "chat luong kem" khi CO template that va duoi nguong.
+            # Ngon da confirm missing co quality = 0 mac dinh - neu khong chan
+            # template_b64 is not None se hien nham la kem thay vi khong co van.
+            "low_quality": (self.template_b64 is not None
+                            and self.quality < _min_quality(self.code)),
             "min_quality": _min_quality(self.code),
             "captured_at": self.captured_at,
         }
@@ -231,9 +246,22 @@ class Session:
     fingers: dict[str, FingerRecord] = field(default_factory=dict)
     slap_images: dict[str, str] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
+    # Cac step can bo DA BAM "Xac nhan". Day la DIEU KIEN DUY NHAT de mot cum
+    # duoc coi la xong: chup xong khong tu dong sang cum ke tiep nua, vi can bo
+    # phai xem anh ca cum roi moi chap nhan. Chua xac nhan => next_step van tra
+    # ve chinh cum do => bam chup lai la thu lai dung cum dang lam.
+    confirmed: set[str] = field(default_factory=set)
+
+    def step_captured(self, step: str) -> bool:
+        """Da co du lieu cho MOI ngon can co trong cum (chua chac da xac nhan).
+
+        Ngon danh dau none khong can anh - no da "xong" theo nghia khong con gi
+        phai thu. Ngon con lai phai co template.
+        """
+        return all(self.fingers[c].done for c in STEP_BY_NAME[step]["codes"])
 
     def step_done(self, step: str) -> bool:
-        return all(self.fingers[c].done for c in STEP_BY_NAME[step]["codes"])
+        return step in self.confirmed and self.step_captured(step)
 
     def next_step(self) -> Optional[dict]:
         for s in STEPS:
@@ -356,34 +384,73 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         if step is None:
             raise HTTPException(400, "Da xong tat ca 10 ngon.")
 
+    # Ngon da danh dau none (khong co van tay) bi loai KHOI CUM: khong cho no
+    # nua, va cum chi con cho dung so ngon that su co. Day la ly do phai danh
+    # dau none TRUOC khi chup: neu cum cho 4 ngon ma nguoi ta chi co 3, moi lan
+    # chup deu 422 vinh vien, khong co duong nao di tiep.
+    #
+    # Phai tinh TRUOC khi goi capture_slap: danh sach ngon vang con phai truyen
+    # vao SDK (tham so exceptions cua StartCapture), khong chi dung de kiem tra
+    # ket qua. auto_capture chi chot frame khi thay DU so ngon cua slap position,
+    # nen neu khong khai bao ngon vang thi SDK cho den het timeout roi tra -2019
+    # => api tra 408 "chup that bai", khong bao gio den duoc 422 co huong dan.
+    codes = [c for c in step["codes"] if not s.fingers[c].missing]
+    if not codes:
+        raise HTTPException(
+            400,
+            f"Ca cum {step['label_vi']} da danh dau khong co van tay - khong con "
+            "ngon nao de chup.",
+        )
+    expect = len(codes)
+    absent = [c for c in step["codes"] if s.fingers[c].missing]
+
     if not _capture_lock.acquire(blocking=False):
         raise HTTPException(409, "Dang co lenh chup khac chay.")
     try:
-        result = engine.capture_slap(step["slap"], expect=step["expect"])
+        result = engine.capture_slap(step["slap"], expect=expect, absent=absent)
     except MorfinError as e:
         raise HTTPException(500, str(e))
     finally:
         _capture_lock.release()
 
+    # Timeout co nghia la SDK KHONG chot duoc frame nao. Nguyen nhan thuong gap
+    # nhat khong phai loi thiet bi ma la dat THIEU ngon: auto_capture doi du so
+    # ngon cua slap position. Truoc day cho ra "Chup that bai: <ma loi SDK>" -
+    # can bo doc khong biet lam gi. Gio noi ro so ngon dang cho va duong ra
+    # (danh dau 'khong co van tay'), vi day la tinh huong duy nhat ma nguoi dan
+    # khong the tu khac phuc bang cach ap tay lai.
     if not result.ok:
+        if result.code == MORFIN_TIMEOUT:
+            raise HTTPException(
+                408,
+                f"Het thoi gian cho: may can du {expect} ngon cua {step['label_vi']} "
+                "moi chot duoc anh. Dat du ngon, ap deu va giu yen. Neu co ngon "
+                "khong co van tay (cut, tat, bang bo), danh dau 'khong co van tay' "
+                "o o ngon do roi chup lai.",
+            )
         raise HTTPException(408, f"Chup that bai: {engine.err(result.code)}")
     if not result.fingers:
         raise HTTPException(422, "Khong tach duoc ngon nao. Dat lai tay len sensor.")
 
-    codes = step["codes"]
-    got = result.fingers[: len(codes)]
-    if len(got) < step["expect"]:
+    got = result.fingers[:expect]
+    # Van chan khi thieu ngon. KHONG dua vao thu tu slot de doan ngon nao thieu:
+    # engine gom slot 1->4 va bo qua slot rong, nen thieu 1 ngon giua cum se lam
+    # zip(codes, got) gan template LECH SANG NGON KHAC - sai nguy hiem hon 422
+    # nhieu vi khong ai phat hien duoc. Ngon that su khong co van thi can bo danh
+    # dau none tren o ngon do (POST /mark_none), roi cum se chi cho so ngon con lai.
+    if len(got) < expect:
         raise HTTPException(
             422,
-            f"Chi nhan duoc {len(got)}/{step['expect']} ngon. "
-            "Dat du ngon, ap deu va giu yen.",
+            f"Chi nhan duoc {len(got)}/{expect} ngon. "
+            "Dat du ngon, ap deu va giu yen. Neu co ngon khong co van tay, "
+            "danh dau 'khong co van tay' o o ngon do roi chup lai.",
         )
 
     # Log gia tri THO tu SDK. Phai dat TRUOC cong quality: neu dat sau thi lan
     # chup bi tu choi se khong log gi ca - dung luc can so lieu nhat.
-    print("[MORFIN] step=%s raw (slot,quality,nfiq,x): %s" % (
+    print("[MORFIN] step=%s raw (slot,quality,x): %s" % (
         step["step"],
-        [(fc.slot, fc.quality, fc.nfiq, fc.x) for fc in got]), flush=True)
+        [(fc.slot, fc.quality, fc.x) for fc in got]), flush=True)
     # Toa do x cua tung slot la CACH DUY NHAT xac dinh slot nao la ngon nao:
     # slot co x nho nhat la ngon ben trai nhat TRONG ANH. Can so lieu nay vi
     # slot 1 tay phai (dang gan right_index) do te nhat trong khi slot 4 (gan
@@ -396,59 +463,44 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         print("[MORFIN] step=%s dropped (ngoai mien 0-100): %s" % (
             step["step"], result.dropped[:8]), flush=True)
 
-    # Slot tach duoc anh + template nhung SDK khong tra so do quality nao (ca
-    # preview lan complete) - engine.py bao ra qua result.no_quality.
+    # LUU MOI NGON tach duoc, KHONG cong quality o day.
     #
-    # Yeu cau nghiep vu la MOI ngon phai >= 50%. Khong do duoc quality thi
-    # KHONG CHUNG MINH DUOC ngon do dat 50% => phai tu choi va chup lai, giong
-    # nhu ngon do duoc ma thap. Truoc day cho cac slot nay di qua cong chan, ket
-    # qua la ngon hien "0%" tren frontend ma van duoc luu - vua sai yeu cau vua
-    # giau mat van de. Bao loi RIENG (khong gop vao "chat luong thap") vi nguyen
-    # nhan khac han: khong phai tay ban kem, ma la SDK khong tra so do.
-    no_q = set(result.no_quality)
-    if no_q:
-        print("[MORFIN] step=%s slot khong co so do quality: %s "
-              "(tu choi ca cum)" % (step["step"], sorted(no_q)), flush=True)
-        names_nq = ", ".join(
-            FINGER_NAME[code] for code, fc in zip(codes, got) if fc.slot in no_q)
-        raise HTTPException(
-            422,
-            f"Khong do duoc chat luong: {names_nq}. "
-            "Nhac tay len, dat lai ngay ngan giua sensor va giu yen roi chup lai.",
-        )
-
-    # Chan quality TRUOC khi luu: neu co ngon duoi nguong thi tu choi CA CUM.
-    # Khong luu mot phan roi bat chup lai phan con lai, vi 4 ngon nay den tu
-    # cung 1 anh slap - chup lai la chup lai ca ban tay.
-    weak = [
-        {"code": code, "name_vi": FINGER_NAME[code], "quality": fc.quality,
-         "nfiq": fc.nfiq, "need": _min_quality(code)}
-        for code, fc in zip(codes, got) if fc.quality < _min_quality(code)
-    ]
-    if weak:
-        # detail phai la STRING: frontend lam new Error(data.detail), dict se
-        # bien thanh "[object Object]" tren man hinh nguoi dan.
-        names = ", ".join(
-            f"{w['name_vi']} {w['quality']}% (can >= {w['need']}%)" for w in weak)
-        raise HTTPException(
-            422,
-            f"Chat luong chua dat: {names}. "
-            "Lau kho tay, ap deu ngon va giu yen roi chup lai.",
-        )
-
+    # Nguong khong con la cong chan luc chup: no chi de danh dau ngon nao yeu
+    # (low_quality) cho can bo THAY tren anh. Ly do doi: cong chan lam ngon van
+    # tay mon khong bao gio qua duoc, ca cum bi chup lai vo han, va can bo khong
+    # co cach nao chap nhan mot anh "kem nhung la anh tot nhat nguoi nay co the
+    # cho". Gio quyet dinh nam o can bo: xem anh ca cum roi bam Xac nhan.
+    #
+    # no_quality (SDK khong tra so do) chi khac weak o cho quality khong dang tin,
+    # KHONG phai ly do tu choi luu: anh + template van tach duoc va van dung duoc
+    # de tra cuu. Danh dau bang co no_quality de FE hien "khong do duoc" thay vi
+    # hien 0%, tranh can bo tuong ngon nay hong.
+    nq_slots = set(result.no_quality)
     captured = []
+    low = []
     for code, fc in zip(codes, got):
         rec = s.fingers[code]
         rec.template_b64 = base64.b64encode(fc.template).decode("ascii")
         rec.image_b64 = _bmp_to_png_b64(fc.image)
         rec.quality = fc.quality
-        rec.nfiq = fc.nfiq
+        rec.no_quality = fc.slot in nq_slots
         rec.captured_at = time.time()
         captured.append({**rec.to_public(include_template=True),
                          "image_b64": rec.image_b64,
                          "thumb_b64": _bmp_to_png_b64(fc.image, thumb=200)})
+        if rec.no_quality or rec.quality < _min_quality(code):
+            low.append({
+                "code": code, "name_vi": FINGER_NAME[code],
+                "reason": "no_quality" if rec.no_quality else "weak",
+                "quality": fc.quality, "need": _min_quality(code),
+            })
 
+    # Chup lai cum thi coi nhu xac nhan cu khong con hieu luc: can bo phai xem
+    # anh MOI roi xac nhan lai. Neu khong bo, cum da xac nhan mot lan se tu dong
+    # "xong" ngay khi chup lai, bo qua chinh anh vua chup.
+    s.confirmed.discard(step["step"])
     s.slap_images[step["step"]] = _bmp_to_png_b64(result.slap_image, thumb=600)
+    none_codes = [c for c in step["codes"] if s.fingers[c].missing]
     out = s.public()
     out.update({
         "ok": True,
@@ -458,8 +510,111 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         # Nguong tung ngon. Frontend phai dung map nay de to mau badge, khong
         # hardcode 50 - admin dat nguong RIENG cho tung ngon trong Settings.
         "min_quality_by_code": {c: _min_quality(c) for c in codes},
-        "message": f"Da luu {len(captured)} ngon ({step['label_vi']}).",
+        # Cum nao cung phai qua buoc xac nhan, ke ca khi 10/10 ngon dat nguong:
+        # can bo xem anh la buoc bat buoc, khong phai buoc xu ly ngoai le.
+        "needs_confirm": True,
+        "low": low,
+        "none_codes": none_codes,
     })
+    parts = [f"Da chup {len(captured)} ngon ({step['label_vi']})"]
+    if none_codes:
+        parts.append("%d ngon danh dau khong co van tay" % len(none_codes))
+    if low:
+        parts.append("%d ngon chat luong thap: %s" % (
+            len(low), ", ".join("%s %s" % (
+                w["name_vi"],
+                "khong do duoc" if w["reason"] == "no_quality" else "%d%%" % w["quality"],
+            ) for w in low)))
+    out["message"] = ". ".join(parts) + ". Xem anh roi bam Xac nhan de sang cum tiep."
+    return out
+
+
+class ConfirmStepReq(BaseModel):
+    step: str
+
+
+@app.post("/api/session/{sid}/confirm_step")
+def confirm_step(sid: str, body: ConfirmStepReq) -> dict:
+    """Can bo chap nhan CA CUM sau khi xem anh 10 ngon.
+
+    Day la buoc bat buoc cho MOI cum, ke ca cum ma ca 4 ngon deu vuot nguong:
+    quyet dinh "anh nay dung duoc" thuoc ve can bo, khong thuoc ve nguong so.
+    Ngon duoi nguong trong cum duoc chap nhan van giu template + anh binh thuong;
+    no chi mang co low_quality de admin doc lai ho so con thay duoc.
+
+    Khong chap nhan => khong goi endpoint nay, chup lai cum (capture cung step).
+    """
+    if body.step not in STEP_BY_NAME:
+        raise HTTPException(400, f"step khong hop le: {body.step}")
+    s = _get_session(sid)
+    # Chua chup xong thi khong co gi de xac nhan. Chan o day de mot lenh confirm
+    # den som (FE goi sai thu tu) khong lam cum bi coi la xong voi ngon rong,
+    # roi session ket thuc voi ngon khong co ca template ca danh dau none.
+    if not s.step_captured(body.step):
+        missing_names = ", ".join(
+            FINGER_NAME[c] for c in STEP_BY_NAME[body.step]["codes"]
+            if not s.fingers[c].done)
+        raise HTTPException(
+            400,
+            f"Cum nay chua co du lieu cho: {missing_names}. Chup cum roi moi xac nhan.",
+        )
+    s.confirmed.add(body.step)
+    out = s.public()
+    out["ok"] = True
+    out["confirmed_step"] = body.step
+    ns = out.get("next_step")
+    out["message"] = (
+        "Da xac nhan %s. %s" % (
+            STEP_BY_NAME[body.step]["label_vi"],
+            ("Tiep theo: %s." % ns["label_vi"]) if ns else "Da xong ca 10 ngon.",
+        ))
+    return out
+
+
+class MarkNoneReq(BaseModel):
+    codes: list[str]
+    # False = bo danh dau (can bo bam nham, hoac ngon do van chup duoc).
+    value: bool = True
+
+
+@app.post("/api/session/{sid}/mark_none")
+def mark_none(sid: str, body: MarkNoneReq) -> dict:
+    """Danh dau / bo danh dau ngon "khong co van tay" => ghi none, khong co anh.
+
+    Khac confirm_missing cu: KHONG doi ngon phai that bai o lan chup truoc. Can bo
+    nhin thay ngon mat/mon van la danh dau duoc ngay, ke ca truoc khi chup lan nao.
+    Do la muc dich chinh: danh dau TRUOC khi chup lam cum chi cho dung so ngon
+    that su co, nen khong con canh cum 4 ngon ma nguoi ta chi co 3 thi 422 mai.
+
+    Danh dau xong thi xac nhan cua cum bi rut lai: so ngon trong cum da doi, can
+    bo phai xem lai va xac nhan lai.
+    """
+    s = _get_session(sid)
+    if not body.codes:
+        raise HTTPException(400, "codes khong duoc rong.")
+    unknown = [c for c in body.codes if c not in s.fingers]
+    if unknown:
+        raise HTTPException(400, f"Ma ngon khong hop le: {', '.join(unknown)}")
+
+    changed = []
+    for code in body.codes:
+        rec = s.fingers[code]
+        rec.missing = bool(body.value)
+        if rec.missing:
+            # Ngon "khong co van" khong co template/anh - xoa neu tung chup duoc.
+            rec.template_b64 = None
+            rec.image_b64 = None
+            rec.quality = 0
+            rec.no_quality = False
+        rec.captured_at = time.time() if rec.missing else None
+        s.confirmed.discard(rec.step)
+        changed.append(rec.to_public())
+
+    out = s.public()
+    out["ok"] = True
+    out["changed"] = changed
+    out["message"] = "Da %s %d ngon khong co van tay." % (
+        "danh dau" if body.value else "bo danh dau", len(changed))
     return out
 
 
@@ -474,8 +629,13 @@ def redo(sid: str, finger_code: str) -> dict:
     for code in step["codes"]:
         r = s.fingers[code]
         r.template_b64 = r.image_b64 = None
-        r.quality = r.nfiq = 0
+        r.quality = 0
+        r.no_quality = False
         r.captured_at = None
+        # Chup lai ca cum => ngon tung danh dau thieu co co hoi thu lai.
+        r.missing = False
+    # Cum ve trang chua chup => xac nhan cu khong con nghia gi.
+    s.confirmed.discard(step["step"])
     s.slap_images.pop(step["step"], None)
     out = s.public()
     out.update({"ok": True, "redo_step": step["step"],
