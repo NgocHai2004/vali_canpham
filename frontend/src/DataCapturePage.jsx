@@ -784,14 +784,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // Bo state, chi con setter ban ra toast: giu state ma khong ai doc chi gay
   // re-render vo ich. Dung toast chu KHONG dung panel duoi grid vi panel day
   // layout he thong xuong (da bo mot lan vi dung ly do nay), toast la overlay.
+  // KHONG toast do nua. Vong thu chup lai lien tuc, moi lan that bai la mot
+  // toast do 8s => man hinh dan dan phu kin canh bao do trong khi may VAN dang
+  // chay binh thuong. Voi nguoi dan dang ngoi truoc man hinh thi trong nhu he
+  // thong loi nang, that ra chi la "chua ap du ngon".
+  //
+  // Ghi ra console, KHONG do len man hinh. (Da thu route sang fpStatus nhung
+  // fpStatus cung la state chet - chi co useState, khong JSX nao doc - nen do
+  // la tai tao dung cai bug "loi roi vao hu khong" vua sua xong.)
+  //
+  // Chap nhan danh doi: can bo khong doc duoc ly do that bai tren man hinh nua.
+  // Bu lai bang dong huong dan TINH duoi day (khong phai canh bao do, khong tu
+  // bat tat) de nguoi thieu ngon van biet phai bam "Ngón thiếu".
   const setFpError = useCallback((msg) => {
-    // Goi voi "" la de XOA loi truoc moi lan chup - khong toast.
-    // Phai toast ca khi msg TRUNG loi lan truoc: chup lai van thieu ngon thi can
-    // bo can thay bao lai. Neu dua vao useEffect([fpError]) thi loi trung se im
-    // lang y nhu bug vua sua.
-    if (msg) {
-      try { toast.error(msg, 8000); } catch { /* noop */ }
-    }
+    if (msg) console.warn("[FP]", msg);
   }, []);
   // Cum vua chup xong, dang CHO CAN BO XAC NHAN: {sid, step, low, noneCodes}.
   // Moi cum deu di qua day - ke ca khi ca 4 ngon vuot nguong. Vong tu dong tam
@@ -836,6 +842,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const raiseAlert = useCallback((match) => {
     const who = match?.detainee?.full_name || match?.detainee?.cccd_number || "";
     const msg = t("capture.alert.on_list", { name: who });
+    // TRUNG DOI TUONG PHAI BAO LEN MAN HINH. Day la canh bao nghiep vu that,
+    // co noi dung ro rang (ten nguoi trung) - khac han cac vach do trong khong
+    // chu ma da bo. Can bo phai thay ngay, khong the doi mo chuong moi biet.
     try { toast.error(msg, 6000); } catch { /* noop */ }
     try {
       notify.add(msg, {
@@ -872,6 +881,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         recognizedIdsRef.current.add(did);
         const who = m?.detainee?.full_name || m?.detainee?.cccd_number || "";
         const msg = t("capture.alert.on_list", { name: who });
+        // Giu bao do - cung loai canh bao trung nhu raiseAlert (co noi dung + vao
+        // chuong thong bao).
         try { toast.error(msg, 6000); } catch { /* noop */ }
         try {
           notify.add(msg, {
@@ -2379,9 +2390,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                           // Mode "chon ngon thieu": bam vao O (single click) se
                           // danh dau / bo danh dau ngon do la thieu. Ngoai mode,
                           // single-click khong lam gi (chi double-click de chup lai).
-                          onClick={fpNoneMode
-                            ? () => { if (!fpRunning) fpToggleNone(fpCode); }
-                            : undefined}
+                          // KHONG chan theo fpRunning: day la chot bi bo sot lam
+                          // "bam Ngón thiếu roi bam vao o van khong chon duoc" -
+                          // vong thu chay ngay khi vao trang nen fpRunning gan
+                          // nhu luon true, phai Khoa moi bam duoc. fpToggleNone
+                          // tu lo phan con lai (cat lan chup dang chay).
+                          onClick={fpNoneMode ? () => fpToggleNone(fpCode) : undefined}
                           onDoubleClick={() => !fpRunning && !fpNoneMode && !isNone && retryFingerprint(key, fpCode)}
                           title={
                             fpNoneMode
