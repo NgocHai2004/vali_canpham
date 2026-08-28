@@ -758,9 +758,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [cccdLocked, setCccdLocked] = useState(false);   // chốt dữ liệu CCCD: true = chạm thẻ không đổi form
   const cccdLockedRef = useRef(false);                   // ref để đọc trạng thái mới nhất trong vòng lặp nền
   useEffect(() => { cccdLockedRef.current = cccdLocked; }, [cccdLocked]);
-  const [fpLocked, setFpLocked] = useState(false);       // chốt vân tay: true = dừng quét, đóng băng 10 ngón
-  const fpLockedRef = useRef(false);                     // ref để auto-start effect đọc trạng thái mới nhất
-  useEffect(() => { fpLockedRef.current = fpLocked; }, [fpLocked]);
   const fpRunningRef = useRef(false);                    // ref phản chiếu fpRunning cho auto-start effect
   const fpCountRef = useRef(0);                          // ref phản chiếu số ngón đã thu cho auto-start effect
   const [cells, setCells] = useState([]);
@@ -1090,44 +1087,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setForm((f) => ({ ...f, height_cm: String(measured) }));
   }, [heightImage, heightOffset]);
 
-  const stopFpCollect = () => {
-    fpAbortRef.current = true;
-    // Cat lenh chup DANG chay tren service. Chi set fpAbortRef la khong du: vong
-    // dang dung o `await fpApi.capture(...)` va chi thoat khi loi gi do tra ve -
-    // tuc la sau het timeout SDK (~20s). Trong 20s do UI da bao "da dung" nhung
-    // thiet bi van bi giu => lan chup sau an 409. (Cleanup effect roi trang cung
-    // lam dung thu tu nay.)
-    fpApi.stopCapture().catch(() => { /* noop */ });
-    setFpRunning(false);
-    setFpNextCode(null);
-    setFpActiveCodes([]);
-    setFpStatus("");
-    setFpConfirm(null);
-  };
-
-  // Khóa ⇄ Thu thập vân tay. Khóa = dừng vòng enroll, đóng băng 10 ngón hiện có,
-  // chặn double-click thu lại. Thu thập = mở lại, cho phép auto-start & thu tay.
-  const toggleFpLock = () => {
-    if (fpLocked) {
-      setFpLocked(false);
-      fpAutoStoppedRef.current = false;   // cho phép auto-start effect chạy lại
-    } else {
-      stopFpCollect();
-      fpAutoStoppedRef.current = true;    // đã khóa: auto-start không tự bật lại
-      setFpLocked(true);
-    }
-  };
-
   // Nhap DOI 1 o van tay => chup lai CA CUM chua ngon do (4 ngon ban tay hoac
   // 2 ngon cai). Morfin la slap scanner: 4 ngon den tu cung 1 anh, khong tach
   // le 1 ngon de chup rieng duoc.
   const retryFingerprint = async (photoKey, fingerCode) => {
-    // Da khoa: PHAI noi ra. Truoc day chi `return` im lang => nhay doi khong co
-    // phan hoi nao, nguoi dung tuong app treo ("khoa luon khong cap nhat").
-    if (fpLocked) {
-      setFpError(t("capture.err.fp_locked"));
-      return;
-    }
     if (fpRunning) {
       setFpError(t("capture.err.fp_running"));
       return;
@@ -1494,10 +1457,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // Danh dau TRUOC khi chup thi cum chi cho dung so ngon that su co - do la
   // cach duy nhat de nguoi thieu ngon di qua duoc cum (xem api.py capture()).
   const fpToggleNone = async (code) => {
-    if (fpLocked) {
-      setFpError(t("capture.err.fp_locked"));
-      return;
-    }
     // KHONG chan khi dang thu. Truoc day chan => can bo chi danh dau duoc ngon
     // thieu TRUOC khi bam Thu thap, nhung vong thu tu dong chay ngay khi vao
     // trang (auto-start 3s) va gio khong bao gio tu dung => fpRunning luon true
@@ -1752,10 +1711,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
     (async () => {
       while (!stopped) {
-        // Chỉ auto-start khi: chưa khóa, chưa đủ 10 ngón, không đang chạy, chưa bị
-        // dừng tay, và KHÔNG đang ở chế độ chọn ngón thiếu (đang chọn thì không
-        // được tự chụp giữa chừng).
-        if (!fpLockedRef.current && !fpAutoStoppedRef.current && !fpRunningRef.current
+        // Chỉ auto-start khi: chưa đủ 10 ngón, không đang chạy, chưa bị dừng tay,
+        // và KHÔNG đang ở chế độ chọn ngón thiếu (đang chọn thì không được tự
+        // chụp giữa chừng).
+        if (!fpAutoStoppedRef.current && !fpRunningRef.current
             && !fpNoneModeRef.current && fpCountRef.current < 10) {
           try {
             const h = await fpApi.health();
@@ -2284,76 +2243,54 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           <section className="cap-block">
             <div className="cap-block-head">
               <h2 className="cap-block-title">{t("capture.section.fp", { n: fpCount })}</h2>
-              {fpLocked && (
-                <span className="cccd-listen-badge locked">
-                  <span className="cccd-listen-dot" />
-                  {t("capture.toolbar.locked")}
-                </span>
-              )}
-              {/* Xac nhan cum nam NGAY canh nut khoa: day la hai quyet dinh cung
-                  loai (chot du lieu), can bo khong phai roi mat xuong duoi luoi. */}
-              {fpConfirm && (
-                <>
-                  <button
-                    type="button"
-                    className="btn-cccd-scan fp-confirm-btn"
-                    onClick={fpConfirmCluster}
-                    disabled={fpRunning || fpNoneMode}
-                    title={t("fpenroll.confirm.title", {
-                      step: t(`fpenroll.step.${fpConfirm.step}`),
-                    })}
-                  >
-                    {t("fpenroll.confirm_btn")}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-cccd-scan fp-retake-btn"
-                    onClick={fpRetakeCluster}
-                    disabled={fpRunning || fpNoneMode}
-                  >
-                    {t("fpenroll.retake_cluster_btn")}
-                  </button>
-                </>
-              )}
-              {/* Nut "Ngón thiếu": bat/tat mode chon ngon khong co van tay. Khi
-                  mode bat, bam vao O NGON (single click) se danh dau thieu thay
-                  vi chup lai cum. Bat lai nut de thoat ve trang thai thu. Giu
-                  CANH nut khoa vi cung loai quyet dinh tren header. */}
-              <button
-                type="button"
-                className={"btn-cccd-scan fp-none-mode-btn" + (fpNoneMode ? " active" : "")}
-                onClick={() => {
-                  const next = !fpNoneMode;
-                  setFpNoneMode(next);
-                  // Vao mode chon ngon thieu => huy xac nhan cum dang cho: neu
-                  // can bo danh dau them ngon thieu giua chung thi cum phai xem
-                  // lai va xac nhan lai (service da rut confirmed o phia backend).
-                  if (next) setFpConfirm(null);
-                }}
-                disabled={fpLocked}
-                title={fpNoneMode
-                  ? t("capture.fp.none_mode_exit")
-                  : t("capture.fp.none_mode_enter")}
-                aria-pressed={fpNoneMode}
-              >
-                {fpNoneMode
-                  ? t("capture.fp.none_mode_on_btn")
-                  : t("capture.fp.none_mode_btn")}
-              </button>
-              <button
-                type="button"
-                className="btn-cccd-scan"
-                onClick={toggleFpLock}
-                /* KHONG disable theo fpRunning: day la duong DUY NHAT de can bo
-                   dung vong thu (vong khong con tu bo cuoc sau 15 lan loi), va
-                   toggleFpLock -> stopFpCollect da lo dung viec do. Truoc day
-                   `fpRunning || fpNoneMode` khoa ca nut nay => vong chay mai ma
-                   khong ai dung duoc = treo may. */
-                disabled={false}
-                title={fpLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
-              >
-                {fpLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
-              </button>
+              <div className="fp-header-actions">
+                {fpConfirm && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-cccd-scan fp-confirm-btn"
+                      onClick={fpConfirmCluster}
+                      disabled={fpRunning || fpNoneMode}
+                      title={t("fpenroll.confirm.title", {
+                        step: t(`fpenroll.step.${fpConfirm.step}`),
+                      })}
+                    >
+                      {t("fpenroll.confirm_btn")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-cccd-scan fp-retake-btn"
+                      onClick={fpRetakeCluster}
+                      disabled={fpRunning || fpNoneMode}
+                    >
+                      {t("fpenroll.retake_cluster_btn")}
+                    </button>
+                  </>
+                )}
+                {/* Nut "Ngón thiếu": bat/tat mode chon ngon khong co van tay. Khi
+                    mode bat, bam vao O NGON (single click) se danh dau thieu thay
+                    vi chup lai cum. Bat lai nut de thoat ve trang thai thu. */}
+                <button
+                  type="button"
+                  className={"btn-cccd-scan fp-none-mode-btn" + (fpNoneMode ? " active" : "")}
+                  onClick={() => {
+                    const next = !fpNoneMode;
+                    setFpNoneMode(next);
+                    // Vao mode chon ngon thieu => huy xac nhan cum dang cho: neu
+                    // can bo danh dau them ngon thieu giua chung thi cum phai xem
+                    // lai va xac nhan lai (service da rut confirmed o phia backend).
+                    if (next) setFpConfirm(null);
+                  }}
+                  title={fpNoneMode
+                    ? t("capture.fp.none_mode_exit")
+                    : t("capture.fp.none_mode_enter")}
+                  aria-pressed={fpNoneMode}
+                >
+                  {fpNoneMode
+                    ? t("capture.fp.none_mode_on_btn")
+                    : t("capture.fp.none_mode_btn")}
+                </button>
+              </div>
             </div>
             <div className="fp-preview-grid fp-preview-grid--single-row">
               {FP_CLUSTERS.map((cluster) => {
@@ -2439,10 +2376,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                               type="button"
                               className={"fp-cell-none-btn" + (isNone ? " on" : "")}
                               onClick={(e) => { e.stopPropagation(); fpToggleNone(fpCode); }}
-                              /* Chi khoa theo fpLocked. fpRunning KHONG chan nua:
-                                 day la nut can bam DUNG LUC may dang chay het
-                                 timeout vi cho du 4 ngon. Xem fpToggleNone. */
-                              disabled={fpLocked}
+                              /* Khong chan theo fpRunning: day la nut can bam DUNG
+                                 LUC may dang chay het timeout vi cho du 4 ngon.
+                                 Xem fpToggleNone. */
                               title={isNone
                                 ? t("capture.fp.none_off", { name: label })
                                 : t("capture.fp.none_on", { name: label })}

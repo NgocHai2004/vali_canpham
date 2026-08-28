@@ -6899,6 +6899,17 @@ const styles = `
     line-height: 1;
   }
 
+  /* Nhóm nút hành động trên header dấu vân tay: dàn đều giữa các nút còn lại
+     (Xác nhận / Chụp lại cụm / Ngón thiếu) sau khi bỏ nút Khóa. */
+  .fp-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
   .btn-cccd-scan {
     display: inline-flex; align-items: center; gap: 6px;
     height: 22px;
