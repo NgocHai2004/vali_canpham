@@ -404,6 +404,7 @@ class CellIn(BaseModel):
 
 class DetaineeIn(BaseModel):
     full_name: str = Field(min_length=1, max_length=100)
+    alias: Optional[str] = Field(None, max_length=200)   # bi danh / ten khac
     dob: Optional[str] = None
     gender: str = "male"
     cccd_number: Optional[str] = Field(None, pattern=r"^\d{12}$")
@@ -414,33 +415,46 @@ class DetaineeIn(BaseModel):
     address: Optional[str] = None
     ethnicity: Optional[str] = None
     religion: Optional[str] = None
+    # ---- Noi cu tru: the CCCD chi co ho khau (address); tam tru / cho o hien nay
+    # phai khai tay vi can pham thuong khong o dung dia chi tren the ----
+    temp_address: Optional[str] = None               # noi tam tru
+    current_address: Optional[str] = None            # noi o hien nay
+    occupation: Optional[str] = None                 # nghe nghiep
     issued_date: Optional[str] = None
     expiry_date: Optional[str] = None
     issued_place: Optional[str] = None              # cơ quan cấp
     distinguishing_features: Optional[str] = None    # đặc điểm nhận dạng
     mrz: Optional[str] = None                       # MRZ 2-3 dòng
-    # ---- Thông tin can phạm (nghiệp vụ, 21 trường string) ----
-    cell_block: Optional[str] = None                 # 1. Buồng giam
-    status_detainee: Optional[str] = None            # 2. Tình trạng
-    squad: Optional[str] = None                      # 3. Phân đội
-    health_intake: Optional[str] = None              # 4. Sức khỏe khi vào
-    disease_current: Optional[str] = None            # 5. Bệnh hiện tại
-    disease_intake: Optional[str] = None             # 6. Bệnh tật khi vào
-    alcohol_use: Optional[str] = None                # 7. Sử dụng chất có cồn
-    address_before_arrest: Optional[str] = None      # 8. Địa chỉ trước khi bị bắt
-    release_residence: Optional[str] = None          # 9. Nơi thả về cư trú
-    occupation: Optional[str] = None                 # 10. Nghề nghiệp
-    occupation_detail: Optional[str] = None          # 11. Nghề cụ thể
-    file_number: Optional[str] = None                # 12. Số HSĐ
-    file_number_sub: Optional[str] = None            # 13. Số HS phụ
-    search_index: Optional[str] = None               # 14. Chỉ mục tìm kiếm
-    disease_current_detail: Optional[str] = None     # 15. Chi tiết bệnh hiện tại
-    disease_intake_detail: Optional[str] = None      # 16. Chi tiết bệnh khi vào
-    education_level: Optional[str] = None            # 17. Trình độ học vấn
-    professional_level: Optional[str] = None         # 18. Trình độ chuyên môn
-    study_status: Optional[str] = None               # 19. Tình trạng học tập
-    literacy: Optional[str] = None                   # 20. Biết đọc viết
-    alias: Optional[str] = None                      # 21. Tên khác (bí danh)
+    # ---- Quan hệ gia đình ----
+    # [{relation, full_name, birth_year, address}] — số dòng do cán bộ thêm/bớt
+    family: Optional[list[dict]] = None
+    # Cha / me tach rieng khoi family[] vi chi ban giay co 2 dong CO DINH cho
+    # cha va me; family[] van dung cho vo/chong, con, anh chi em...
+    father_name: Optional[str] = None                # ho ten cha
+    mother_name: Optional[str] = None                # ho ten me
+    # ---- Thông tin vụ án ----
+    case_about: Optional[str] = None                 # lap ve viec
+    charge_detail: Optional[str] = None              # tội danh chi tiết
+    arrest_date: Optional[str] = None                # ngày bắt
+    arrest_agency: Optional[str] = None              # cơ quan thụ lý
+    decision_no: Optional[str] = None                # số quyết định
+    # ---- Đặc điểm nhận dạng ----
+    scars: Optional[str] = None                      # vết tích, hình xăm
+    blood_type: Optional[str] = None                 # nhóm máu
+    face_shape: Optional[str] = None                 # dạng mặt
+    nose: Optional[str] = None                       # mũi
+    ear_features: Optional[str] = None               # nếp tai dưới
+    earlobe: Optional[str] = None                    # dái tai
+    physical_abnormalities: Optional[str] = None     # dị hình dị dạng
+    # ---- So hieu ho so (thanh tom tat dau trang) ----
+    record_sheet_no: Optional[str] = None            # số danh bản
+    fp_sheet_no: Optional[str] = None                # số chỉ bản vân tay
+    # "Lan ngay" tren chi ban giay: lap lan thu N, ngay dd/mm/yyyy. Tach 2 truong
+    # vi so lan va ngay lap cua lan do la 2 du kien khac nhau.
+    record_times: Optional[str] = None               # lập lần thứ N
+    record_date: Optional[str] = None                # ngày lập của lần đó
+    ak_no: Optional[str] = None                      # số hồ sơ AK
+    record_scope: Optional[str] = None               # local | central
     height_cm: Optional[float] = Field(None, ge=50, le=250)
     weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
@@ -786,7 +800,11 @@ def _require_capture_fields(body: "DetaineeIn") -> None:
     """Enforce mandatory fields for the "Thu nhận dữ liệu" flow.
 
     Client is free to send partial data via the legacy short form (edit modal),
-    but a create request must carry CCCD number + both CCCD photos.
+    but a create request must carry the 4 fields marked * on the chỉ bản form.
+
+    Anh CCCD mat truoc KHONG con bat buoc: mau chi bản moi bo han khoi anh the,
+    photos["cccd_front"] gio chi co khi doc duoc chip the — khong the lam dieu
+    kien chan luu.
     """
     missing = []
     if not body.full_name or not body.full_name.strip():
@@ -797,9 +815,6 @@ def _require_capture_fields(body: "DetaineeIn") -> None:
         missing.append("Ngày sinh")
     if body.gender not in ("male", "female"):
         missing.append("Giới tính")
-    photos = body.photos or {}
-    if not photos.get("cccd_front"):
-        missing.append("Ảnh CCCD mặt trước")
     if missing:
         raise HTTPException(400, "Thiếu thông tin bắt buộc: " + ", ".join(missing))
 
@@ -1350,6 +1365,12 @@ async def list_sessions_full(
                     "religion": d.get("religion", "") or "",
                     "hometown": d.get("hometown", "") or "",
                     "address": d.get("address", "") or "",
+                    "temp_address": d.get("temp_address", "") or "",
+                    "current_address": d.get("current_address", "") or "",
+                    "occupation": d.get("occupation", "") or "",
+                    "father_name": d.get("father_name", "") or "",
+                    "mother_name": d.get("mother_name", "") or "",
+                    "case_about": d.get("case_about", "") or "",
                     "issued_date": d["issued_date"].isoformat() if isinstance(d.get("issued_date"), datetime) else None,
                     "expiry_date": d.get("expiry_date") or None,
                     "height_cm": d.get("height_cm"),

@@ -8981,3 +8981,1445 @@ textarea.input {
   0%, 100% { box-shadow: 0 0 0 0 rgba(53, 216, 255, 0); }
   50% { box-shadow: 0 0 0 4px rgba(53, 216, 255, 0.10); }
 }
+
+/* ============================================================
+   Trang dang ky can pham — layout "to khai" (Stage 2)
+   Vung khai NEN TRANG de doc/in; so muc + nut giu do man Cong an.
+   ============================================================ */
+.cap-sheet {
+  --paper: #ffffff;
+  --paper-line: #d8dde6;
+  --paper-text: #16202f;
+  --paper-muted: #5d6b80;
+  --maroon: #8b1e2d;
+  --maroon-2: #a62436;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- Thanh meta dau trang ---- */
+.cap-meta {
+  max-width: 1180px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 9px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--maroon, #8b1e2d), #6d1723);
+  box-shadow: 0 6px 20px -10px rgba(139, 30, 45, 0.65);
+  color: #fff;
+}
+.cap-meta-item { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.cap-meta-label {
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+.cap-meta-value {
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cap-meta-unit { flex: 1 1 200px; }
+.cap-meta-sep { width: 1px; height: 20px; background: rgba(255, 255, 255, 0.25); }
+.cap-meta-progress { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+.cap-meta-bar {
+  width: 132px;
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+.cap-meta-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #ffd479, #fff2cf);
+  transition: width 0.35s ease;
+}
+.cap-meta-pct { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cap-meta-pct.ok { color: #b7f7cf; }
+.cap-meta-pct.warn { color: #ffd479; }
+
+/* ---- Khoi muc La Ma ---- */
+.cap-sec {
+  background: var(--paper, #fff);
+  border: 1px solid var(--paper-line, #d8dde6);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 26px -18px rgba(10, 20, 40, 0.35);
+}
+.cap-sec-title {
+  margin: 0;
+  padding: 9px 16px;
+  font-size: 12.5px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--maroon, #8b1e2d), #6d1723);
+}
+.cap-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--maroon, #8b1e2d), #6d1723);
+  padding-right: 12px;
+}
+.cap-sec-head .cap-sec-title { flex: 1; background: none; padding-right: 0; }
+.cap-sec-body { padding: 14px 16px 16px; color: var(--paper-text, #16202f); }
+.cap-sec-body--split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 372px;
+  gap: 18px;
+  align-items: start;
+}
+.cap-sec-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cap-sub-title {
+  margin: 12px 0 8px;
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--maroon, #8b1e2d);
+  padding-bottom: 5px;
+  border-bottom: 1.5px solid rgba(139, 30, 45, 0.18);
+}
+
+/* ---- Luoi truong khai ---- */
+.cap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+.cap-grid .span-2col { grid-column: span 2; }
+.cap-grid .span-3col { grid-column: 1 / -1; }
+.cap-grid .info-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cap-grid .info-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paper-muted, #5d6b80);
+  letter-spacing: 0.01em;
+}
+.cap-sec-body .control,
+.cap-sec-body .cap-textarea {
+  width: 100%;
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--paper-text, #16202f);
+  background: #fbfcfe;
+  border: 1px solid var(--paper-line, #d8dde6);
+  border-radius: 7px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cap-sec-body .control:focus,
+.cap-sec-body .cap-textarea:focus {
+  border-color: var(--maroon-2, #a62436);
+  box-shadow: 0 0 0 3px rgba(166, 36, 54, 0.13);
+  background: #fff;
+}
+.cap-sec-body .control:disabled { background: #eef1f5; color: #8b97a8; }
+.cap-sec-body .cap-textarea { resize: vertical; line-height: 1.45; }
+.cap-sec-body .radio-group-sm { display: flex; gap: 14px; padding-top: 4px; }
+.cap-sec-body .radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--paper-text, #16202f);
+  cursor: pointer;
+}
+.cap-sec-body .radio-option input { accent-color: var(--maroon, #8b1e2d); }
+
+/* ---- Hang nhan van lan / van phang ---- */
+.fp-row-label { display: flex; align-items: center; gap: 10px; margin: 10px 0 7px; }
+.fp-row-tag {
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--maroon, #8b1e2d);
+  padding: 3px 9px;
+  border-radius: 99px;
+}
+.fp-row-count {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--paper-muted, #5d6b80);
+}
+
+/* ---- Hang van PHANG: 3 anh cum ---- */
+.fp-plain-row { display: grid; grid-template-columns: 4fr 2fr 4fr; gap: 12px; }
+.fp-plain-cell { display: flex; flex-direction: column; gap: 5px; }
+.fp-plain-thumb {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--paper-line, #d8dde6);
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+.fp-plain-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.fp-plain-ph { color: #b3bdcc; font-size: 20px; }
+.fp-plain-cell.done .fp-plain-thumb { border-color: rgba(36, 215, 119, 0.6); background: #fff; }
+.fp-plain-cell.active .fp-plain-thumb { border-color: var(--maroon-2, #a62436); }
+.fp-plain-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paper-muted, #5d6b80);
+}
+
+@media (max-width: 1120px) {
+  .cap-sec-body--split { grid-template-columns: minmax(0, 1fr); }
+  .cap-sec-cccd { max-width: 372px; }
+  .cap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cap-grid .span-2col, .cap-grid .span-3col { grid-column: 1 / -1; }
+}
+
+/* ============================================================
+   Trang thu nhan du lieu — giao dien PHANG XANH/TRANG (cap-flat)
+   Dung theo ban thiet ke mau: header trang, 2 cot, tieu de muc
+   mau xanh + duong ke manh, o nhap vien rat nhat, chip trang thai.
+   Khoi nay dat CUOI file de ghi de theme do man o tren.
+   ============================================================ */
+.capture-page.cap-flat {
+  --cf-blue: #0a47d6;
+  --cf-blue-hi: #0b3aa8;
+  --cf-head: #1447cc;
+  --cf-text: #16202f;
+  /* #6b7688 chi dat 4.32:1 tren nen thanh tom tat (#f7f8fa) => truot AA cho
+     nhan 10.5px. #636d7b dat 5.24:1 tren trang / 4.94:1 tren #f7f8fa / 4.69:1
+     tren --cf-field, tuc dat AA o CA BA nen dang dung. */
+  --cf-muted: #636d7b;
+  /* --cf-line: ke phan cach TRANG TRI (gach chan tieu de muc, vien tren thanh
+     nut). Khong dung cho vien o nhap/nut: WCAG 1.4.11 doi vien la dau hieu
+     duy nhat cua mot control phai dat 3:1, ma #e6e9ef chi duoc 1.22:1.
+     --cf-edge la vien CONTROL: #888f9c = 3.25:1 tren trang, 3.06:1 tren
+     #f7f8fa. Man nay o nhap nen trang tren nen trang nen vien la thu duy nhat
+     cho biet o bat dau va ket thuc o dau. */
+  --cf-line: #e6e9ef;
+  --cf-edge: #888f9c;
+  --cf-field: #f1f2f5;
+  /* #12a150 chi dat 3.07:1 tren --cf-ok-bg => truot AA cho chu.
+     #0b7a3e dat 4.95:1 ma van doc ra la mau xanh "dat". */
+  --cf-ok: #0b7a3e;
+  --cf-ok-bg: #e9f8ef;
+  --cf-danger: #d92d20;
+  /* .capture-page o tren co san `zoom: 1.25` (dong ~6536, khong phai cua khoi
+     nay). Zoom phong CA trang nen chu cao 9-16px trong khi ban mau chi 7-10px,
+     dong gian ra va trang cao gap doi. Ep ve 1 va dat thang chu/padding ben
+     duoi theo so do lay tu anh mau. */
+  zoom: 1;
+  background: #fff;
+  min-height: 100vh;
+  /* .page o tren dat max-width: 1400px + margin auto (dong ~898). Man may tram
+     >=1920 nen no de lai hai dai trong ~260px moi ben — dung cai ma nguoi dung
+     goi la "2 ben van trong". Man nay la ban khai bao dien kin, khong phai
+     trang doc, nen bo tran va an le cua .page. */
+  max-width: none;
+  margin: 0;
+  padding: 0 0 18px;
+  color: var(--cf-text);
+}
+
+/* Chip nho "da co / con thieu" — con dung o o anh chan dung. */
+.cap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: var(--cf-ok-bg);
+  color: var(--cf-ok);
+  white-space: nowrap;
+}
+.cap-chip.warn { background: #fff5e6; color: #98501f; }
+.cap-chip svg { width: 12px; height: 12px; }
+
+/* ---------------- Luoi 2 cot ---------------- */
+.cap-flat .cap-sheet--split {
+  max-width: none;
+  margin: 0;
+  padding: 12px 20px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
+  /* NGUON GOC cua "khoang trong rat lon" giua muc V va hang nut: `.case-main`
+     (Dashboard.jsx ~7696) dat `flex: 1 1 auto`, ma `.capture-page` la flex
+     column bi khoa `height: 100%` theo man hinh => to giay CANG RA het chieu
+     cao con lai va day .case-action-bar xuong day man. Grid nay lai
+     `align-items: start` nen cac hang van nam sat le tren, phan cang ra thanh
+     o trong duoi muc V. Khong the sua bang gap/margin.
+     flex-grow 0 => cao dung bang noi dung, hang nut ap ngay duoi van tay.
+     flex-shrink 1 + overflow auto => ho so dai hon man thi cuon trong to giay,
+     khong bi overflow:hidden cua .capture-page cat mat. */
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+  /* row-gap = 0: hang duoi (III, V) da co margin tieu de muc. De 26px ca hai
+     chieu thi giua "Thong tin vu viec" va "Dac diem nhan dang" ho them mot
+     khoang trong nua. */
+  gap: 0 26px;
+  align-items: start;
+}
+.cap-flat .cap-col { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+/* Hang trai het be ngang, nam duoi 2 cot: dung cho muc V (van tay). */
+.cap-flat .cap-col--full { grid-column: 1 / -1; }
+
+/* Muc = khong con the co vien/bong; chi tieu de xanh + ke manh */
+.cap-flat .cap-sec {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.cap-flat .cap-sec-title,
+.cap-flat .cap-sub-title {
+  /* Thu khoang cach doc: ca trang phai vua mot man de thay duoc hang nut
+     (Luu / Xem truoc ho so) o duoi cung ma khong phai cuon. */
+  margin: 6px 0 5px;
+  padding: 0 0 4px;
+  background: none;
+  border-bottom: 1px solid var(--cf-line);
+  color: var(--cf-head);
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+/* Muc dau moi cot ap sat le tren. */
+.cap-flat .cap-col > .cap-sec:first-child > .cap-sec-title,
+.cap-flat .cap-col > .cap-sec:first-child > .cap-sec-head { margin-top: 0; }
+/* Hang duoi (III, V): chi can mot khoang tach mong voi hang tren, khong lay ca
+   11px margin mac dinh cua tieu de muc. */
+.cap-flat .cap-col--full > .cap-sec:first-child > .cap-sec-title,
+.cap-flat .cap-col--full > .cap-sec:first-child > .cap-sec-head { margin-top: 4px; }
+.cap-flat .cap-sec-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: none;
+  padding: 0;
+  margin: 6px 0 5px;
+  border-bottom: 1px solid var(--cf-line);
+}
+.cap-flat .cap-sec-head .cap-sec-title {
+  flex: 1;
+  margin: 0;
+  border-bottom: 0;
+  padding-right: 0;
+}
+.cap-flat .cap-sec-head .fp-header-actions { padding-bottom: 5px; }
+.cap-flat .cap-sec-body { padding: 0; color: var(--cf-text); }
+
+/* ---------------- O nhap ---------------- */
+/* gap doc 11px / ngang 20px: truoc day 7px/12px — cac o (va nhan cua chung) dinh
+   sat nhau, doc theo hang bi roi. Trang khong con phai vua khit mot man nua
+   (.cap-sheet--split da co overflow: auto) nen no ra duoc. */
+.cap-flat .cap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 20px; }
+.cap-flat .cap-grid .span-3col { grid-column: 1 / -1; }
+.cap-flat .cap-grid .info-field-label,
+.cap-flat .info-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cf-muted);
+}
+.cap-flat .cap-sec-body .control,
+.cap-flat .cap-sec-body .cap-textarea {
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--cf-edge);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--cf-text);
+  font-size: 12.5px;
+  box-shadow: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.cap-flat .cap-sec-body .control:hover,
+.cap-flat .cap-sec-body .cap-textarea:hover { border-color: var(--cf-muted); }
+.cap-flat .cap-sec-body .control:focus,
+.cap-flat .cap-sec-body .cap-textarea:focus {
+  outline: none;
+  border-color: var(--cf-blue);
+  box-shadow: 0 0 0 3px rgba(10, 71, 214, 0.1);
+}
+/* Phien CHI DOC (sessionReadOnly) tat het o nhap => ca ho so doc qua o disabled.
+   #9aa4b2 tren #f7f8fa chi dat 2.37:1: chu tat dan la dung cho mot nut khong bam
+   duoc, nhung day la DU LIEU NGHIEP VU can bo phai doc lai. Tach hai vai:
+   nen mo di de biet la khong sua duoc, con CHU giu nguyen do dam (16.4:1). */
+.cap-flat .cap-sec-body .control:disabled,
+.cap-flat .cap-sec-body .cap-textarea:disabled {
+  background: #f7f8fa;
+  color: var(--cf-text);
+  border-color: var(--cf-line);
+  -webkit-text-fill-color: var(--cf-text); /* Safari lam nhat chu disabled */
+  cursor: default;
+}
+/* O trong thi khong co gi de doc: luc do placeholder mo di la dung. */
+.cap-flat .cap-sec-body .control:disabled::placeholder { color: #9aa4b2; }
+.cap-flat .cap-sec-body .radio-option input { accent-color: var(--cf-blue); }
+/* Nam / Nu la GIA TRI, khong phai nhan phu: .radio-option mac dinh la #2d3748
+   (theme sang) nen tren nen navy gan nhu doc khong ra. Cho cung mau chu voi
+   gia tri trong o nhap. */
+.cap-flat .cap-sec-body .radio-option { color: var(--cf-text); }
+.cap-flat .cap-sec-body .radio-option span { font-weight: 600; }
+
+/* ---------------- Nut phu (Chup lai / Khoa / Xac nhan) ---------------- */
+.cap-flat .btn-cccd-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid var(--cf-edge);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--cf-text);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+.cap-flat .btn-cccd-scan:hover:not(:disabled) { background: #f4f6fa; border-color: #d8dde6; }
+.cap-flat .btn-cccd-scan:disabled { opacity: 0.45; cursor: default; }
+.cap-flat .fp-confirm-btn {
+  background: var(--cf-blue);
+  border-color: var(--cf-blue);
+  color: #fff;
+}
+.cap-flat .fp-confirm-btn:hover:not(:disabled) { background: var(--cf-blue-hi); border-color: var(--cf-blue-hi); }
+.cap-flat .fp-none-mode-btn.active { background: #eef3ff; border-color: #c7d7ff; color: var(--cf-blue); }
+.cap-flat .cap-cccd-title {
+  color: var(--cf-head);
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* ---------------- Anh nhan dang (3 the ngang) ---------------- */
+.cap-flat .body-shots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.cap-flat .body-shot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.cap-flat .body-shot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.cap-flat .body-shot-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--cf-muted);
+}
+.cap-flat .body-shot-frame {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--cf-edge);
+  border-radius: 10px;
+  background: #f7f8fa;
+  overflow: hidden;
+}
+.cap-flat .body-shot-frame--done { border-color: #cfe6d8; }
+.cap-flat .body-shot-frame img,
+.cap-flat .body-shot-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cap-flat .body-shot-err {
+  padding: 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--cf-danger);
+}
+/* Nut "Chup lai" — vien nhat, icon camera, chiem ca chieu ngang the */
+.cap-flat .body-shot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--cf-edge);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--cf-text);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.cap-flat .body-shot-btn svg { width: 13px; height: 13px; }
+.cap-flat .body-shot-btn:hover:not(:disabled) { background: #f4f6fa; border-color: #d8dde6; }
+.cap-flat .body-shot-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* ---------------- Chi ban van tay ---------------- */
+.cap-flat .cap-sub-title--fp {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+}
+.cap-flat .fp-row-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--cf-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Muc V trai het be ngang => chia noi dung 2 cot: van LAN (10 o) | van CHUM
+   4-2-4 (3 anh). Cot van lan rong hon vi phai chua 10 o, cot van chum 3 o. */
+.cap-flat .fp-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 22px;
+  align-items: start;
+}
+.cap-flat .fp-block { min-width: 0; }
+/* Tieu de phu cua cot dau ap sat le tren cho thang voi cot con lai. */
+.cap-flat .fp-block > .cap-sub-title:first-child { margin-top: 0; }
+
+/* Hang 10 o van lan: 3 cum, cach nhau ro de thay ranh gioi 1 lan chup */
+.cap-flat .fp-preview-grid.fp-preview-grid--single-row {
+  display: grid;
+  grid-template-columns: 4fr 2fr 4fr;
+  gap: 10px;
+  align-items: start;
+}
+.cap-flat .fp-preview-grid--single-row .fp-cluster {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.cap-flat .fp-preview-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  align-items: stretch;
+  /* `.empty` la class TOAN CUC (styles.css ~2750: text-align/color/padding 20px)
+     dung cho khoi "khong co du lieu". O van tay lai mang class nay de danh dau
+     CHUA THU (fp-preview-cell empty), nen an luon padding 20px: o rong 56px chi
+     con 16px cho anh van => anh co thanh mot soi doc, gan nhu khong thay gi.
+     Ep padding 0 + tra lai font-size/text-align cua o. */
+  padding: 0;
+  font-size: inherit;
+  text-align: initial;
+}
+.cap-flat .fp-preview-cell.empty,
+.cap-flat .fp-plain-cell.empty { padding: 0; font-size: inherit; }
+.cap-flat .fp-preview-thumb {
+  position: relative;
+  /* Rule goc co `min-height: 130px` — cao gap doi o van tay tren ban mau (~54px)
+     nen phai ghi de ve 0 va de aspect-ratio quyet dinh chieu cao. */
+  width: 100%;
+  align-self: stretch;
+  aspect-ratio: 3 / 4;
+  min-height: 0;
+  max-height: none;
+  border: 1px solid var(--cf-edge);
+  border-radius: 7px;
+  background: #f7f8fa;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c3cad6;
+}
+.cap-flat .fp-preview-thumb img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.cap-flat .fp-preview-cell.done .fp-preview-thumb { border-color: #cfe6d8; }
+.cap-flat .fp-cluster.active .fp-preview-thumb { border-color: var(--cf-blue); }
+.cap-flat .fp-preview-cell.fp-cell-none .fp-preview-thumb { border-color: #f0d7d5; background: #fdf5f4; }
+/* Chip "Da thu" duoi o — bang chung da thu duoc ngon do */
+.cap-flat .fp-cell-taken {
+  align-self: center;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--cf-ok-bg);
+  color: var(--cf-ok);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.cap-flat .fp-cell-quality {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cap-flat .fp-cell-quality.good { color: var(--cf-ok); }
+.cap-flat .fp-cell-quality.ok { color: #98501f; }
+.cap-flat .fp-cell-quality.bad { color: var(--cf-danger); }
+.cap-flat .fp-cell-quality.none { color: var(--cf-danger); }
+.cap-flat .fp-cell-none-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--cf-edge);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--cf-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+/* O van tay chi rong ~46px nen nut phai VE nho de khop ban mau, nhung vung
+   BAM noi rong ra 28px bang ::before — canh chinh cua o van tay la
+   .fp-preview-thumb (bam de chup lai cum) chu khong phai o trong nay. */
+.cap-flat .fp-cell-none-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+}
+
+/* Hang van phang: 3 anh cum */
+/* 3 anh van chum BANG NHAU. Truoc day 4fr 2fr 4fr (theo so ngon: 4-2-4) nen o
+   "2 ngon cai" chi rong nua hai o kia; thuc te may tra ve 3 anh cung khuon nen
+   chia deu moi khop. */
+.cap-flat .fp-plain-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.cap-flat .fp-plain-thumb {
+  width: 100%;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--cf-edge);
+  border-radius: 8px;
+  background: #f7f8fa;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.cap-flat .fp-plain-cell.done .fp-plain-thumb { border-color: #cfe6d8; background: #fff; }
+.cap-flat .fp-plain-cell.active .fp-plain-thumb { border-color: var(--cf-blue); }
+/* #c3cad6 tren nen nhat chi 1.55:1 — o trong la THONG TIN ("chua co anh"). */
+.cap-flat .fp-plain-ph { color: var(--cf-muted); font-size: 16px; }
+.cap-flat .fp-plain-label { font-size: 11px; color: var(--cf-muted); text-align: center; }
+.cap-flat .fp-kpi { display: none; }
+
+/* ---------------- Thanh nut cuoi trang ---------------- */
+.cap-flat .case-action-bar {
+  /* Truoc day position: sticky; bottom: 0 — nhung the nay nam ngoai luoi 2 cot
+     nen khi dan day viewport no phu len bang gia dinh va tieu de muc III.
+     Ban mau dat hang nut o CUOI luong, khong noi. */
+  position: static;
+  max-width: none;
+  margin: 4px 0 0;
+  display: flex;
+  gap: 9px;
+  padding: 8px 20px;
+  background: #fff;
+  border-top: 1px solid var(--cf-line);
+}
+.cap-flat .case-action-bar .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: 8px;
+  border: 1px solid var(--cf-edge);
+  background: #fff;
+  color: var(--cf-text);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+.cap-flat .case-action-bar .button svg { width: 15px; height: 15px; }
+.cap-flat .case-action-bar .button.primary {
+  background: var(--cf-blue);
+  border-color: var(--cf-blue);
+  color: #fff;
+  margin-right: auto;
+}
+.cap-flat .case-action-bar .button.primary:hover:not(:disabled) {
+  background: var(--cf-blue-hi);
+  border-color: var(--cf-blue-hi);
+}
+.cap-flat .case-action-bar .button.secondary:hover:not(:disabled) { background: #f4f6fa; }
+.cap-flat .case-action-bar .button.danger { color: var(--cf-danger); border-color: #f2d6d3; }
+.cap-flat .case-action-bar .button.danger:hover:not(:disabled) { background: #fdf5f4; }
+.cap-flat .case-action-bar .button:disabled { opacity: 0.45; cursor: default; }
+
+.cap-flat .fp-cell-none-btn.on { background: var(--cf-danger); border-color: var(--cf-danger); color: #fff; }
+
+/* ---------------- Vanh focus ban phim ----------------
+   Ca man nay nhap bang Tab (can bo vua nhap vua nhin giay), nen moi thu bam
+   duoc phai thay duoc khi focus. Dung :focus-visible de chuot khong bi vien. */
+.cap-flat .btn-cccd-scan:focus-visible,
+.cap-flat .body-shot-btn:focus-visible,
+.cap-flat .case-action-bar .button:focus-visible,
+.cap-flat .fp-confirm-btn:focus-visible,
+.cap-flat .fp-none-mode-btn:focus-visible,
+.cap-flat .fp-cell-none-btn:focus-visible,
+.cap-flat .fp-preview-thumb:focus-visible,
+.cap-flat .banner-link:focus-visible {
+  outline: 2px solid var(--cf-blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Nut trong o van tay bi cac o ben canh de len, vanh phai noi len tren */
+.cap-flat .fp-cell-none-btn:focus-visible { position: absolute; z-index: 3; }
+
+/* ---------------- Giam hieu ung chuyen dong ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .cap-flat * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .cap-flat { scroll-behavior: auto; }
+}
+
+/* ---------------- Man hep: xep 1 cot ---------------- */
+@media (max-width: 1180px) {
+  .cap-flat .cap-sheet--split { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}
+
+/* ============================================================
+   Thanh tom tat ho so (RecordSummary)
+   Dai ngang, mat do cao: nhan nho xam + gia tri dam. KHONG phai the lon —
+   day la vung nhan dang ho so, moi o cao 1 dong de khong an cho vung nhap.
+   ============================================================ */
+.cap-flat .rec-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 2px 22px;
+  padding: 8px 20px 9px;
+  background: #f7f8fa;
+  border-bottom: 1px solid var(--cf-line);
+}
+.cap-flat .rec-sum-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.cap-flat .rec-sum-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--cf-muted);
+  white-space: nowrap;
+}
+.cap-flat .rec-sum-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cf-text);
+  /* Khong cat thong tin nghiep vu: cho xuong dong thay vi ellipsis. */
+  overflow-wrap: anywhere;
+}
+/* O sua duoc trong thanh: vien an di, chi hien khi hover/focus — de thanh nay
+   doc nhu mot dai thong tin chu khong nhu mot hang o nhap. */
+.cap-flat .rec-sum-input {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--cf-text);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 1px 5px;
+  margin-left: -5px;
+  min-width: 92px;
+  max-width: 200px;
+}
+.cap-flat .rec-sum-input:hover:not(:disabled) { border-color: var(--cf-edge); background: #fff; }
+.cap-flat .rec-sum-input:focus {
+  outline: 2px solid var(--cf-blue);
+  outline-offset: 1px;
+  border-color: transparent;
+  background: #fff;
+}
+.cap-flat .rec-sum-input::placeholder { font-weight: 500; color: #9aa3b2; }
+.cap-flat .rec-sum-input:disabled { color: var(--cf-text); opacity: 1; }
+.cap-flat select.rec-sum-input { min-width: 108px; }
+/* Trang thai: chu + dau hieu ky tu, mau chi la lop thu hai (khong dua vao mau). */
+.cap-flat .rec-sum-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: #98501f;
+  white-space: nowrap;
+}
+.cap-flat .rec-sum-status.ok { color: var(--cf-ok); }
+
+/* So thu tu chi ban (1..10) in goc tren-trai moi o van lan. O nhom theo cum
+   chup nen so KHONG lien tiep trong luoi — day la co y, xem FP_SHEET_NO. */
+.cap-flat .fp-preview-cell { position: relative; }
+.cap-flat .fp-cell-no {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  z-index: 2;
+  min-width: 13px;
+  padding: 0 2px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--cf-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+.cap-flat .fp-preview-cell.done .fp-cell-no { color: var(--cf-ok); }
+
+/* Tieu de muc co dem tien do (vd "II. ANH NHAN DANG  0 / 3"): h2 mac dinh la
+   block nen .fp-row-count { margin-left: auto } khong an, so bi dinh liet vao
+   chu. Cho h2 flex giong .cap-sub-title--fp de so day sang phai. */
+.cap-flat .cap-sec-title:has(.fp-row-count) {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* ============================================================
+   Trang thu nhan — NHAN CUNG HANG VOI GIA TRI + NEN TOI THEO MENU
+   Khoi nay dat CUOI file va ghi de toan bo phan sang o tren:
+   1) .info-field / .rec-sum-item truoc day la flex column (nhan tren, o
+      nhap duoi) => moi truong an 2 dong. Doi sang grid 1 hang:
+      [nhan | gia tri] nen so dong giam mot nua, can bo doc theo hang
+      giong to khai giay.
+   2) Nen trang doi sang dai mau navy + vien cyan giong .side-nav
+      (menu ben trai) de ca ung dung mot to mau, khong con mot trang
+      trang loa giua giao dien toi.
+   ============================================================ */
+.capture-page.cap-flat {
+  /* Bang mau lay tu :root (menu) thay cho bang xanh/trang cu. */
+  --cf-blue: #168BFF;
+  --cf-blue-hi: #35D8FF;
+  --cf-head: #35D8FF;
+  --cf-text: #EAF2FF;
+  --cf-muted: #93A7C6;
+  --cf-line: rgba(53, 216, 255, 0.18);
+  --cf-line-hi: rgba(53, 216, 255, 0.38);
+  --cf-field: rgba(53, 216, 255, 0.16);
+  /* Vien CONTROL cho theme toi. Tinh tren be mat o nhap thuc te (--cf-surface
+     phu tren dai navy): --cf-field dat 1.44:1, --cf-line 1.52:1, --cf-line-hi
+     2.54:1 => ca ba truot 3:1 cua WCAG 1.4.11. Alpha .55 cho 3.84:1 tren be
+     mat o va 4.28:1 tren nen trang, van la net cyan chu khong thanh vien dac. */
+  --cf-edge: rgba(53, 216, 255, 0.55);
+  /* Vien khi hover phai DAM hon vien nghi moi thay la hover: .8 = 6.56:1. */
+  --cf-edge-hi: rgba(53, 216, 255, 0.8);
+  /* #6E82A4 chi dat 4.12:1 tren be mat o nhap => truot AA. #8195B7 = 5.28:1. */
+  --cf-dim: #8195B7;
+  /* Be mat o nhap / o anh: sang hon nen mot chut, khong dung mau dac de
+     con thay dai gradient ben duoi. */
+  --cf-surface: rgba(255, 255, 255, 0.045);
+  --cf-surface-2: rgba(53, 216, 255, 0.07);
+  --cf-ok: #24d777;
+  --cf-ok-bg: rgba(36, 215, 119, 0.14);
+  --cf-warn: #ffb020;
+  --cf-danger: #ff6b6b;
+  background:
+    linear-gradient(180deg, rgba(10, 26, 54, 0.82) 0%, rgba(6, 20, 42, 0.78) 100%),
+    var(--bg-deep, #020817);
+  color: var(--cf-text);
+}
+
+/* ---------------- 1 truong = 1 hang ---------------- */
+/* Ty le nhan : gia tri = 4 : 6 (40% / phan con lai), nhung nhan LUON du chu tren
+   1 hang: minmax(auto, 40%) => min la auto = min-content, va nhan nowrap nen
+   min-content CHINH LA ca cum chu. Khi min > max thi CSS bo max, track lay dung
+   be rong chu; o nhap (min 0) co lai nhuong cho.
+   KHONG dung fr cho cot nhan: track co max la <flex> duoc tinh o pha phan phoi
+   khong gian du, san minmax(max-content, 4fr) khong giu duoc => "Ten goi khac"
+   van ngat dong. Phan tram + auto duoc tinh ngay o pha base size nen chac an. */
+.cap-flat .cap-grid .info-field,
+.cap-flat .info-field {
+  display: grid;
+  grid-template-columns: minmax(auto, 40%) minmax(0, 1fr);
+  align-items: center;
+  gap: 0 6px;
+}
+/* Hang chiem CA be ngang (ho ten, que quan, dia chi, lap ve viec): nhan 2 phan
+   / o nhap 8 phan. O day chi co MOT truong tren hang nen nhan khong can rong
+   bang o chia doi/chia ba — 2/8 de o nhap dai het hang.
+   span-2col KHONG lay ty le nay: no chi rong nua luoi nen giu 2:3 nhu o thuong. */
+.cap-flat .cap-grid .span-3col {
+  grid-template-columns: minmax(auto, 20%) minmax(0, 1fr);
+}
+
+/* Muc III: 4 cot x 2 hang. Hang 1 = khuon mat / chieu cao / song mui / nep tai
+   duoi; hang 2 = dai tai / di hinh / dau vet rieng (span 2 cot cuoi).
+   PHAI co tien to .cap-flat: .cap-flat .cap-grid (0,2,0) ep luoi ve 2 cot, ghi
+   de mat selector tran .cap-grid--identify (0,1,0). */
+.cap-flat .cap-grid--identify { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Dau vet rieng: 2 cot cuoi. Ty le nhan/gia tri 2/8 cho khop o dia chi cung
+   kho, thay vi 2:3 nhu o hep. */
+.cap-flat .cap-grid--identify .span-2col {
+  grid-column: span 2;
+  grid-template-columns: minmax(auto, 20%) minmax(0, 1fr);
+}
+.cap-flat .cap-grid .info-field-label,
+.cap-flat .info-field-label {
+  line-height: 1.25;
+  /* nowrap la MOT NUA co che giu nhan 1 hang: no lam min-content cua nhan bang
+     ca cum chu, nho do san auto cua cot (xem tren) keo track ra du rong. De
+     "normal" thi min-content chi bang TU DAI NHAT => track co lai va nhan ngat
+     dong. Hai thu nay phai di cung nhau. */
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+/* O nhieu dong (vet tich / hinh xam): nhan len dinh o cho khoi loang giua. */
+.cap-flat .info-field:has(.cap-textarea) { align-items: start; }
+.cap-flat .info-field:has(.cap-textarea) .info-field-label { padding-top: 7px; }
+/* Cum radio (tam giu / tam giam) nam ngang trong o gia tri. */
+.cap-flat .info-field .radio-group { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
+/* Thanh tom tat ho so: nhan va gia tri cung hang. */
+.cap-flat .rec-sum-item {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+}
+.cap-flat .rec-sum-input { margin-left: 0; }
+
+/* ---------------- Nen toi cho tung be mat ---------------- */
+.cap-flat .rec-sum {
+  background: var(--cf-surface-2);
+  border-bottom: 1px solid var(--cf-line);
+}
+.cap-flat .rec-sum-input:hover:not(:disabled),
+.cap-flat .rec-sum-input:focus { background: var(--cf-surface); }
+.cap-flat .rec-sum-input::placeholder { color: var(--cf-dim); }
+.cap-flat .rec-sum-status { color: var(--cf-warn); }
+
+.cap-flat .cap-sec-body .control,
+.cap-flat .cap-sec-body .cap-textarea {
+  background: var(--cf-surface);
+  border-color: var(--cf-edge);
+  color: var(--cf-text);
+}
+.cap-flat .cap-sec-body .control::placeholder,
+.cap-flat .cap-sec-body .cap-textarea::placeholder { color: var(--cf-dim); }
+.cap-flat .cap-sec-body .control:hover,
+.cap-flat .cap-sec-body .cap-textarea:hover { border-color: var(--cf-edge-hi); }
+.cap-flat .cap-sec-body .control:focus,
+.cap-flat .cap-sec-body .cap-textarea:focus {
+  border-color: var(--cf-blue-hi);
+  box-shadow: 0 0 0 3px rgba(53, 216, 255, 0.16);
+}
+/* Phien CHI DOC tat het o nhap. #6E82A4 chi dat 4.39:1 va day la DU LIEU
+   nghiep vu can bo phai doc lai, khong phai mot nut vo hieu => giu chu do dam
+   (15.2:1), chi ha nen + ha vien de biet la khong sua duoc. */
+.cap-flat .cap-sec-body .control:disabled,
+.cap-flat .cap-sec-body .cap-textarea:disabled {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--cf-text);
+  border-color: var(--cf-line);
+  -webkit-text-fill-color: var(--cf-text);
+}
+.cap-flat .cap-sec-body .control:disabled::placeholder { color: var(--cf-dim); }
+/* Menu tha xuong ve theo he dieu hanh: option KHONG thua nen cua select
+   tren Windows nen phai dat mau tuong minh, khong thi chu trang tren trang. */
+.cap-flat .cap-sec-body select.control option,
+.cap-flat select.rec-sum-input option {
+  background: #0A1A36;
+  color: var(--cf-text);
+}
+
+/* Nut phu / nut anh / thanh nut cuoi trang */
+.cap-flat .btn-cccd-scan,
+.cap-flat .body-shot-btn,
+.cap-flat .case-action-bar .button {
+  background: var(--cf-surface);
+  border-color: var(--cf-edge);
+  color: var(--cf-text);
+}
+.cap-flat .btn-cccd-scan:hover:not(:disabled),
+.cap-flat .body-shot-btn:hover:not(:disabled),
+.cap-flat .case-action-bar .button.secondary:hover:not(:disabled) {
+  background: var(--cf-surface-2);
+  border-color: var(--cf-line-hi);
+}
+.cap-flat .case-action-bar {
+  background: transparent;
+  border-top: 1px solid var(--cf-line);
+}
+.cap-flat .case-action-bar .button.primary {
+  background: linear-gradient(135deg, var(--cf-blue) 0%, #285DDE 100%);
+  border-color: transparent;
+  color: #fff;
+}
+.cap-flat .case-action-bar .button.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #35A0FF 0%, #3170F0 100%);
+  border-color: transparent;
+}
+.cap-flat .case-action-bar .button.danger {
+  color: var(--cf-danger);
+  border-color: rgba(255, 107, 107, 0.34);
+}
+.cap-flat .case-action-bar .button.danger:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.12);
+}
+.cap-flat .fp-none-mode-btn.active {
+  background: rgba(22, 139, 255, 0.18);
+  border-color: var(--cf-line-hi);
+  color: var(--cf-blue-hi);
+}
+
+/* O anh chan dung + o van tay: khung toi, anh giu nen trang de van tay
+   (muc den tren giay trang) khong bi doi tuong pha. */
+.cap-flat .body-shot-frame,
+.cap-flat .fp-preview-thumb,
+.cap-flat .fp-plain-thumb {
+  background: var(--cf-surface-2);
+  border-color: var(--cf-edge);
+  color: var(--cf-muted);
+}
+.cap-flat .body-shot-frame--done,
+.cap-flat .fp-preview-cell.done .fp-preview-thumb,
+.cap-flat .fp-plain-cell.done .fp-plain-thumb { border-color: rgba(36, 215, 119, 0.45); }
+.cap-flat .fp-plain-cell.done .fp-plain-thumb { background: var(--cf-surface-2); }
+.cap-flat .fp-preview-cell.fp-cell-none .fp-preview-thumb {
+  border-color: rgba(255, 107, 107, 0.42);
+  background: rgba(255, 107, 107, 0.1);
+}
+.cap-flat .fp-cell-quality,
+.cap-flat .fp-cell-none-btn {
+  background: rgba(6, 20, 42, 0.86);
+  border-color: var(--cf-line);
+}
+.cap-flat .fp-cell-quality.ok { color: var(--cf-warn); }
+.cap-flat .fp-cell-none-btn.on {
+  background: var(--cf-danger);
+  border-color: var(--cf-danger);
+  color: #06142A;
+}
+.cap-flat .cap-chip.warn { background: rgba(255, 176, 32, 0.16); color: var(--cf-warn); }
+
+/* ---------------- Man hep: nhan tro lai tren o nhap ----------------
+   Duoi 900px cot con ~420px; nhan nowrap an het be ngang thi o nhap khong con
+   cho. Xep lai 2 dong (nhan tren, o nhap duoi) o kho nay. */
+@media (max-width: 900px) {
+  .cap-flat .cap-grid .info-field,
+  .cap-flat .info-field,
+  .cap-flat .cap-grid .span-3col,
+  .cap-flat .cap-grid--identify .span-2col {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+  /* Nhan da chiem rieng 1 dong o kho nay => cho ngat dong lai, khong thi nhan
+     dai nowrap day ngang ra ngoai cot. */
+  .cap-flat .cap-grid .info-field-label,
+  .cap-flat .info-field-label {
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+  .cap-flat .info-field:has(.cap-textarea) .info-field-label { padding-top: 0; }
+}
+
+/* ============================================================
+   XEM TRUOC CHI BAN (FpSheetPreview) — mau chi ban giay
+   ------------------------------------------------------------
+   Dung chung khung .preview-a4 / .preview-a4-portrait voi ho so can pham (210mm,
+   padding 10mm 15mm => long trang 180mm) nen xuat PDF qua buildProfilePdfBlob
+   giong y. Rieng phan than dung tien to .fps- de KHONG dinh vao cac rule .pv-*
+   cua to ho so.
+   To nay la to DIEN TAY duoc sau khi in: o trong khong ghi "…" ma de net ke
+   lien (border-bottom) cho can bo viet bu.
+   ============================================================ */
+.fps-sheet {
+  gap: 2mm;
+  font-size: 11px;
+}
+
+/* ---- Dau trang: quoc hieu ben trai, cac so hieu ben phai ---- */
+.fps-sheet .fps-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6mm;
+  align-items: start;
+}
+.fps-sheet .fps-org1,
+.fps-sheet .fps-org2 { font-weight: 700; font-size: 12px; line-height: 1.3; text-align: center; }
+.fps-sheet .fps-org-underline { width: 40mm; height: 1.1px; background: #000; margin: 2px auto 0; }
+.fps-sheet .fps-top-right { display: flex; flex-direction: column; gap: 1.6mm; min-width: 52mm; }
+/* Moi so hieu = mot dong ke: nhan + phan trong de viet so vao. */
+.fps-sheet .fps-nobox {
+  display: flex;
+  align-items: baseline;
+  gap: 2mm;
+  font-size: 11px;
+}
+.fps-sheet .fps-nobox > span { white-space: nowrap; }
+.fps-sheet .fps-nobox > b {
+  flex: 1 1 auto;
+  min-width: 22mm;
+  border-bottom: 0.9px dotted #000;
+  font-weight: 700;
+  /* min-height giu net ke thang hang khi o trong (khong co chu de do cao dong). */
+  min-height: 4.2mm;
+}
+
+/* ---- Tieu de to ---- */
+.fps-sheet .fps-title-row { text-align: center; margin: 1mm 0 0.5mm; }
+.fps-sheet .fps-title {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 7px;
+  line-height: 1.1;
+}
+.fps-sheet .fps-title-sub { font-size: 11px; font-style: italic; }
+
+/* ---- Khoi nhan than: cac dong ke ---- */
+.fps-sheet .fps-info { display: flex; flex-direction: column; gap: 1.4mm; }
+.fps-sheet .fps-row { display: flex; gap: 4mm; }
+/* flexGrow dat inline theo tung dong (ho ten rong hon gioi tinh...). flex-basis 0
+   de ty le grow quyet dinh be rong, khong bi do dai chu keo lech. */
+.fps-sheet .fps-line {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5mm;
+  flex-basis: 0;
+  min-width: 0;
+}
+.fps-sheet .fps-line-lab { white-space: nowrap; }
+.fps-sheet .fps-line-lab::after { content: ":"; }
+.fps-sheet .fps-line-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 4.4mm;
+  border-bottom: 0.9px dotted #000;
+  font-weight: 600;
+  /* Gia tri dai (que quan, lap ve viec) khong duoc day dong ra ngoai long trang. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---- Tieu de khoi van tay ---- */
+.fps-sheet .fps-block-title {
+  margin: 1.5mm 0 0;
+  padding-bottom: 0.8mm;
+  border-bottom: 1.2px solid #000;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+/* ---- Van LAN: 2 hang x 5 o, moi hang co nhan tay doc ben trai ---- */
+.fps-sheet .fps-roll-row { display: grid; grid-template-columns: 7mm 1fr; gap: 1.5mm; }
+/* Nhan "TAY TRAI/PHAI" quay doc de khong an be rong cua 5 o van. */
+.fps-sheet .fps-hand-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #000;
+  background: #f1f5f9;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.fps-sheet .fps-roll-cells { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.5mm; }
+.fps-sheet .fps-cell { display: flex; flex-direction: column; min-width: 0; }
+/* So thu tu in tren chi ban (1..10) + ten ngon, tren dinh moi o. */
+.fps-sheet .fps-cell-head {
+  display: flex;
+  align-items: baseline;
+  gap: 1.2mm;
+  padding: 0.5mm 1mm;
+  border: 1px solid #000;
+  border-bottom: 0;
+  font-size: 9.5px;
+  background: #f1f5f9;
+}
+.fps-sheet .fps-cell-head > b { font-size: 10.5px; }
+.fps-sheet .fps-cell-head > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* Khung van lan: cao co dinh theo mau giay (o van lan cao hon rong). */
+.fps-sheet .fps-cell-box {
+  height: 30mm;
+  border: 1px solid #000;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.fps-sheet .fps-cell-box img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ---- Van CHUM 4-2-4: 2 anh 4 ngon rong, anh 2 ngon cai hep hon ---- */
+.fps-sheet .fps-plain-row { display: grid; grid-template-columns: 4fr 2fr 4fr; gap: 1.5mm; }
+.fps-sheet .fps-plain { display: flex; flex-direction: column; min-width: 0; }
+.fps-sheet .fps-plain-box {
+  height: 32mm;
+  border: 1px solid #000;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.fps-sheet .fps-plain-box img { width: 100%; height: 100%; object-fit: contain; }
+.fps-sheet .fps-plain-cap {
+  padding: 0.5mm 1mm;
+  border: 1px solid #000;
+  border-top: 0;
+  font-size: 9.5px;
+  text-align: center;
+  background: #f1f5f9;
+}
+
+/* ---- Ky ten ---- */
+.fps-sheet .fps-sign-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8mm;
+  margin-top: 2mm;
+  text-align: center;
+}
+.fps-sheet .fps-sign-role { font-size: 11px; font-weight: 700; }
+.fps-sheet .fps-sign-note { font-size: 10px; font-style: italic; }
+.fps-sheet .fps-sign-space { height: 14mm; }
+.fps-sheet .fps-sign-name { font-size: 11px; font-weight: 700; min-height: 4.5mm; }
+
+/* ============================================================
+   XEM TRUOC DANH BAN (NameSheetPreview) — Mau 204 + 208
+   ------------------------------------------------------------
+   Hai khoi co VIEN NGOAI (khac chi ban: chi ban khong dong khung), moi khoi
+   chia bang ke trong nhu to giay. Dung tien to .nsb- de khong dinh vao .pv-*
+   (to ho so) hay .fps-* (to chi ban).
+   ============================================================ */
+.nsb-sheet {
+  gap: 1.5mm;
+  font-size: 10.5px;
+}
+
+/* ---- Goc tren phai: so hieu mau + thong tu ---- */
+.nsb-sheet .nsb-formno { text-align: right; font-size: 9.5px; line-height: 1.3; }
+.nsb-sheet .nsb-formno > div:first-child { font-weight: 700; }
+.nsb-sheet .nsb-formno-it { font-style: italic; }
+
+/* ---- Khung ngoai moi mau ---- */
+.nsb-sheet .nsb-box { border: 1.3px solid #000; padding: 2mm; }
+.nsb-sheet .nsb-box-2 { margin-top: 1mm; }
+
+/* ---- Dong ke chung: nhan + gia tri tren net ke ---- */
+/* flex-basis 0 de ty le grow (dat inline) quyet dinh be rong, khong bi do dai
+   chu keo lech giua cac dong. */
+.nsb-sheet .nsb-line {
+  display: flex;
+  align-items: baseline;
+  gap: 1.2mm;
+  flex-basis: 0;
+  min-width: 0;
+}
+.nsb-sheet .nsb-lab { white-space: nowrap; }
+.nsb-sheet .nsb-lab::after { content: ":"; }
+.nsb-sheet .nsb-lab sup { font-size: 7.5px; }
+.nsb-sheet .nsb-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 4.2mm;
+  border-bottom: 0.9px dotted #000;
+  font-weight: 600;
+  /* Gia tri dai (que quan, lap ve viec) khong duoc day dong ra ngoai khung. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.nsb-sheet .nsb-row { display: flex; gap: 3mm; }
+/* Dong trong de viet tiep (noi dung vu viec, dac diem...). */
+.nsb-sheet .nsb-blank { min-height: 4.2mm; border-bottom: 0.9px dotted #000; }
+
+/* ---- Mau 204: hang tren = cot danh ban | cot nhan than ---- */
+.nsb-sheet .nsb-top { display: grid; grid-template-columns: 44mm 1fr; gap: 3mm; }
+.nsb-sheet .nsb-top-l {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  padding-right: 3mm;
+  border-right: 1px solid #000;
+}
+.nsb-sheet .nsb-title {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  margin-bottom: 1mm;
+}
+.nsb-sheet .nsb-top-r { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+/* Nam/nu: mau giay in san ca hai de KHOANH TRON => ben duoc chon in dam, ben
+   con lai mo di chu khong an mat. */
+.nsb-sheet .nsb-sex {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1mm;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.nsb-sheet .nsb-sex > b { font-weight: 400; color: #94a3b8; }
+.nsb-sheet .nsb-sex > b.on {
+  font-weight: 700;
+  color: #000;
+  /* Vong tron thay cho net khoanh tay tren to giay. */
+  border: 1.1px solid #000;
+  border-radius: 99px;
+  padding: 0 1.4mm;
+}
+
+/* ---- Mau 204: cac dong tran ngang ---- */
+.nsb-sheet .nsb-mid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  margin-top: 1.2mm;
+  padding-top: 1.2mm;
+  border-top: 1px solid #000;
+}
+
+/* ---- Mau 204: hang duoi = lap ve viec | 2 o van tro ---- */
+.nsb-sheet .nsb-bot {
+  display: grid;
+  grid-template-columns: 1fr 56mm;
+  gap: 3mm;
+  margin-top: 1.2mm;
+  padding-top: 1.2mm;
+  border-top: 1px solid #000;
+}
+.nsb-sheet .nsb-bot-l { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+.nsb-sheet .nsb-ct { display: flex; align-items: baseline; gap: 1.2mm; }
+.nsb-sheet .nsb-ct > span:first-child { white-space: nowrap; }
+.nsb-sheet .nsb-ct > span:first-child::after { content: ":"; }
+.nsb-sheet .nsb-ct-line { flex: 1 1 auto; min-height: 4.2mm; border-bottom: 0.9px dotted #000; }
+/* 2 o van tro: chi danh ban moi co (chi ban thi in ca 10 ngon). */
+.nsb-sheet .nsb-fp2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
+.nsb-sheet .nsb-fp2-cell { display: flex; flex-direction: column; min-width: 0; }
+.nsb-sheet .nsb-fp2-cap {
+  padding: 0.4mm 1mm;
+  border: 1px solid #000;
+  border-bottom: 0;
+  background: #f1f5f9;
+  font-size: 9.5px;
+  text-align: center;
+}
+.nsb-sheet .nsb-fp2-box {
+  height: 26mm;
+  border: 1px solid #000;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.nsb-sheet .nsb-fp2-box img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ---- Chu thich (1)(2) ---- */
+.nsb-sheet .nsb-foot { font-size: 9px; font-style: italic; }
+
+/* ---- Mau 208: hang tren = AK/vo chong | o ma vach ---- */
+.nsb-sheet .nsb-208-top { display: grid; grid-template-columns: 1fr 52mm; gap: 3mm; }
+.nsb-sheet .nsb-208-l { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+.nsb-sheet .nsb-barcode {
+  border: 1px solid #000;
+  padding: 1.5mm;
+  text-align: right;
+  font-size: 9px;
+  line-height: 1.3;
+}
+.nsb-sheet .nsb-barcode > div:first-child { font-weight: 700; }
+/* Cho dan tem ma vach: de trong mot vung du cao cho tem thuc te. */
+.nsb-sheet .nsb-barcode-note {
+  margin-top: 1.5mm;
+  padding: 4mm 1mm;
+  border: 0.9px dashed #000;
+  text-align: center;
+  font-style: italic;
+  color: #475569;
+}
+
+/* ---- Mau 208: dac diem nhan dang ---- */
+.nsb-sheet .nsb-208-mid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  margin-top: 1.2mm;
+  padding-top: 1.2mm;
+  border-top: 1px solid #000;
+}
+/* "1m" in san truoc cho dien so cm con lai. */
+.nsb-sheet .nsb-1m { font-weight: 700; white-space: nowrap; }
+
+/* ---- Mau 208: hang duoi = 3 anh 3x4 | di hinh + can bo lap ---- */
+.nsb-sheet .nsb-208-bot {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4mm;
+  margin-top: 1.2mm;
+  padding-top: 1.2mm;
+  border-top: 1px solid #000;
+}
+.nsb-sheet .nsb-photos { display: flex; gap: 2mm; }
+.nsb-sheet .nsb-photo { display: flex; flex-direction: column; }
+/* Khung 3x4 dung ty le that: 24mm x 32mm. */
+.nsb-sheet .nsb-photo-box {
+  width: 24mm;
+  height: 32mm;
+  border: 1px solid #000;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.nsb-sheet .nsb-photo-box img { width: 100%; height: 100%; object-fit: cover; }
+.nsb-sheet .nsb-photo-ph { font-size: 8.5px; color: #64748b; text-align: center; }
+.nsb-sheet .nsb-photo-cap { font-size: 8.5px; text-align: center; width: 24mm; }
+.nsb-sheet .nsb-208-right { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }

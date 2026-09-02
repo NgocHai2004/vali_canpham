@@ -1,746 +1,23 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, fpApi, cccdApi, b64PngToFile, weightApi, usbApi } from "./api";
-import { notify } from "./notifications";
-import { toast } from "./Toast";
-import cccdTemplateBg from "./assets/cccd-template.png";
-import cccdBackTemplateBg from "./assets/cccd-back-template.jpg";
-import { useI18n, apiT } from "./i18n";
-import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
-import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import DuplicateWarnModal from "./DuplicateWarnModal";
-import {
-  tryOpenOnSecondaryScreen,
-  clearSecondaryScreenPreview,
-} from "./lib/dualMonitorPreview";
+import { toast } from "./Toast";
+import UsbDrivePickerModal from "./UsbDrivePickerModal";
+import { api, fpApi, cccdApi, b64PngToFile, usbApi } from "./api";
+import { HandGlyph } from "./capture/components/HandGlyph";
+import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS } from "./capture/constants";
+import { RecordSummary } from "./capture/sections/RecordSummary";
+import { SectionCase } from "./capture/sections/SectionCase";
+import { SectionPersonal } from "./capture/sections/SectionPersonal";
+import { SectionPortraits } from "./capture/sections/SectionPortraits";
+import { SectionIdentify } from "./capture/sections/SectionIdentify";
+import { EMPTY_FORM, normalizeInitial, toDobInput } from "./capture/formSchema";
+import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
+import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
+import { useI18n, apiT } from "./i18n";
+import { tryOpenOnSecondaryScreen, clearSecondaryScreenPreview } from "./lib/dualMonitorPreview";
+import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
 import { getMeasurementHeight } from "./lib/heightMeasurement";
-
-const FINGERS = [
-  { key: "fp_l1", code: "left_thumb" },
-  { key: "fp_l2", code: "left_index" },
-  { key: "fp_l3", code: "left_middle" },
-  { key: "fp_l4", code: "left_ring" },
-  { key: "fp_l5", code: "left_little" },
-  { key: "fp_r1", code: "right_thumb" },
-  { key: "fp_r2", code: "right_index" },
-  { key: "fp_r3", code: "right_middle" },
-  { key: "fp_r4", code: "right_ring" },
-  { key: "fp_r5", code: "right_little" },
-];
-
-// Hand layout: little → ring → middle → index → thumb (thumb near middle)
-const LEFT_HAND = [
-  { key: "fp_l5", code: "left_little" },
-  { key: "fp_l4", code: "left_ring" },
-  { key: "fp_l3", code: "left_middle" },
-  { key: "fp_l2", code: "left_index" },
-  { key: "fp_l1", code: "left_thumb" },
-];
-const RIGHT_HAND = [
-  { key: "fp_r1", code: "right_thumb" },
-  { key: "fp_r2", code: "right_index" },
-  { key: "fp_r3", code: "right_middle" },
-  { key: "fp_r4", code: "right_ring" },
-  { key: "fp_r5", code: "right_little" },
-];
-
-const FP_CODE_TO_KEY = {
-  left_thumb: "fp_l1",
-  left_index: "fp_l2",
-  left_middle: "fp_l3",
-  left_ring: "fp_l4",
-  left_little: "fp_l5",
-  right_thumb: "fp_r1",
-  right_index: "fp_r2",
-  right_middle: "fp_r3",
-  right_ring: "fp_r4",
-  right_little: "fp_r5",
-};
-
-// 3 cum dung bang dung cum may Morfin chup 1 lan (khop STEPS cua morfin_service):
-// 4 ngon trai | 2 ngon cai | 4 ngon phai. Nhap nhay theo CA CUM, khong nhay le tung o.
-const FP_CLUSTERS = [
-  { step: "left_hand", codes: ["left_little", "left_ring", "left_middle", "left_index"] },
-  { step: "thumbs", codes: ["left_thumb", "right_thumb"] },
-  { step: "right_hand", codes: ["right_index", "right_middle", "right_ring", "right_little"] },
-];
-
-// Hinh ban tay so do: 4 ngon + ngon cai, ngon dang can lan thi sang len.
-// Ban tay TRAI la hinh goc (nhin tu mu ban tay, ngon cai o ben phai);
-// ban tay PHAI la ban lat ngang cua no => chi 1 bo path duy nhat.
-// Mau lay theo currentColor nen tu an theo class .done / .active / .empty.
-const HAND_FINGERS = [
-  { name: "little", x: 4, y: 17 },
-  { name: "ring", x: 10.5, y: 11 },
-  { name: "middle", x: 17, y: 8.5 },
-  { name: "index", x: 23.5, y: 12 },
-];
-
-// active = ngon DA thu (sang len). blink = ngon DANG lan (nhay).
-// Class .hg-finger/.on/.blink de CSS to mau rieng theo ngu canh (o luoi vs icon KPI),
-// vi fill dung currentColor thi ca ban tay se cung mot mau.
-function HandGlyph({ side = "left", active = [], blink = [], className = "" }) {
-  const cls = (n) =>
-    "hg-finger" + (active.includes(n) ? " on" : "") + (blink.includes(n) ? " blink" : "");
-  const lit = { fill: "currentColor", fillOpacity: 0.9, stroke: "currentColor" };
-  const dim = { fill: "none", fillOpacity: 0, stroke: "currentColor", strokeOpacity: 0.75 };
-  const skin = (n) => (active.includes(n) ? lit : dim);
-  return (
-    <svg
-      className={"hand-glyph " + className}
-      /* viewBox bo sat hinh (x 2->39, y 7->45; da tinh ca ngon cai xoay 38do
-         va nua do day vien). Cu la "0 0 40 48" => ti le 0.83, cao thua nhieu
-         cho trong nen hinh bi co lai. Gio ti le ~0.97 (gan vuong) => cung 1
-         khung render, hinh to hon ro ret. */
-      viewBox="2 7 37 38"
-      aria-hidden="true"
-      style={side === "right" ? { transform: "scaleX(-1)" } : undefined}
-    >
-      <g strokeWidth="1.6" strokeLinejoin="round">
-        {/* long ban tay */}
-        <rect className="hg-palm" x="3" y="27" width="28" height="17" rx="5" {...dim} />
-        {/* 4 ngon */}
-        {HAND_FINGERS.map((f) => (
-          <rect
-            key={f.name}
-            className={cls(f.name)}
-            x={f.x}
-            y={f.y}
-            width="5.5"
-            height={31 - f.y}
-            rx="2.7"
-            {...skin(f.name)}
-          />
-        ))}
-        {/* ngon cai — nghieng ra phia ngoai long ban tay */}
-        <rect
-          className={cls("thumb")}
-          x="29"
-          y="26"
-          width="5.5"
-          height="14"
-          rx="2.7"
-          transform="rotate(38 31.7 33)"
-          {...skin("thumb")}
-        />
-      </g>
-    </svg>
-  );
-}
-
-// So lan chup lai toi da cho MOI cum truoc khi dung ca vong thu. Voi nguong 50%
-// nguoi dan thuong can vai lan de chinh cach ap tay, nen 5 la qua it: het 5 lan
-// la vong thu dung giua duong va cac cum sau khong bao gio duoc chay.
-const FP_MAX_FAILS = 15;
-
-// So lan cho thiet bi nha lock (409) truoc khi bao loi. Dem RIENG voi FP_MAX_FAILS
-// vi 409 khong phai loi cua nguoi dan: lan chup TRUOC (luc roi trang) con giu
-// thiet bi, cho vai giay la xong. Moi lan cho 1s => tha 20s, du cho truong hop
-// service chua kip nha.
-const FP_MAX_BUSY = 20;
-
-const sleepFp = (ms) => new Promise((r) => setTimeout(r, ms));
-
-const PORTRAITS = [
-  { key: "portrait_left", labelKey: "capture.portrait.left" },
-  { key: "portrait_front", labelKey: "capture.portrait.front" },
-  { key: "portrait_right", labelKey: "capture.portrait.right" },
-];
-
-const EMPTY_FORM = {
-  full_name: "",
-  cccd_number: "",
-  personal_id: "",
-  dob: "",
-  gender: "",
-  nationality: "",
-  ethnicity: "",
-  religion: "",
-  hometown: "",
-  address: "",
-  issued_date: "",
-  expiry_date: "",
-  issued_place: "",
-  cmnd_old: "",
-  distinguishing_features: "",
-  mrz: "",
-  height_cm: "",
-  weight_kg: "",
-  cell_code: "",
-  custody_type: "",
-  facility_code: "",    // cơ sở giam giữ (Trại tạm giam / Nhà tạm giữ)
-  sub_camp_code: "",    // phân trại (chỉ khi custody_type = tam_giam)
-  note: "",
-  // ---- Thông tin can phạm (21 trường string) ----
-  cell_block: "",
-  status_detainee: "",
-  squad: "",
-  health_intake: "",
-  disease_current: "",
-  disease_intake: "",
-  alcohol_use: "",
-  address_before_arrest: "",
-  release_residence: "",
-  occupation: "",
-  occupation_detail: "",
-  file_number: "",
-  file_number_sub: "",
-  search_index: "",
-  disease_current_detail: "",
-  disease_intake_detail: "",
-  education_level: "",
-  professional_level: "",
-  study_status: "",
-  literacy: "",
-  alias: "",
-};
-
-async function cropPortraitFromCCCD(file) {
-  const dataUrl = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = () => reject(new Error(apiT("capture.err.no_file")));
-    r.readAsDataURL(file);
-  });
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error(apiT("capture.err.bad_image")));
-    i.src = dataUrl;
-  });
-  const targetRatio = (22.5 * 1024) / (55 * 596);
-  const imgRatio = img.width / img.height;
-  let cropW, cropH;
-  if (imgRatio > targetRatio) {
-    cropH = img.height;
-    cropW = Math.round(cropH * targetRatio);
-  } else {
-    cropW = img.width;
-    cropH = Math.round(cropW / targetRatio);
-  }
-  const cropX = Math.round((img.width - cropW) / 2);
-  const cropY = Math.round((img.height - cropH) / 2);
-  const outW = 300;
-  const outH = Math.round(outW / targetRatio);
-  const canvas = document.createElement("canvas");
-  canvas.width = outW;
-  canvas.height = outH;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
-  const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.9));
-  return new File([blob], "portrait_from_cccd.jpg", { type: "image/jpeg" });
-}
-
-function CccdField({ value, onChange, className, ...rest }) {
-  // Ô hiển thị thông tin trên ảnh CCCD, sửa tại chỗ. Click vào ô KHÔNG mở upload
-  // (stopPropagation). onBlur mới ghi giá trị về form để tránh re-render mỗi ký tự.
-  const ref = useRef(null);
-  return (
-    <div
-      ref={ref}
-      className={className}
-      contentEditable
-      suppressContentEditableWarning
-      spellCheck={false}
-      onClick={(e) => e.stopPropagation()}
-      onBlur={(e) => onChange(e.currentTarget.textContent)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-      }}
-      {...rest}
-    >
-      {value}
-    </div>
-  );
-}
-
-function CccdCardUpload({ form, photos, cardPortrait, onUpload, onClear, onCardPortraitPreview, onFieldChange }) {
-  const { t } = useI18n();
-  const inputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
-  const setF = onFieldChange || (() => {});
-
-  const pick = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setUploading(true);
-    setErr("");
-
-    if (onCardPortraitPreview) {
-      try {
-        const portraitFile = await cropPortraitFromCCCD(f);
-        const dataUrl = await new Promise((resolve, reject) => {
-          const r = new FileReader();
-          r.onload = () => resolve(r.result);
-          r.onerror = () => reject(new Error("read fail"));
-          r.readAsDataURL(portraitFile);
-        });
-        onCardPortraitPreview(dataUrl);
-      } catch (cropEx) {
-        console.error("[CCCD crop] error:", cropEx);
-      }
-    }
-
-    try {
-      const res = await api.uploadPhoto(f);
-      onUpload(res.url);
-    } catch (ex) {
-      setErr(ex.message);
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  };
-
-  const uploaded = photos.cccd_front;
-
-  return (
-    <div className="cccd-card-mock" onClick={() => inputRef.current?.click()} style={{ cursor: "pointer" }}>
-      <img className="cccd-card-mock-bg" src={cccdTemplateBg} alt="" />
-      <div className="cccd-card-mock-photo">
-        {cardPortrait && <img src={cardPortrait} alt="" />}
-      </div>
-      <div className="cccd-card-mock-fields">
-        <CccdField className="cccd-mf cccd-mf-no" value={form.cccd_number || ""}
-          onChange={(v) => setF("cccd_number", v.replace(/\D/g, "").slice(0, 12))} />
-        <CccdField className="cccd-mf cccd-mf-name" value={form.full_name || ""}
-          onChange={(v) => setF("full_name", v)} />
-        <CccdField className="cccd-mf cccd-mf-dob" value={form.dob || ""}
-          onChange={(v) => setF("dob", v)} />
-        <CccdField className="cccd-mf cccd-mf-sex"
-          value={form.gender ? (form.gender === "female" ? t("common.female") : t("common.male")) : ""}
-          onChange={(v) => {
-            const s = (v || "").trim().toLowerCase();
-            setF("gender", s.startsWith("n") && s.includes("ữ") ? "female"
-              : s === "female" || s === "nữ" || s === "nu" ? "female"
-              : s ? "male" : "");
-          }} />
-        <CccdField className="cccd-mf cccd-mf-nat" value={form.nationality || ""}
-          onChange={(v) => setF("nationality", v)} />
-        <CccdField className="cccd-mf cccd-mf-origin" value={form.hometown || ""}
-          onChange={(v) => setF("hometown", v)} />
-        <CccdField className="cccd-mf cccd-mf-res" value={form.address || ""}
-          onChange={(v) => setF("address", v)} />
-        <CccdField className="cccd-mf cccd-mf-exp" value={form.expiry_date || ""}
-          onChange={(v) => setF("expiry_date", v)} />
-      </div>
-      {uploaded && (
-        <button
-          type="button"
-          className="cccd-card-mock-clear"
-          onClick={(e) => { e.stopPropagation(); onClear(); }}
-          aria-label={t("capture.cccd.aria_delete")}
-        >×</button>
-      )}
-      {(uploading || err) && (
-        <div className="cccd-card-mock-hint">
-          {uploading ? t("capture.cccd.loading") : err}
-        </div>
-      )}
-      <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
-    </div>
-  );
-}
-
-function CccdCardBackUpload({ form, onFieldChange }) {
-  const { t } = useI18n();
-  const setF = onFieldChange || (() => {});
-  // MRZ chuẩn TD1 = 3 dòng × 30 ký tự. Máy đọc push lên thường là 1 chuỗi
-  // liền 90 ký tự (không có \n) — tự chia 30 ký tự/dòng cho giống thẻ thật.
-  // Nếu chuỗi đã có sẵn xuống dòng thì tôn trọng nguyên trạng.
-  const mrzRaw = (form.mrz || "").trim();
-  const mrzLines = mrzRaw.includes("\n")
-    ? mrzRaw.split(/\r?\n/).filter((ln) => ln.length > 0)
-    : (mrzRaw.match(/.{1,30}/g) || []);
-  return (
-    <div className="cccd-card-back">
-      <img className="cccd-card-mock-bg" src={cccdBackTemplateBg} alt="" />
-      <div className="cccd-card-mock-fields">
-        {/* Tọa độ căn theo template mặt sau thật (cccd-back-template.jpg, 1024x601) */}
-        {/* Đặc điểm nhận dạng — 2 dòng kẻ phía trên */}
-        <CccdField className="cccd-mf cccd-mf-back-features" value={form.distinguishing_features || ""}
-          onChange={(v) => setF("distinguishing_features", v)} />
-        {/* Ngày cấp */}
-        <CccdField className="cccd-mf cccd-mf-back-issued" value={form.issued_date || ""}
-          onChange={(v) => setF("issued_date", v)} />
-        {/* Nơi cấp */}
-        <CccdField className="cccd-mf cccd-mf-back-place" value={form.issued_place || ""}
-          onChange={(v) => setF("issued_place", v)} />
-        {/* MRZ — 3 dòng monospace, chữ to, căn đều hai bên. Sửa tại chỗ: click mở ô nhập,
-            các ký tự < biểu diễn khoảng trắng chuẩn MRZ; onBlur ghép lại thành 1 chuỗi. */}
-        <div className="cccd-mf cccd-mf-back-mrz"
-          contentEditable
-          suppressContentEditableWarning
-          spellCheck={false}
-          onClick={(e) => e.stopPropagation()}
-          onBlur={(e) => {
-            // gộp mọi dòng thành 1 chuỗi, bỏ khoảng trắng thừa, viết hoa
-            const raw = (e.currentTarget.textContent || "").replace(/\s+/g, "").toUpperCase();
-            setF("mrz", raw);
-          }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
-        >
-          {mrzLines.length > 0 ? mrzLines.map((ln, i) => (
-            <div className="cccd-mf-mrz-line" key={i}>
-              {Array.from(ln).map((ch, j) => (
-                <span className="cccd-mf-mrz-char" key={j}>{ch}</span>
-              ))}
-            </div>
-          )) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-async function resizeImageFile(file, maxW, maxH, mime = "image/jpeg", quality = 0.9) {
-  const dataUrl = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = () => reject(new Error(apiT("capture.err.read_file")));
-    r.readAsDataURL(file);
-  });
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error(apiT("capture.err.bad_image")));
-    i.src = dataUrl;
-  });
-  const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
-  const w = Math.round(img.width * ratio);
-  const h = Math.round(img.height * ratio);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, w, h);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
-  const ext = mime === "image/png" ? "png" : "jpg";
-  return new File([blob], file.name.replace(/\.[^.]+$/, "") + "." + ext, { type: mime });
-}
-
-const PREFERRED_CAMERA_LABEL = (import.meta.env.VITE_CCCD_CAMERA_LABEL || "").trim();
-
-async function pickPreferredCamera() {
-  if (!PREFERRED_CAMERA_LABEL) return null;
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter((d) => d.kind === "videoinput");
-    const wanted = PREFERRED_CAMERA_LABEL.toLowerCase();
-    const match = cams.find((c) => (c.label || "").toLowerCase().includes(wanted));
-    return match ? match.deviceId : null;
-  } catch {
-    return null;
-  }
-}
-
-function CameraCaptureModal({ open, label, onCapture, onClose }) {
-  const { t } = useI18n();
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const [err, setErr] = useState("");
-  const [ready, setReady] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [deviceLabel, setDeviceLabel] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setErr("");
-    setReady(false);
-    setDeviceLabel("");
-    (async () => {
-      const openStream = async (constraints) => navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
-      try {
-        // 1) probe permission bằng constraint tối thiểu để enumerateDevices trả về label
-        let probe;
-        try {
-          probe = await openStream({ facingMode: "user" });
-        } catch {
-          probe = await openStream(true);
-        }
-        probe.getTracks().forEach((t) => t.stop());
-
-        // 2) chọn camera cố định theo .env
-        const preferredId = await pickPreferredCamera();
-        let stream;
-        if (preferredId) {
-          try {
-            stream = await openStream({ deviceId: { exact: preferredId }, width: { ideal: 1280 }, height: { ideal: 960 } });
-          } catch {
-            stream = await openStream({ facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } });
-          }
-        } else {
-          stream = await openStream({ facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } });
-        }
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const track = stream.getVideoTracks()[0];
-        if (track) setDeviceLabel(track.label || "");
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => setReady(true);
-        }
-      } catch (e) {
-        if (!cancelled) setErr(e.message || apiT("capture.err.camera_open"));
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
-    };
-  }, [open]);
-
-  const snap = () => {
-    if (!videoRef.current || busy) return;
-    setBusy(true);
-    try {
-      const video = videoRef.current;
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          setErr(t("capture.err.camera_capture"));
-          setBusy(false);
-          return;
-        }
-        const file = new File([blob], `portrait_${Date.now()}.jpg`, { type: "image/jpeg" });
-        onCapture(file);
-      }, "image/jpeg", 0.92);
-    } catch (e) {
-      setErr(e.message);
-      setBusy(false);
-    }
-  };
-
-  if (!open) return null;
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal camera-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <h3>{t("capture.camera.title", { label: label || t("capture.camera.default_title") })}</h3>
-          <button className="close-x" onClick={onClose} aria-label={t("capture.camera.close_aria")}>×</button>
-        </div>
-        <div className="camera-body">
-          {err ? (
-            <div className="camera-err">{err}</div>
-          ) : (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="camera-video"
-            />
-          )}
-        </div>
-        <div className="camera-actions">
-          <button className="btn-ghost" onClick={onClose} disabled={busy}>{t("common.cancel")}</button>
-          <button className="btn-primary" onClick={snap} disabled={!ready || busy || !!err}>
-            {busy ? t("common.processing") : t("capture.camera.take")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PhotoSlot({ label, value, onChange, aspect = "1 / 1", size, compact, disabled, resize, useCamera }) {
-  const { t } = useI18n();
-  const inputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
-  const [cameraOpen, setCameraOpen] = useState(false);
-
-  const uploadFile = async (f) => {
-    setUploading(true);
-    setErr("");
-    try {
-      let toUpload = f;
-      if (resize) {
-        try {
-          toUpload = await resizeImageFile(f, resize.w, resize.h, resize.mime, resize.quality);
-        } catch {
-          toUpload = f;
-        }
-      }
-      const res = await api.uploadPhoto(toUpload);
-      onChange(res.url);
-    } catch (ex) {
-      setErr(ex.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const pick = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    await uploadFile(f);
-    if (inputRef.current) inputRef.current.value = "";
-  };
-
-  const handleEmptyClick = () => {
-    if (useCamera) setCameraOpen(true);
-    else inputRef.current?.click();
-  };
-
-  const onCameraCaptured = async (file) => {
-    setCameraOpen(false);
-    await uploadFile(file);
-  };
-
-  const style = { aspectRatio: aspect };
-  if (size) {
-    style.width = size;
-    style.height = size;
-    style.aspectRatio = undefined;
-  }
-
-  return (
-    <div className={"photo-slot" + (compact ? " ps-compact" : "")} style={style}>
-      {value ? (
-        <>
-          <img src={value} alt={label} />
-          {!disabled && (
-            <button
-              type="button"
-              className="photo-slot-clear"
-              onClick={(e) => { e.stopPropagation(); onChange(""); }}
-              aria-label={t("capture.photo.delete_aria")}
-            >×</button>
-          )}
-        </>
-      ) : (
-        <button
-          type="button"
-          className="photo-slot-empty"
-          onClick={handleEmptyClick}
-          disabled={uploading || disabled}
-        >
-          <span className="photo-slot-icon">
-            {useCamera ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="6" width="18" height="14" rx="2" />
-                <circle cx="12" cy="13" r="4" />
-                <path d="M8 6l1.5-2h5L16 6" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-            )}
-          </span>
-          {!compact && <span className="photo-slot-label">{useCamera ? t("capture.photo.take", { label }) : label}</span>}
-          {!compact && uploading && <span className="photo-slot-hint">{t("common.loading")}</span>}
-          {!compact && err && <span className="photo-slot-err">{err}</span>}
-        </button>
-      )}
-      <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
-      {useCamera && (
-        <CameraCaptureModal
-          open={cameraOpen}
-          label={label}
-          onCapture={onCameraCaptured}
-          onClose={() => setCameraOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <div className="cccd-field">
-      <span className="cccd-field-label">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function toDobInput(v) {
-  if (!v) return "";
-  const s = String(v);
-  if (s.includes("/")) return s;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    return `${dd}/${mm}/${d.getFullYear()}`;
-  }
-  return s;
-}
-
-function normalizeInitial(initial) {
-  if (!initial) return { form: EMPTY_FORM, photos: {} };
-  const photos = initial.photos && typeof initial.photos === "object" ? { ...initial.photos } : {};
-  if (initial.photo_url && !photos.portrait_front) photos.portrait_front = initial.photo_url;
-  return {
-    form: {
-      ...EMPTY_FORM,
-      full_name: initial.full_name || "",
-      cccd_number: initial.cccd_number || "",
-      personal_id: initial.personal_id || "",
-      dob: toDobInput(initial.dob),
-      gender: initial.gender || "",
-      nationality: initial.nationality || "",
-      ethnicity: initial.ethnicity || "",
-      religion: initial.religion || "",
-      hometown: initial.hometown || "",
-      address: initial.address || "",
-      issued_date: toDobInput(initial.issued_date),
-      expiry_date: toDobInput(initial.expiry_date),
-      issued_place: initial.issued_place || "",
-      cmnd_old: initial.cmnd_old || "",
-      distinguishing_features: initial.distinguishing_features || "",
-      mrz: initial.mrz || "",
-      height_cm: initial.height_cm != null ? String(initial.height_cm) : "",
-      weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
-      cell_code: initial.cell_code || "",
-      custody_type: initial.custody_type || "",
-      facility_code: initial.facility_code || "",
-      sub_camp_code: initial.sub_camp_code || "",
-      note: initial.note || "",
-      // ---- Thông tin can phạm (21 trường string) ----
-      cell_block: initial.cell_block || "",
-      status_detainee: initial.status_detainee || "",
-      squad: initial.squad || "",
-      health_intake: initial.health_intake || "",
-      disease_current: initial.disease_current || "",
-      disease_intake: initial.disease_intake || "",
-      alcohol_use: initial.alcohol_use || "",
-      address_before_arrest: initial.address_before_arrest || "",
-      release_residence: initial.release_residence || "",
-      occupation: initial.occupation || "",
-      occupation_detail: initial.occupation_detail || "",
-      file_number: initial.file_number || "",
-      file_number_sub: initial.file_number_sub || "",
-      search_index: initial.search_index || "",
-      disease_current_detail: initial.disease_current_detail || "",
-      disease_intake_detail: initial.disease_intake_detail || "",
-      education_level: initial.education_level || "",
-      professional_level: initial.professional_level || "",
-      study_status: initial.study_status || "",
-      literacy: initial.literacy || "",
-      alias: initial.alias || "",
-    },
-    photos,
-  };
-}
+import { notify } from "./notifications";
 
 export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
   const { t, formatDateLong } = useI18n();
@@ -748,16 +25,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
   const [photos, setPhotos] = useState(seed.photos);
-  const [cccdCardPortrait, setCccdCardPortrait] = useState(seed.photos?.cccd_front || seed.photos?.portrait_front || "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [reading, setReading] = useState(false);
   const cccdSidRef = useRef(null);
   const cccdAbortRef = useRef(null);
-  const [cccdLocked, setCccdLocked] = useState(false);   // chốt dữ liệu CCCD: true = chạm thẻ không đổi form
-  const cccdLockedRef = useRef(false);                   // ref để đọc trạng thái mới nhất trong vòng lặp nền
-  useEffect(() => { cccdLockedRef.current = cccdLocked; }, [cccdLocked]);
   const fpRunningRef = useRef(false);                    // ref phản chiếu fpRunning cho auto-start effect
   const fpCountRef = useRef(0);                          // ref phản chiếu số ngón đã thu cho auto-start effect
   const [cells, setCells] = useState([]);
@@ -827,6 +100,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const fpSidRef = useRef(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewOnSecondary, setPreviewOnSecondary] = useState(false);
+  // Xem truoc CHI BAN — to rieng, khong dung chung state voi xem truoc HO SO de
+  // mo cai nay khong dong cai kia.
+  const [fpSheetOpen, setFpSheetOpen] = useState(false);
+  // Xem truoc DANH BAN — to thu ba, state rieng nhu hai to tren.
+  const [nameSheetOpen, setNameSheetOpen] = useState(false);
   const [heightImage, setHeightImage] = useState(100);
   const [heightOffset, setHeightOffset] = useState(103);
 
@@ -931,134 +209,30 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setPhotos(seed.photos);
     setErr("");
     setOk("");
-
-    const savedUrl = seed.photos?.cccd_front;
-    if (!savedUrl) {
-      setCccdCardPortrait("");
-      return;
-    }
-    // Hiển thị tạm ảnh CCCD gốc trong khung; re-crop bất đồng bộ ở dưới
-    setCccdCardPortrait(savedUrl);
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const img = await new Promise((resolve, reject) => {
-          const i = new Image();
-          i.onload = () => resolve(i);
-          i.onerror = () => reject(new Error(apiT("capture.err.load_cccd_photo")));
-          i.src = savedUrl;
-        });
-        const targetRatio = (22.5 * 1024) / (55 * 596);
-        const imgRatio = img.width / img.height;
-        let cropW, cropH;
-        if (imgRatio > targetRatio) {
-          cropH = img.height;
-          cropW = Math.round(cropH * targetRatio);
-        } else {
-          cropW = img.width;
-          cropH = Math.round(cropW / targetRatio);
-        }
-        const cropX = Math.round((img.width - cropW) / 2);
-        const cropY = Math.round((img.height - cropH) / 2);
-        const outW = 300;
-        const outH = Math.round(outW / targetRatio);
-        const canvas = document.createElement("canvas");
-        canvas.width = outW;
-        canvas.height = outH;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-        if (!cancelled) setCccdCardPortrait(dataUrl);
-      } catch {
-        // giữ savedUrl làm fallback nếu re-crop lỗi
-      }
-    })();
-    return () => { cancelled = true; };
   }, [seed]);
 
+  // cells chi con dung cho ProfilePreviewContent (in ra ten buong cua ho so CU).
+  // Trang thu nhan khong con o chon dien giam giu / co so / phan trai / buong,
+  // nen cung khong con effect reset theo cay — reset o day se XOA du lieu buong
+  // cua ho so cu ngay khi mo ra sua.
   useEffect(() => {
     api.listCells().then(setCells).catch(() => setCells([]));
   }, []);
 
-  // ---- Phân cấp cơ sở giam giữ (cây) ----
-  // cells từ backend giờ có { code, name, level, parent, custody_type }
-  const facilities = cells.filter(
-    (c) => c.level === "facility" && c.custody_type === form.custody_type
-  );
-  const subCamps = cells.filter(
-    (c) => c.level === "sub_camp" && c.parent === form.facility_code
-  );
-  // Buồng con của phân trại (Tạm giam) hoặc con của cơ sở (Tạm giữ)
-  const cellParent = form.custody_type === "tam_giam"
-    ? form.sub_camp_code
-    : form.facility_code;
-  const availableCells = cells.filter(
-    (c) => c.level === "cell" && c.parent === cellParent
-  );
-
-  // Khi đổi Diện → reset cơ sở/phân trại/buồng không còn hợp lệ.
-  // Chỉ reset khi cells đã load xong (cells rỗng = chưa load → không xoá giá trị đã lưu).
+  // "Don vi lap" = dia diem cua phien lam viec. Truoc day suy ra tu Noi giam giu
+  // (facility_code) — truong da bo khoi trang.
+  const [sessionLocation, setSessionLocation] = useState("");
   useEffect(() => {
-    setForm((f) => {
-      if (cells.length === 0) return f;
-      const validFacilities = cells.filter(
-        (c) => c.level === "facility" && c.custody_type === f.custody_type
-      );
-      if (f.facility_code && !validFacilities.some((c) => c.code === f.facility_code)) {
-        return { ...f, facility_code: "", sub_camp_code: "", cell_code: "" };
-      }
-      return f;
-    });
-  }, [form.custody_type, cells]);
-
-  // Khi đổi cơ sở → reset phân trại/buồng
-  useEffect(() => {
-    setForm((f) => {
-      if (cells.length === 0) return f;
-      const validSub = cells.filter(
-        (c) => c.level === "sub_camp" && c.parent === f.facility_code
-      );
-      if (f.sub_camp_code && !validSub.some((c) => c.code === f.sub_camp_code)) {
-        return { ...f, sub_camp_code: "", cell_code: "" };
-      }
-      return f;
-    });
-  }, [form.facility_code, cells]);
-
-  // Khi đổi phân trại → reset buồng
-  useEffect(() => {
-    setForm((f) => {
-      if (cells.length === 0) return f;
-      const parent = f.custody_type === "tam_giam" ? f.sub_camp_code : f.facility_code;
-      const validCells = cells.filter(
-        (c) => c.level === "cell" && c.parent === parent
-      );
-      if (f.cell_code && !validCells.some((c) => c.code === f.cell_code)) {
-        return { ...f, cell_code: "" };
-      }
-      return f;
-    });
-  }, [form.sub_camp_code, form.facility_code, form.custody_type, cells]);
-
-  // WebSocket lắng nghe cân nặng từ máy cân ngoài (POST /api/weight/push -> broadcast)
-  const [weightFlash, setWeightFlash] = useState(false);
-  const weightFlashTimerRef = useRef(null);
-  useEffect(() => {
-    const close = weightApi.connect((payload) => {
-      const raw = Number(payload.weight_kg);
-      if (!Number.isFinite(raw) || raw < 20 || raw > 200) return;
-      const kg = Math.round(raw * 10) / 10;
-      setForm((f) => ({ ...f, weight_kg: kg.toFixed(1) }));
-      setWeightFlash(true);
-      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
-      weightFlashTimerRef.current = setTimeout(() => setWeightFlash(false), 1200);
-    });
-    return () => {
-      close();
-      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
-    };
-  }, []);
+    if (!sessionId) {
+      setSessionLocation("");
+      return;
+    }
+    let cancelled = false;
+    api.getSession(sessionId)
+      .then((s) => { if (!cancelled) setSessionLocation(s?.location || ""); })
+      .catch(() => { if (!cancelled) setSessionLocation(""); });
+    return () => { cancelled = true; };
+  }, [sessionId]);
 
   // Cooldown 10s: banner ok/err tự ẩn sau 10 giây
   useEffect(() => {
@@ -1574,7 +748,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   const applyCccdData = async (d) => {
     if (!d) return;
-    if (cccdLockedRef.current) return;   // đã khóa: chạm thẻ khác không ghi đè form
     setForm((f) => ({
       ...f,
       full_name: d.full_name || f.full_name,
@@ -1594,14 +767,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       distinguishing_features: d.distinguishing_features || d.personal_identification || f.distinguishing_features,
       mrz: d.mrz || f.mrz,
     }));
+    // Anh chan dung trong chip the: trang thu nhan khong con hien khoi anh the,
+    // nhung van luu vao photos.cccd_front de ban in ho so (ProfilePreview) dung.
     if (d.facePhoto) {
       const fp = d.facePhoto;
       if (fp.startsWith("/uploads/") || fp.startsWith("http://") || fp.startsWith("https://") || fp.startsWith("data:")) {
-        setCccdCardPortrait(fp);
         setPhoto("cccd_front", fp);
       } else {
-        const dataUrl = `data:image/jpeg;base64,${fp}`;
-        setCccdCardPortrait(dataUrl);
         try {
           const file = await b64PngToFile(fp, `cccd_face_${d.cccd_number || Date.now()}.jpg`);
           const jpgFile = new File([file], file.name, { type: "image/jpeg" });
@@ -1788,7 +960,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       { key: "cccd", label: t("capture.verify.item.cccd"), ok: cccdOk, required: true },
       { key: "portrait", label: t("capture.verify.item.portrait"), ok: portraitCount === 3, required: false },
       { key: "fp", label: t("capture.verify.item.fp"), ok: fpCount === 10, required: false },
-      { key: "extra", label: t("capture.verify.item.extra"), ok: !!form.height_cm && !!form.weight_kg, required: false },
+      // Can nang da bo khoi trang => "thong tin bo sung" chi con do chieu cao.
+      { key: "extra", label: t("capture.verify.item.extra"), ok: !!form.height_cm, required: false },
       { key: "device", label: t("capture.verify.item.devices"), ok: true, required: false },
     ];
   }, [form, fpCount, portraitCount, t]);
@@ -1812,15 +985,47 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       };
       const body = {
         session_id: sessionId || null,
+        // ---- Thông tin hồ sơ (thanh trên cùng) ----
+        personal_id: strOrNull(form.personal_id),
+        record_sheet_no: strOrNull(form.record_sheet_no),
+        fp_sheet_no: strOrNull(form.fp_sheet_no),
+        record_times: strOrNull(form.record_times),
+        record_date: strOrNull(form.record_date),
+        ak_no: strOrNull(form.ak_no),
+        record_scope: strOrNull(form.record_scope),
+        // ---- I. Thông tin nhân thân ----
         full_name: form.full_name.trim(),
+        alias: strOrNull(form.alias),
         gender: form.gender || "male",
         dob: strOrNull(form.dob),
         cccd_number: digitsOrNull(form.cccd_number),
-        personal_id: strOrNull(form.personal_id),
         nationality: strOrNull(form.nationality),
+        ethnicity: strOrNull(form.ethnicity),
         hometown: strOrNull(form.hometown),
         address: strOrNull(form.address),
-        ethnicity: strOrNull(form.ethnicity),
+        temp_address: strOrNull(form.temp_address),
+        current_address: strOrNull(form.current_address),
+        occupation: strOrNull(form.occupation),
+        father_name: strOrNull(form.father_name),
+        mother_name: strOrNull(form.mother_name),
+        // ---- II. Thông tin vụ việc ----
+        arrest_date: strOrNull(form.arrest_date),
+        arrest_agency: strOrNull(form.arrest_agency),
+        case_about: strOrNull(form.case_about),
+        // ---- III. Đặc điểm nhận dạng ----
+        face_shape: strOrNull(form.face_shape),
+        height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
+        nose: strOrNull(form.nose),
+        ear_features: strOrNull(form.ear_features),
+        earlobe: strOrNull(form.earlobe),
+        scars: strOrNull(form.scars),
+        physical_abnormalities: strOrNull(form.physical_abnormalities),
+        // ---- IV. Ảnh nhận dạng ----
+        photo_url: photos.portrait_front || null,
+        photos,
+        // ---- Trường cũ KHÔNG còn ô nhập trên trang này. Backend `update` làm
+        // $set cả model_dump() nên phải gửi lại, nếu không hồ sơ cũ (buồng giam,
+        // tôn giáo, quan hệ gia đình...) sẽ bị ghi None ngay lần lưu đầu. ----
         religion: strOrNull(form.religion),
         issued_date: strOrNull(form.issued_date),
         expiry_date: strOrNull(form.expiry_date),
@@ -1828,37 +1033,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         cmnd_old: strOrNull(form.cmnd_old),
         distinguishing_features: strOrNull(form.distinguishing_features),
         mrz: strOrNull(form.mrz),
-        height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
         weight_kg: form.weight_kg ? Math.round(Number(form.weight_kg)) : null,
+        blood_type: strOrNull(form.blood_type),
         cell_code: strOrNull(form.cell_code),
         custody_type: strOrNull(form.custody_type),
         facility_code: strOrNull(form.facility_code),
         sub_camp_code: strOrNull(form.sub_camp_code),
         note: strOrNull(form.note),
-        // ---- Thông tin can phạm (21 trường string) ----
-        cell_block: strOrNull(form.cell_block),
-        status_detainee: strOrNull(form.status_detainee),
-        squad: strOrNull(form.squad),
-        health_intake: strOrNull(form.health_intake),
-        disease_current: strOrNull(form.disease_current),
-        disease_intake: strOrNull(form.disease_intake),
-        alcohol_use: strOrNull(form.alcohol_use),
-        address_before_arrest: strOrNull(form.address_before_arrest),
-        release_residence: strOrNull(form.release_residence),
-        occupation: strOrNull(form.occupation),
-        occupation_detail: strOrNull(form.occupation_detail),
-        file_number: strOrNull(form.file_number),
-        file_number_sub: strOrNull(form.file_number_sub),
-        search_index: strOrNull(form.search_index),
-        disease_current_detail: strOrNull(form.disease_current_detail),
-        disease_intake_detail: strOrNull(form.disease_intake_detail),
-        education_level: strOrNull(form.education_level),
-        professional_level: strOrNull(form.professional_level),
-        study_status: strOrNull(form.study_status),
-        literacy: strOrNull(form.literacy),
-        alias: strOrNull(form.alias),
-        photo_url: photos.portrait_front || null,
-        photos,
+        family: Array.isArray(form.family)
+          ? form.family.filter((r) => r && String(r.full_name || "").trim())
+          : [],
+        charge: strOrNull(form.charge),
+        charge_detail: strOrNull(form.charge_detail),
+        decision_no: strOrNull(form.decision_no),
+        date_in: strOrNull(form.date_in),
       };
       if (isEdit) {
         const updated = await api.updateDetainee(initial.id, body);
@@ -1981,16 +1169,23 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const captureTimeStr = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-  const readyState = fpCount === 10 && portraitCount === 3 && !!photos.cccd_front && allRequiredValid;
-  const overallProgress = Math.round(checks.reduce((s, c) => s + (c.ok ? 1 : 0), 0) * 100 / checks.length);
+  const plainCount = FP_PLAIN_SLOTS.filter((sl) => photos[sl.key]).length;
+  // Khong con anh the CCCD trong mau chi ban => "san sang" chi con 3 anh 3x4,
+  // 10 van tay va cac truong bat buoc.
+  const readyState = fpCount === 10 && portraitCount === 3 && allRequiredValid;
+  const todayStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
+  // Don vi lap = dia diem cua phien lam viec (truoc day suy ra tu noi giam giu).
+  const unitName = sessionLocation;
 
   return (
-    <div className="page capture-page case-preview">
+    <div className="page capture-page cap-flat">
       {(err || ok) && (
         <div className="capture-banner">
-          {err && <div className="error-box">{err}</div>}
+          {/* role=alert cho loi (chen ngang), aria-live=polite cho thanh cong
+              (khong cat loi doc dang doc). Truoc do bang chi la mau + chu. */}
+          {err && <div className="error-box" role="alert">{err}</div>}
           {ok && (
-            <div className="success-box">
+            <div className="success-box" role="status" aria-live="polite">
               {ok}
               <button type="button" className="banner-link" onClick={backToList}>
                 {t("capture.view_list")}
@@ -2000,249 +1195,76 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         </div>
       )}
 
-      <div className="case-main">
-        {/* ================ Tier 1: 3 cols — Photo + CCCD front + CCCD back ================ */}
-        <div className="case-tier-1">
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.body_photo")}</h2>
-            </div>
-            <div className="body-shots">
-              {PORTRAITS.map((p) => (
-                <div key={p.key} className="body-shot">
-                  <span className="body-shot-label">
-                    {t(p.labelKey).toUpperCase()}
-                  </span>
-                  <LiveCamShot
-                    label={t(p.labelKey)}
-                    shortLabel={t(p.labelKey).toUpperCase()}
-                    value={photos[p.key]}
-                    onCapture={(u) => setPhoto(p.key, u)}
-                    showRuler={p.key === "portrait_front"}
-                    onMeasureHeight={p.key === "portrait_front" ? applyMeasuredHeight : undefined}
-                    onPortraitRecognize={raiseFaceAlerts}
-                    heightImage={heightImage}
-                    heightOffset={heightOffset}
-                    useYolo={p.key === "portrait_front"}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
+      <RecordSummary
+        form={form}
+        setField={setField}
+        dateStr={todayStr}
+        unitName={unitName}
+        ready={allRequiredValid}
+        disabled={sessionReadOnly}
+      />
 
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.cccd_card")}</h2>
-              {cccdLocked && (
-                <span className="cccd-listen-badge locked">
-                  <span className="cccd-listen-dot" />
-                  {t("capture.toolbar.locked")}
-                </span>
-              )}
-              <button
-                type="button"
-                className="btn-cccd-scan"
-                onClick={() => setCccdLocked((v) => !v)}
-                title={cccdLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
-              >
-                {cccdLocked ? t("capture.toolbar.recollect") : t("capture.toolbar.lock")}
-              </button>
-            </div>
-            <div className="cccd-preview-wrap">
-              <CccdCardUpload
-                form={form}
-                photos={photos}
-                cardPortrait={cccdCardPortrait}
-                onUpload={(url) => setPhoto("cccd_front", url)}
-                onClear={() => { setPhoto("cccd_front", ""); setCccdCardPortrait(""); }}
-                onCardPortraitPreview={setCccdCardPortrait}
-                onFieldChange={setField}
-              />
-            </div>
-          </section>
+      <div className="case-main cap-sheet cap-sheet--split">
+        {/* ---- Cot trai: khai bao nhan than / vu viec / dac diem ---- */}
+        <div className="cap-col">
+        {/* ================ I. THONG TIN NHAN THAN ================ */}
+        <section className="cap-sec" id="cap-sec-personal">
+          <h2 className="cap-sec-title">{t("capture.roman.1")}</h2>
+          <div className="cap-sec-body">
+            <SectionPersonal form={form} setField={setField} disabled={sessionReadOnly} />
+          </div>
+        </section>
 
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.cccd_back")}</h2>
-            </div>
-            <div className="cccd-preview-wrap">
-              <CccdCardBackUpload form={form} onFieldChange={setField} />
-            </div>
-          </section>
+        {/* ================ II. THONG TIN VU VIEC ================ */}
+        <section className="cap-sec" id="cap-sec-case">
+          <h2 className="cap-sec-title">{t("capture.roman.2")}</h2>
+          <div className="cap-sec-body">
+            <SectionCase form={form} setField={setField} disabled={sessionReadOnly} />
+          </div>
+        </section>
+
         </div>
 
-        {/* ================ Tier 2: Personal info ================ */}
-        <div className="case-tier-2">
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.personal")}</h2>
-            </div>
-            <div className="personal-info personal-info--4col">
-              {/* Mã can phạm — giữ lại (nghiệp vụ, không phải trường CCCD) */}
-              <InfoField label={t("capture.form.personal_id")}>
-                <input className="control control-sm" value={form.personal_id}
-                  onChange={(e) => setField("personal_id", e.target.value)}
-                  placeholder={t("capture.form.personal_id_ph")} />
-              </InfoField>
-              {/* ---- 21 trường Thông tin can phạm (string) ---- */}
-              <InfoField label={t("detainee.field.search_index")}>
-                <input className="control control-sm" value={form.search_index}
-                  onChange={(e) => setField("search_index", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.status_detainee")}>
-                <input className="control control-sm" value={form.status_detainee}
-                  onChange={(e) => setField("status_detainee", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.squad")}>
-                <input className="control control-sm" value={form.squad}
-                  onChange={(e) => setField("squad", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.health_intake")}>
-                <input className="control control-sm" value={form.health_intake}
-                  onChange={(e) => setField("health_intake", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.disease_current")}>
-                <input className="control control-sm" value={form.disease_current}
-                  onChange={(e) => setField("disease_current", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.disease_intake")}>
-                <input className="control control-sm" value={form.disease_intake}
-                  onChange={(e) => setField("disease_intake", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.alcohol_use")}>
-                <input className="control control-sm" value={form.alcohol_use}
-                  onChange={(e) => setField("alcohol_use", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.address_before_arrest")}>
-                <input className="control control-sm" value={form.address_before_arrest}
-                  onChange={(e) => setField("address_before_arrest", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.release_residence")}>
-                <input className="control control-sm" value={form.release_residence}
-                  onChange={(e) => setField("release_residence", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.occupation")}>
-                <input className="control control-sm" value={form.occupation}
-                  onChange={(e) => setField("occupation", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.occupation_detail")}>
-                <input className="control control-sm" value={form.occupation_detail}
-                  onChange={(e) => setField("occupation_detail", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.file_number")}>
-                <input className="control control-sm" value={form.file_number}
-                  onChange={(e) => setField("file_number", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.file_number_sub")}>
-                <input className="control control-sm" value={form.file_number_sub}
-                  onChange={(e) => setField("file_number_sub", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.disease_current_detail")}>
-                <input className="control control-sm" value={form.disease_current_detail}
-                  onChange={(e) => setField("disease_current_detail", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.disease_intake_detail")}>
-                <input className="control control-sm" value={form.disease_intake_detail}
-                  onChange={(e) => setField("disease_intake_detail", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.education_level")}>
-                <input className="control control-sm" value={form.education_level}
-                  onChange={(e) => setField("education_level", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.professional_level")}>
-                <input className="control control-sm" value={form.professional_level}
-                  onChange={(e) => setField("professional_level", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.study_status")}>
-                <input className="control control-sm" value={form.study_status}
-                  onChange={(e) => setField("study_status", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.literacy")}>
-                <input className="control control-sm" value={form.literacy}
-                  onChange={(e) => setField("literacy", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.alias")}>
-                <input className="control control-sm" value={form.alias}
-                  onChange={(e) => setField("alias", e.target.value)} />
-              </InfoField>
-              <InfoField label={t("detainee.field.note")} className="span-2col">
-                <input className="control control-sm" value={form.note}
-                  onChange={(e) => setField("note", e.target.value)}
-                  placeholder={t("capture.field.note_ph")} />
-              </InfoField>
-
-              <InfoField label={t("detainee.field.height_cm")}>
-                <input className="control control-sm" type="number" min="50" max="250"
-                  value={form.height_cm}
-                  onChange={(e) => setField("height_cm", e.target.value)}
-                  placeholder="---" />
-              </InfoField>
-              <InfoField label={t("detainee.field.weight_kg")}>
-                <input className="control control-sm" type="number" min="20" max="200"
-                  value={form.weight_kg}
-                  onChange={(e) => setField("weight_kg", e.target.value)}
-                  placeholder="---" />
-              </InfoField>
-
-              <InfoField label={t("detainee.field.custody_type")}>
-                <div className="radio-group radio-group-sm">
-                  <label className="radio-option">
-                    <input type="radio" name="capture-custody-type" value="tam_giu"
-                      checked={form.custody_type === "tam_giu"}
-                      onChange={(e) => setField("custody_type", e.target.value)} />
-                    <span>{t("detainee.custody_type.temporary_hold")}</span>
-                  </label>
-                  <label className="radio-option">
-                    <input type="radio" name="capture-custody-type" value="tam_giam"
-                      checked={form.custody_type === "tam_giam"}
-                      onChange={(e) => setField("custody_type", e.target.value)} />
-                    <span>{t("detainee.custody_type.detention")}</span>
-                  </label>
-                </div>
-              </InfoField>
-              <InfoField label={t("detainee.field.facility_type")}>
-                <select className="control control-sm"
-                  value={form.facility_code}
-                  onChange={(e) => setField("facility_code", e.target.value)}>
-                  <option value="">{t("detainee.form.select_facility")}</option>
-                  {facilities.map((f) => (
-                    <option key={f.code} value={f.code}>{f.name}</option>
-                  ))}
-                </select>
-              </InfoField>
-              {form.custody_type === "tam_giam" && (
-                <InfoField label={t("detainee.field.sub_camp")}>
-                  <select className="control control-sm"
-                    value={form.sub_camp_code}
-                    onChange={(e) => setField("sub_camp_code", e.target.value)}>
-                    <option value="">{t("detainee.form.select_sub_camp")}</option>
-                    {subCamps.map((s) => (
-                      <option key={s.code} value={s.code}>{s.name}</option>
-                    ))}
-                  </select>
-                </InfoField>
-              )}
-              <InfoField label={t("detainee.field.cell")}>
-                <select className="control control-sm"
-                  value={form.cell_code}
-                  onChange={(e) => setField("cell_code", e.target.value)}>
-                  <option value="">{t("detainee.form.select_cell")}</option>
-                  {availableCells.map((c) => (
-                    <option key={c.code} value={c.code}>{c.name || c.code}</option>
-                  ))}
-                </select>
-              </InfoField>
-            </div>
-          </section>
+        {/* ---- Cot phai: chi anh nhan dang. Van tay (V) da tach xuong hang
+             rieng ben duoi vi luoi 10 o + 3 anh chum khong du cho trong nua o
+             ngang; de canh muc III thi o van tay bi bop nho. ---- */}
+        <div className="cap-col">
+        {/* ================ IV. ANH NHAN DANG (3x4) ================ */}
+        <section className="cap-sec" id="cap-sec-photo">
+          <h2 className="cap-sec-title">
+            {t("capture.roman.4")}
+            <span className="fp-row-count">{portraitCount} / 3</span>
+          </h2>
+          <div className="cap-sec-body">
+            <SectionPortraits
+              photos={photos}
+              setPhoto={setPhoto}
+              applyMeasuredHeight={applyMeasuredHeight}
+              onPortraitRecognize={raiseFaceAlerts}
+              heightImage={heightImage}
+              heightOffset={heightOffset}
+            />
+          </div>
+        </section>
         </div>
 
-        {/* Hàng 2 cột: tier-3 (dấu vân tay 7/10) + kiểm tra dữ liệu (3/10) */}
-        <div className="case-tier3-row">
-        {/* ================ Tier 3: Fingerprint + KPI ================ */}
-        <div className="case-tier-3">
-          <section className="cap-block">
-            <div className="cap-block-head">
-              <h2 className="cap-block-title">{t("capture.section.fp", { n: fpCount })}</h2>
+        {/* ---- Hang giua, trai het be ngang: dac diem nhan dang ---- */}
+        <div className="cap-col cap-col--full">
+        {/* ================ III. DAC DIEM NHAN DANG ================ */}
+        <section className="cap-sec" id="cap-sec-identify">
+          <h2 className="cap-sec-title">{t("capture.roman.3")}</h2>
+          <div className="cap-sec-body">
+            <SectionIdentify form={form} setField={setField} disabled={sessionReadOnly} />
+          </div>
+        </section>
+        </div>
+
+        {/* ---- Hang duoi, trai het be ngang: chi ban van tay ---- */}
+        <div className="cap-col cap-col--full">
+        {/* ================ V. CHI BAN VAN TAY ================ */}
+        <section className="cap-sec" id="cap-sec-fp">
+          <div className="cap-sec-head">
+            <h2 className="cap-sec-title">{t("capture.roman.5")}</h2>
               <div className="fp-header-actions">
                 {fpConfirm && (
                   <>
@@ -2292,6 +1314,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 </button>
               </div>
             </div>
+            <div className="cap-sec-body">
+            {/* Muc V trai het be ngang => tach noi dung thanh 2 cot: van LAN
+                (10 o) ben trai, van CHUM 4-2-4 (3 anh) ben phai. */}
+            <div className="fp-two-col">
+            <div className="fp-block">
+            <h3 className="cap-sub-title cap-sub-title--fp">
+              {t("capture.fp.roll_full")}
+              <span className="fp-row-count">{fpCount} / 10</span>
+            </h3>
             <div className="fp-preview-grid fp-preview-grid--single-row">
               {FP_CLUSTERS.map((cluster) => {
                 // Ca cum nhap nhay cung luc = dung 1 lan chup cua may Morfin.
@@ -2345,6 +1376,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                           }
                           style={{ cursor: fpRunning || (isNone && !fpNoneMode) ? "default" : "pointer" }}
                         >
+                          {/* So 1..10 theo thu tu in tren chi ban giay. O van
+                              nhom theo cum chup nen so khong lien tiep — day la
+                              co y: doc duoc ca thu tu giay va cum chup. */}
+                          <span className="fp-cell-no" aria-hidden="true">{FP_SHEET_NO[fpCode]}</span>
                           <div className="fp-preview-thumb">
                             {filled ? (
                               <img src={photos[key]} alt={label} />
@@ -2387,6 +1422,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                               ⊘
                             </button>
                           </div>
+                          {filled && (
+                            <span className="fp-cell-taken">{t("capture.fp.taken")}</span>
+                          )}
                         </div>
                       );
                     })}
@@ -2400,71 +1438,58 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                 yeu da tu the hien bang % do tren o + badge, nen chi can 1 nut
                 Xac nhan canh nut khoa la du. */}
 
+            </div>
+
+            {/* Hang van PHANG: 3 anh cum nguyen ban tu may, khop dung 3 STEPS
+                cua morfin_service. Van LAN o tren van dung key fp_l1..fp_r5. */}
+            <div className="fp-block">
+            <h3 className="cap-sub-title cap-sub-title--fp">
+              {t("capture.fp.plain_full")}
+              <span className="fp-row-count">{plainCount} / 3</span>
+            </h3>
+            <div className="fp-plain-row">
+              {FP_PLAIN_SLOTS.map((slot) => {
+                const filled = !!photos[slot.key];
+                const active = fpRunning && fpConfirm?.step === slot.step;
+                return (
+                  <div
+                    key={slot.key}
+                    className={"fp-plain-cell " + (filled ? "done" : "empty") +
+                      (active ? " active neon-active" : "")}
+                    title={t(slot.labelKey)}
+                  >
+                    <div className="fp-plain-thumb">
+                      {filled
+                        ? <img src={photos[slot.key]} alt={t(slot.labelKey)} />
+                        : <span className="fp-plain-ph">—</span>}
+                    </div>
+                    <span className="fp-plain-label">{t(slot.labelKey)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            </div>
+            </div>
+
+            {/* KPI dem 10 ngon: nam ngoai 2 cot, tinh cho ca muc V. */}
             <div className="fp-kpi fp-kpi-inline fp-kpi-2col">
               <div className="fp-kpi-cell">
                 <span className="fp-kpi-num">{fpCount}</span>
                 <span className="fp-kpi-divider">/ 10</span>
               </div>
               <div className="fp-kpi-cell fp-kpi-hands">
-                <HandGlyph
-                  side="left"
-                  active={fpDoneByHand.left}
-                  blink={fpBlinkByHand.left}
-                  className="kpi"
-                />
-                <HandGlyph
-                  side="right"
-                  active={fpDoneByHand.right}
-                  blink={fpBlinkByHand.right}
-                  className="kpi"
-                />
+                <HandGlyph side="left" active={fpDoneByHand.left}
+                  blink={fpBlinkByHand.left} className="kpi" />
+                <HandGlyph side="right" active={fpDoneByHand.right}
+                  blink={fpBlinkByHand.right} className="kpi" />
               </div>
-            </div>
-          </section>
-        </div>
-
-          {/* ================ Aside: Data verification only ================ */}
-          <aside className="case-aside">
-            <section className="cap-block case-verify">
-          <div className="cap-block-head">
-            <h2 className="cap-block-title">{t("capture.section.verify")}</h2>
-          </div>
-          <div className="verify-body">
-            <div>
-              <div className="verify-progress-label">
-                <span>{t("capture.verify.overall")}</span>
-                <span>{overallProgress}%</span>
-              </div>
-              <div className="verify-progress-bar">
-                <span style={{ width: `${overallProgress}%` }} />
-              </div>
-            </div>
-            <div className="verify-list">
-              <div className="verify-item verify-head">
-                <span className="v-label">{t("capture.verify.col.item")}</span>
-                <span className="v-label">{t("capture.verify.col.status")}</span>
-              </div>
-              {checks.map((c) => (
-                <div key={c.key} className="verify-item">
-                  <span className="v-label">{c.label}</span>
-                  <span className={"verify-chip " + (c.ok ? "ok" : c.required ? "miss" : "ok")}>
-                    {c.ok ? t("capture.verify.status.ok") : c.required ? t("capture.verify.status.missing") : t("capture.verify.status.optional")}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className={"verify-banner " + (allRequiredValid ? "" : "warn")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 15 8.5 22 9.3 17 14.1 18.5 21 12 17.5 5.5 21 7 14.1 2 9.3 9 8.5 12 2" />
-              </svg>
-              {allRequiredValid ? t("capture.verify.no_issue") : t("capture.verify.missing_required")}
             </div>
           </div>
-            </section>
-          </aside>
+        </section>
         </div>
 
       </div>
+
 
       {/* ================ Action bar ================ */}
       <div className="case-action-bar">
@@ -2489,6 +1514,26 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </svg>
           {t("capture.actions.preview")}
         </button>
+        {/* Xem truoc CHI BAN: to rieng theo mau chi ban giay (van tay + nhan than
+            toi thieu), khong phai to ho so can pham o nut ben canh. */}
+        <button type="button" className="button secondary" disabled={saving}
+          onClick={() => setFpSheetOpen(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M7 8h4M7 12h4M7 16h2M15 8v8" />
+          </svg>
+          {t("capture.actions.preview_fpsheet")}
+        </button>
+        {/* Xem truoc DANH BAN: mau 204 + 208 (nhan than + 2 ngon tro + 3 anh 3x4). */}
+        <button type="button" className="button secondary" disabled={saving}
+          onClick={() => setNameSheetOpen(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <circle cx="9" cy="10" r="2.2" />
+            <path d="M5.5 17c0.6-2 1.9-3 3.5-3s2.9 1 3.5 3M15 9h4M15 13h4" />
+          </svg>
+          {t("capture.actions.preview_namesheet")}
+        </button>
         <button type="button" className="button danger" disabled={saving} onClick={resetAll}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
@@ -2496,6 +1541,23 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           {t("capture.actions.clear")}
         </button>
       </div>
+
+      {nameSheetOpen && (
+        <NameSheetPreviewModal
+          form={form}
+          photos={photos}
+          unitName={unitName}
+          onClose={() => setNameSheetOpen(false)}
+        />
+      )}
+
+      {fpSheetOpen && (
+        <FpSheetPreviewModal
+          form={form}
+          photos={photos}
+          onClose={() => setFpSheetOpen(false)}
+        />
+      )}
 
       {previewOpen && (
         <ProfilePreviewModal
@@ -2514,238 +1576,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         onEditProfile={onEditProfile ? onDupEdit : undefined}
         onCancel={onDupCancel}
       />
-    </div>
-  );
-}
-
-function InfoField({ label, children, className = "" }) {
-  return (
-    <label className={"info-field " + className}>
-      <span className="info-field-label">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, onPortraitRecognize, heightImage = 100, heightOffset = 103, useYolo = false }) {
-  const { t } = useI18n();
-  const videoRef = useRef(null);
-  const frameRef = useRef(null);
-  const streamRef = useRef(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [ready, setReady] = useState(false);
-  const [preview, setPreview] = useState(false);
-  // Ảnh CÓ vạch đỏ (data URI) của lần chụp hiện tại — chỉ để xem tạm tại màn thu nhận.
-  // Giữ kèm url ảnh sạch tương ứng để không hiện nhầm vạch cho ảnh khác. Không lưu DB.
-  const [redLinePreview, setRedLinePreview] = useState({ url: "", src: "" });
-  // head_ratio = y1_đỉnh_đầu / chiều_cao_ảnh (0..1) do YOLO trả về khi upload.
-  // Chiều cao tự động = (1 - head_ratio) * height_image + 103. null = chưa detect được.
-  const [headRatio, setHeadRatio] = useState(null);
-
-  useEffect(() => {
-    if (value || preview) return;
-    let cancelled = false;
-    setErr("");
-    setReady(false);
-    (async () => {
-      const openStream = async (constraints) => navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
-      try {
-        let probe;
-        try { probe = await openStream({ facingMode: "user" }); }
-        catch { probe = await openStream(true); }
-        probe.getTracks().forEach((t) => t.stop());
-
-        const preferredId = await pickPreferredCamera();
-        let stream;
-        if (preferredId) {
-          try {
-            stream = await openStream({ deviceId: { exact: preferredId }, width: { ideal: 1280 }, height: { ideal: 960 } });
-          } catch {
-            stream = await openStream({ facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } });
-          }
-        } else {
-          stream = await openStream({ facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } });
-        }
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => setReady(true);
-        }
-      } catch (e) {
-        if (!cancelled) setErr(e.message || apiT("capture.err.camera_open"));
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
-    };
-  }, [value, preview]);
-
-  const snap = async () => {
-    if (!videoRef.current || busy) return;
-    setBusy(true);
-    setErr("");
-    try {
-      const video = videoRef.current;
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(apiT("capture.err.camera_create")))), "image/jpeg", 0.92);
-      });
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
-      const file = new File([blob], `portrait_${Date.now()}.jpg`, { type: "image/jpeg" });
-      // Chỉ ảnh thẳng (useYolo) mới gọi type=portrait để YOLO vẽ vạch đỏ + đo chiều cao.
-      // Ảnh trái/phải chụp thường, không cần YOLO.
-      const res = await api.uploadPhoto(file, useYolo ? "portrait" : "");
-      setHeadRatio(useYolo && typeof res.head_ratio === "number" ? res.head_ratio : null);
-      // res.url = ảnh SẠCH (đã lưu đĩa, đi vào DB, dùng cho xem trước hồ sơ + in).
-      // res.preview_url = ảnh CÓ vạch đỏ (data URI, không lưu) — chỉ xem tạm ở màn này.
-      setRedLinePreview(
-        useYolo && res.preview_url ? { url: res.url, src: res.preview_url } : { url: "", src: "" },
-      );
-      onCapture(res.url);
-      onPortraitRecognize?.(res.url);
-      setPreview(true);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const retake = () => {
-    setPreview(false);
-    setHeadRatio(null);
-    setRedLinePreview({ url: "", src: "" });
-    onCapture("");
-  };
-
-  const showLive = !value && !preview;
-  const captured = Boolean(value);
-  // Chỉ dùng ảnh có vạch đỏ khi nó đúng là bản preview của ảnh đang hiển thị.
-  // Mọi nơi khác (xem trước hồ sơ, in, DB) luôn dùng `value` = ảnh sạch.
-  const displaySrc = redLinePreview.src && redLinePreview.url === value ? redLinePreview.src : value;
-  // Chiều cao TỰ ĐỘNG = (1 - head_ratio) * height_image + height_offset.
-  // head_ratio = vị trí vạch đỉnh đầu tính từ đỉnh ảnh (0..1) → khoảng tới đáy = 1 - head_ratio.
-  const measuredHeight = showRuler && headRatio != null
-    ? getMeasurementHeight({
-      linePixelHeight: (1 - headRatio) * 100,
-      imageHeight: 100,
-      heightImage,
-      heightOffset,
-    })
-    : null;
-
-  useEffect(() => {
-    if (!captured || !showRuler || !onMeasureHeight || headRatio == null) return;
-    onMeasureHeight({
-      linePixelHeight: (1 - headRatio) * 100,
-      imageHeight: 100,
-    });
-  }, [captured, showRuler, onMeasureHeight, headRatio]);
-
-  return (
-    <>
-      <div className="body-shot-body">
-        <div ref={frameRef} className={"body-shot-frame" + (captured ? " body-shot-frame--done" : "") + (showRuler ? " body-shot-frame--measure" : "")}>
-          {captured ? (
-            <>
-              <img src={displaySrc} alt={label} />
-              {showRuler && headRatio != null && (
-                <div className="height-measure-overlay" aria-label="Đo chiều cao">
-                  <div
-                    className="height-measure-line height-measure-line--auto"
-                    style={{ top: `${headRatio * 100}%`, height: `${(1 - headRatio) * 100}%` }}
-                  >
-                    {measuredHeight && <span className="height-measure-value">{measuredHeight} cm</span>}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : err ? (
-            <div className="body-shot-err">{err}</div>
-          ) : (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="body-shot-video"
-            />
-          )}
-        </div>
-      </div>
-      <button
-        type="button"
-        className="body-shot-btn"
-        onClick={captured ? retake : snap}
-        disabled={busy || (!captured && (!ready || !!err))}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-          <circle cx="12" cy="13" r="4" />
-        </svg>
-        {busy ? t("capture.liveshot.saving") : ready || captured ? t("capture.liveshot.capture") : t("capture.liveshot.opening")}
-      </button>
-    </>
-  );
-}
-
-function Tier3Row({ label, children }) {
-  return (
-    <div className="tier3-row" style={{ gridTemplateColumns: "1fr 110px" }}>
-      <span className="tier3-label">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function Tier3Static({ label, value }) {
-  return (
-    <div className="tier3-row">
-      <span className="tier3-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="6" rx="2" /><rect x="3" y="14" width="18" height="6" rx="2" />
-          <path d="M7 7h.01M7 17h.01" />
-        </svg>
-      </span>
-      <span className="tier3-label">{label}</span>
-      <span className="tier3-value">{value}</span>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value }) {
-  return (
-    <div className="summary-row">
-      <span className="s-label">{label}</span>
-      <span className="s-value" title={String(value)}>{value}</span>
-    </div>
-  );
-}
-
-function TimelineItem({ time, desc }) {
-  return (
-    <div className="timeline-item">
-      <span className="timeline-dot" />
-      <div>
-        <div className="timeline-time">{time}</div>
-        <div className="timeline-desc">{desc}</div>
-      </div>
     </div>
   );
 }
@@ -2827,18 +1657,18 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
               <tr><td className="pv-label">{t("pdf.field.issued_place")}</td><td>{val(form.issued_place)}</td></tr>
               <tr><td className="pv-label">{t("detainee.field.distinguishing_features")}</td><td>{val(form.distinguishing_features)}</td></tr>
               <tr><td className="pv-label">{t("detainee.field.mrz")}</td><td><pre className="pv-mrz">{val(form.mrz)}</pre></td></tr>
-              <tr><td className="pv-label">{t("detainee.field.alias")}</td><td>{val(form.alias)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.scars")}</td><td>{val(form.scars)}</td></tr>
             </tbody>
           </table>
 
-          <h3 className="pv-section pv-section-sub">{t("pdf.section2.file")}</h3>
+          <h3 className="pv-section pv-section-sub">{t("pdf.section2.case")}</h3>
           <table className="pv-table pv-info-table pv-info-single">
             <tbody>
-              <tr><td className="pv-label">{t("detainee.field.file_number")}</td><td>{val(form.file_number)}</td></tr>
-              <tr><td className="pv-label">{t("detainee.field.file_number_sub")}</td><td>{val(form.file_number_sub)}</td></tr>
-              <tr><td className="pv-label">{t("detainee.field.search_index")}</td><td>{val(form.search_index)}</td></tr>
-              <tr><td className="pv-label">{t("detainee.field.address_before_arrest")}</td><td>{val(form.address_before_arrest)}</td></tr>
-              <tr><td className="pv-label">{t("detainee.field.release_residence")}</td><td>{val(form.release_residence)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.charge")}</td><td>{val(form.charge)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.charge_detail")}</td><td>{val(form.charge_detail)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.arrest_date")}</td><td>{val(form.arrest_date)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.arrest_agency")}</td><td>{val(form.arrest_agency)}</td></tr>
+              <tr><td className="pv-label">{t("detainee.field.decision_no")}</td><td>{val(form.decision_no)}</td></tr>
               <tr><td className="pv-label">{t("pdf.field.note")}</td><td>{val(form.note)}</td></tr>
             </tbody>
           </table>
@@ -2858,50 +1688,20 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
                 <div>{cellName(form.sub_camp_code)}</div>
               </>
             )}
-            <div className="pv-g-label">{t("detainee.field.cell_block")}</div>
+            <div className="pv-g-label">{t("detainee.field.cell")}</div>
             <div>{cellName(form.cell_code)}</div>
-            <div className="pv-g-label">{t("detainee.field.squad")}</div>
-            <div>{val(form.squad)}</div>
-            <div className="pv-g-label">{t("detainee.field.status_detainee")}</div>
-            <div>{val(form.status_detainee)}</div>
             <div className="pv-g-label">{t("pdf.field.date_in")}</div>
             <div>{toDobInput(form.date_in) || toDobInput(new Date())}</div>
           </div>
 
-          <h3 className="pv-section pv-section-sub">{t("pdf.section2.health")}</h3>
+          <h3 className="pv-section pv-section-sub">{t("pdf.section2.identify")}</h3>
           <div className="pv-info-grid">
-            <div className="pv-g-label">{t("detainee.field.health_intake")}</div>
-            <div>{val(form.health_intake)}</div>
-            <div className="pv-g-label">{t("detainee.field.alcohol_use")}</div>
-            <div>{alcoholLabel(form.alcohol_use)}</div>
-            <div className="pv-g-label">{t("detainee.field.disease_intake")}</div>
-            <div>{val(form.disease_intake)}</div>
-            <div className="pv-g-label">{t("detainee.field.disease_intake_detail")}</div>
-            <div>{val(form.disease_intake_detail)}</div>
-            <div className="pv-g-label">{t("detainee.field.disease_current")}</div>
-            <div>{val(form.disease_current)}</div>
-            <div className="pv-g-label">{t("detainee.field.disease_current_detail")}</div>
-            <div>{val(form.disease_current_detail)}</div>
-          </div>
-
-          <h3 className="pv-section pv-section-sub">{t("pdf.section2.edu")}</h3>
-          <div className="pv-info-grid">
-            <div className="pv-g-label">{t("detainee.field.education_level")}</div>
-            <div>{val(form.education_level)}</div>
-            <div className="pv-g-label">{t("detainee.field.professional_level")}</div>
-            <div>{val(form.professional_level)}</div>
-            <div className="pv-g-label">{t("detainee.field.study_status")}</div>
-            <div>{val(form.study_status)}</div>
-            <div className="pv-g-label">{t("detainee.field.literacy")}</div>
-            <div>{val(form.literacy)}</div>
-            <div className="pv-g-label">{t("detainee.field.occupation")}</div>
-            <div>{val(form.occupation)}</div>
-            <div className="pv-g-label">{t("detainee.field.occupation_detail")}</div>
-            <div>{val(form.occupation_detail)}</div>
             <div className="pv-g-label">{t("pdf.field.height")}</div>
             <div>{val(form.height_cm)}</div>
             <div className="pv-g-label">{t("pdf.field.weight")}</div>
             <div>{val(form.weight_kg)}</div>
+            <div className="pv-g-label">{t("detainee.field.blood_type")}</div>
+            <div>{val(form.blood_type)}</div>
           </div>
         </div>
       </div>
@@ -3052,31 +1852,3 @@ function ProfilePreviewModal({ form, photos, cells = [], onClose }) {
     </div>
   );
 }
-
-function CheckDot({ ok, tone }) {
-  const cls = tone ? tone : ok ? "ok" : "warn";
-  return (
-    <span className={"chk-dot " + cls}>
-      {ok ? (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="8" /><path d="M12 8v5M12 16h.01" />
-        </svg>
-      )}
-    </span>
-  );
-}
-
-function InfoDot() {
-  return (
-    <span className="info-dot">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="9" /><path d="M12 8h.01M11 12h1v5h1" />
-      </svg>
-    </span>
-  );
-}
-

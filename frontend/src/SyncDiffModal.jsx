@@ -16,7 +16,6 @@ const FIELD_LABELS = {
   custody_type: "Diện giam giữ",
   facility_code: "Nơi giam giữ",
   sub_camp_code: "Phân trại",
-  search_index: "Chỉ mục tìm kiếm",
   height_cm: "Chiều cao",
   weight_kg: "Cân nặng",
   charge: "Tội danh",
@@ -51,7 +50,7 @@ const META_FIELDS = [
   "full_name", "gender", "dob", "cccd_number",
   "issued_date", "expiry_date",
   "ethnicity", "religion", "nationality",
-  "hometown", "address", "cell_code", "custody_type", "facility_code", "sub_camp_code", "search_index",
+  "hometown", "address", "cell_code", "custody_type", "facility_code", "sub_camp_code",
   "height_cm", "weight_kg", "charge",
 ];
 
@@ -102,7 +101,6 @@ function localToComparable(d) {
     custody_type: String(d.custody_type || "").trim(),
     facility_code: String(d.facility_code || "").trim(),
     sub_camp_code: String(d.sub_camp_code || "").trim(),
-    search_index: String(d.search_index || "").trim(),
     height_cm: normNumber(d.height_cm),
     weight_kg: normNumber(d.weight_kg),
     charge: String(d.charge || "").trim(),
@@ -126,7 +124,6 @@ function remoteToComparable(r) {
     hometown: String(r.nguyenQuan || "").trim(),
     address: String(r.noiDKThuongTru || "").trim(),
     cell_code: String(r.buongGiam || "").trim(),
-    search_index: String(r.chiMucTimKiem || r.searchIndex || "").trim(),
     height_cm: normNumber(r.chieuCao),
     weight_kg: normNumber(r.canNang),
     charge: String(r.toiDanh || "").trim(),
