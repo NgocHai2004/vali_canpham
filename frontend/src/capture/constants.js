@@ -43,13 +43,36 @@ export const FP_CODE_TO_KEY = {
   right_little: "fp_r5",
 };
 
-// 3 cum dung bang dung cum may Morfin chup 1 lan (khop STEPS cua morfin_service):
-// 4 ngon trai | 2 ngon cai | 4 ngon phai. Nhap nhay theo CA CUM, khong nhay le tung o.
+// 3 cum dung bang dung cum may Morfin chup 1 lan (khop SLAP_STEPS cua
+// morfin_service): 4 ngon trai | 2 ngon cai | 4 ngon phai.
+//
+// CHI con dung cho hang van CHUM (3 anh ca ban tay) - KHONG con dung cho luoi 10
+// o van lan nua. Truoc day luoi 10 o nhom theo cum nay va nhap nhay CA CUM, vi
+// 10 o do thuc chat la 10 ngon CAT RA tu 3 anh chum. Gio van lan chup rieng tung
+// ngon (FP_ROLL_STEPS) nen luoi nhap nhay TUNG O.
 export const FP_CLUSTERS = [
   { step: "left_hand", codes: ["left_little", "left_ring", "left_middle", "left_index"] },
   { step: "thumbs", codes: ["left_thumb", "right_thumb"] },
   { step: "right_hand", codes: ["right_index", "right_middle", "right_ring", "right_little"] },
 ];
+
+// Van LAN: 1 ngon = 1 buoc = 1 lan StartCapture(ROLL). Phai khop DUNG thu tu
+// ROLL_ORDER trong api.py, vi service tra next_step theo thu tu do.
+//
+// Ten buoc la "roll_<ma ngon>" - tien to roll_ de khong dung ten voi buoc chum
+// ("left_hand"...) trong cung mot khong gian ten step.
+//
+// THU TU = DUNG THU TU CAC O TREN LUOI, TU TRAI SANG PHAI. Luoi giu nguyen bo cuc
+// cu (nhom theo FP_CLUSTERS) nen o ngoai cung ben trai la UT TRAI, va o cuoi cung
+// ben phai la UT PHAI. Vi vay lay thang FP_CLUSTERS lam nguon thu tu, KHONG viet
+// lai tay: viet lai la mo duong cho luoi va thu tu chup lech nhau - o dang sang
+// se khong phai ngon may dang doi, loi te nhat co the co o day.
+export const FP_ROLL_ORDER = FP_CLUSTERS.flatMap((c) => c.codes);
+export const FP_ROLL_STEP = (code) => "roll_" + code;
+// Ma ngon <- ten buoc lan. Dung de biet buoc dang chay thuoc o nao.
+export const FP_ROLL_CODE_BY_STEP = Object.fromEntries(
+  FP_ROLL_ORDER.map((code) => [FP_ROLL_STEP(code), code]),
+);
 
 // Ảnh vân PHẲNG (plain/slap) — 3 ảnh cụm nguyên bản từ máy, khớp đúng STEPS ở trên.
 // Vân LĂN (roll) vẫn dùng key fp_l1..fp_r5 như cũ để tương thích dữ liệu đã lưu.

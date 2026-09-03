@@ -1,10 +1,9 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
-import UsbDrivePickerModal from "./UsbDrivePickerModal";
-import { api, fpApi, cccdApi, b64PngToFile, usbApi } from "./api";
+import { api, fpApi, cccdApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
-import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS } from "./capture/constants";
+import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
 import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
@@ -14,8 +13,6 @@ import { EMPTY_FORM, normalizeInitial, toDobInput } from "./capture/formSchema";
 import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
 import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
 import { useI18n, apiT } from "./i18n";
-import { tryOpenOnSecondaryScreen, clearSecondaryScreenPreview } from "./lib/dualMonitorPreview";
-import { buildProfilePdfBlob, makePdfFileName } from "./lib/exportProfilePdf";
 import { getMeasurementHeight } from "./lib/heightMeasurement";
 import { notify } from "./notifications";
 
@@ -98,10 +95,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // trong startFpCollect) de cleanup luc roi trang con biet ma nao can dong —
   // khong dong thi service giu thiet bi, vao lai trang khong thu duoc nua.
   const fpSidRef = useRef(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewOnSecondary, setPreviewOnSecondary] = useState(false);
-  // Xem truoc CHI BAN — to rieng, khong dung chung state voi xem truoc HO SO de
-  // mo cai nay khong dong cai kia.
+  // Xem truoc CHI BAN — to rieng, khong dung chung state voi xem truoc DANH BAN
+  // de mo cai nay khong dong cai kia.
   const [fpSheetOpen, setFpSheetOpen] = useState(false);
   // Xem truoc DANH BAN — to thu ba, state rieng nhu hai to tren.
   const [nameSheetOpen, setNameSheetOpen] = useState(false);
@@ -185,24 +180,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       });
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (!previewOnSecondary) return;
-    const onKey = (ev) => {
-      if (ev.key === "Escape") {
-        clearSecondaryScreenPreview();
-        setPreviewOnSecondary(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [previewOnSecondary]);
-
-  useEffect(() => {
-    return () => {
-      if (previewOnSecondary) clearSecondaryScreenPreview();
-    };
-  }, [previewOnSecondary]);
 
   useEffect(() => {
     setForm(seed.form);
@@ -458,7 +435,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
     while (step && !fpAbortRef.current) {
       setFpNextCode(step.codes[0]);
-      setFpActiveCodes(step.codes);   // ca cum nhap nhay cung luc
+      // Buoc LAN co dung 1 ma trong codes => nhap nhay DUNG MOT o. Buoc CHUM co
+      // 4 (hoac 2) ma => ca cum nhay cung luc, vi may chup ca cum trong 1 lan.
+      // Cung mot dong lenh lo ca hai: khac biet nam o do dai step.codes do
+      // service quyet dinh, khong phai o day.
+      setFpActiveCodes(step.codes);
       setFpStatus(t("fpenroll.status.reading_step", { step: t(`fpenroll.step.${step.step}`) }));
       let capRes;
       try {
@@ -928,18 +909,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
     return out;
   }, [photos]);
-  // Ngon dang lan -> nhay tren icon KPI. Mo rong ra CA CUM vi may Morfin chup
-  // ca cum 1 lan => cum thumbs nhay ngon cai o CA HAI ban tay.
+  // Ngon dang thu -> nhay tren icon ban tay o khoi KPI.
+  //
+  // Nhay DUNG cac ngon cua buoc dang chay (fpActiveCodes), khong mo rong ra cum
+  // nua. Truoc day tra nguoc tu fpActiveCodes ve FP_CLUSTERS roi nhay ca cum, vi
+  // moi buoc deu la mot lan chup ca cum. Gio buoc lan chi co 1 ngon: mo rong ra
+  // cum se nhay ca 4 ngon trong khi may chi doi 1 ngon => chi sai cho nguoi dan.
+  // Buoc chum van nhay du cum vi service tra ca 4 ma trong step.codes.
   const fpBlinkByHand = useMemo(() => {
     const out = { left: [], right: [] };
     if (!fpRunning) return out;
-    const cluster = FP_CLUSTERS.find((c) =>
-      fpActiveCodes.length
-        ? c.codes.some((x) => fpActiveCodes.includes(x))
-        : c.codes.includes(fpNextCode)
-    );
-    if (!cluster) return out;
-    for (const code of cluster.codes) {
+    const codes = fpActiveCodes.length
+      ? fpActiveCodes
+      : (fpNextCode ? [fpNextCode] : []);
+    for (const code of codes) {
       const hand = code.startsWith("left") ? "left" : "right";
       out[hand].push(code.replace(/^(left|right)_/, ""));
     }
@@ -1285,7 +1268,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       onClick={fpRetakeCluster}
                       disabled={fpRunning || fpNoneMode}
                     >
-                      {t("fpenroll.retake_cluster_btn")}
+                      {/* Buoc LAN chi co MOT ngon nen khong goi la "cum" duoc.
+                          Buoc CHUM van la ca cum 4 (hoac 2) ngon chup mot lan. */}
+                      {t(fpConfirm.step.startsWith("roll_")
+                        ? "fpenroll.retake_roll_btn"
+                        : "fpenroll.retake_cluster_btn")}
                     </button>
                   </>
                 )}
@@ -1324,22 +1311,18 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <span className="fp-row-count">{fpCount} / 10</span>
             </h3>
             <div className="fp-preview-grid fp-preview-grid--single-row">
+              {/* BO CUC GIU NGUYEN: van 10 o, van nhom theo FP_CLUSTERS
+                  (4 trai | 2 cai | 4 phai) nhu ban dau - o ngoai cung ben trai la
+                  ut trai, chay sang phai den ut phai.
+                  Chi doi MOT dieu so voi truoc: vien sang la TUNG O, khong con
+                  sang ca cum. Truoc day 10 o nay la 10 ngon CAT RA tu 3 anh chum
+                  nen ca cum chup cung luc; gio moi ngon lan rieng mot lan. */}
               {FP_CLUSTERS.map((cluster) => {
-                // Ca cum nhap nhay cung luc = dung 1 lan chup cua may Morfin.
-                const clusterActive = fpRunning && (
-                  fpActiveCodes.length
-                    ? cluster.codes.some((c) => fpActiveCodes.includes(c))
-                    : cluster.codes.includes(fpNextCode)
-                );
-                const clusterDone = cluster.codes.every((c) => photos[FP_CODE_TO_KEY[c]]);
+                const groupDone = cluster.codes.every((c) => photos[FP_CODE_TO_KEY[c]]);
                 return (
                   <div
                     key={cluster.step}
-                    className={
-                      "fp-cluster fp-cluster--" + cluster.step +
-                      (clusterDone ? " done" : "") +
-                      (clusterActive ? " active neon-active" : "")
-                    }
+                    className={"fp-cluster" + (groupDone ? " done" : "")}
                   >
                     {cluster.codes.map((fpCode) => {
                       const key = FP_CODE_TO_KEY[fpCode];
@@ -1347,12 +1330,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       const isNone = fpNoneCodes.includes(fpCode);
                       const filled = !isNone && !!photos[key];
                       const q = fpQuality[fpCode];
+                      // O DANG LAN sang len. Moi ngon la mot buoc rieng nen day la
+                      // dung mot o mot luc - truoc day sang ca cum 4 o.
+                      const cellActive = fpRunning && (
+                        fpActiveCodes.length
+                          ? fpActiveCodes.includes(fpCode)
+                          : fpNextCode === fpCode
+                      );
                       return (
                         <div
                           key={key}
                           className={
                             "fp-preview-cell " + (filled ? "done" : "empty") +
                             (isNone ? " fp-cell-none" : "") +
+                            (cellActive ? " active neon-active" : "") +
                             (fpNoneMode ? " fp-cell-select" : "")
                           }
                           // Mode "chon ngon thieu": bam vao O (single click) se
@@ -1501,21 +1492,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </svg>
           {saving ? t("common.saving") : isEdit ? t("capture.actions.update") : t("capture.actions.save")}
         </button>
-        <button type="button" className="button secondary" disabled={saving}
-          onClick={async () => {
-            const payload = { form, photos, cells };
-            const opened = await tryOpenOnSecondaryScreen(payload);
-            if (opened) setPreviewOnSecondary(true);
-            else setPreviewOpen(true);
-          }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <path d="M14 2v6h6M8 13h8M8 17h6" />
-          </svg>
-          {t("capture.actions.preview")}
-        </button>
         {/* Xem truoc CHI BAN: to rieng theo mau chi ban giay (van tay + nhan than
-            toi thieu), khong phai to ho so can pham o nut ben canh. */}
+            toi thieu). Nut "Xem truoc ho so" da bo khoi trang thu nhan. */}
         <button type="button" className="button secondary" disabled={saving}
           onClick={() => setFpSheetOpen(true)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -1556,15 +1534,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           form={form}
           photos={photos}
           onClose={() => setFpSheetOpen(false)}
-        />
-      )}
-
-      {previewOpen && (
-        <ProfilePreviewModal
-          form={form}
-          photos={photos}
-          cells={cells}
-          onClose={() => setPreviewOpen(false)}
         />
       )}
 
@@ -1779,76 +1748,3 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
   );
 });
 
-function ProfilePreviewModal({ form, photos, cells = [], onClose }) {
-  const { t } = useI18n();
-  const a4Ref = useRef(null);
-  const [exporting, setExporting] = useState(false);
-  const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
-
-  const pickDrive = (drives) => new Promise((resolve) => {
-    setUsbPicker({ open: true, drives, resolve });
-  });
-
-  const handlePrint = async () => {
-    const node = a4Ref.current;
-    if (!node) return;
-    setExporting(true);
-    try {
-      const info = await usbApi.listWritable();
-      const drives = info.drives || [];
-      const dongles = info.dongle_drives || [];
-      if (drives.length === 0) {
-        if (dongles.length > 0) throw new Error(apiT("usb.export.err.only_dongle"));
-        throw new Error(apiT("usb.export.err.no_drive"));
-      }
-      const chosen = drives.length === 1 ? drives[0] : await pickDrive(drives);
-      if (!chosen) return;
-      const blob = await buildProfilePdfBlob(node);
-      const filename = makePdfFileName(form.personal_id || form.cccd_number, form.full_name);
-      const saved = await usbApi.saveExport(chosen.path, filename, blob);
-      const okMsg = t("usb.export.success", { path: saved?.path || chosen.path });
-      notify.add(okMsg);
-      toast.success(okMsg);
-    } catch (ex) {
-      console.error("[Export PDF] error:", ex);
-      toast.error(t("capture.pdf.err_export", { message: ex?.message || ex }));
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  return (
-    <div className="preview-backdrop" onClick={onClose}>
-      <div className="preview-toolbar no-print" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="preview-btn" onClick={handlePrint} disabled={exporting}>
-          {exporting ? t("capture.pdf.exporting") : t("capture.pdf.export")}
-        </button>
-        <button type="button" className="preview-btn preview-close" onClick={onClose}>
-          {t("common.close")}
-        </button>
-      </div>
-
-      <div className="preview-scroll" onClick={onClose}>
-        <div onClick={(e) => e.stopPropagation()}>
-          <ProfilePreviewContent ref={a4Ref} form={form} photos={photos} cells={cells} />
-        </div>
-      </div>
-
-      {usbPicker.open && (
-        <UsbDrivePickerModal
-          drives={usbPicker.drives}
-          onPick={(d) => {
-            const r = usbPicker.resolve;
-            setUsbPicker({ open: false, drives: [], resolve: null });
-            r && r(d);
-          }}
-          onCancel={() => {
-            const r = usbPicker.resolve;
-            setUsbPicker({ open: false, drives: [], resolve: null });
-            r && r(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}

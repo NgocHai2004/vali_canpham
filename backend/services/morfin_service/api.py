@@ -43,7 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import engine as E  # noqa: E402
 from engine import MorfinError, engine  # noqa: E402
 from morfin import CAPTURE_TIMEOUT as MORFIN_TIMEOUT  # noqa: E402
-from morfin import SlapPosition  # noqa: E402
+from morfin import FingerType, SlapPosition  # noqa: E402
 
 # ---------- Mapping slap -> ma ngon ----------
 # Fingers[1] la ngon TRAI NHAT trong anh slap (theo header SDK), khong phai
@@ -61,7 +61,7 @@ from morfin import SlapPosition  # noqa: E402
 # tuc la nguoi dan dat 2 ngon cai canh nhau thi cai trai nam ben trai anh.
 # => Can 1 lan chup that de xac nhan. Neu bi nguoc, doi thu tu 2 ma trong
 #    "codes" cua buoc "thumbs" la xong, khong phai sua logic.
-STEPS: list[dict] = [
+SLAP_STEPS: list[dict] = [
     {
         "step": "left_hand",
         "slap": SlapPosition.LEFT_HAND,
@@ -84,6 +84,53 @@ STEPS: list[dict] = [
         "codes": ["left_thumb", "right_thumb"],
     },
 ]
+
+# ---------- Buoc VAN LAN: 1 ngon = 1 buoc ----------
+# Van lan la MOT lan StartCapture(ROLL) cho MOI ngon. Truoc day 10 o "van lan" o
+# frontend duoc dien bang cach CAT tung ngon ra tu anh chum (engine.capture_slap
+# tra fingers[] tach san) - tuc la khong he co van lan nao, chi la anh phang bi
+# crop. Gio moi ngon co buoc rieng, chup rieng, o che do FingerType.ROLL.
+#
+# Vi sao 1 ngon = 1 buoc chu khong gom thanh 1 buoc 10 ngon: mot StartCapture chi
+# tra ve DUNG MOT anh (mot completeCb). Khong co tham so nao cho phep mot lan
+# StartCapture tra nhieu anh cua nhieu ngon.
+# THU TU LAN = dung thu tu cac o TU TRAI SANG PHAI tren luoi 10 o cua frontend
+# (luoi nhom 4 trai | 2 cai | 4 phai, o ngoai cung ben trai la UT TRAI):
+#   ut trai -> ap ut -> giua -> tro trai | cai trai -> cai phai | tro phai -> ...
+#     ... -> giua -> ap ut -> ut phai
+# Nho vay o dang nhap nhay chay tuan tu tu trai sang phai, can bo doc mot mach,
+# khong phai nhay o. Doi thu tu o day thi PHAI doi FP_CLUSTERS o frontend cho khop
+# (frontend suy FP_ROLL_ORDER tu FP_CLUSTERS).
+ROLL_ORDER: list[str] = [
+    "left_little", "left_ring", "left_middle", "left_index",
+    "left_thumb", "right_thumb",
+    "right_index", "right_middle", "right_ring", "right_little",
+]
+ROLL_STEPS: list[dict] = [
+    {
+        "step": "roll_" + code,
+        "slap": SlapPosition.ROLL,
+        "label_vi": "Lan " + {
+            "left_thumb": "cai trai", "left_index": "tro trai",
+            "left_middle": "giua trai", "left_ring": "ap ut trai",
+            "left_little": "ut trai", "right_thumb": "cai phai",
+            "right_index": "tro phai", "right_middle": "giua phai",
+            "right_ring": "ap ut phai", "right_little": "ut phai",
+        }[code],
+        "expect": 1,
+        "codes": [code],
+        "roll": True,
+    }
+    for code in ROLL_ORDER
+]
+
+# Thu tu: lan het 10 ngon TRUOC, roi moi sang 3 lan chum.
+#
+# Thu tu nay do nguoi dung chot, va no cung la thu tu re nhat: FingerType chi dat
+# duoc luc InitDevice nen moi lan doi lan<->chum la mot lan UninitDevice + init
+# lai. Xep lan lien nhau roi chum lien nhau => dung MOT lan doi che do cho ca ho
+# so. Neu cho nhay qua lai tuy y thi moi lan nhay ton them mot lan mo lai thiet bi.
+STEPS: list[dict] = ROLL_STEPS + SLAP_STEPS
 STEP_BY_NAME = {s["step"]: s for s in STEPS}
 
 # Giu nguyen thu tu / ten tieng Viet cua service cu de FE khong phai doi i18n.
@@ -284,11 +331,16 @@ class Session:
             "steps": [
                 {"step": s["step"], "label_vi": s["label_vi"],
                  "expect": s["expect"], "codes": s["codes"],
+                 # roll=True => buoc lan 1 ngon; False => buoc chum. Frontend can
+                 # co nay de biet ve o don hay ve ca ban tay, va de hien huong dan
+                 # "lan tu canh mong ben nay sang ben kia" thay vi "ap tay xuong".
+                 "roll": bool(s.get("roll")),
                  "done": self.step_done(s["step"])}
                 for s in STEPS
             ],
             "next_step": {"step": ns["step"], "label_vi": ns["label_vi"],
-                          "expect": ns["expect"], "codes": ns["codes"]} if ns else None,
+                          "expect": ns["expect"], "codes": ns["codes"],
+                          "roll": bool(ns.get("roll"))} if ns else None,
             "fingers": [self.fingers[c].to_public() for c in FINGER_CODES],
         }
 
@@ -350,7 +402,10 @@ def start_session(body: StartReq) -> dict:
     if not name:
         raise HTTPException(400, "user_name khong duoc trong.")
     try:
-        engine.ensure_open()
+        # Mo san o che do LAN vi buoc dau tien cua phien la lan ngon cai trai.
+        # Mo dung che do ngay tu dau de lan dau bam Chup khong phai cho
+        # UninitDevice + init lai (moi lan doi che do mat vai giay).
+        engine.ensure_open(FingerType.ROLL)
     except MorfinError as e:
         raise HTTPException(503, str(e))
     sid = uuid.uuid4().hex[:12]
@@ -407,7 +462,13 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     if not _capture_lock.acquire(blocking=False):
         raise HTTPException(409, "Dang co lenh chup khac chay.")
     try:
-        result = engine.capture_slap(step["slap"], expect=expect, absent=absent)
+        if step.get("roll"):
+            # Lan: 1 ngon, mot lan StartCapture(ROLL) keo dai (~50 khung/giay
+            # duoc SDK khau lai thanh mot anh). Khong co exceptions vi chi co
+            # mot ngon - ngon khong co van tay thi da bi chan o tren (codes rong).
+            result = engine.capture_roll()
+        else:
+            result = engine.capture_slap(step["slap"], expect=expect, absent=absent)
     except MorfinError as e:
         raise HTTPException(500, str(e))
     finally:
@@ -420,6 +481,17 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     # (danh dau 'khong co van tay'), vi day la tinh huong duy nhat ma nguoi dan
     # khong the tu khac phuc bang cach ap tay lai.
     if not result.ok:
+        # Huong dan loi cua LAN khac han cua CHUM: lan that bai khong bao gio vi
+        # "thieu ngon" (chi co 1 ngon) ma vi dong tac lan - lan chua het chieu
+        # ngang, lan qua nhanh, hoac nhac ngon giua lan. Dung nguyen thong bao cua
+        # chum o day se bao can bo "dat du 1 ngon", vo nghia.
+        if step.get("roll"):
+            raise HTTPException(
+                408,
+                f"{step['label_vi']}: chua lay duoc van. Dat canh mong mot ben ap "
+                "vao kinh, lan CHAM va DEU sang canh mong ben kia, an vua tay va "
+                "khong nhac ngon giua lan. Bam Chup lai de lan lai ngon nay.",
+            )
         if result.code == MORFIN_TIMEOUT:
             raise HTTPException(
                 408,
@@ -499,6 +571,8 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     # anh MOI roi xac nhan lai. Neu khong bo, cum da xac nhan mot lan se tu dong
     # "xong" ngay khi chup lai, bo qua chinh anh vua chup.
     s.confirmed.discard(step["step"])
+    # Anh CA BAN TAY (hoac ca ngon lan), thumb 600 de FE hien to. Voi buoc chum
+    # day la anh slap tong - FE hien nguyen anh nay chu KHONG con cat ra 10 o.
     s.slap_images[step["step"]] = _bmp_to_png_b64(result.slap_image, thumb=600)
     none_codes = [c for c in step["codes"] if s.fingers[c].missing]
     out = s.public()
@@ -620,7 +694,14 @@ def mark_none(sid: str, body: MarkNoneReq) -> dict:
 
 @app.post("/api/session/{sid}/redo/{finger_code}")
 def redo(sid: str, finger_code: str) -> dict:
-    """Xoa ca CUM chua ngon nay (khong chup le 1 ngon trong slap duoc)."""
+    """Xoa du lieu de chup lai.
+
+    CHUM: phai xoa CA CUM - mot StartCapture(slap) tra ve ca 4 ngon cung luc,
+    khong co cach chup le 1 ngon trong cum.
+    LAN: chi xoa DUNG ngon do - moi ngon la mot lan StartCapture(ROLL) rieng nen
+    lan lai mot ngon khong anh huong 9 ngon kia. Neu dung chung duong cua chum thi
+    "lan lai ut phai" se xoa sach ca 10 ngon da lan - mat het cong.
+    """
     s = _get_session(sid)
     rec = s.fingers.get(finger_code)
     if not rec:
@@ -634,6 +715,8 @@ def redo(sid: str, finger_code: str) -> dict:
         r.captured_at = None
         # Chup lai ca cum => ngon tung danh dau thieu co co hoi thu lai.
         r.missing = False
+    # Buoc lan chi co 1 ma trong codes nen vong tren da tu dong chi xoa dung ngon
+    # do - khong can nhanh rieng. 9 ngon da lan van con nguyen.
     # Cum ve trang chua chup => xac nhan cu khong con nghia gi.
     s.confirmed.discard(step["step"])
     s.slap_images.pop(step["step"], None)

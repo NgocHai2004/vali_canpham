@@ -9272,13 +9272,15 @@ textarea.input {
   flex: 0 1 auto;
   min-height: 0;
   overflow: auto;
-  /* row-gap = 0: hang duoi (III, V) da co margin tieu de muc. De 26px ca hai
-     chieu thi giua "Thong tin vu viec" va "Dac diem nhan dang" ho them mot
-     khoang trong nua. */
-  gap: 0 26px;
+  /* row-gap 16px: tach ba hang cua to giay (I+II | IV — III — V). Truoc de 0 vi
+     ca trang phai vua khit mot man; gio to giay da cuon duoc (overflow: auto o
+     duoi) nen tach ra cho de doc. */
+  gap: 16px 26px;
   align-items: start;
 }
-.cap-flat .cap-col { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+/* gap 14px: khoang giua hai muc xep chong trong cung mot cot (I -> II). Truoc de
+   4px, tieu de muc II gan nhu dinh vao o nhap cuoi cua muc I. */
+.cap-flat .cap-col { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 /* Hang trai het be ngang, nam duoi 2 cot: dung cho muc V (van tay). */
 .cap-flat .cap-col--full { grid-column: 1 / -1; }
 
@@ -9730,11 +9732,19 @@ textarea.input {
    Dai ngang, mat do cao: nhan nho xam + gia tri dam. KHONG phai the lon —
    day la vung nhan dang ho so, moi o cao 1 dong de khong an cho vung nhap.
    ============================================================ */
+/* CAN DEU: truoc day la flex-wrap + item `flex: 0 1 auto` => moi o rong theo
+   noi dung CUA RIENG no ("Pham vi" hep, "Don vi lap" rong), va khi xuong dong
+   thi o hang duoi khong thang cot voi hang tren — thanh nay trong nhu bi le.
+   Doi sang LUOI cot deu: auto-fit + 1fr nen moi cot rong bang nhau va cac hang
+   thang cot voi nhau. 250px = nhan dai nhat + khoang cach + o nhap toi thieu
+   (128 + 7 + 92 = 227, con du cho ban en "Fingerprint record sheet no." ~150px
+   vi luc do o nhap co lai ve min-width 92px: 150 + 7 + 92 = 249). Man hep thi
+   auto-fit tu bo cot. */
 .cap-flat .rec-sum {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 2px 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  align-items: end;
+  gap: 8px 22px;
   padding: 8px 20px 9px;
   background: #f7f8fa;
   border-bottom: 1px solid var(--cf-line);
@@ -9744,7 +9754,6 @@ textarea.input {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-  flex: 0 1 auto;
 }
 .cap-flat .rec-sum-label {
   font-size: 10.5px;
@@ -9870,39 +9879,57 @@ textarea.input {
 }
 
 /* ---------------- 1 truong = 1 hang ---------------- */
-/* Ty le nhan : gia tri = 4 : 6 (40% / phan con lai), nhung nhan LUON du chu tren
-   1 hang: minmax(auto, 40%) => min la auto = min-content, va nhan nowrap nen
-   min-content CHINH LA ca cum chu. Khi min > max thi CSS bo max, track lay dung
-   be rong chu; o nhap (min 0) co lai nhuong cho.
+/* NGUON GOC cua "thut ra thut vao": moi .info-field la MOT LUOI RIENG. Cot nhan
+   truoc day la minmax(auto, 40%) — `auto` = min-content, ma nhan co nowrap nen
+   min-content la ca cum chu => track lay dung be rong chu CUA RIENG truong do.
+   "Dai tai" ra ~40px, "Chieu cao (cm)" ~78px, "CMND/CCCD/Ho chieu" ~112px, nen
+   o nhap cua tung hang bat dau o mot toa do khac nhau: doc theo cot thay le
+   trai cua cac o nhay ra nhay vao. span-3col con lay ty le KHAC (20%) nen hang
+   tran ngang lai lech tiep so voi hang chia doi.
+   Cach sua: dat SAN CHUNG --cf-lab cho ca luoi => moi nhan ngan hon san deu bi
+   keo bang nhau, le trai cac o nhap thang hang. max-content (khong con cap 40%)
+   de nhan dai hon san van du cho, khong ngat dong va khong cat chu — chi rieng
+   truong do rong hon, thay vi ca luoi moi hang mot kieu.
    KHONG dung fr cho cot nhan: track co max la <flex> duoc tinh o pha phan phoi
    khong gian du, san minmax(max-content, 4fr) khong giu duoc => "Ten goi khac"
-   van ngat dong. Phan tram + auto duoc tinh ngay o pha base size nen chac an. */
+   van ngat dong. px + max-content duoc tinh ngay o pha base size nen chac an. */
+/* San khai o goc .cap-flat de moi luoi ke thua mot con so; luoi nao chat hon thi
+   dat lai --cf-lab cua rieng no (xem muc III ben duoi).
+   128px = nhan dai nhat cua o chia doi CONG mot chut du: "CMND/CCCD/Ho chieu"
+   ~121px va ban en "ID card / passport no." ~125px (@11px/600). Phai co du:
+   neu san hep hon nhan thi rieng hang do bung ra theo max-content — dung lai
+   thanh "thut ra" nhu cu. Muc I va II cung an san nay nen o nhap cua ca hai
+   thang hang voi nhau. */
+.cap-flat { --cf-lab: 128px; }
 .cap-flat .cap-grid .info-field,
 .cap-flat .info-field {
   display: grid;
-  grid-template-columns: minmax(auto, 40%) minmax(0, 1fr);
+  grid-template-columns: minmax(var(--cf-lab), max-content) minmax(0, 1fr);
   align-items: center;
   gap: 0 6px;
 }
-/* Hang chiem CA be ngang (ho ten, que quan, dia chi, lap ve viec): nhan 2 phan
-   / o nhap 8 phan. O day chi co MOT truong tren hang nen nhan khong can rong
-   bang o chia doi/chia ba — 2/8 de o nhap dai het hang.
-   span-2col KHONG lay ty le nay: no chi rong nua luoi nen giu 2:3 nhu o thuong. */
-.cap-flat .cap-grid .span-3col {
-  grid-template-columns: minmax(auto, 20%) minmax(0, 1fr);
-}
+/* Hang tran ngang (ho ten, que quan, dia chi, lap ve viec) dung CHUNG san voi
+   hang chia doi o tren — do la ly do chung thang hang. Truoc day rieng nhom nay
+   an 20% be rong ca luoi (~86px) trong khi hang chia doi an 40% nua luoi
+   (~82px): gan bang nhau nhung khong bao gio bang, thanh ra lech ~4px. */
 
 /* Muc III: 4 cot x 2 hang. Hang 1 = khuon mat / chieu cao / song mui / nep tai
    duoi; hang 2 = dai tai / di hinh / dau vet rieng (span 2 cot cuoi).
    PHAI co tien to .cap-flat: .cap-flat .cap-grid (0,2,0) ep luoi ve 2 cot, ghi
    de mat selector tran .cap-grid--identify (0,1,0). */
-.cap-flat .cap-grid--identify { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-/* Dau vet rieng: 2 cot cuoi. Ty le nhan/gia tri 2/8 cho khop o dia chi cung
-   kho, thay vi 2:3 nhu o hep. */
-.cap-flat .cap-grid--identify .span-2col {
-  grid-column: span 2;
-  grid-template-columns: minmax(auto, 20%) minmax(0, 1fr);
+.cap-flat .cap-grid--identify {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* San rieng, HEP hon 118px cua muc I: o day mot cot chi ~205px, lay 118px cho
+     nhan thi o nhap con ~80px — qua chat. 84px vua du nhan dai nhat cua muc nay
+     ("Chieu cao (cm)" ~80px) va van la SAN CHUNG nen ca 4 cot thang hang. */
+  --cf-lab: 84px;
 }
+/* Dau vet rieng: 2 cot cuoi. CHI dat grid-column — cot nhan de nguyen theo san
+   chung o tren, de nhan cua no thang hang voi "Dai tai" / "Di hinh" cung muc.
+   Truoc day rule nay ghi lai grid-template-columns: minmax(auto, 20%) => 20% cua
+   HAI cot (~110px) trong khi cac o khac lay 40% cua MOT cot (~80px): dung la o
+   "thut ra" ro nhat trong muc III. */
+.cap-flat .cap-grid--identify .span-2col { grid-column: span 2; }
 .cap-flat .cap-grid .info-field-label,
 .cap-flat .info-field-label {
   line-height: 1.25;
@@ -9920,12 +9947,20 @@ textarea.input {
 /* Cum radio (tam giu / tam giam) nam ngang trong o gia tri. */
 .cap-flat .info-field .radio-group { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
-/* Thanh tom tat ho so: nhan va gia tri cung hang. */
+/* Thanh tom tat ho so: nhan va gia tri cung hang.
+   LUOI chu khong phai flex row — y het cach sua muc I/II/III o tren: flex row thi
+   nhan rong theo chu cua RIENG no ("Pham vi" ~48px, "So chi ban van tay" ~104px)
+   nen o nhap moi o bat dau mot cho khac. Sang grid voi SAN CHUNG --cf-lab thi le
+   trai cac o nhap thang cot xuyen ca thanh. */
 .cap-flat .rec-sum-item {
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(var(--cf-lab-sum), max-content) minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 0 7px;
 }
+/* San rieng cho thanh nay (nhan 10.5px, nho hon 11px cua cac muc): 108px du cho
+   "So chi ban van tay" ~104px va "Registration date" ~101px ban en. */
+.cap-flat .rec-sum { --cf-lab-sum: 108px; }
 .cap-flat .rec-sum-input { margin-left: 0; }
 
 /* ---------------- Nen toi cho tung be mat ---------------- */
@@ -10028,6 +10063,19 @@ textarea.input {
 .cap-flat .fp-preview-cell.fp-cell-none .fp-preview-thumb {
   border-color: rgba(255, 107, 107, 0.42);
   background: rgba(255, 107, 107, 0.1);
+}
+/* O DANG LAN: nhay RIENG TUNG O.
+   Truoc day chi ton tai .fp-cluster.active (may chup ca cum 1 lan nen nhay ca
+   cum). Khi doi sang lan tung ngon, o duoc gan class .active nhung KHONG co rule
+   nao khop => khong thay gi nhay, chi con neon-active (vien gradient 1px, phan
+   lon trong suot) nen tren o ~56px gan nhu vo hinh.
+   Dat o CUOI khoi theme de thang .fp-preview-cell.done (cung do dac hieu,
+   dong 10060): o da thu roi lan lai van phai nhay. */
+.fp-preview-cell.active {
+  animation: fp-cell-pulse 1.1s infinite ease-in-out;
+}
+.cap-flat .fp-preview-cell.active .fp-preview-thumb {
+  border-color: var(--cf-blue);
 }
 .cap-flat .fp-cell-quality,
 .cap-flat .fp-cell-none-btn {

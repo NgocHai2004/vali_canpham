@@ -48,6 +48,32 @@ def _new_session() -> str:
     return r.json()["session_id"]
 
 
+def _new_session_at_slap() -> str:
+    """Phien voi 10 buoc LAN da xong => next_step la buoc CHUM dau tien.
+
+    File test nay kiem tra luong "xac nhan tung cum" cua van CHUM. Ke tu khi
+    STEPS = 10 buoc lan + 3 buoc chum, buoc dau cua phien la roll_left_little nen
+    assert next_step == "left_hand" se sai. Bo qua phan lan thay vi doi assert,
+    vi cai dang test la logic cum 4 ngon - khong phai thu tu buoc.
+
+    Dat truc tiep vao Session (khong goi capture) vi file nay chi mock
+    capture_slap, khong mock capture_roll.
+
+    LUU Y: buoc lan va buoc chum DUNG CHUNG cac FingerRecord, va ROLL_ORDER phu
+    ca 10 ngon. Nen gan template cho 10 ngon lan lam step_captured() cua CA 3 cum
+    thanh True luon - do la ly do helper nay KHONG dung cho test "xac nhan cum
+    chua chup => 400": test do phai dung phien trang.
+    """
+    sid = _new_session()
+    s = api.sessions[sid]
+    for st in api.ROLL_STEPS:
+        for code in st["codes"]:
+            # done = co template HAY danh dau missing. Gia mot template la du.
+            s.fingers[code].template_b64 = "x"
+        s.confirmed.add(st["step"])
+    return sid
+
+
 def _make_result(got, no_quality=()):
     return CaptureResult(
         code=0,  # morfin.SUCCESS
@@ -136,7 +162,7 @@ def test_cluster_needs_confirm_and_next_step_stays():
     next_step phai van la chinh cum vua chup, nho do nut "chup lai" thu lai dung
     cum dang lam thay vi nhay sang cum khac.
     """
-    sid = _new_session()
+    sid = _new_session_at_slap()
     r = _capture(sid, "left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
     assert r.status_code == 200, r.text
     data = r.json()
@@ -188,7 +214,7 @@ def test_recapture_clears_confirmation():
     Neu khong rut, cum se tu dong "xong" ngay khi chup lai, bo qua chinh anh
     vua chup - can bo khong bao gio duoc xem no.
     """
-    sid = _new_session()
+    sid = _new_session_at_slap()
     _capture(sid, "left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
     client.post(f"/api/session/{sid}/confirm_step", json={"step": "left_hand"})
     r = _capture(sid, "left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
@@ -312,7 +338,7 @@ def test_redo_resets_cluster_and_confirmation():
 
 def test_full_session_needs_confirm_on_every_cluster():
     """Xong ca 10 ngon: moi cum phai duoc xac nhan rieng, finished chi sau cum cuoi."""
-    sid = _new_session()
+    sid = _new_session_at_slap()
     plan = [
         ("left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)]),
         ("thumbs", [_ok(1), _ok(2)]),

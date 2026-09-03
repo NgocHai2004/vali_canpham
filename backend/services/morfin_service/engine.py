@@ -38,6 +38,24 @@ PRODUCT = os.getenv("MORFIN_PRODUCT", "")
 DEFAULT_GATE = int(os.getenv("MORFIN_QUALITY_GATE", "40"))
 DEFAULT_TIMEOUT = int(os.getenv("MORFIN_CAPTURE_TIMEOUT", "20"))
 
+# Gate RIENG cho van lan, MAC DINH 0 - khong phai bo sot DEFAULT_GATE.
+#
+# Morfin_Enroll.h:377: "NFIQ_Quality : minimum quality for capturing image
+# successfully (Default: 40), 0 : Capturing best frames automatically". Tuc la
+# tham so nay la CONG CHAN cua SDK: truyen 40 thi ngon lan duoi 40 KHONG ra anh
+# nao ca, chi ra FINGER_NOT_CAPTURED (-2038).
+#
+# Yeu cau nghiep vu la "tren hoac duoi muc quy dinh DEU HIEN LEN de can bo xac
+# nhan". Voi gate = 40 thi khong bao gio ton tai ngon duoi nguong de hien =>
+# mau thuan. Nen: truyen 0 cho SDK (tu chot frame tot nhat, luon co anh), roi so
+# 40 o TANG APP (MIN_QUALITY trong api.py) chi de to mau dat/khong dat.
+# MORFIN_QUALITY_GATE=40 van la con so quy dinh, chi doi vai: tu cong chan cua
+# SDK thanh nguong hien thi.
+ROLL_GATE = int(os.getenv("MORFIN_ROLL_GATE", "0"))
+# Lan mot ngon mat 3-4 giay, cham hon nhieu so voi ap ban tay xuong kinh, va
+# nguoi chua quen thuong phai lan lai giua lan => cho lau hon slap.
+ROLL_TIMEOUT = int(os.getenv("MORFIN_ROLL_TIMEOUT", "30"))
+
 # Toan bo template luu xuong Mongo dung 1 format duy nhat. Doi format => toan
 # bo template da luu thanh vo dung, y nhu viec doi tu ZK sang Morfin.
 TEMPLATE_FORMAT = TemplateFormat.FMR_V2005
@@ -141,6 +159,13 @@ class CaptureEngine:
         self._sdk: Optional[M.Morfin] = None
         self._info = None
         self._product = ""
+        # FingerType dang mo. None = chua mo thiet bi lan nao.
+        #
+        # Phai theo doi vi FingerType chi dat duoc o InitDevice (tham so
+        # in_SelecFingerType, Morfin_Enroll.h:335) - KHONG co API doi giua phien.
+        # Doi FLAT <-> ROLL bat buoc UninitDevice roi init lai. Truoc day day
+        # hard-code FingerType.FLAT mot lan cho ca phien nen khong can bien nay.
+        self._finger_type: Optional[FingerType] = None
         # Trang thai live cua lan capture dang chay, cho endpoint /api/live doc.
         self._live: dict = {"active": False, "fingers": [], "message": "", "frames": 0}
         self._live_lock = threading.Lock()
@@ -151,28 +176,71 @@ class CaptureEngine:
             self._sdk = M.Morfin()
         return self._sdk
 
-    def ensure_open(self) -> M.Morfin:
-        with self._lock:
-            sdk = self._load()
-            if sdk.initialized:
+    def _open_locked(self, finger_type: FingerType) -> M.Morfin:
+        """Mo thiet bi o che do finger_type. Goi khi DA giu self._lock."""
+        sdk = self._load()
+        if sdk.initialized:
+            if self._finger_type == finger_type:
                 return sdk
-            product = PRODUCT or ""
-            if not product:
-                devs = sdk.device_list()
-                if not devs:
-                    raise MorfinError(-1, "Khong tim thay thiet bi van tay Morfin.")
-                product = devs[0]
-            kf = sdk.sdk_dir / "ClientKey.txt"
-            key = kf.read_text().strip() if kf.exists() else ""
-            rc, info = sdk.init_device(product, FingerType.FLAT, key or None)
-            if rc != M.SUCCESS:
-                raise MorfinError(rc, f"Init thiet bi that bai: {sdk.err(rc)}")
-            self._info = info
-            self._product = product
-            return sdk
+            # Doi che do: BAT BUOC uninit truoc. FingerType la tham so cua
+            # InitDevice, khong co setter. Neu init lai ma chua uninit thi SDK tra
+            # E_DEVICE_ALREADY_INITIALIZED (-2047) va thiet bi giu nguyen che do
+            # cu => anh lan se ra bang duong ong FLAT (cat ngon tu anh phang),
+            # sai am tham chu khong bao loi.
+            try:
+                sdk.stop_capture()
+                sdk.uninit_device()
+            except Exception:  # noqa: BLE001 - uninit loi khong duoc chan viec mo lai
+                pass
+            self._finger_type = None
+        product = PRODUCT or self._product
+        if not product:
+            devs = sdk.device_list()
+            if not devs:
+                raise MorfinError(-1, "Khong tim thay thiet bi van tay Morfin.")
+            product = devs[0]
+        kf = sdk.sdk_dir / "ClientKey.txt"
+        key = kf.read_text().strip() if kf.exists() else ""
+        rc, info = sdk.init_device(product, finger_type, key or None)
+        if rc != M.SUCCESS:
+            raise MorfinError(rc, f"Init thiet bi that bai ({finger_type.name}): "
+                                  f"{sdk.err(rc)}")
+        self._info = info
+        self._product = product
+        self._finger_type = finger_type
+        return sdk
+
+    def ensure_open(self, finger_type: FingerType = FingerType.FLAT) -> M.Morfin:
+        with self._lock:
+            return self._open_locked(finger_type)
+
+    def ensure_any_open(self) -> M.Morfin:
+        """Mo thiet bi NEU chua mo; da mo roi thi GIU NGUYEN che do dang mo.
+
+        Danh cho cac endpoint chi doc thong tin (health, match): chung khong quan
+        tam FLAT hay ROLL, nen KHONG duoc phep doi che do.
+
+        Vi sao phai co ham nay: ensure_open() mac dinh FingerType.FLAT. Frontend
+        poll /api/health ~2 lan/giay, va health() truoc day goi ensure_open()
+        khong tham so => moi lan poll la mot lan "doi che do ve FLAT". Hau qua:
+          1. start_session mo ROLL, poll health ngay sau do dong ROLL mo lai FLAT;
+          2. capture_roll() nha self._lock trong luc cho lan xong (bat buoc, vi
+             callback preview can lock de cap nhat live state), nen poll health
+             chen vao GIUA lan lan, goi stop_capture() + uninit_device() => giat
+             thiet bi ra khoi lan chup dang chay => MorfinError => HTTP 500.
+        Truoc khi co van lan, moi thu deu FLAT nen cai default nay vo hai; them
+        mode-tracking vao la no thanh pha hoai.
+        """
+        with self._lock:
+            if self._sdk is not None and self._sdk.initialized:
+                return self._sdk
+            return self._open_locked(FingerType.FLAT)
 
     def health(self) -> dict:
-        sdk = self.ensure_open()
+        # ensure_any_open, KHONG ensure_open: health chi doc thong tin thiet bi.
+        # Frontend poll endpoint nay ~2 lan/giay; neu no doi che do ve FLAT thi se
+        # giat thiet bi ra khoi lan lan dang chay (xem ensure_any_open).
+        sdk = self.ensure_any_open()
         i = self._info
         return {
             "ok": True,
@@ -232,7 +300,9 @@ class CaptureEngine:
         du so ngon cua slap position, nen nguoi thieu 1 ngon ma khong khai bao se
         lam moi lan chup chay het timeout roi tra -2019, khong bao gio co anh.
         """
-        sdk = self.ensure_open()
+        # FLAT tuong minh: neu phien truoc do vua lan xong thi thiet bi con dang
+        # o che do ROLL, phai mo lai FLAT truoc khi chup chum.
+        sdk = self.ensure_open(FingerType.FLAT)
         # Ma ngon -> ten field trong FingerPosition ("left_middle" ->
         # "LEFT_MIDDLE"). hasattr de mot ma sai khong lam do ca lan chup: bo qua
         # con tra ve timeout, dung hon la nem AttributeError tu giua capture.
@@ -427,6 +497,172 @@ class CaptureEngine:
         result.no_quality = missing
         return result
 
+    def capture_roll(
+        self,
+        timeout: int = ROLL_TIMEOUT,
+        gate: int = ROLL_GATE,
+        on_frame: Optional[Callable[[list, str], None]] = None,
+    ) -> CaptureResult:
+        """Lan MOT ngon. Tra ve CaptureResult voi dung 1 phan tu trong fingers.
+
+        CO CHE (Morfin_Enroll.h + docs/morfin-roll-ui.html cua ban tham chieu):
+        mot lan StartCapture(ROLL) la MOT lan chup KEO DAI, khong phai nhieu lan
+        chup. Nguoi dan dat canh mong mot ben len kinh roi lan sang ben kia; cam
+        bien chi thay dai van dang ap vao kinh (~1/5 be mat ngon) tai moi thoi
+        diem, nen SDK nhan lien tuc ~50 khung/giay qua previewCb roi KHAU
+        (mosaic) cac dai do thanh MOT anh van lan du ca hai hong ngon. Ket thuc
+        la DUNG MOT completeCb.
+        => 1 ngon = 1 StartCapture = 1 anh. 10 ngon = 10 lan, KHONG phai 30 lan.
+           Cai "nhieu lan" chi la khung hinh ben trong mot lan chup.
+
+        Khac capture_slap o ba diem, deu la ly do phai viet ham rieng chu khong
+        them tham so vao capture_slap:
+          1. Thiet bi phai mo o FingerType.ROLL (duong ong anh khac han FLAT).
+          2. Chi co 1 ngon => khong co mapping slot->ngon, khong co exceptions.
+          3. gate mac dinh 0 (xem ROLL_GATE): phai luon co anh de can bo xac nhan.
+        """
+        sdk = self.ensure_open(FingerType.ROLL)
+        done = threading.Event()
+        state = {"code": M.CAPTURE_TIMEOUT, "count": 0, "frames": 0,
+                 "per": [], "final": {}, "msg": "",
+                 "dropped": [], "diag": {}}
+
+        def on_preview(code: int, p) -> None:
+            # Kenh huong dan RIENG cua roll: FingerPreviewMessage + roiColor bao
+            # nguoi lan nhanh/cham/lech ngay TRONG luc lan. Chum khong can vi ap
+            # tay xuong la xong; lan la dong tac keo dai nen phai sua tay giua
+            # lan, sua sau khi xong thi da mat lan lan do.
+            if code < 0 or not p:
+                return
+            try:
+                ip = p.contents.ImageParams
+                per = []
+                # ImageCount cua roll co the la 0 hoac 1 tuy khung. Quet ca 2 slot
+                # dau roi lay slot NAO CO so do: chua xac minh duoc tren thiet bi
+                # that slot nao mang quality o che do ROLL (bo tham chieu ghi ro
+                # "Thu ngon thuc te: cho test"), nen doc ca hai thay vi doan.
+                for i in range(max(0, min(ip.ImageCount, 2)) or 1):
+                    fi = ip.ImageInfo[i]
+                    q, _src = _quality_of(fi.Quality, fi.NFIQScore)
+                    if q is None:
+                        continue
+                    per.append({"slot": i, "quality": q,
+                                "x": fi.LeftTopCordinates[0],
+                                "y": fi.LeftTopCordinates[1]})
+                    break
+                roi = ip.FingerRoiInfo
+                msg = roi.FingerPreviewMessage.decode(errors="replace").strip()
+                state["frames"] += 1
+                state["per"] = per
+                state["msg"] = msg
+                self._set_live(active=True, fingers=per, message=msg,
+                               frames=state["frames"], roi_color=int(roi.roiColor))
+                if on_frame:
+                    on_frame(per, msg)
+            except Exception:  # noqa: BLE001 - callback tu thread SDK, khong duoc raise
+                pass
+
+        def on_complete(code: int, params, lst) -> None:
+            state["code"] = code
+            state["count"] = lst.contents.FingerCount if lst else 0
+            try:
+                if not params:
+                    state["diag"]["complete_params"] = "NULL"
+                    return
+                ip = params.contents
+                state["diag"]["complete_image_count"] = ip.ImageCount
+                raw: list[dict] = []
+                # Doc 2 slot dau va lay slot dau tien co so do hop le. O che do
+                # slap, ImageInfo[0].Quality la TONG quality ca cum (do duoc:
+                # 193 = 45+48+48+52) nen phai doc NFIQScore truoc - _quality_of da
+                # lam. Voi roll chi co 1 ngon nen "tong" = chinh no, nhung van di
+                # qua _quality_of de khong phu thuoc vao gia dinh do.
+                for i in range(max(1, min(ip.ImageCount, 2))):
+                    fi = ip.ImageInfo[i]
+                    q, src = _quality_of(fi.Quality, fi.NFIQScore)
+                    raw.append({"slot": i, "Quality": fi.Quality,
+                                "NFIQScore": fi.NFIQScore,
+                                "Intensity": fi.Intensity,
+                                "out_score": round(float(fi.out_score), 3),
+                                "result": fi.result, "used": src})
+                    if q is None:
+                        if len(state["dropped"]) < 20:
+                            state["dropped"].append(
+                                {"slot": i, "Quality": fi.Quality,
+                                 "NFIQScore": fi.NFIQScore, "where": "complete"})
+                        continue
+                    if not state["final"]:
+                        state["final"] = {
+                            "quality": q,
+                            "x": fi.LeftTopCordinates[0],
+                            "y": fi.LeftTopCordinates[1],
+                        }
+                state["diag"]["complete_raw"] = raw
+            except Exception as e:  # noqa: BLE001
+                state["diag"]["complete_error"] = repr(e)
+            finally:
+                done.set()
+
+        with self._lock:
+            self._set_live(active=True, fingers=[], message="", frames=0,
+                           roi_color=0)
+            rc = sdk.start_capture(on_preview, on_complete, timeout=timeout,
+                                   slap=SlapPosition.ROLL, exceptions=None,
+                                   auto_capture=True, nfiq_quality=gate)
+            if rc != M.SUCCESS:
+                self._set_live(active=False)
+                raise MorfinError(rc, f"StartCapture(ROLL) that bai: {sdk.err(rc)}")
+
+        if not done.wait(timeout + 10):
+            with self._lock:
+                sdk.stop_capture()
+            self._set_live(active=False)
+            raise MorfinError(-1, "SDK khong tra ket qua lan van (treo).")
+
+        self._set_live(active=False)
+        result = CaptureResult(code=state["code"], finger_count=state["count"],
+                              frames=state["frames"], message=state["msg"],
+                              dropped=state["dropped"], diag=state["diag"])
+        if not result.ok:
+            return result
+
+        with self._lock:
+            rc_i, images = sdk.get_image(ImageFormat.BMP)
+            rc_t, tmpls = sdk.get_template(TEMPLATE_FORMAT)
+        if rc_i != M.SUCCESS:
+            raise MorfinError(rc_i, f"GetImage(ROLL) loi: {sdk.err(rc_i)}")
+        if rc_t != M.SUCCESS:
+            raise MorfinError(rc_t, f"GetTemplate(ROLL) loi: {sdk.err(rc_t)}")
+
+        # Anh lan nam o Fingers[0] hay Fingers[1]? CHUA XAC MINH duoc tren thiet
+        # bi that. O che do slap, index 0 la anh slap tong va tung ngon bat dau
+        # tu 1; voi roll chi co mot anh nen no co the o ca hai cho. Lay phan tu
+        # DAU TIEN co du lieu thay vi hard-code index: doan sai index se ra "lan
+        # xong ma khong co anh" (-2038 gia) rat kho truy.
+        img = next((b for b in images[:2] if b), b"")
+        tmpl = next((b for b in tmpls[:2] if b), b"")
+        state["diag"]["img_lens"] = [len(b) for b in images[:2]]
+        state["diag"]["tmpl_lens"] = [len(b) for b in tmpls[:2]]
+        if not img and not tmpl:
+            # SDK bao thanh cong nhung khong co du lieu: coi nhu lan that bai de
+            # caller bat lan lai, KHONG luu ban ghi rong.
+            result.code = M.FINGER_NOT_CAPTURED
+            return result
+
+        result.slap_image = img
+        meta = state["final"] or {}
+        result.fingers.append(FingerCapture(
+            slot=1,
+            quality=meta.get("quality", 0),
+            x=meta.get("x", 0),
+            y=meta.get("y", 0),
+            template=tmpl,
+            image=img,
+        ))
+        if not meta:
+            result.no_quality = [1]
+        return result
+
     def stop(self) -> int:
         sdk = self._sdk
         if sdk is None:
@@ -435,7 +671,8 @@ class CaptureEngine:
 
     # ---------- match ----------
     def match(self, t1: bytes, t2: bytes) -> int:
-        sdk = self.ensure_open()
+        # So khop template khong lien quan den che do chup => giu nguyen che do.
+        sdk = self.ensure_any_open()
         with self._lock:
             rc, score = sdk.match_template(t1, t2, TEMPLATE_FORMAT)
         if rc != M.SUCCESS:
