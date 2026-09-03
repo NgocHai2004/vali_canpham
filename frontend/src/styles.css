@@ -9958,3 +9958,20 @@ textarea.input {
     display: none;
   }
 }
+
+/* Bo loc tren bang chon vu an (tab Dau vet hien truong). */
+.scene-list-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  padding: 12px 16px 16px;
+}
+.scene-list-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.scene-list-filters .control { min-width: 190px; }

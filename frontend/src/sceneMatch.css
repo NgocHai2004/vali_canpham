@@ -1,0 +1,368 @@
+/* Màn Phân tích đối sánh (SceneMatchPage).
+   Bảng màu lấy từ design "Phân tích đối sánh". */
+.smp {
+  /* Chiều cao list = đúng 5 thẻ hồ sơ (1 mở + 4 thu gọn) + 4 khoảng cách,
+     nên list cắt sát mép thẻ cuối, không hở nửa thẻ. Panel = list + chrome
+     (padding 13+14, header 34 + margin 16). Cả 2 panel dưới dùng cùng số này
+     nên luôn cao bằng nhau; đổi padding thẻ là cả 2 tự khớp lại. */
+  /* 1 hang bang doi sanh = thumb 42 + padding 7*2 + vien 2 + margin-top 1. */
+  --smp-row-h: 59px;
+  --smp-list-h: calc(126px + 4 * 62px + 4 * 10px);
+  --smp-panel-h: calc(var(--smp-list-h) + 68px);
+  --smp-line: #16304f;
+  --smp-line2: #21395c;
+  --smp-dim: #8ea4c4;
+  --smp-blue: #4f9dff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #e8eef8;
+  font-size: 14px;
+}
+.smp-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.smp-top-line { display: flex; align-items: center; gap: 12px; }
+/* Nút Quay lại là cột riêng nên mã vụ án và tên vụ án cùng một mốc lề trái
+   — tên vụ án tự thẳng với chữ "Vụ án", không cần lề cứng đo tay. */
+.smp-top-left { display: flex; align-items: flex-start; gap: 12px; }
+.smp-top-left > div { min-width: 0; }
+/* Nút Quay lại dùng lại style ghost của design (2 nút bên phải header),
+   chỉ gọn hơn một chút và icon lùi nhẹ để cân với chữ. */
+.smp-back { padding: 9px 15px; gap: 7px; color: #9db3d1; margin-top: 6px; }
+.smp-back:hover { color: #d3e2f7; }
+.smp-case-code { font-size: 17px; font-weight: 600; letter-spacing: .2px; }
+.smp-case-name { margin-top: 7px; color: var(--smp-dim); font-size: 13.5px; }
+.smp-top-actions { display: flex; align-items: center; gap: 12px; }
+
+.smp-chip { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.smp-chip-green { background: rgba(16,185,129,.14); color: #34d399; border: 1px solid rgba(16,185,129,.28); }
+.smp-chip-blue { background: rgba(79,157,255,.15); color: #7cb8ff; border: 1px solid rgba(79,157,255,.3); }
+
+.smp-btn-ghost {
+  padding: 10px 16px; border-radius: 9px; cursor: pointer;
+  border: 1px solid #24405f; background: rgba(15,31,54,.75);
+  color: #d3e2f7; font-size: 13.5px; font-family: inherit;
+}
+.smp-btn-ghost:hover { background: #16294a; border-color: #3a5f8c; }
+.smp-btn-primary {
+  padding: 9px 14px; border-radius: 9px; border: 0; cursor: pointer;
+  background: #2272e8; color: #fff; font-size: 13px; font-weight: 500;
+  font-family: inherit; box-shadow: 0 6px 16px rgba(34,114,232,.35);
+}
+.smp-btn-primary:hover { background: #3a86f5; }
+.smp-btn-primary:disabled { background: #2b4a72; box-shadow: none; cursor: not-allowed; }
+label.smp-btn-primary { cursor: pointer; }
+label.smp-drop { display: block; cursor: pointer; }
+label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.14); }
+
+.smp-panel {
+  border: 1px solid var(--smp-line); border-radius: 14px;
+  background: linear-gradient(180deg, rgba(16,33,58,.92), rgba(9,19,35,.92));
+  padding: 14px 16px 10px; box-shadow: 0 18px 40px rgba(0,0,0,.35); min-width: 0;
+}
+.smp-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.smp-panel-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.smp-h { font-size: 15.5px; font-weight: 600; letter-spacing: .5px; }
+.smp-badge { padding: 3px 9px; border-radius: 6px; background: #14304f; color: #cfe2fb; font-size: 12.5px; font-weight: 600; }
+.smp-sub, .smp-dim { color: var(--smp-dim); font-size: 13px; }
+.smp-strong { color: #dce8f8; font-size: 13px; font-weight: 500; }
+.smp-score { color: var(--smp-blue); font-weight: 600; }
+.smp-ellip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smp-panel-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.smp-panel-tools-row { margin: 14px 0; justify-content: space-between; }
+.smp-search, .smp-select {
+  padding: 9px 14px; border-radius: 9px; border: 1px solid var(--smp-line2);
+  background: #0b1a30; color: #cbdcf3; font-size: 13.5px; font-family: inherit;
+}
+.smp-search-wide { width: 340px; max-width: 100%; }
+.smp-search::placeholder { color: #7f95b5; }
+
+/* Bảng kết quả đối sánh — grid để khớp cột của design. */
+.smp-mt-head, .smp-mt-row {
+  display: grid;
+  /* fr thay vi px co dinh -> cac cot gian deu het be ngang panel, khong ho
+     mot khoang trong o cuoi bang. minmax giu cot khong bop qua muc, con lai
+     .smp-mt-body cuon ngang. */
+  grid-template-columns:
+    52px minmax(112px, 1.1fr) 76px minmax(124px, 1.3fr)
+    minmax(104px, 1.05fr) minmax(112px, 1.15fr) minmax(96px, 1fr)
+    minmax(84px, .85fr) minmax(112px, 1.15fr) 34px;
+  align-items: center; gap: 8px;
+}
+.smp-mt-head {
+  padding: 0 8px 10px; border-bottom: 1px solid var(--smp-line);
+  color: var(--smp-dim); font-size: 12.5px; font-weight: 500;
+}
+/* Panel luon cao dung 5 the, ke ca trang cuoi chi con 2 the.
+   Doi padding hang hay co thumb thi sua --smp-row-h, khong sua o day. */
+.smp-mt-body {
+  overflow-x: auto;
+  height: calc(5 * var(--smp-row-h));
+  overflow-y: hidden;
+}
+.smp-mt-row {
+  padding: 7px 8px; border-radius: 10px; margin-top: 1px;
+  border: 1px solid transparent; font-size: 13.5px;
+  height: var(--smp-row-h); box-sizing: border-box;
+}
+.smp-mt-row:hover { background: rgba(23,45,78,.55); }
+/* Ca thé la 1 nut mo chi tiet dau vet -> mui ten o cot cuoi. */
+.smp-mt-row.go { cursor: pointer; }
+.smp-mt-row:focus-visible { outline: 2px solid var(--smp-blue); outline-offset: -2px; }
+.smp-mt-go { display: flex; justify-content: flex-end; color: #7f95b5; }
+.smp-mt-row:hover .smp-mt-go { color: var(--smp-blue); }
+.smp-thumb-sm {
+  width: 42px; height: 42px; border-radius: 6px;
+  border: 1px solid #2b4a72; object-fit: cover; display: block; background: #35383d;
+  margin: 0 auto;   /* img la block nen text-align khong keo vao giua duoc */
+}
+/* Can giua: STT(1), anh(3), ngon tay(6), diem(7), ket qua(8), thoi gian(9).
+   Ma dau vet(2) + doi tuong(4) + CCCD(5) van can trai cho de doc. */
+.smp-mt-head > :nth-child(1), .smp-mt-row > :nth-child(1),
+.smp-mt-head > :nth-child(3), .smp-mt-row > :nth-child(3),
+.smp-mt-head > :nth-child(6), .smp-mt-row > :nth-child(6),
+.smp-mt-head > :nth-child(7), .smp-mt-row > :nth-child(7),
+.smp-mt-head > :nth-child(8), .smp-mt-row > :nth-child(8),
+.smp-mt-head > :nth-child(9), .smp-mt-row > :nth-child(9) { text-align: center; }
+/* Doi tuong(4) -> thoi gian(9) dich sang phai mot chut. translateX chay duoc
+   cho ca o can trai (4,5) va o can giua (6-9); doi 1 so la ca bang dich theo. */
+.smp-mt-head > :nth-child(n+4):nth-child(-n+9),
+.smp-mt-row > :nth-child(n+4):nth-child(-n+9) { transform: translateX(14px); }
+/* Anh dau vet(3) dich sang trai mot chut. */
+.smp-mt-head > :nth-child(3),
+.smp-mt-row > :nth-child(3) { transform: translateX(-10px); }
+.smp-pg {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  padding: 10px 4px 0; margin-top: 6px; border-top: 1px solid #142a47; gap: 12px;
+}
+.smp-pg-mid { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.smp-pg-mid button {
+  min-width: 32px; height: 32px; padding: 0 8px; border-radius: 7px;
+  border: 1px solid var(--smp-line2); background: transparent;
+  color: #cbdcf3; font-size: 13px; cursor: pointer; font-family: inherit;
+}
+.smp-pg-mid button.on { background: #2272e8; border-color: #2272e8; color: #fff; }
+.smp-pg-mid button:disabled { opacity: .4; cursor: default; }
+.smp-pg-right { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap; }
+
+/* 2 panel dưới: dấu vết (0.84fr) + hồ sơ đối tượng (1.16fr) như design. */
+.smp-bottom { display: grid; grid-template-columns: 0.84fr 1.16fr; gap: 16px; align-items: stretch; }
+@media (max-width: 1240px) { .smp-bottom { grid-template-columns: 1fr; } }
+
+.smp-drop {
+  margin-top: 14px;
+  border: 1.5px dashed #2b4a72; border-radius: 12px;
+  background: rgba(11,26,48,.6); padding: 12px 16px; text-align: center;
+}
+.smp-drop-main { color: #d3e2f7; font-size: 13.5px; }
+.smp-drop-sub { color: #7f95b5; font-size: 12.5px; margin-top: 6px; }
+.smp-viewtoggle { display: flex; border-radius: 9px; border: 1px solid var(--smp-line2); overflow: hidden; }
+.smp-viewtoggle button {
+  width: 38px; height: 36px; border: 0; background: transparent;
+  color: #7f95b5; cursor: pointer; font-size: 15px;
+}
+.smp-viewtoggle button.on { background: #12294b; color: var(--smp-blue); }
+
+.smp-tr-list {
+  display: flex; flex-direction: column; gap: 8px;
+  flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px;
+}
+.smp-tr-row {
+  display: grid; grid-template-columns: 46px 1fr 150px 130px 22px;
+  align-items: center; gap: 12px; padding: 7px 10px; border-radius: 10px;
+  border: 1.5px solid #1b3355; background: rgba(11,24,44,.7); cursor: pointer;
+}
+.smp-tr-row:hover, .smp-tr-card:hover { border-color: #3a5f8c; }
+.smp-tr-row.on, .smp-tr-card.on { border-color: #2272e8; }
+.smp-tr-meta { min-width: 0; }
+.smp-thumb-md {
+  width: 46px; height: 46px; border-radius: 6px;
+  border: 1px solid #2b4a72; object-fit: cover; display: block; background: #35383d;
+}
+.smp-check { color: #2272e8; font-weight: 700; text-align: right; }
+.smp-tr-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); grid-auto-rows: max-content;
+  gap: 12px; flex: 1; min-height: 0; overflow-y: auto; align-content: start; padding-right: 4px;
+}
+.smp-tr-card {
+  border-radius: 10px; border: 1.5px solid #1b3355;
+  background: rgba(11,24,44,.7); padding: 7px; cursor: pointer; min-width: 0;
+}
+.smp-tr-card-img { position: relative; border-radius: 7px; overflow: hidden; height: 78px; background: #35383d; }
+.smp-tr-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.smp-check-dot {
+  position: absolute; top: 6px; right: 6px; width: 20px; height: 20px;
+  border-radius: 50%; background: #2272e8; color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.smp-tr-card-body { padding: 8px 2px 3px; min-width: 0; font-size: 11.5px; }
+.smp-tr-card-body > div { margin-top: 3px; }
+
+/* Hồ sơ đối tượng */
+/* Chỉ hiện tối đa 5 thẻ (1 mở rộng + 4 thu gọn), còn lại scroll.
+   Chiều cao tính từ chính số đo của 2 loại thẻ nên đổi padding thẻ là tự khớp:
+   thẻ mở = ảnh 100px + padding 12*2 + viền 2; thẻ thu gọn = avatar 42 + 9*2 + 2. */
+.smp-sub-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  max-height: var(--smp-list-h);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+/* Thẻ mở rộng phải cao đúng --card-open để phép tính trên khớp thực tế. */
+.smp-sub-open { min-height: 126px; box-sizing: border-box; }
+.smp-sub-row { min-height: 62px; box-sizing: border-box; }
+.smp-sub-open {
+  display: grid; grid-template-columns: 92px 1fr auto 22px;
+  gap: 16px; align-items: start;
+  border: 1px solid #24486f; border-radius: 12px;
+  background: rgba(13,29,53,.75); padding: 12px 14px;
+}
+.smp-sub-photo, .smp-sub-avatar { background: linear-gradient(170deg, #2a3a52, #16233a); }
+.smp-sub-photo { width: 84px; height: 100px; border-radius: 9px; }
+.smp-sub-avatar { width: 42px; height: 42px; border-radius: 8px; flex: 0 0 42px; }
+.smp-sub-info { min-width: 0; }
+.smp-sub-fields {
+  margin-top: 10px; display: flex; flex-direction: column; gap: 6px;
+  font-size: 12.5px; color: #b9cbe4;
+}
+.smp-sub-toggle { background: none; border: 0; color: #9db3d1; cursor: pointer; font-size: 16px; }
+.smp-hands { display: flex; gap: 22px; flex-wrap: wrap; }
+.smp-hand-title { text-align: center; font-size: 12px; color: #a9bedb; margin-bottom: 8px; }
+.smp-hand-label { text-align: center; font-size: 11px; color: var(--smp-dim); margin-top: 6px; }
+.smp-fingers { display: flex; gap: 8px; }
+.smp-finger {
+  width: 32px; height: 40px; border-radius: 5px;
+  border: 1px solid #2b4a72; object-fit: cover; display: block; background: #35383d;
+}
+.smp-sub-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border: 1px solid #1b3355; border-radius: 12px;
+  background: rgba(11,24,44,.6); padding: 9px 14px; cursor: pointer;
+}
+.smp-sub-row:hover { border-color: #2f5482; background: rgba(19,38,66,.7); }
+.smp-sub-row-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
+
+/* Bổ sung: các class JSX dùng mà chưa khai báo ở trên. */
+.smp-dim2 { color: #c3d4ec; font-size: 13.5px; }
+.smp-panel-match { flex: 0 0 auto; }
+.smp-panel-trace, .smp-panel-subject {
+  padding: 13px 15px 14px; box-shadow: 0 18px 40px rgba(0,0,0,.3);
+  display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+}
+/* Dấu tích chọn ảnh — tròn xanh như design. */
+.smp-tick-dot {
+  width: 20px; height: 20px; border-radius: 50%; background: #2272e8;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.smp-tick-abs {
+  position: absolute; top: 6px; right: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.smp-sub-row-right { display: flex; align-items: center; gap: 16px; color: #9db3d1; }
+/* Icon trong nút phải thẳng hàng với chữ. */
+.smp-btn-ghost, .smp-btn-primary, .smp-btn-line, .smp-back {
+  display: inline-flex; align-items: center; gap: 9px;
+}
+.smp-btn-line {
+  padding: 9px 15px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--smp-line2); background: #0b1a30;
+  color: #cbdcf3; font-size: 13.5px; font-family: inherit;
+}
+.smp-btn-line:hover { border-color: #3a5f8c; }
+.smp-icon-btn {
+  width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--smp-line2); background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+/* Ô tìm kiếm / select có icon bên trong như design. */
+.smp-field {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; border-radius: 9px;
+  border: 1px solid var(--smp-line2); background: #0b1a30; color: #cbdcf3;
+}
+.smp-field input, .smp-field select {
+  border: 0; background: transparent; color: #cbdcf3;
+  font-size: 13.5px; font-family: inherit; outline: none; width: 100%;
+}
+.smp-field input::placeholder { color: #7f95b5; }
+.smp-field select { cursor: pointer; appearance: none; }
+.smp-field-wide { width: 372px; max-width: 100%; }
+.smp-field-sel { justify-content: space-between; gap: 22px; }
+.smp-field-grow { flex: 1; max-width: 300px; }
+.smp-field-mini { padding: 7px 12px; gap: 14px; font-size: 13px; }
+.smp-toolrow {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; margin: 14px 0; flex-wrap: wrap;
+}
+.smp-drop-ic { display: flex; justify-content: center; margin-bottom: 10px; color: var(--smp-blue); }
+.smp-center { display: flex; justify-content: center; color: #7f95b5; }
+.smp-h2 { font-size: 15.5px; font-weight: 600; letter-spacing: .5px; }
+.smp-badge-row { display: inline-flex; align-items: center; gap: 9px; font-weight: 400; }
+.smp-badge-sep { color: #6d86a8; }
+.smp-link { color: var(--smp-blue); font-size: 12.5px; display: inline-block; margin-top: 12px; }
+.smp-sub-name { font-size: 14.5px; font-weight: 600; }
+.smp-sub-name-sm { font-size: 13.5px; font-weight: 500; }
+.smp-back-ic { display: inline-flex; }
+.smp-sub-photo, .smp-sub-avatar {
+  display: flex; align-items: flex-end; justify-content: center; overflow: hidden;
+}
+
+/* 2 panel dưới giữ padding gốc của design — chỉ panel đối sánh được phóng to. */
+.smp-panel-trace, .smp-panel-subject {
+  padding: 13px 15px 14px;
+  height: var(--smp-panel-h);
+}
+
+/* Ẩn thanh scroll trong cả màn Phân tích đối sánh — vẫn cuộn được bằng
+   chuột/bàn phím/trackpad, chỉ không hiện vạch. */
+.smp,
+.smp * {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* Edge cũ */
+}
+.smp::-webkit-scrollbar,
+.smp *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;                  /* Chrome / Safari */
+}
+
+/* ---------- Menu ... (details/summary native) ---------- */
+.smp-menu { position: relative; }
+.smp-menu > summary {
+  list-style: none; cursor: pointer; width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: 1px solid var(--smp-line2);
+  background: #0b1a30; color: #7f95b5;
+}
+.smp-menu > summary::-webkit-details-marker { display: none; }
+.smp-menu > summary:hover { color: #d3e2f7; border-color: var(--smp-blue); }
+.smp-menu-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+  min-width: 168px; padding: 6px; display: flex; flex-direction: column;
+  border: 1px solid var(--smp-line2); border-radius: 10px; background: #0e1f38;
+  box-shadow: 0 14px 32px rgba(0,0,0,.5);
+}
+.smp-menu-pop > button, .smp-menu-pop > a {
+  padding: 8px 10px; border: 0; border-radius: 7px; background: transparent;
+  color: #d3e2f7; font: inherit; font-size: 13px; text-align: left;
+  cursor: pointer; text-decoration: none;
+}
+.smp-menu-pop > button:hover, .smp-menu-pop > a:hover { background: rgba(34,114,232,.18); }
+.smp-menu-pop > button:disabled { color: #55688a; cursor: not-allowed; background: transparent; }
+.smp-menu-del { color: #ff8b8b !important; }
+.smp-menu-del:hover { background: rgba(255,90,90,.14) !important; }
+.smp-menu-del:disabled { color: #7a5a5a !important; }
+.smp-menu-abs { position: absolute; right: 6px; top: 6px; }

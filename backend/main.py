@@ -458,6 +458,8 @@ class DetaineeIn(BaseModel):
 
 
 class WorkSessionIn(BaseModel):
+    case_name: str = Field(default="", max_length=200)
+    commune_code: str = Field(default="", max_length=40)
     location: str = Field(default="", max_length=200)
     note: str = Field(default="", max_length=500)
     officer_full_name: Optional[str] = Field(default=None, max_length=100)
@@ -662,6 +664,7 @@ async def update_me(body: MePatch, request: Request, user: dict = Depends(get_cu
 
 # ==================== USB DONGLE ====================
 USB_SERVICE_URL = os.getenv("USB_SERVICE_URL", "http://127.0.0.1:8766")
+DONGLE_BYPASS = os.getenv("DONGLE_BYPASS", "") == "1"
 
 
 @app.get("/api/auth/dongle-verify")
@@ -673,6 +676,10 @@ async def dongle_verify(user: dict = Depends(get_current_user)):
     - 401  : không phát hiện USB dongle
     - 503  : usb_service không phản hồi (không đủ căn cứ logout)
     """
+    # ponytail: dev-only bypass cho may khong co dongle/usb_service. Chi bat bang
+    # env DONGLE_BYPASS=1 khi chay local; production khong set thi hanh vi giu nguyen.
+    if DONGLE_BYPASS:
+        return {"ok": True, "drive": "BYPASS", "user": user["username"]}
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(f"{USB_SERVICE_URL}/api/usb/verify")
@@ -1259,6 +1266,8 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
     doc = {
         "code": await _next_session_code(),
         "status": "open",
+        "case_name": body.case_name.strip(),
+        "commune_code": body.commune_code.strip(),
         "officer": officer_username,
         "officer_full_name": override or default_full_name,
         "location": body.location.strip() or "Trung tâm thu thập dữ liệu",
@@ -1408,6 +1417,18 @@ async def list_sessions(
         _s_session(d)
         async for d in db.work_sessions.find(filt).sort("opened_at", -1).skip(skip).limit(limit)
     ]
+    # So dau vet hien truong moi phien -> cot "So dau vet" tren bang chon vu an.
+    # ponytail: 1 aggregate cho ca trang; doi cach neu limit len hang nghin.
+    if items:
+        oids = [_oid(i["id"]) for i in items]
+        counts = {}
+        async for r in db.scene_traces.aggregate([
+            {"$match": {"session_id": {"$in": oids}}},
+            {"$group": {"_id": "$session_id", "n": {"$sum": 1}}},
+        ]):
+            counts[str(r["_id"])] = r["n"]
+        for i in items:
+            i["scene_count"] = counts.get(i["id"], 0)
     return {"total": total, "items": items, "skip": skip, "limit": limit}
 
 
@@ -2076,6 +2097,8 @@ async def _insert_scene_trace(
     *,
     source: str,
     note: str = "",
+    trace_type: str = "",
+    collection_source: str = "",
     device_id: str = "",
     captured_at: Optional[datetime] = None,
     created_by: str = "",
@@ -2088,6 +2111,8 @@ async def _insert_scene_trace(
         "size": size,
         "mime": f"image/{'jpeg' if ext in ('.jpg', '.jpeg') else ext.lstrip('.')}",
         "note": (note or "").strip(),
+        "trace_type": (trace_type or "").strip(),
+        "collection_source": (collection_source or "").strip(),
         "source": source,
         "device_id": (device_id or "").strip(),
         "captured_at": captured_at or now,
