@@ -38,20 +38,29 @@ PRODUCT = os.getenv("MORFIN_PRODUCT", "")
 DEFAULT_GATE = int(os.getenv("MORFIN_QUALITY_GATE", "40"))
 DEFAULT_TIMEOUT = int(os.getenv("MORFIN_CAPTURE_TIMEOUT", "20"))
 
-# Gate RIENG cho van lan, MAC DINH 0 - khong phai bo sot DEFAULT_GATE.
+# Gate RIENG cho van lan. MAC DINH 40 - da tung la 0, va 0 la SAI.
 #
 # Morfin_Enroll.h:377: "NFIQ_Quality : minimum quality for capturing image
-# successfully (Default: 40), 0 : Capturing best frames automatically". Tuc la
-# tham so nay la CONG CHAN cua SDK: truyen 40 thi ngon lan duoi 40 KHONG ra anh
-# nao ca, chi ra FINGER_NOT_CAPTURED (-2038).
+# successfully (Default: 40), 0 : Capturing best frames automatically".
 #
-# Yeu cau nghiep vu la "tren hoac duoi muc quy dinh DEU HIEN LEN de can bo xac
-# nhan". Voi gate = 40 thi khong bao gio ton tai ngon duoi nguong de hien =>
-# mau thuan. Nen: truyen 0 cho SDK (tu chot frame tot nhat, luon co anh), roi so
-# 40 o TANG APP (MIN_QUALITY trong api.py) chi de to mau dat/khong dat.
-# MORFIN_QUALITY_GATE=40 van la con so quy dinh, chi doi vai: tu cong chan cua
-# SDK thanh nguong hien thi.
-ROLL_GATE = int(os.getenv("MORFIN_ROLL_GATE", "0"))
+# Truoc day doc "0" thanh "tat cong chan, luon co anh" roi dat 0, voi ly do: nghiep
+# vu can ngon DUOI nguong cung hien len de can bo xac nhan, nen khong duoc de SDK
+# chan. Suy luan do sai. "0" KHONG phai tat nguong - no bat mot che do khac:
+# SDK tu chon khung tot nhat, va (do tren thiet bi nay) khong bao gio tu chot.
+# Do duoc 03/09: gate=0, timeout 30s that => preview_calls=270, preview_errors=0
+# (SDK nhan anh lien tuc, parse sach) nhung complete_image_count=0, FingerCount=0,
+# code=-2019. Tuc la lan nao cung het thoi gian va KHONG co anh nao.
+# => gate=0 dat duoc dung dieu nguoc lai voi y dinh: khong phai "luon co anh" ma
+#    la "khong bao gio co anh".
+#
+# 40 la gia tri bo tham chieu dung de THUC SU lay duoc anh
+# (morfin_roll_ui/test_diag.py:25, comment "mac dinh khuyen nghi").
+#
+# Danh doi con lai: gate 40 nghia la ngon lan duoi 40 khong ra anh (-2038) chu
+# khong ra "anh kem". Ngon van tay mon that su thi ha bang MORFIN_ROLL_GATE (vd 20)
+# thay vi ve 0 - 0 khong phai duong ra, no la duong cut. Duong ra san co cho ngon
+# khong lay duoc van la nut "khong co van tay" (POST /mark_none).
+ROLL_GATE = int(os.getenv("MORFIN_ROLL_GATE", "40"))
 # Lan mot ngon mat 3-4 giay, cham hon nhieu so voi ap ban tay xuong kinh, va
 # nguoi chua quen thuong phai lan lai giua lan => cho lau hon slap.
 ROLL_TIMEOUT = int(os.getenv("MORFIN_ROLL_TIMEOUT", "30"))
@@ -102,6 +111,23 @@ TEMPLATE_FORMAT = TemplateFormat.FMR_V2005
 def _quality_of(raw_quality: int, raw_nfiq: int) -> tuple[Optional[int], str]:
     if 0 <= raw_nfiq <= 100:
         return raw_nfiq, "NFIQScore"
+    if 0 <= raw_quality <= 100:
+        return raw_quality, "Quality"
+    return None, "none"
+
+
+# Ban RIENG cho PREVIEW callback. KHONG duoc dung _quality_of o preview.
+#
+# Morfin_Enroll.h:218-223 danh dau tung field: Intensity va NFIQScore ghi
+# "(Only In Complete Callback)", con Quality thi KHONG. Tuc la trong preview chi
+# Quality co so do; NFIQScore la o nho chua ai ghi vao => doc ra 0.
+#
+# _quality_of uu tien NFIQScore, nen goi no o preview tra ve dung 0 cho MOI frame:
+# 0 lai la mot so do hop le (ngon te that su co the 0) nen khong bi loai, khong
+# vao `dropped`, khong co dau vet nao. Day chinh la "chat luong hien 0%".
+# Thu tu uu tien o complete van dung nguyen - o do NFIQScore moi la so do that va
+# Quality[0] la TONG ca cum (xem test_quality_source.py).
+def _preview_quality_of(raw_quality: int) -> tuple[Optional[int], str]:
     if 0 <= raw_quality <= 100:
         return raw_quality, "Quality"
     return None, "none"
@@ -428,7 +454,8 @@ class CaptureEngine:
             self._set_live(active=True, fingers=[], message="", frames=0)
             # auto_capture=True bat buoc: o che do False SDK chi preview, khong
             # chot frame nao -> GetImage tra -2038.
-            rc = sdk.start_capture(on_preview, on_complete, timeout=timeout,
+            rc = sdk.start_capture(on_preview, on_complete,
+                                   timeout_ms=timeout * 1000,
                                    slap=slap, exceptions=exceptions,
                                    auto_capture=True,
                                    nfiq_quality=gate)
@@ -519,19 +546,33 @@ class CaptureEngine:
         them tham so vao capture_slap:
           1. Thiet bi phai mo o FingerType.ROLL (duong ong anh khac han FLAT).
           2. Chi co 1 ngon => khong co mapping slot->ngon, khong co exceptions.
-          3. gate mac dinh 0 (xem ROLL_GATE): phai luon co anh de can bo xac nhan.
+          3. gate va timeout rieng (ROLL_GATE / ROLL_TIMEOUT): lan cham hon nhieu
+             so voi ap ban tay xuong kinh nen phai cho lau hon.
         """
         sdk = self.ensure_open(FingerType.ROLL)
         done = threading.Event()
+        # preview_calls dem callback THO: tang o DONG DAU TIEN cua on_preview, truoc
+        # moi thao tac parse. Phai co rieng no vi "frames" chi tang o gan CUOI khoi
+        # try, nen mot exception giua duong (hoac code<0) lam frames dung yen o 0 -
+        # khong phan biet duoc voi "SDK khong he goi callback". Hai nguyen nhan nay
+        # can hai cach sua khac han nhau nen khong duoc de lan.
         state = {"code": M.CAPTURE_TIMEOUT, "count": 0, "frames": 0,
                  "per": [], "final": {}, "msg": "",
-                 "dropped": [], "diag": {}}
+                 "dropped": [], "diag": {"preview_calls": 0, "preview_errors": 0,
+                                         "t_start": time.time()}}
 
         def on_preview(code: int, p) -> None:
             # Kenh huong dan RIENG cua roll: FingerPreviewMessage + roiColor bao
             # nguoi lan nhanh/cham/lech ngay TRONG luc lan. Chum khong can vi ap
             # tay xuong la xong; lan la dong tac keo dai nen phai sua tay giua
             # lan, sua sau khi xong thi da mat lan lan do.
+            #
+            # Dem TRUOC moi thao tac khac: day la bang chung duy nhat cho biet SDK CO
+            # goi callback hay khong. "frames" tang o gan cuoi khoi try nen moi
+            # return/exception ben duoi deu de no o 0 - khong the phan biet "SDK im
+            # lang" voi "SDK goi lien tuc nhung parse loi", ma hai cai can hai cach
+            # sua khac han nhau.
+            state["diag"]["preview_calls"] += 1
             if code < 0 or not p:
                 return
             try:
@@ -543,9 +584,25 @@ class CaptureEngine:
                 # "Thu ngon thuc te: cho test"), nen doc ca hai thay vi doan.
                 for i in range(max(0, min(ip.ImageCount, 2)) or 1):
                     fi = ip.ImageInfo[i]
-                    q, _src = _quality_of(fi.Quality, fi.NFIQScore)
+                    q, _src = _preview_quality_of(fi.Quality)
                     if q is None:
                         continue
+                    # Giu so do CAO NHAT trong ca lan lan lam nguon du phong cho
+                    # complete callback (xem on_complete). Do duoc 03/09: che do
+                    # ROLL tra ImageCount=0 o complete => khong co so do nao o day,
+                    # neu khong lay tu preview thi ngon nao cung "khong do duoc".
+                    #
+                    # Max la mot phep LAC QUAN va phai biet ro dieu do: moi frame do
+                    # mot DAI van dang ap kinh, khong do anh mosaic hoan chinh, nen
+                    # max la "dai dep nhat trong ca lan lan" chu khong phai "chat
+                    # luong anh van lan". Chon max thay vi frame cuoi vi frame cuoi
+                    # la canh mong ben kia - luon xau, se bao thap oan cho moi ngon.
+                    # Nguon duoc ghi vao diag de sau nay doi duoc ma khong phai doan.
+                    d = state["diag"]
+                    if q > d.get("preview_quality_max", -1):
+                        d["preview_quality_max"] = q
+                        d["preview_quality_xy"] = (fi.LeftTopCordinates[0],
+                                                   fi.LeftTopCordinates[1])
                     per.append({"slot": i, "quality": q,
                                 "x": fi.LeftTopCordinates[0],
                                 "y": fi.LeftTopCordinates[1]})
@@ -559,8 +616,13 @@ class CaptureEngine:
                                frames=state["frames"], roi_color=int(roi.roiColor))
                 if on_frame:
                     on_frame(per, msg)
-            except Exception:  # noqa: BLE001 - callback tu thread SDK, khong duoc raise
-                pass
+            except Exception as e:  # noqa: BLE001 - callback tu thread SDK, khong duoc raise
+                # Van KHONG raise (raise qua bien gioi ctypes lam crash ca process),
+                # nhung phai DEM va giu loi dau tien. `pass` tran bien mot loi parse
+                # lap 50 lan/giay thanh im lang hoan toan: frames dung o 0 va khong
+                # co dau vet nao de biet callback CO chay.
+                state["diag"]["preview_errors"] += 1
+                state["diag"].setdefault("preview_error_first", repr(e))
 
         def on_complete(code: int, params, lst) -> None:
             state["code"] = code
@@ -572,12 +634,19 @@ class CaptureEngine:
                 ip = params.contents
                 state["diag"]["complete_image_count"] = ip.ImageCount
                 raw: list[dict] = []
-                # Doc 2 slot dau va lay slot dau tien co so do hop le. O che do
-                # slap, ImageInfo[0].Quality la TONG quality ca cum (do duoc:
-                # 193 = 45+48+48+52) nen phai doc NFIQScore truoc - _quality_of da
-                # lam. Voi roll chi co 1 ngon nen "tong" = chinh no, nhung van di
-                # qua _quality_of de khong phu thuoc vao gia dinh do.
-                for i in range(max(1, min(ip.ImageCount, 2))):
+                # Chi doc slot SDK THUC SU bao (ImageCount). Truoc day o day la
+                # `max(1, ...)` - buoc doc slot 0 ngay ca khi ImageCount=0, tuc la
+                # doc vung nho SDK chua ghi gi vao. Do duoc 03/09 tren lan chup
+                # THANH CONG (anh 601KB, template 570B, FingerCount=1):
+                #   complete_image_count=0, slot0 = {Quality:0, NFIQScore:0,
+                #   Intensity:0, out_score:0.0, result:0}
+                # Toan 0 la dau hieu cua bo nho chua khoi tao, khong phai so do.
+                # Nhung 0 lai la mot quality HOP LE (_quality_of tra (0,"NFIQScore"))
+                # nen no di thang ra FE thanh "0%" - khong vao `dropped`, khong bi
+                # loai, khong de lai dau vet nao. Day chinh la loi "hien 0%".
+                # => ImageCount=0 nghia la KHONG CO so do, phai de state["final"]
+                #    rong roi lay tu preview (xem duoi).
+                for i in range(max(0, min(ip.ImageCount, 2))):
                     fi = ip.ImageInfo[i]
                     q, src = _quality_of(fi.Quality, fi.NFIQScore)
                     raw.append({"slot": i, "Quality": fi.Quality,
@@ -606,7 +675,8 @@ class CaptureEngine:
         with self._lock:
             self._set_live(active=True, fingers=[], message="", frames=0,
                            roi_color=0)
-            rc = sdk.start_capture(on_preview, on_complete, timeout=timeout,
+            rc = sdk.start_capture(on_preview, on_complete,
+                                   timeout_ms=timeout * 1000,
                                    slap=SlapPosition.ROLL, exceptions=None,
                                    auto_capture=True, nfiq_quality=gate)
             if rc != M.SUCCESS:
@@ -650,7 +720,26 @@ class CaptureEngine:
             return result
 
         result.slap_image = img
+        # Nguon quality cho van LAN, theo thu tu:
+        #   1. complete callback (state["final"]) - so do SDK chot, dang tin nhat.
+        #   2. preview_quality_max - max qua ca lan lan.
+        #   3. khong co gi -> no_quality, FE hien "khong do duoc" chu KHONG hien 0%.
+        #
+        # Buoc 2 la moi, va can thiet: che do ROLL do duoc tra ImageCount=0 o
+        # complete (khac han slap - slap co day du 4 slot), nen neu chi dua vao
+        # buoc 1 thi MOI ngon lan deu khong co so do. Truoc day cho ra 0% vi code
+        # doc slot 0 khong ton tai; sua rieng cho do se thanh 100% ngon "khong do
+        # duoc" - dung hon 0% nhung van khong dung duoc de danh gia.
+        #
+        # Neu sau nay do duoc rang complete CO tra ImageCount>0 o mot phien ban
+        # firmware/SDK khac thi buoc 1 tu dong thang, khong phai sua gi.
         meta = state["final"] or {}
+        src = "complete"
+        if not meta and "preview_quality_max" in state["diag"]:
+            x, y = state["diag"].get("preview_quality_xy", (0, 0))
+            meta = {"quality": state["diag"]["preview_quality_max"], "x": x, "y": y}
+            src = "preview_max"
+        state["diag"]["quality_source"] = src if meta else "none"
         result.fingers.append(FingerCapture(
             slot=1,
             quality=meta.get("quality", 0),

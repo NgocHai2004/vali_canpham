@@ -3,7 +3,7 @@ import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
 import { api, fpApi, cccdApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
-import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS } from "./capture/constants";
+import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
 import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
@@ -35,6 +35,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [fpNextCode, setFpNextCode] = useState(null);
   // Morfin slap: ca CUM nhap nhay cung luc (4 ngon / 2 ngon cai), khong phai 1 ngon.
   const [fpActiveCodes, setFpActiveCodes] = useState([]);
+  // TEN BUOC dang chay. Khong the suy ra tu fpActiveCodes: buoc lan ("roll_<ma>")
+  // dat DUNG MOT ma, ma ma do cung nam trong mot cum => doi chieu theo ma se lam
+  // o van chum nhay oan khi dang lan mot ngon cua no. Buoc la nguon duy nhat biet
+  // dang chup CUM hay dang LAN.
+  const [fpActiveStep, setFpActiveStep] = useState(null);
   // Quality (%) tung ngon cua lan chup hien tai, key = ma ngon (left_index...).
   // Chi song trong phien thu; mo lai ho so cu se khong co (service moi tra).
   const [fpQuality, setFpQuality] = useState({});
@@ -302,6 +307,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setFpRunning(true);
     setFpNextCode(group.codes[0]);
     setFpActiveCodes(group.codes);   // ca cum nhap nhay cung luc
+    setFpActiveStep(group.step);
     // KHONG xoa quality cu o day - cung ly do nhu khong xoa anh: neu chup lai
     // that bai thi o se vua mat anh vua mat so %. Quality moi duoc ghi de ben
     // duoi khi chup thanh cong.
@@ -396,6 +402,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       setFpRunning(false);
       setFpNextCode(null);
       setFpActiveCodes([]);
+      setFpActiveStep(null);
     }
   };
 
@@ -424,6 +431,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       setFpRunning(false);
       setFpNextCode(null);
       setFpActiveCodes([]);
+      setFpActiveStep(null);
     }
   };
 
@@ -440,6 +448,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       // Cung mot dong lenh lo ca hai: khac biet nam o do dai step.codes do
       // service quyet dinh, khong phai o day.
       setFpActiveCodes(step.codes);
+      // Buoc CHUM ("left_hand"/"thumbs"/"right_hand") => o van chum tuong ung nhay
+      // bbox. Buoc LAN ("roll_<ma>") khong khop slot.step nao nen 3 o chum dung yen.
+      setFpActiveStep(step.step);
       setFpStatus(t("fpenroll.status.reading_step", { step: t(`fpenroll.step.${step.step}`) }));
       let capRes;
       try {
@@ -483,6 +494,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       // Nguong rieng tung ngon do service tra ve (ngon ut thap hon).
       if (capRes.min_quality_by_code) {
         setFpMinQ((prev) => ({ ...prev, ...capRes.min_quality_by_code }));
+      }
+      // ANH CA BAN TAY cua buoc chum -> 3 o fp_plain_* (hang "Van tay chum").
+      //
+      // Ba o do da co san trong JSX tu truoc (FP_PLAIN_SLOTS, doc photos[slot.key])
+      // nhung KHONG CHO NAO trong ca frontend lan backend ghi vao 3 key ay: grep
+      // "fp_plain" chi ra dung 3 dong dinh nghia trong constants.js. Nen ca 3 o
+      // luon rong, hien dau "—", trong nhu may chua chup xong. Service thi da tra
+      // slap_thumb_b64 tu lau.
+      //
+      // Chi lam voi buoc CHUM. Buoc lan cung tra slap_thumb_b64 nhung do la anh
+      // MOT ngon, da nam o o ngon trong luoi 10 o - day vao day se thanh anh
+      // trung lap va con ghi de len anh chum vua chup.
+      const plainKey = FP_PLAIN_SLOTS.find((sl) => sl.step === step.step)?.key;
+      if (plainKey && !step.roll && capRes.slap_thumb_b64) {
+        try {
+          const f = await b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`);
+          const up = await api.uploadPhoto(f);
+          setPhotos((p) => ({ ...p, [plainKey]: up.url }));
+        } catch (e) {
+          setFpError(t("capture.err.save_photo", { message: e.message }));
+        }
       }
       for (const c of capRes.captured || []) {
         const key = FP_CODE_TO_KEY[c.code];
@@ -724,6 +756,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       setFpRunning(false);
       setFpNextCode(null);
       setFpActiveCodes([]);
+      setFpActiveStep(null);
     }
   };
 
@@ -1153,6 +1186,36 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const pad = (n) => String(n).padStart(2, "0");
   const captureTimeStr = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
   const plainCount = FP_PLAIN_SLOTS.filter((sl) => photos[sl.key]).length;
+  // Icon ban tay cho 3 o van CHUM: to nhung ngon O DO CAN THU (4 ngon trai / 2
+  // ngon cai / 4 ngon phai), cac ngon con lai de mo. Y het o lan - o lan to dung
+  // ngon cua chinh no de noi "o nay la ngon nao", khong phai de bao da thu xong.
+  //
+  // Vi vay KHONG doc photos o day: mau khong phu thuoc da thu hay chua (o lan cung
+  // vay - glyph cua no chi hien khi CHUA co anh). Mau xam do .fp-plain-thumb dat,
+  // glyph an theo currentColor.
+  //
+  // Cung khong co blink: luc dang thu thi NHAY KHUNG NGOAI cua o (class .active ->
+  // fp-cell-pulse, giong o lan), khong nhay tung ngon.
+  //
+  // O "2 ngon cai" gom ca hai ban tay => tra ve MOT MANG hinh (2 cai); hai o kia
+  // mot hinh.
+  const plainHandsByStep = useMemo(() => {
+    const out = {};
+    for (const cluster of FP_CLUSTERS) {
+      const hands = [];
+      for (const code of cluster.codes) {
+        const side = code.startsWith("left") ? "left" : "right";
+        let hand = hands.find((h) => h.side === side);
+        if (!hand) {
+          hand = { side, active: [] };
+          hands.push(hand);
+        }
+        hand.active.push(code.replace(/^(left|right)_/, ""));
+      }
+      out[cluster.step] = hands;
+    }
+    return out;
+  }, []);
   // Khong con anh the CCCD trong mau chi ban => "san sang" chi con 3 anh 3x4,
   // 10 van tay va cac truong bat buoc.
   const readyState = fpCount === 10 && portraitCount === 3 && allRequiredValid;
@@ -1311,20 +1374,18 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <span className="fp-row-count">{fpCount} / 10</span>
             </h3>
             <div className="fp-preview-grid fp-preview-grid--single-row">
-              {/* BO CUC GIU NGUYEN: van 10 o, van nhom theo FP_CLUSTERS
-                  (4 trai | 2 cai | 4 phai) nhu ban dau - o ngoai cung ben trai la
-                  ut trai, chay sang phai den ut phai.
-                  Chi doi MOT dieu so voi truoc: vien sang la TUNG O, khong con
-                  sang ca cum. Truoc day 10 o nay la 10 ngon CAT RA tu 3 anh chum
-                  nen ca cum chup cung luc; gio moi ngon lan rieng mot lan. */}
-              {FP_CLUSTERS.map((cluster) => {
-                const groupDone = cluster.codes.every((c) => photos[FP_CODE_TO_KEY[c]]);
-                return (
-                  <div
-                    key={cluster.step}
-                    className={"fp-cluster" + (groupDone ? " done" : "")}
-                  >
-                    {cluster.codes.map((fpCode) => {
+              {/* 10 o PHANG, KHONG con lop boc cum (FP_CLUSTERS) o giua.
+                  Luoi 5 cot 2 hang, doc tu trai sang phai, tu tren xuong duoi -
+                  dung thu tu FP_ROLL_ORDER, tuc dung thu tu may doi ngon:
+                    hang 1: ut trai -> nhan -> giua -> tro -> cai trai
+                    hang 2: cai phai -> tro -> giua -> nhan -> ut phai
+                  5+5 tinh ra vua dung MOT TAY moi hang, khong phai co tinh xep
+                  the - do la he qua cua FP_ROLL_ORDER san co.
+                  Lop boc cum bo duoc vi khong con tac dung nao: JSX chi dat class
+                  `done` len no, ma `.fp-cluster.done` khong he co rule CSS; vien
+                  sang thi da la TUNG O tu khi doi sang lan rieng tung ngon.
+                  FP_CLUSTERS gio chi con dung cho 3 anh van CHUM. */}
+              {FP_ROLL_ORDER.map((fpCode) => {
                       const key = FP_CODE_TO_KEY[fpCode];
                       const label = t(`fp.finger.${fpCode}.long`);
                       const isNone = fpNoneCodes.includes(fpCode);
@@ -1418,9 +1479,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                           )}
                         </div>
                       );
-                    })}
-                  </div>
-                );
               })}
             </div>
 
@@ -1431,6 +1489,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
             </div>
 
+            {/* Cot PHAI: van chum + KPI + hang nut, xep doc.
+                Hang nut (Luu ho so / xem truoc / xoa) truoc day nam NGOAI luoi 2
+                cot, trai het be ngang duoi cung trang. Dua vao day de luoi van
+                lan duoc ca be ngang cot trai => xep 2 hang, o gan vuong. */}
+            <div className="fp-side">
             {/* Hang van PHANG: 3 anh cum nguyen ban tu may, khop dung 3 STEPS
                 cua morfin_service. Van LAN o tren van dung key fp_l1..fp_r5. */}
             <div className="fp-block">
@@ -1441,7 +1504,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="fp-plain-row">
               {FP_PLAIN_SLOTS.map((slot) => {
                 const filled = !!photos[slot.key];
-                const active = fpRunning && fpConfirm?.step === slot.step;
+                // Dang chup DUNG cum nay => nhay khung ngoai cua o, giong o lan.
+                // Truoc day doi chieu fpConfirm?.step: fpConfirm chi co gia tri khi
+                // vong da TAM DUNG cho xac nhan, ma luc do fpRunning = false => dieu
+                // kien nay chua bao gio dung, khung chua bao gio nhay.
+                const active = fpRunning && fpActiveStep === slot.step;
                 return (
                   <div
                     key={slot.key}
@@ -1452,7 +1519,22 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     <div className="fp-plain-thumb">
                       {filled
                         ? <img src={photos[slot.key]} alt={t(slot.labelKey)} />
-                        : <span className="fp-plain-ph">—</span>}
+                        : (
+                          // Chua co anh cum => hien ICON BAN TAY thay dau "—" cu.
+                          // CHI to cac ngon THUOC CUM NAY va da thu duoc; khong nhay
+                          // tung ngon (viec nhay do khung ngoai cua o lo, xem .active).
+                          // O "2 ngon cai" ra 2 hinh (trai + phai), hai o kia 1 hinh.
+                          <span className="fp-plain-hands">
+                            {(plainHandsByStep[slot.step] || []).map((h) => (
+                              <HandGlyph
+                                key={h.side}
+                                side={h.side}
+                                active={h.active}
+                                className="plain"
+                              />
+                            ))}
+                          </span>
+                        )}
                     </div>
                     <span className="fp-plain-label">{t(slot.labelKey)}</span>
                   </div>
@@ -1460,9 +1542,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               })}
             </div>
             </div>
-            </div>
 
-            {/* KPI dem 10 ngon: nam ngoai 2 cot, tinh cho ca muc V. */}
+            {/* KPI dem 10 ngon: tinh cho ca muc V (10 o lan ben trai). */}
             <div className="fp-kpi fp-kpi-inline fp-kpi-2col">
               <div className="fp-kpi-cell">
                 <span className="fp-kpi-num">{fpCount}</span>
@@ -1475,49 +1556,53 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   blink={fpBlinkByHand.right} className="kpi" />
               </div>
             </div>
+
+            {/* ================ Action bar ================
+                Nam TRONG cot phai cua muc V, khong con la hang rieng trai het be
+                ngang duoi cung. Doi cho de nhuong be ngang cho luoi van lan. */}
+            <div className="case-action-bar">
+              <button type="button" className="button primary"
+                disabled={!allRequiredValid || saving} onClick={submit}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <path d="M17 21v-8H7v8M7 3v5h8" />
+                </svg>
+                {saving ? t("common.saving") : isEdit ? t("capture.actions.update") : t("capture.actions.save")}
+              </button>
+              {/* Xem truoc CHI BAN: to rieng theo mau chi ban giay (van tay + nhan
+                  than toi thieu). Nut "Xem truoc ho so" da bo khoi trang thu nhan. */}
+              <button type="button" className="button secondary" disabled={saving}
+                onClick={() => setFpSheetOpen(true)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M7 8h4M7 12h4M7 16h2M15 8v8" />
+                </svg>
+                {t("capture.actions.preview_fpsheet")}
+              </button>
+              {/* Xem truoc DANH BAN: mau 204 + 208 (nhan than + 2 ngon tro + 3 anh 3x4). */}
+              <button type="button" className="button secondary" disabled={saving}
+                onClick={() => setNameSheetOpen(true)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <circle cx="9" cy="10" r="2.2" />
+                  <path d="M5.5 17c0.6-2 1.9-3 3.5-3s2.9 1 3.5 3M15 9h4M15 13h4" />
+                </svg>
+                {t("capture.actions.preview_namesheet")}
+              </button>
+              <button type="button" className="button danger" disabled={saving} onClick={resetAll}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
+                </svg>
+                {t("capture.actions.clear")}
+              </button>
+            </div>
+
+            </div>{/* /fp-side */}
+            </div>{/* /fp-two-col */}
           </div>
         </section>
         </div>
 
-      </div>
-
-
-      {/* ================ Action bar ================ */}
-      <div className="case-action-bar">
-        <button type="button" className="button primary"
-          disabled={!allRequiredValid || saving} onClick={submit}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-            <path d="M17 21v-8H7v8M7 3v5h8" />
-          </svg>
-          {saving ? t("common.saving") : isEdit ? t("capture.actions.update") : t("capture.actions.save")}
-        </button>
-        {/* Xem truoc CHI BAN: to rieng theo mau chi ban giay (van tay + nhan than
-            toi thieu). Nut "Xem truoc ho so" da bo khoi trang thu nhan. */}
-        <button type="button" className="button secondary" disabled={saving}
-          onClick={() => setFpSheetOpen(true)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M7 8h4M7 12h4M7 16h2M15 8v8" />
-          </svg>
-          {t("capture.actions.preview_fpsheet")}
-        </button>
-        {/* Xem truoc DANH BAN: mau 204 + 208 (nhan than + 2 ngon tro + 3 anh 3x4). */}
-        <button type="button" className="button secondary" disabled={saving}
-          onClick={() => setNameSheetOpen(true)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="16" rx="2" />
-            <circle cx="9" cy="10" r="2.2" />
-            <path d="M5.5 17c0.6-2 1.9-3 3.5-3s2.9 1 3.5 3M15 9h4M15 13h4" />
-          </svg>
-          {t("capture.actions.preview_namesheet")}
-        </button>
-        <button type="button" className="button danger" disabled={saving} onClick={resetAll}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
-          </svg>
-          {t("capture.actions.clear")}
-        </button>
       </div>
 
       {nameSheetOpen && (

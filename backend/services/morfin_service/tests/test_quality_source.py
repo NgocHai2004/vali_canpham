@@ -17,7 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from engine import _quality_of  # noqa: E402
+from engine import _preview_quality_of, _quality_of  # noqa: E402
 
 
 def test_normal_finger_uses_per_finger_score():
@@ -94,3 +94,34 @@ def test_boundary_values_accepted():
     assert _quality_of(101, 100) == (100, "NFIQScore")
     assert _quality_of(100, 101) == (100, "Quality")
     assert _quality_of(-1, -1) == (None, "none")
+
+
+# --- PREVIEW callback: nguon khac, ham khac ---------------------------------
+#
+# Morfin_Enroll.h:218-223 danh dau tung field cua IMAGE_INFO. Intensity va
+# NFIQScore deu ghi "(Only In Complete Callback)"; Quality thi khong ghi gi.
+# => trong preview chi Quality co so do, NFIQScore la o nho chua ai ghi = 0.
+def test_preview_reads_quality_not_nfiq():
+    """Preview lay Quality. Day la lat nguoc uu tien so voi complete, co chu y.
+
+    Goi _quality_of o preview tra ve NFIQScore = 0 cho MOI frame, va 0 la so do
+    hop le nen no khong bi loai, khong vao `dropped`, di thang ra FE thanh "0%"
+    ma khong de lai dau vet nao. Chinh la loi da gap.
+    """
+    assert _preview_quality_of(62) == (62, "Quality")
+    # Cai bay: neu ai do doi lai thanh _quality_of(q, nfiq) voi nfiq=0 tu preview
+    # thi ket qua se la 0 thay vi 62 - test nay do ngay.
+    assert _quality_of(62, 0) == (0, "NFIQScore"), (
+        "day la ly do preview KHONG duoc dung _quality_of")
+
+
+def test_preview_out_of_range_is_no_measurement():
+    """Quality ngoai mien 0-100 o preview => None, khong doan sang field khac."""
+    assert _preview_quality_of(193) == (None, "none")
+    assert _preview_quality_of(-1) == (None, "none")
+
+
+def test_preview_boundaries():
+    assert _preview_quality_of(0) == (0, "Quality")
+    assert _preview_quality_of(100) == (100, "Quality")
+    assert _preview_quality_of(101) == (None, "none")

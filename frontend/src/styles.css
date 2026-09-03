@@ -9313,6 +9313,10 @@ textarea.input {
    11px margin mac dinh cua tieu de muc. */
 .cap-flat .cap-col--full > .cap-sec:first-child > .cap-sec-title,
 .cap-flat .cap-col--full > .cap-sec:first-child > .cap-sec-head { margin-top: 4px; }
+/* Muc III sat len hang tren them mot chut. Khong the ha row-gap cua
+   .cap-sheet--split (16px) vi gap do dung chung cho ca hang muc V — ha o day thi
+   V cung leo len. Nham RIENG hang chua #cap-sec-identify. */
+.cap-flat .cap-col--full:has(> #cap-sec-identify) { margin-top: -10px; }
 .cap-flat .cap-sec-head {
   display: flex;
   align-items: flex-end;
@@ -9505,7 +9509,9 @@ textarea.input {
    4-2-4 (3 anh). Cot van lan rong hon vi phai chua 10 o, cot van chum 3 o. */
 .cap-flat .fp-two-col {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* Cot trai rong hon: 10 o van lan gio xep 2 hang 6 cot (xem duoi) nen can be
+     ngang de o gan vuong. Cot phai chi co 3 anh chum + KPI + hang nut. */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: 0 22px;
   align-items: start;
 }
@@ -9513,21 +9519,29 @@ textarea.input {
 /* Tieu de phu cua cot dau ap sat le tren cho thang voi cot con lai. */
 .cap-flat .fp-block > .cap-sub-title:first-child { margin-top: 0; }
 
-/* Hang 10 o van lan: 3 cum, cach nhau ro de thay ranh gioi 1 lan chup */
+/* Cot PHAI cua muc V: van chum -> KPI -> hang nut, xep doc.
+   Hang nut (co "Luu ho so") truoc day nam ngoai luoi, trai het be ngang duoi
+   cung trang. Doi vao day de nhuong ca be ngang cho luoi van lan 2 hang. */
+.cap-flat .fp-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Luoi 10 o van lan: 2 HANG x 5 COT, cac o la con TRUC TIEP (khong con lop
+   .fp-cluster boc giua) nen 5 cot chia deu that su.
+   Thu tu doc trai->phai, tren->duoi theo FP_ROLL_ORDER:
+     hang 1: ut trai -> nhan -> giua -> tro -> cai trai
+     hang 2: cai phai -> tro -> giua -> nhan -> ut phai
+   Truoc day 1 hang 10 o (3 cum 4|2|4): moi o rong ~1/10 be ngang => o det.
+   Chia 5 cot cho o rong gap doi; o giu ty le NGANG 4/3 (xem .fp-preview-thumb)
+   de hai hang khong day to giay vuot chieu cao man. */
 .cap-flat .fp-preview-grid.fp-preview-grid--single-row {
   display: grid;
-  grid-template-columns: 4fr 2fr 4fr;
-  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px 10px;
   align-items: start;
-}
-.cap-flat .fp-preview-grid--single-row .fp-cluster {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 5px;
-  padding: 0;
-  border: 0;
-  background: none;
 }
 .cap-flat .fp-preview-cell {
   display: flex;
@@ -9552,7 +9566,12 @@ textarea.input {
      nen phai ghi de ve 0 va de aspect-ratio quyet dinh chieu cao. */
   width: 100%;
   align-self: stretch;
-  aspect-ratio: 3 / 4;
+  /* CHU NHAT NGANG (4/3), KHONG vuong. O vuong tren luoi 5 cot cao ~138px, hai
+     hang cong nhan + chip la ~330px => to giay vuot chieu cao man va sinh scroll
+     trong .cap-sheet--split. Ngang 4/3 ha moi o xuong ~103px, tiet kiem ~70px
+     cho ca hai hang - du de muc V nam trong man.
+     Anh ben trong van `object-fit: contain` => khong bi cat, chi thua nen. */
+  aspect-ratio: 4 / 3;
   min-height: 0;
   max-height: none;
   border: 1px solid var(--cf-edge);
@@ -9633,7 +9652,14 @@ textarea.input {
   width: 100%;
   min-height: 0;
   max-height: none;
-  aspect-ratio: 16 / 9;
+  /* CAO hon 16/9 cu (~115px -> ~154px voi o rong ~205px). Be ngang khong doi -
+     no do luoi 3 cot cua .fp-plain-row quyet dinh, khong phai ty le nay.
+     Muc dich: cot phai (3 anh chum -> hang nut) truoc day chi cao ~210px trong
+     khi cot trai (10 o lan 2 hang) ~287px => thua mot khoang trong duoi hang nut.
+     Keo o chum dai ra lap khoang do va day hang "Luu ho so" xuong duoi, van con
+     thap hon cot trai nen KHONG lam to giay cao them (khong sinh scroll).
+     Anh slap that la anh ngang, `object-fit: contain` => 4/3 khong cat gi. */
+  aspect-ratio: 4 / 3;
   border: 1px solid var(--cf-edge);
   border-radius: 8px;
   background: #f7f8fa;
@@ -9645,6 +9671,33 @@ textarea.input {
 .cap-flat .fp-plain-cell.active .fp-plain-thumb { border-color: var(--cf-blue); }
 /* #c3cad6 tren nen nhat chi 1.55:1 — o trong la THONG TIN ("chua co anh"). */
 .cap-flat .fp-plain-ph { color: var(--cf-muted); font-size: 16px; }
+/* Icon ban tay trong o van CHUM khi chua co anh. To cac ngon O DO CAN THU (khong
+   phu thuoc da thu hay chua) bang mau XAM cua o - y het glyph trong o lan. Viec
+   bao "dang thu" do KHUNG NGOAI cua o nhay lo (xem .active o duoi), khong phai
+   tung ngon.
+   O "2 ngon cai" chua HAI hinh (trai + phai) nen dung flex, khong phai grid mot o. */
+.cap-flat .fp-plain-hands {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  color: var(--cf-muted);
+}
+/* O chum ty le 16/9, thap hon o lan => khoa theo CHIEU CAO (%) chu khong dat
+   width co dinh: o "2 ngon cai" co 2 hinh nen width co dinh se tran ra ngoai o
+   khi cot phai bi hep. aspect-ratio giu dung ti le viewBox (37x38). */
+.cap-flat .fp-plain-hands .hand-glyph {
+  height: 84%;
+  width: auto;
+  aspect-ratio: 37 / 38;
+  max-width: 46%;
+}
+/* KHONG to xanh cho ngon dang danh dau. Ngon duoc danh dau o day nghia la "o nay
+   can thu ngon do", khong phai "da thu xong" - y het o lan. Mau lay theo
+   currentColor cua .fp-plain-hands (xam) nen ngon danh dau chi DAM hon cac ngon
+   con lai, khong doi mau. */
 .cap-flat .fp-plain-label { font-size: 11px; color: var(--cf-muted); text-align: center; }
 .cap-flat .fp-kpi { display: none; }
 
@@ -9661,6 +9714,20 @@ textarea.input {
   padding: 8px 20px;
   background: #fff;
   border-top: 1px solid var(--cf-line);
+}
+/* Hang nut RIENG cho "Xoa du lieu": nam duoi luoi 2 cot cua muc V, ngoai
+   .fp-side. Tach ra vi hang nut trong cot phai chi vua 3 nut - nut thu 4 lam
+   wrap 2 dong, keo cot phai cao len va bop o van chum thap lai.
+   - justify-content: flex-end => xa nut "Luu ho so" o cot phai, giam bam nham.
+   - padding-left 0: khong con nut nao ben trai nen le trai 20px chi la khoang
+     trong; giu padding phai de thang le voi cot phai.
+   - border-top: 0 => hang nut trong cot phai ngay tren da co mot duong ke, hai
+     duong ke lien tiep cach nhau ~10px trong nhu loi ke bang. */
+.cap-flat .case-action-bar--footer {
+  justify-content: flex-end;
+  padding-left: 0;
+  border-top: 0;
+  margin-top: 0;
 }
 .cap-flat .case-action-bar .button {
   display: inline-flex;
@@ -10025,6 +10092,11 @@ textarea.input {
   background: transparent;
   border-top: 1px solid var(--cf-line);
 }
+/* Lap lai border-top: 0 cho hang nut footer. Rule goc (~9700) da tat duong ke
+   nay, nhung dong border-top ngay tren cung do dac hieu (0,2,0) va nam SAU nen
+   thang => phai tat lai o day, khong thi hang "Xoa du lieu" moc lai duong ke va
+   thanh hai vach song song cach nhau ~10px. */
+.cap-flat .case-action-bar--footer { border-top: 0; }
 .cap-flat .case-action-bar .button.primary {
   background: linear-gradient(135deg, var(--cf-blue) 0%, #285DDE 100%);
   border-color: transparent;
@@ -10075,6 +10147,18 @@ textarea.input {
   animation: fp-cell-pulse 1.1s infinite ease-in-out;
 }
 .cap-flat .fp-preview-cell.active .fp-preview-thumb {
+  border-color: var(--cf-blue);
+}
+/* O van CHUM dang chup: nhay KHUNG NGOAI cua o, dung y co che o lan (cung
+   keyframe fp-cell-pulse, cung box-shadow nen khong chiem cho => layout giu
+   nguyen). Cac ngon ben trong hinh ban tay KHONG nhay - chung chi to len khi da
+   thu duoc. Truoc day o chum chi doi mau vien (.active .fp-plain-thumb) nen tren
+   nen sang gan nhu khong thay gi.
+   Dat o CUOI khoi theme de thang .fp-plain-cell.done (dong 10104). */
+.fp-plain-cell.active {
+  animation: fp-cell-pulse 1.1s infinite ease-in-out;
+}
+.cap-flat .fp-plain-cell.active .fp-plain-thumb {
   border-color: var(--cf-blue);
 }
 .cap-flat .fp-cell-quality,

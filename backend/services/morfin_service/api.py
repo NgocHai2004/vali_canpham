@@ -481,6 +481,21 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     # (danh dau 'khong co van tay'), vi day la tinh huong duy nhat ma nguoi dan
     # khong the tu khac phuc bang cach ap tay lai.
     if not result.ok:
+        # Log THAT BAI. Phai dat o day chu khong o duoi: cac dong log diag phia sau
+        # nam SAU cua result.ok nen lan that bai truoc gio khong in gi ca - dung luc
+        # can so lieu nhat. Log HTTP chi thay "408" lap lai, khong cho biet vi sao.
+        #
+        # frames la so khung previewCb SDK da nhan. Day la so lieu phan biet duy nhat:
+        #   frames = 0  -> cam bien khong thay gi (ngon chua ap vao kinh, hoac device
+        #                  dang o che do sai / chua thuc su chup).
+        #   frames > 0  -> SDK CO nhan anh nhung khong khau (mosaic) thanh anh lan
+        #                  duoc: dong tac lan, hoac index anh/quality doc sai.
+        # Khong co so nay thi moi phong doan ve "can bo lan sai" deu la doan mo.
+        print("[MORFIN] step=%s THAT BAI code=%s (%s) frames=%s count=%s msg=%r "
+              "diag=%s dropped=%s" % (
+                  step["step"], result.code, engine.err(result.code), result.frames,
+                  result.finger_count, result.message, result.diag,
+                  result.dropped[:8]), flush=True)
         # Huong dan loi cua LAN khac han cua CHUM: lan that bai khong bao gio vi
         # "thieu ngon" (chi co 1 ngon) ma vi dong tac lan - lan chua het chieu
         # ngang, lan qua nhanh, hoac nhac ngon giua lan. Dung nguyen thong bao cua
@@ -574,6 +589,21 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     # Anh CA BAN TAY (hoac ca ngon lan), thumb 600 de FE hien to. Voi buoc chum
     # day la anh slap tong - FE hien nguyen anh nay chu KHONG con cat ra 10 o.
     s.slap_images[step["step"]] = _bmp_to_png_b64(result.slap_image, thumb=600)
+
+    # DAT NGUONG => tu xac nhan, chay tiep buoc sau NGAY. Ap dung cho CA buoc lan
+    # va buoc chum (4-2-4): cung mot luat, khong phan biet loai buoc.
+    #
+    # Dieu kien duy nhat la `low` RONG: MOI ngon trong buoc deu do duoc quality VA
+    # >= nguong rieng cua no. Con mot ngon duoi nguong hoac khong do duoc quality
+    # thi dung lai hoi can bo - do moi la ly do ton tai cua buoc xac nhan.
+    #
+    # Anh tung ngon da nam trong `captured` nen FE hien len luoi 10 o ngay, khong
+    # cho xac nhan. Bam Xac nhan cho mot buoc ma may do duoc la dat het chi la thao
+    # tac thua: 13 buoc tot = 13 lan bam khong quyet dinh gi, va con lam can bo
+    # quen mat rang lan bam THAT SU quan trong la lan co ngon dang ngo.
+    auto_confirmed = not low
+    if auto_confirmed:
+        s.confirmed.add(step["step"])
     none_codes = [c for c in step["codes"] if s.fingers[c].missing]
     out = s.public()
     out.update({
@@ -584,9 +614,10 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         # Nguong tung ngon. Frontend phai dung map nay de to mau badge, khong
         # hardcode 50 - admin dat nguong RIENG cho tung ngon trong Settings.
         "min_quality_by_code": {c: _min_quality(c) for c in codes},
-        # Cum nao cung phai qua buoc xac nhan, ke ca khi 10/10 ngon dat nguong:
-        # can bo xem anh la buoc bat buoc, khong phai buoc xu ly ngoai le.
-        "needs_confirm": True,
+        # Chi con dung lai khi CO ngon dang ngo (xem auto_confirmed o tren). Buoc
+        # dat nguong het thi tu xac nhan, FE chay tiep ngay.
+        "needs_confirm": not auto_confirmed,
+        "auto_confirmed": auto_confirmed,
         "low": low,
         "none_codes": none_codes,
     })
@@ -599,7 +630,10 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
                 w["name_vi"],
                 "khong do duoc" if w["reason"] == "no_quality" else "%d%%" % w["quality"],
             ) for w in low)))
-    out["message"] = ". ".join(parts) + ". Xem anh roi bam Xac nhan de sang cum tiep."
+    if auto_confirmed:
+        out["message"] = ". ".join(parts) + ". Dat nguong - tu dong sang buoc tiep."
+    else:
+        out["message"] = ". ".join(parts) + ". Xem anh roi bam Xac nhan de sang buoc tiep."
     return out
 
 

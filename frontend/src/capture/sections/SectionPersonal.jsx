@@ -17,8 +17,16 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           maxLength={100} placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("full_name", e.target.value)} />
       </InfoField>
-      {/* "Ten goi khac" gom ca bi danh — can pham thuong khai nhieu ten. */}
-      <InfoField label={t("capture.personal.alias")}>
+      {/* "Ten goi khac" gom ca bi danh — can pham thuong khai nhieu ten, nen o
+          nay trai ca hang.
+          Ngoai ly do be ngang, span o day con GIU NHIP GHEP CAP cho ca muc: tru
+          ho ten (trai hang) thi con 13 truong, so LE - de chay tu nhien thi mot
+          truong bi le ra giua muc, keo cap sau no lech het ("Nghe nghiep | Que
+          quan", "Noi o hien nay | Ho ten cha"). Cho alias trai hang lam so con
+          lai thanh chan, cac cap thang ve dung nghia:
+            Gioi tinh | Sinh ngay, CCCD | Quoc tich, Dan toc | Nghe nghiep,
+            Que quan | Thuong tru, Tam tru | Hien nay, Cha | Me. */}
+      <InfoField label={t("capture.personal.alias")} className="span-3col">
         <input className="control control-sm" value={form.alias} disabled={disabled}
           onChange={(e) => setField("alias", e.target.value)} />
       </InfoField>
@@ -66,22 +74,29 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           placeholder={t("capture.field.occupation_ph")}
           onChange={(e) => setField("occupation", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.hometown")} className="span-3col">
+      {/* 4 truong dia chi CHIA DOI, khong con span-3col (trai ca hang).
+          Truoc day moi truong mot hang => 4 hang chi cho dia chi, day muc I cao
+          len va toan trang phai cuon. Chia doi con 2 hang: que quan | thuong tru,
+          tam tru | o hien nay - cap doi nhau dung nghia.
+          Danh doi: o hep di mot nua nen placeholder dai bi cat bot khi o trong
+          ("So nha, duong, phuong/xa, quan/huyen, tinh/thanh"). Chi la goi y luc
+          o rong; noi dung go vao van du cho va van cuon trong o. */}
+      <InfoField label={t("detainee.field.hometown")}>
         <input className="control control-sm" value={form.hometown} disabled={disabled}
           placeholder={t("capture.form.hometown_ph")}
           onChange={(e) => setField("hometown", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.address")} className="span-3col">
+      <InfoField label={t("detainee.field.address")}>
         <input className="control control-sm" value={form.address} disabled={disabled}
           placeholder={t("capture.field.address_ph")}
           onChange={(e) => setField("address", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.temp_address")} className="span-3col">
+      <InfoField label={t("detainee.field.temp_address")}>
         <input className="control control-sm" value={form.temp_address} disabled={disabled}
           placeholder={t("capture.field.address_ph")}
           onChange={(e) => setField("temp_address", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.current_address")} className="span-3col">
+      <InfoField label={t("detainee.field.current_address")}>
         <input className="control control-sm" value={form.current_address} disabled={disabled}
           placeholder={t("capture.field.address_ph")}
           onChange={(e) => setField("current_address", e.target.value)} />
@@ -97,6 +112,14 @@ export function SectionPersonal({ form, setField, disabled = false }) {
         <input className="control control-sm" value={form.mother_name} disabled={disabled}
           placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("mother_name", e.target.value)} />
+      </InfoField>
+      {/* Ghi chu: KHONG thuoc muc I cua chi ban giay, dat cuoi muc de can bo ghi
+          thong tin phat sinh. Trai ca hang (span-3col) vi noi dung tu do, o nua
+          hang khong du. Dat sau cap Cha | Me nen khong pha nhip ghep cap. */}
+      <InfoField label={t("detainee.field.note")} className="span-3col">
+        <input className="control control-sm" value={form.note} disabled={disabled}
+          placeholder={t("capture.field.note_ph")}
+          onChange={(e) => setField("note", e.target.value)} />
       </InfoField>
     </div>
   );

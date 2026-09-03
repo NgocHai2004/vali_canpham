@@ -277,13 +277,27 @@ class Morfin:
         self.initialized = False
         return rc
 
-    def start_capture(self, on_preview, on_complete, timeout=10,
+    def start_capture(self, on_preview, on_complete, timeout_ms=30000,
                       slap=SlapPosition.RIGHT_HAND, exceptions=None,
                       auto_capture=True, nfiq_quality=0):
+        """timeout_ms tinh bang MILLISECOND - khong phai giay.
+
+        Header (Morfin_Enroll.h:381) chi ghi "amount of time after which capturing
+        is stopped", KHONG ghi don vi. Don vi ms duoc xac dinh tu bo tham chieu
+        chay duoc tren chinh may nay: morfin_roll_ui/morfin_sdk.py:482 dat ten
+        `timeout_ms=30000` va test_capture.py truyen `TIMEOUT_S * 1000`.
+        Ca hai deu vao cung mot tham so C `int Timeout`.
+
+        Truyen so GIAY vao day la loi im lang dat nhat cua module nay: 30 -> SDK
+        nhan 30ms, het han truoc khi ngon kip cham kinh, goi completeCb voi ma
+        timeout ngay. Trieu chung la "chup mot cai xong khong co gi", frames=0, va
+        408 lien tuc - khong he giong loi cau hinh hay loi dong tac lan, nen rat
+        de truy sai huong. Ten tham so co hau to _ms de chan lap lai.
+        """
         pcb, ccb = PREVIEW_CB(on_preview), COMPLETE_CB(on_complete)
         self._cb_refs = [pcb, ccb]
         return self.lib.MORFIN_Enroll_StartCapture(
-            timeout, int(slap), exceptions or FingerPosition(),
+            int(timeout_ms), int(slap), exceptions or FingerPosition(),
             pcb, ccb, auto_capture, nfiq_quality)
 
     def stop_capture(self):

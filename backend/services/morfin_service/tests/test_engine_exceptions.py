@@ -35,10 +35,15 @@ class _FakeSDK:
         self.initialized = True
         self.captured_exceptions = None
 
-    def start_capture(self, on_preview, on_complete, timeout=10,
+    # Chu ky phai khop Morfin.start_capture that, KE CA ten tham so: engine goi
+    # bang keyword (timeout_ms=..., slap=...) nen mot ten lech la TypeError, va
+    # test se do o day chu khong o cho no thuc su sai. Do la dieu tot - chinh cho
+    # nay bat duoc lan doi ten timeout -> timeout_ms.
+    def start_capture(self, on_preview, on_complete, timeout_ms=10000,
                       slap=SlapPosition.RIGHT_HAND, exceptions=None,
                       auto_capture=True, nfiq_quality=0):
         self.captured_exceptions = exceptions
+        self.captured_timeout_ms = timeout_ms
         # Goi on_complete tu thread moi de giong SDK that (goi callback tu thread).
         t = threading.Thread(target=lambda: on_complete(SUCCESS, None, None))
         t.start()
