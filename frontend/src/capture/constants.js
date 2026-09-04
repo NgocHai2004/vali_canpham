@@ -82,6 +82,12 @@ export const FP_PLAIN_SLOTS = [
   { key: "fp_plain_right", step: "right_hand", labelKey: "capture.fp.plain_right" },
 ];
 
+// Anh CA VUNG PLATEN (anh slap tong) cua mot buoc -> key anh trong `photos`.
+// Vong thu tra bang nay de biet buoc dang chay ghi anh vao o nao.
+export const FP_SHEET_KEY_BY_STEP = Object.fromEntries(
+  FP_PLAIN_SLOTS.map((sl) => [sl.step, sl.key]),
+);
+
 // Hinh ban tay so do: 4 ngon + ngon cai, ngon dang can lan thi sang len.
 // Ban tay TRAI la hinh goc (nhin tu mu ban tay, ngon cai o ben phai);
 // ban tay PHAI la ban lat ngang cua no => chi 1 bo path duy nhat.

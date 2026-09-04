@@ -3,7 +3,7 @@ import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
 import { api, fpApi, cccdApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
-import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS } from "./capture/constants";
+import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
 import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
@@ -529,7 +529,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       // Chi lam voi buoc CHUM. Buoc lan cung tra slap_thumb_b64 nhung do la anh
       // MOT ngon, da nam o o ngon trong luoi 10 o - day vao day se thanh anh
       // trung lap va con ghi de len anh chum vua chup.
-      const plainKey = FP_PLAIN_SLOTS.find((sl) => sl.step === step.step)?.key;
+      const plainKey = FP_SHEET_KEY_BY_STEP[step.step];
       if (plainKey && !step.roll && capRes.slap_thumb_b64) {
         try {
           const f = await b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`);
@@ -1555,6 +1555,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <span className="fp-row-count">{plainCount} / 3</span>
             </h3>
             <div className="fp-plain-row">
+              {/* BA o, dung 3 buoc chum cua morfin_service (SLAP_STEPS):
+                  4 ngon trai | 2 ngon cai | 4 ngon phai. */}
               {FP_PLAIN_SLOTS.map((slot) => {
                 const filled = !!photos[slot.key];
                 // Dang chup DUNG cum nay => nhay khung ngoai cua o, giong o lan.
@@ -1589,7 +1591,12 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                           </span>
                         )}
                     </div>
-                    <span className="fp-plain-label">{t(slot.labelKey)}</span>
+                    {/* KHONG con nhan chu duoi o ("Long ban tay trai", "4 ngon
+                        trai"...). Nam dong chu x ~15px chiem cho ma khong noi them
+                        gi: glyph ban tay trong o da chi ro o nao la cum nao (lung
+                        ban tay to vung long ban tay, cum to dung ngon cua no), va
+                        tieu de muc 2 da liet ke du thu tu 5 buoc.
+                        Ten day du van con o tooltip (`title` cua o) cho ai can. */}
                   </div>
                 );
               })}
