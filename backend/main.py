@@ -473,6 +473,14 @@ class WorkSessionIn(BaseModel):
     location: str = Field(default="", max_length=200)
     note: str = Field(default="", max_length=500)
     officer_full_name: Optional[str] = Field(default=None, max_length=100)
+    # ---- Noi giam giu cua CA PHIEN ----
+    # Mot phien thu nhan dien ra tai MOT cho cu the, nen chot dien + co so + buong
+    # ngay luc mo phien. Nho vay form ho so khong phai chon lai cho tung can pham:
+    # ca 3 gia tri nay duoc dien san tu phien dang mo.
+    custody_type: Optional[str] = Field(default=None, pattern=r"^(tam_giam|tam_giu)$")
+    facility_code: Optional[str] = None
+    sub_camp_code: Optional[str] = None
+    cell_code: Optional[str] = None
 
 
 async def _next_session_code() -> str:
@@ -1254,6 +1262,66 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
     return {"ok": True, "from": old_code, "to": new_code}
 
 
+async def _resolve_session_place(body: "WorkSessionIn") -> dict:
+    """Kiểm tra + chuẩn hoá nơi giam giữ của phiên (diện / cơ sở / phân trại / buồng).
+
+    Cả 4 trường đều tuỳ chọn để phiên cũ (và client cũ) vẫn mở được. Nhưng khi đã
+    gửi thì phải khớp nhau, vì hồ sơ trong phiên sẽ lấy y nguyên các giá trị này:
+    một buồng gán sai cơ sở sẽ làm mọi hồ sơ của phiên nằm sai chỗ, và đó là loại
+    sai không ai phát hiện lúc nhập.
+
+    Quan hệ được kiểm theo đúng cây của collection cells (xem create_cell):
+    buồng -> cha là phân trại HOẶC cơ sở (Nhà tạm giữ không có phân trại).
+    """
+    custody = (body.custody_type or "").strip() or None
+    facility = (body.facility_code or "").strip() or None
+    sub_camp = (body.sub_camp_code or "").strip() or None
+    cell = (body.cell_code or "").strip() or None
+
+    # Buồng/phân trại không thể đứng một mình: không có cơ sở thì không biết chúng
+    # thuộc đâu, và hồ sơ sẽ thiếu facility_code.
+    if (cell or sub_camp) and not facility:
+        raise HTTPException(400, "Chọn cơ sở giam giữ trước khi chọn phân trại/buồng.")
+
+    fac_doc = None
+    if facility:
+        fac_doc = await db.cells.find_one({"code": facility, "level": "facility"})
+        if not fac_doc:
+            raise HTTPException(400, f"Cơ sở giam giữ '{facility}' không tồn tại.")
+        # Diện là thuộc tính của cơ sở => lấy theo cơ sở, không tin giá trị client
+        # gửi lên. Client gửi lệch thì báo lỗi thay vì âm thầm ghi sai.
+        if custody and fac_doc.get("custody_type") != custody:
+            raise HTTPException(
+                400,
+                f"Cơ sở '{fac_doc.get('name', facility)}' thuộc diện khác với diện đã chọn.",
+            )
+        custody = fac_doc.get("custody_type") or custody
+
+    if sub_camp:
+        sc_doc = await db.cells.find_one({"code": sub_camp, "level": "sub_camp"})
+        if not sc_doc:
+            raise HTTPException(400, f"Phân trại '{sub_camp}' không tồn tại.")
+        if sc_doc.get("parent") != facility:
+            raise HTTPException(400, "Phân trại không thuộc cơ sở giam giữ đã chọn.")
+
+    if cell:
+        cell_doc = await db.cells.find_one({"code": cell, "level": "cell"})
+        if not cell_doc:
+            raise HTTPException(400, f"Buồng '{cell}' không tồn tại.")
+        parent = cell_doc.get("parent")
+        # Cha hợp lệ: phân trại đã chọn, hoặc chính cơ sở (trường hợp Nhà tạm giữ).
+        expected = {p for p in (sub_camp, facility) if p}
+        if parent not in expected:
+            raise HTTPException(400, "Buồng không thuộc cơ sở/phân trại đã chọn.")
+
+    return {
+        "custody_type": custody,
+        "facility_code": facility,
+        "sub_camp_code": sub_camp,
+        "cell_code": cell,
+    }
+
+
 # ==================== WORK SESSIONS ====================
 @app.post("/api/sessions")
 async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
@@ -1268,6 +1336,10 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
     officer_doc = await db.users.find_one({"username": officer_username}) or {}
     default_full_name = officer_doc.get("full_name", "") or officer_username
     override = (body.officer_full_name or "").strip()
+    # Kiểm tra nơi giam giữ TRƯỚC khi sinh mã phiên: _next_session_code() tăng
+    # counter và không hoàn lại được, nên nếu để sau thì mỗi lần chọn buồng sai là
+    # đốt một số thứ tự, và dãy mã phiên trong ngày bị khuyết lỗ.
+    place = await _resolve_session_place(body)
     now = datetime.utcnow()
     doc = {
         "code": await _next_session_code(),
@@ -1281,6 +1353,7 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
         "detainee_count": 0,
         "report_url": None,
         "report_filename": None,
+        **place,
     }
     res = await db.work_sessions.insert_one(doc)
     doc["_id"] = res.inserted_id

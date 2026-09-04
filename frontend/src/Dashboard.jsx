@@ -2274,6 +2274,13 @@ export function CellForm({ initial, allCells = [], onClose, onSaved }) {
             ))}
           </div>
 
+          {/* VUNG GIU CHO: khoi "Dien" va khoi "Chon cha" dung CHUNG mot vung cao
+              co dinh (.cells-context-slot). Hai khoi loai tru nhau san (facility vs
+              !facility) nen khong bao gio hien cung luc => cho chung mot cho la du,
+              khong phai cong don chieu cao. Truoc day hai khoi nam thang trong form:
+              bam doi cap thi mot khoi bien mat, khoi kia chen vao, moi thu ben duoi
+              nhay len roi tut xuong. */}
+          <div className="cells-context-slot">
           {/* Diện — chỉ khi tạo cơ sở */}
           {level === "facility" && (
             <>
@@ -2317,14 +2324,19 @@ export function CellForm({ initial, allCells = [], onClose, onSaved }) {
                   ))}
                 </select>
               </div>
-              {level === "cell" && subCampsOfFacility.length > 0 && (
+              {/* O Phan trai LUON render khi cap = Buong, chi disable khi co so chua
+                  chon / khong co phan trai (Nha tam giu). Truoc day dieu kien la
+                  `subCampsOfFacility.length > 0`, nghia la o nay MOC RA giua luc dang
+                  dien: chon mot co so co phan trai la tu dung hien thêm mot o, day
+                  Ten / Suc chua / Ghi chu tut xuong. Giu cho san thi chieu cao khong doi. */}
+              {level === "cell" && (
                 <div className="cells-field">
                   <label className="cells-field-label">{t("cells.form.sub_camp_parent")}</label>
                   <select
                     className="control"
                     value={subCampParent}
                     onChange={(e) => setSubCampParent(e.target.value)}
-                    disabled={!!initial}
+                    disabled={!!initial || subCampsOfFacility.length === 0}
                   >
                     <option value="">{t("cells.form.no_sub_camp")}</option>
                     {subCampsOfFacility.map((p) => (
@@ -2335,6 +2347,7 @@ export function CellForm({ initial, allCells = [], onClose, onSaved }) {
               )}
             </div>
           )}
+          </div>{/* /.cells-context-slot */}
 
           {/* Tên + sức chứa */}
           <div className="cells-row-2">

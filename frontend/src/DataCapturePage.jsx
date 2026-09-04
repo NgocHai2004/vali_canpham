@@ -40,6 +40,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // o van chum nhay oan khi dang lan mot ngon cua no. Buoc la nguon duy nhat biet
   // dang chup CUM hay dang LAN.
   const [fpActiveStep, setFpActiveStep] = useState(null);
+  // Buoc dang chay co phai buoc LAN khong (step.roll tu service).
+  //
+  // Can co RIENG nay vi fpActiveCodes KHONG phan biet duoc: buoc chum tra ve
+  // DUNG CAC MA NGON ma luoi 10 o dang khoa theo (4 ngon trai / 2 cai / 4 phai),
+  // nen doi chieu theo ma se lam 4 o LAN sang len trong khi may dang doi ap ca
+  // ban tay xuong platen - chi sai cho nguoi dan, va nhin nhu 10 o lan bi thu lai.
+  // fpActiveStep khong thay duoc viec nay: no la TEN buoc, muon biet lan/chum
+  // phai tra nguoc ve STEPS. Co nay do service tra thang nen khong the lech.
+  const [fpActiveRoll, setFpActiveRoll] = useState(false);
   // Quality (%) tung ngon cua lan chup hien tai, key = ma ngon (left_index...).
   // Chi song trong phien thu; mo lai ho so cu se khong co (service moi tra).
   const [fpQuality, setFpQuality] = useState({});
@@ -308,6 +317,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setFpNextCode(group.codes[0]);
     setFpActiveCodes(group.codes);   // ca cum nhap nhay cung luc
     setFpActiveStep(group.step);
+    setFpActiveRoll(!!group.roll);
     // KHONG xoa quality cu o day - cung ly do nhu khong xoa anh: neu chup lai
     // that bai thi o se vua mat anh vua mat so %. Quality moi duoc ghi de ben
     // duoi khi chup thanh cong.
@@ -403,6 +413,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       setFpNextCode(null);
       setFpActiveCodes([]);
       setFpActiveStep(null);
+      setFpActiveRoll(false);
     }
   };
 
@@ -432,6 +443,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       setFpNextCode(null);
       setFpActiveCodes([]);
       setFpActiveStep(null);
+      setFpActiveRoll(false);
     }
   };
 
@@ -451,6 +463,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       // Buoc CHUM ("left_hand"/"thumbs"/"right_hand") => o van chum tuong ung nhay
       // bbox. Buoc LAN ("roll_<ma>") khong khop slot.step nao nen 3 o chum dung yen.
       setFpActiveStep(step.step);
+      // PHAI set o day. Day la vong thu CHINH - moi buoc lan deu di qua dong nay.
+      // Thieu no thi fpActiveRoll giu nguyen false ca vong, va dieu kien
+      // `fpRunning && fpActiveRoll` o luoi 10 o khong bao gio dung => o dang lan
+      // KHONG nhay vien lam nua (mat hoan toan bao hieu "may dang doi ngon nay").
+      setFpActiveRoll(!!step.roll);
       setFpStatus(t("fpenroll.status.reading_step", { step: t(`fpenroll.step.${step.step}`) }));
       let capRes;
       try {
@@ -485,15 +502,21 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       fails = 0;
       if (fpAbortRef.current) break;
 
-      // Quality tung ngon de hien % de len anh trong luoi 10 o.
-      setFpQuality((prev) => {
-        const nx = { ...prev };
-        for (const c of capRes.captured || []) nx[c.code] = c.quality;
-        return nx;
-      });
-      // Nguong rieng tung ngon do service tra ve (ngon ut thap hon).
-      if (capRes.min_quality_by_code) {
-        setFpMinQ((prev) => ({ ...prev, ...capRes.min_quality_by_code }));
+      // Quality tung ngon de hien % de len anh trong luoi 10 o. CHI buoc LAN:
+      // ca fpQuality lan fpMinQ deu khoa theo MA NGON, ma buoc chum tra ve dung
+      // cac ma do => khong chan thi so % tren 10 o lan bi thay bang % cua anh
+      // chum, va nguong mau (fpMinQ) cung doi theo. O van hien anh lan cu nhung
+      // % ben tren la cua lan chup khac - sai lech kho thay nhat trong ba cho.
+      if (step.roll) {
+        setFpQuality((prev) => {
+          const nx = { ...prev };
+          for (const c of capRes.captured || []) nx[c.code] = c.quality;
+          return nx;
+        });
+        // Nguong rieng tung ngon do service tra ve (ngon ut thap hon).
+        if (capRes.min_quality_by_code) {
+          setFpMinQ((prev) => ({ ...prev, ...capRes.min_quality_by_code }));
+        }
       }
       // ANH CA BAN TAY cua buoc chum -> 3 o fp_plain_* (hang "Van tay chum").
       //
@@ -516,21 +539,37 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           setFpError(t("capture.err.save_photo", { message: e.message }));
         }
       }
-      for (const c of capRes.captured || []) {
-        const key = FP_CODE_TO_KEY[c.code];
-        if (!key) continue;
-        try {
-          const file = await b64PngToFile(c.image_b64, `${key}.png`);
-          const up = await api.uploadPhoto(file);
-          setPhotos((p) => {
-            const np = { ...p, [key]: up.url };
-            if (c.template_b64) {
-              np.fp_templates = { ...(p.fp_templates || {}), [c.code]: c.template_b64 };
-            }
-            return np;
-          });
-        } catch (e) {
-          setFpError(t("capture.err.save_photo", { message: e.message }));
+      // CHI buoc LAN duoc ghi vao 10 o fp_l1..fp_r5 (va fp_templates).
+      //
+      // Buoc CHUM cung tra `captured` voi DUNG 10 ma ngon do - vi service cat 4
+      // (hoac 2) ngon ra tu anh ca ban tay. Truoc day khoi nay chay cho ca hai
+      // loai buoc, nen thu tu ROLL_STEPS -> SLAP_STEPS lam anh cat tu cum GHI DE
+      // sach 10 anh lan vua thu xong: can bo lan du 10 ngon, den 3 lan chup cum
+      // la mat het, con lai la 10 mieng cat tu anh chum (net kem hon han anh lan).
+      // fp_templates cung bi thay => matchFingerprint so bang template cum.
+      //
+      // Vi vay hai loai buoc GHI HAI CHO KHAC NHAU, khong dung chung key:
+      //   lan  -> fp_l1..fp_r5 + fp_templates
+      //   chum -> fp_plain_left / fp_plain_thumbs / fp_plain_right (o tren)
+      // Anh tung ngon cat ra tu buoc chum BO HAN: 3 anh ca ban tay da la ban ghi
+      // chinh thuc cua van chum, khong can luu ban cat le.
+      if (step.roll) {
+        for (const c of capRes.captured || []) {
+          const key = FP_CODE_TO_KEY[c.code];
+          if (!key) continue;
+          try {
+            const file = await b64PngToFile(c.image_b64, `${key}.png`);
+            const up = await api.uploadPhoto(file);
+            setPhotos((p) => {
+              const np = { ...p, [key]: up.url };
+              if (c.template_b64) {
+                np.fp_templates = { ...(p.fp_templates || {}), [c.code]: c.template_b64 };
+              }
+              return np;
+            });
+          } catch (e) {
+            setFpError(t("capture.err.save_photo", { message: e.message }));
+          }
         }
       }
 
@@ -757,6 +796,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       setFpNextCode(null);
       setFpActiveCodes([]);
       setFpActiveStep(null);
+      setFpActiveRoll(false);
     }
   };
 
@@ -952,6 +992,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const fpBlinkByHand = useMemo(() => {
     const out = { left: [], right: [] };
     if (!fpRunning) return out;
+    // Buoc CHUM khong nhay tung ngon o day: no tra ve 4 (hoac 2) ma ngon, nhay
+    // het se thanh "may dang doi 4 ngon rieng le" trong khi thuc te doi ap CA
+    // BAN TAY. O van chum tu lo viec bao hieu bang khung ngoai (fpActiveStep).
+    if (!fpActiveRoll) return out;
     const codes = fpActiveCodes.length
       ? fpActiveCodes
       : (fpNextCode ? [fpNextCode] : []);
@@ -1393,7 +1437,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       const q = fpQuality[fpCode];
                       // O DANG LAN sang len. Moi ngon la mot buoc rieng nen day la
                       // dung mot o mot luc - truoc day sang ca cum 4 o.
-                      const cellActive = fpRunning && (
+                      //
+                      // CHI sang khi dang chay buoc LAN (fpActiveRoll). Buoc CHUM tra
+                      // ve dung cac ma ngon ma luoi nay khoa theo, nen khong chan thi
+                      // 3 lan chup chum se lam 4 o LAN nhay lien tuc - can bo thay 10
+                      // o da thu xong lai sang len nhu dang bi thu lai. Bao hieu cua
+                      // buoc chum thuoc 3 o fp_plain_* (theo fpActiveStep), khong phai
+                      // luoi nay.
+                      const cellActive = fpRunning && fpActiveRoll && (
                         fpActiveCodes.length
                           ? fpActiveCodes.includes(fpCode)
                           : fpNextCode === fpCode
@@ -1474,9 +1525,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                               ⊘
                             </button>
                           </div>
-                          {filled && (
-                            <span className="fp-cell-taken">{t("capture.fp.taken")}</span>
-                          )}
+                          {/* KHONG co chip "Da thu" o day. Chip chi hien tren o DA co
+                              anh, nen o da thu cao hon o chua thu => moi ngon lan xong
+                              la ca luoi 10 o xo hang mot nhip (layout nhay). Viec bao
+                              "o nay da thu" da co VIEN XANH LA cua o (.fp-preview-cell
+                              .done) lo, khong ton chieu cao va khong lam xe dich gi. */}
                         </div>
                       );
               })}

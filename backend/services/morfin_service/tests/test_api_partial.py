@@ -4,8 +4,8 @@ Khong co thiet bi Morfin that => monkeypatch api.engine.capture_slap tra ve
 CaptureResult gia. Kiem tra:
   - capture() luu MOI ngon tach duoc, ke ca ngon duoi nguong / khong do duoc
     chat luong (khong con 422 vi quality).
-  - Buoc DAT NGUONG HET (low rong) thi TU xac nhan: needs_confirm=False, cum done
-    ngay, next_step sang buoc sau. Chi con dung lai khi CO ngon dang ngo.
+  - MOI buoc deu cho can bo xac nhan: needs_confirm=True ke ca khi moi ngon dat
+    nguong. Khong con auto-confirm (xem api.py capture()).
   - Cum CHUA xac nhan thi chua done, va next_step van tra ve chinh cum do
     (=> bam chup lai la thu lai dung cum dang lam).
   - confirm_step chuyen cum sang done va di tiep.
@@ -195,23 +195,25 @@ def test_cluster_with_weak_finger_needs_confirm_and_next_step_stays():
     assert data["finished"] is False
 
 
-def test_cluster_meeting_threshold_auto_confirms():
-    """Cum DAT NGUONG HET thi tu xac nhan: done ngay, next_step sang cum sau.
+def test_cluster_meeting_threshold_still_needs_confirm():
+    """Cum DAT NGUONG HET van phai bam Xac nhan: chua done, next_step giu nguyen.
 
-    Doi tu luat cu "cum nao cung phai bam Xac nhan". Anh tung ngon da nam trong
-    `captured` nen FE hien len luoi 10 o ngay; bam Xac nhan cho mot cum ma may do
-    duoc la dat het chi la thao tac thua.
+    Doi tu luat cu "dat nguong thi tu xac nhan". Ly do bo auto-confirm: nguong dat
+    theo tam anh LAN, ma cum chum tren platen phang quality thap hon han nen gan nhu
+    luon dung lai - "tu dong" thanh ra khong doan truoc duoc. Va quyet dinh "anh nay
+    dung duoc" thuoc ve can bo: may do dat nguong khong co nghia anh du dung.
     """
     sid = _new_session_at_slap()
     r = _capture(sid, "left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
     assert r.status_code == 200, r.text
     data = r.json()
+    # Khong ngon nao yeu, nhung VAN cho xac nhan.
     assert data["low"] == []
-    assert data["needs_confirm"] is False
-    assert data["auto_confirmed"] is True
-    assert _steps(data)["left_hand"] is True
-    assert data["next_step"]["step"] != "left_hand"
-    # Anh van tra ve du: tu xac nhan KHONG duoc lam mat anh cua can bo.
+    assert data["needs_confirm"] is True
+    assert data["auto_confirmed"] is False
+    assert _steps(data)["left_hand"] is False
+    assert data["next_step"]["step"] == "left_hand"
+    # Anh van tra ve du de FE hien len luoi truoc khi can bo quyet dinh.
     assert len(data["captured"]) == 4
 
 
@@ -230,20 +232,31 @@ def test_no_quality_finger_still_needs_confirm():
     assert _steps(data)["left_hand"] is False
 
 
-def test_roll_step_meeting_threshold_auto_confirms():
-    """Buoc LAN dat nguong cung tu xac nhan - cung mot luat voi cum chum."""
+def test_roll_step_auto_confirms_even_with_weak_finger():
+    """Buoc LAN TU xac nhan, ke ca khi ngon do duoi nguong.
+
+    Lan la 10 buoc lien tiep 1 ngon: dung lai hoi o tung ngon la 10 lan bam giua luc
+    can bo dang giu tay nguoi khac tren platen. Ngon lan mo khong can chan vong vi
+    sua duoc SAU: double-click vao o do de thu lai rieng ngon ay.
+
+    Vi vay dieu kien la LOAI BUOC (step.roll), khong phai nguong - ngon yeu cung
+    khong lam buoc lan dung lai. `low` van tra ve de FE to do so % cho can bo thay.
+    """
     sid = _new_session()
     step = api.ROLL_STEPS[0]
     assert len(step["codes"]) == 1, "buoc lan phai dung 1 ngon"
+    weak = FingerCapture(slot=1, quality=20, template=b"T1", image=b"")
     with patch.object(api.engine, "capture_roll",
-                      return_value=_make_result([_ok(1)])):
+                      return_value=_make_result([weak])):
         r = client.post(f"/api/session/{sid}/capture", json={"step": step["step"]})
     assert r.status_code == 200, r.text
     data = r.json()
-    assert data["low"] == []
+    # Ngon yeu VAN duoc bao trong `low` (de FE to do), nhung KHONG chan vong.
+    assert [w["code"] for w in data["low"]] == [step["codes"][0]]
     assert data["needs_confirm"] is False
     assert data["auto_confirmed"] is True
     assert _steps(data)[step["step"]] is True
+    # Da tu xac nhan => next_step sang buoc ke tiep, vong chay lien mach.
     assert data["next_step"]["step"] != step["step"]
 
 
@@ -411,48 +424,65 @@ def test_redo_resets_cluster_and_confirmation():
         assert rec["done"] is False
 
 
-def test_full_session_all_good_finishes_without_any_confirm_click():
-    """Ca 3 cum dat nguong => chay het khong can bam Xac nhan lan nao.
+def test_full_session_needs_one_confirm_per_cluster():
+    """Ca 3 cum dat nguong VAN phai bam Xac nhan tung cum moi xong.
 
-    Day la ca chinh cua luot thu binh thuong: nguoi co van tay tot thi can bo chi
-    dat tay, may tu chay den het. finished thanh True ngay sau cum cuoi.
+    Day la ca chinh cua luot thu binh thuong sau khi bo auto-confirm: chup xong mot
+    cum thi dung lai, can bo xem anh roi xac nhan, moi sang cum sau. finished chi
+    thanh True sau lan xac nhan CUOI.
     """
     sid = _new_session_at_slap()
-    plan = [
-        ("left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)]),
-        ("thumbs", [_ok(1), _ok(2)]),
-        ("right_hand", [_ok(1), _ok(2), _ok(3), _ok(4)]),
-    ]
-    for step, got in plan:
+    # Thu tu lay THANG tu api.SLAP_STEPS (left_hand -> right_hand -> thumbs), KHONG
+    # viet lai tay. Viet lai mot thu tu khac la test tu tao ra loi: chup mot cum
+    # trong khi cum truoc no chua xac nhan thi next_step tra ve CUM TRUOC (cum som
+    # nhat chua xong), khong phai cum vua chup - dung logic, sai gia dinh cua test.
+    for st in api.SLAP_STEPS:
+        step = st["step"]
+        got = [_ok(i + 1) for i in range(st["expect"])]
         r = _capture(sid, step, got)
         assert r.status_code == 200, r.text
         data = r.json()
-        assert data["needs_confirm"] is False
-        assert _steps(data)[step] is True
+        # Chup xong: chua done, cho xac nhan, next_step giu nguyen cum nay.
+        assert data["needs_confirm"] is True
+        assert _steps(data)[step] is False
+        assert data["next_step"]["step"] == step
+        assert data["finished"] is False
+        # Can bo xac nhan => cum done, di tiep.
+        r = client.post(f"/api/session/{sid}/confirm_step", json={"step": step})
+        assert r.status_code == 200, r.text
+        assert _steps(r.json())[step] is True
     assert r.json()["finished"] is True
 
 
-def test_full_session_stops_only_at_the_weak_cluster():
-    """Cum co ngon yeu la cum DUY NHAT dung lai; hai cum kia tu chay.
+def test_weak_cluster_differs_only_by_low_not_by_stopping():
+    """Cum yeu va cum tot deu DUNG LAI giong nhau; khac biet nam o `low`.
 
-    Kiem chung dung y nghia cua luat: buoc xac nhan khong bi bo, no chi don ve dung
-    luc can. finished phai cho den khi cum yeu duoc xac nhan tay.
+    Truoc day cum yeu la cum duy nhat dung lai (test cu: "stops only at the weak
+    cluster"). Bo auto-confirm thi "co dung lai hay khong" khong con phan biet duoc
+    cum tot voi cum yeu - ca hai deu cho xac nhan. Dau hieu duy nhat con lai la
+    `low`, va do chinh la thu FE dung de to do ngon dang ngo cho can bo thay.
     """
     sid = _new_session_at_slap()
     weak = FingerCapture(slot=2, quality=20, template=b"T2", image=b"")
+    # Cum TOT: dung lai, low rong.
     r = _capture(sid, "left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
-    assert r.json()["needs_confirm"] is False
-    # Cum thumbs co ngon yeu => dung lai, va cum nay chua done.
+    data = r.json()
+    assert data["needs_confirm"] is True
+    assert data["low"] == []
+    client.post(f"/api/session/{sid}/confirm_step", json={"step": "left_hand"})
+    # Cum YEU: cung dung lai, nhung low chi ra dung ngon yeu.
     r = _capture(sid, "thumbs", [_ok(1), weak])
     data = r.json()
     assert data["needs_confirm"] is True
+    assert [w["code"] for w in data["low"]] == ["right_thumb"]
     assert _steps(data)["thumbs"] is False
-    r = _capture(sid, "right_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
-    # Cum cuoi tu xac nhan nhung CHUA finished: cum thumbs con treo.
-    data = r.json()
-    assert data["needs_confirm"] is False
-    assert data["finished"] is False
-    # Can bo xem anh roi chap nhan ngon yeu => gio moi xong.
+    # Xac nhan cum yeu: ngon yeu van duoc luu, chi mang co low_quality.
     r = client.post(f"/api/session/{sid}/confirm_step", json={"step": "thumbs"})
     assert r.status_code == 200, r.text
+    assert _finger(r.json(), "right_thumb")["low_quality"] is True
+    # Con cum right_hand chua chup => chua xong.
+    assert r.json()["finished"] is False
+    r = _capture(sid, "right_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
+    assert r.json()["finished"] is False
+    r = client.post(f"/api/session/{sid}/confirm_step", json={"step": "right_hand"})
     assert r.json()["finished"] is True

@@ -4951,6 +4951,169 @@ textarea.input {
   overflow: visible !important;
 }
 
+/* ================= Modal them/sua CO SO - PHAN TRAI - BUONG =================
+   Truoc khoi nay, 71 class `cells-*` trong Dashboard.jsx KHONG co mot rule nao
+   (grep chi ra dung .cells-grid ben duoi, la tile grid cua trang khac). Tuc form
+   la div tran xep doc theo dong chay mac dinh => moi khoi bat/tat theo `level`
+   lam moi thu ben duoi xe dich: doi cap la nhay layout.
+
+   Nguyen tac chong nhay: GIU CHO. Khoi "Dien" (chi cap co so) va khoi "Chon cha"
+   (chi cap phan trai/buong) loai tru nhau san, nen cho hai cai dung CHUNG mot
+   vung cao co dinh - khong cong don chieu cao, va doi cap thi vung do khong doi. */
+.cells-modal {
+  max-width: 640px;
+}
+
+.cells-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cells-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(22, 139, 255, 0.06);
+  font-size: 12px;
+  /* Breadcrumb doi theo ten dang go => cao 1 dong CO DINH, khong cho xuong dong
+     lam modal giat theo tung chu vua nhap. */
+  min-height: 38px;
+}
+
+.cells-breadcrumb-item {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cells-breadcrumb-item.current {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.cells-breadcrumb-sep {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.cells-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* --- Chon cap: 3 card ngang, cao deu nhau --- */
+.cells-level-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cells-level-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.cells-level-card:hover:not(:disabled) {
+  border-color: rgba(53, 216, 255, 0.5);
+  background: rgba(22, 139, 255, 0.08);
+}
+
+.cells-level-card.active {
+  border-color: var(--accent, #35d8ff);
+  background: rgba(22, 139, 255, 0.14);
+}
+
+.cells-level-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cells-level-icon { font-size: 16px; line-height: 1; }
+.cells-level-name { font-size: 13px; font-weight: 650; }
+
+.cells-level-desc {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* --- Vung GIU CHO cho "Dien" / "Chon cha" ---
+   Hai khoi nay loai tru nhau (facility vs !facility). Cho chung mot vung cao co
+   dinh: bam doi cap thi vung khong thay doi chieu cao, phan duoi dung yen. */
+.cells-context-slot {
+  min-height: 68px;
+}
+
+/* --- Dien: 2 nut segment --- */
+.cells-segment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cells-segment-btn {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.cells-segment-btn:hover:not(:disabled) {
+  border-color: rgba(53, 216, 255, 0.5);
+}
+
+.cells-segment-btn.active {
+  border-color: var(--accent, #35d8ff);
+  background: rgba(22, 139, 255, 0.14);
+}
+
+.cells-segment-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Hang 2 cot: luon 2 cot de o thu 2 an/hien khong lam o thu 1 gian ra --- */
+.cells-row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.cells-row-2 > * { min-width: 0; }
+
+.cells-field { min-width: 0; }
+
+.cells-field-narrow { max-width: 100%; }
+
+@media (max-width: 620px) {
+  .cells-level-picker { grid-template-columns: 1fr; }
+  .cells-row-2 { grid-template-columns: 1fr; }
+  .cells-context-slot { min-height: 0; }
+}
+
 /* Cells tile grid */
 .cells-grid {
   display: grid;
@@ -9500,6 +9663,11 @@ textarea.input {
 }
 .cap-flat .fp-row-count {
   margin-left: auto;
+  /* Thut vao mot chut, khong dinh sat le phai. margin-left:auto day so ve tan
+     cung ben phai cua tieu de; them khe nay keo no lai ~8px cho de doc.
+     Dung margin-right chu KHONG doi margin-left thanh so cu the: `auto` la thu
+     day so sang phai, thay no thi so tut ve dinh liet vao chu cua tieu de. */
+  margin-right: 8px;
   font-size: 11px;
   font-weight: 650;
   color: var(--cf-muted);
@@ -9509,9 +9677,13 @@ textarea.input {
    4-2-4 (3 anh). Cot van lan rong hon vi phai chua 10 o, cot van chum 3 o. */
 .cap-flat .fp-two-col {
   display: grid;
-  /* Cot trai rong hon: 10 o van lan gio xep 2 hang 6 cot (xem duoi) nen can be
-     ngang de o gan vuong. Cot phai chi co 3 anh chum + KPI + hang nut. */
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  /* HAI COT BE NGANG BANG NHAU (1fr 1fr).
+     Truoc day 1.2fr / 1fr cho cot van lan rong hon vi no chua 10 o. Nhung hai muc
+     nay la hai khoi ngang cap tren cung mot to giay: le phai cua muc 1 khong thang
+     le phai cua muc 2 thi ca khoi van tay nhin lech, va tieu de "2. Van tay chum"
+     bat dau o mot vi tri khong khop voi bat cu duong nao ben trai.
+     Chia deu thi 10 o lan hep lai chut it - doi lay hai muc thang le nhau. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0 22px;
   align-items: start;
 }

@@ -35,7 +35,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from PIL import Image
+from PIL import Image, ImageFilter
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -232,11 +232,67 @@ def _min_quality(code: str) -> int:
 _load_quality_file()
 
 
-def _bmp_to_png_b64(blob: bytes, thumb: Optional[int] = None) -> str:
-    """SDK tra BMP; FE dung data:image/png => phai convert."""
+# Nguong coi mot pixel la CO MUC (co van tay). Anh vân tay tu platen la nen SANG
+# gan trang, van la net TOI => pixel < nguong nay thuoc vung van.
+_FP_INK_THRESHOLD = 200
+# Vien chua quanh bbox, tinh theo px cua anh goc. De van khong bi cat sat mep -
+# nhin sat mep trong nhu anh bi crop thieu.
+_FP_PAD = 8
+
+
+def _fingerprint_bbox(gray: Image.Image) -> Optional[tuple]:
+    """Bbox cua vung CO VAN trong anh grayscale, hoac None neu anh trong.
+
+    Loc nhieu bang MedianFilter TRUOC khi lay bbox: chi mot pixel toi le o goc anh
+    (bui tren platen, nhieu cam bien) la du lam bbox bung ra ca khung, va luc do
+    canh giua thanh vo nghia vi bbox = ca anh.
+    """
+    mask = gray.point(lambda p: 255 if p < _FP_INK_THRESHOLD else 0)
+    return mask.filter(ImageFilter.MedianFilter(3)).getbbox()
+
+
+def _center_fingerprint(img: Image.Image) -> Image.Image:
+    """Cat lay vung van roi dat vao GIUA khung, giu nguyen kich thuoc anh goc.
+
+    Vi sao can: SDK tra ca vung platen ma ngon dat len, nen van tay nam lech ve
+    mot goc tuy nguoi dan ap tay o dau. Tren luoi 10 o cua FE, moi o mot kieu
+    lech nhin nhu may chup sai; can bo cung kho so hai o canh nhau.
+
+    Giu NGUYEN kich thuoc anh goc (khong crop sat bbox) de ti le cac o tren luoi
+    khong doi - crop sat se lam moi o mot ti le khac nhau, layout nhay theo anh.
+    """
+    gray = img.convert("L")
+    box = _fingerprint_bbox(gray)
+    if box is None:
+        # Anh trang tron (khong tach duoc van): tra nguyen, khong dung cham.
+        return gray
+    w, h = gray.size
+    x0, y0, x1, y1 = box
+    x0 = max(0, x0 - _FP_PAD)
+    y0 = max(0, y0 - _FP_PAD)
+    x1 = min(w, x1 + _FP_PAD)
+    y1 = min(h, y1 + _FP_PAD)
+    crop = gray.crop((x0, y0, x1, y1))
+    # Nen TRANG de khop nen anh van tay; vung them vao khong duoc toi hon nen,
+    # neu khong se thanh vien xam quanh anh.
+    canvas = Image.new("L", (w, h), 255)
+    canvas.paste(crop, ((w - crop.width) // 2, (h - crop.height) // 2))
+    return canvas
+
+
+def _bmp_to_png_b64(blob: bytes, thumb: Optional[int] = None,
+                    center: bool = False) -> str:
+    """SDK tra BMP; FE dung data:image/png => phai convert.
+
+    center=True: cat bbox van tay roi canh giua truoc khi tra ve (xem
+    _center_fingerprint). Canh giua TRUOC thumbnail: lam nguoc lai thi bbox doc
+    tren anh da thu nho, mat do chinh xac va vien pad lech ti le.
+    """
     if not blob:
         return ""
     img = Image.open(io.BytesIO(blob))
+    if center:
+        img = _center_fingerprint(img)
     if thumb:
         img.thumbnail((thumb, thumb))
     buf = io.BytesIO()
@@ -568,13 +624,21 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     for code, fc in zip(codes, got):
         rec = s.fingers[code]
         rec.template_b64 = base64.b64encode(fc.template).decode("ascii")
-        rec.image_b64 = _bmp_to_png_b64(fc.image)
+        # center=True: van tay duoc cat bbox roi dat vao giua khung. SDK tra ca vung
+        # platen ma ngon dat len nen van nam lech theo cach nguoi dan ap tay; tren
+        # luoi 10 o moi o lech mot kieu, nhin nhu may chup sai.
+        # CHI anh de HIEN THI di qua day. Template (dung de tra cuu) lay tu fc.template
+        # cua SDK, khong sinh lai tu anh nay - nen canh giua khong the anh huong do
+        # chinh xac cua so khop.
+        rec.image_b64 = _bmp_to_png_b64(fc.image, center=True)
         rec.quality = fc.quality
         rec.no_quality = fc.slot in nq_slots
         rec.captured_at = time.time()
+        # thumb_b64 cung phai center: day la anh FE hien trong luoi 10 o (thumb nho).
+        # Bo qua day thi anh to canh giua ma o luoi van lech - dung cho de thay nhat.
         captured.append({**rec.to_public(include_template=True),
                          "image_b64": rec.image_b64,
-                         "thumb_b64": _bmp_to_png_b64(fc.image, thumb=200)})
+                         "thumb_b64": _bmp_to_png_b64(fc.image, thumb=200, center=True)})
         if rec.no_quality or rec.quality < _min_quality(code):
             low.append({
                 "code": code, "name_vi": FINGER_NAME[code],
@@ -588,20 +652,36 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     s.confirmed.discard(step["step"])
     # Anh CA BAN TAY (hoac ca ngon lan), thumb 600 de FE hien to. Voi buoc chum
     # day la anh slap tong - FE hien nguyen anh nay chu KHONG con cat ra 10 o.
+    #
+    # KHONG center anh nay, va do la co y:
+    #   - Vi tri tuong doi giua cac ngon trong anh chum la THONG TIN THAT (thu tu
+    #     ngon, khoang cach) - day la ban ghi chinh thuc cua van chum, khong phai
+    #     thumbnail de xem cho dep. Dich chuyen no la sua ban ghi.
+    #   - 4 ngon trai rong nen bbox phu gan het khung: canh giua gan nhu khong doi
+    #     gi, chi ton CPU cho moi lan chup.
     s.slap_images[step["step"]] = _bmp_to_png_b64(result.slap_image, thumb=600)
 
-    # DAT NGUONG => tu xac nhan, chay tiep buoc sau NGAY. Ap dung cho CA buoc lan
-    # va buoc chum (4-2-4): cung mot luat, khong phan biet loai buoc.
+    # Buoc LAN tu xac nhan, buoc CHUM cho can bo bam Xac nhan.
     #
-    # Dieu kien duy nhat la `low` RONG: MOI ngon trong buoc deu do duoc quality VA
-    # >= nguong rieng cua no. Con mot ngon duoi nguong hoac khong do duoc quality
-    # thi dung lai hoi can bo - do moi la ly do ton tai cua buoc xac nhan.
-    #
-    # Anh tung ngon da nam trong `captured` nen FE hien len luoi 10 o ngay, khong
-    # cho xac nhan. Bam Xac nhan cho mot buoc ma may do duoc la dat het chi la thao
-    # tac thua: 13 buoc tot = 13 lan bam khong quyet dinh gi, va con lam can bo
-    # quen mat rang lan bam THAT SU quan trong la lan co ngon dang ngo.
-    auto_confirmed = not low
+    # Vi sao phan biet theo LOAI BUOC chu khong theo nguong (`not low` nhu ban dau):
+    #   - Lan la 10 buoc lien tiep, moi buoc 1 ngon. Dung lai hoi o TUNG ngon la 10
+    #     lan bam de di qua mot viec ma may lam duoc mot mach; can bo phai dung tay
+    #     bam giua luc dang giu tay nguoi khac tren platen.
+    #   - Ngon lan mo KHONG can chan vong: anh da hien len o va % do san, can bo thay
+    #     thi DOUBLE-CLICK vao o do de thu lai rieng ngon ay (retryFingerprint, thu
+    #     lai dung 1 ngon vi step lan chi co 1 ma trong codes). Sua duoc sau nen
+    #     khong phai chan truoc.
+    #   - Chum thi khac: 1 lan chup = 4 (hoac 2) ngon va la ban ghi chinh thuc cua
+    #     van chum, chi co 3 lan bam cho ca ho so. Do la luc dang de can bo xem anh
+    #     ca ban tay roi quyet dinh.
+    # `low` VAN duoc tra ve cho ca buoc lan - FE dung no to do so % de can bo biet
+    # ngon nao dang ngo ma double-click thu lai.
+    auto_confirmed = bool(step.get("roll"))
+    # PHAI ghi vao s.confirmed, khong chi tra co ve FE. step_done() doc dung set nay,
+    # va next_step() tra buoc dau tien CHUA done. Thieu dong nay thi buoc lan tra
+    # needs_confirm=False (FE chay tiep) nhung next_step VAN la chinh ngon do
+    # => vong thu lap vo han mot ngon. s.confirmed.discard() o tren vua xoa xac nhan
+    # cu, nen day cung la cho dat lai xac nhan cho anh VUA chup.
     if auto_confirmed:
         s.confirmed.add(step["step"])
     none_codes = [c for c in step["codes"] if s.fingers[c].missing]
@@ -630,10 +710,8 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
                 w["name_vi"],
                 "khong do duoc" if w["reason"] == "no_quality" else "%d%%" % w["quality"],
             ) for w in low)))
-    if auto_confirmed:
-        out["message"] = ". ".join(parts) + ". Dat nguong - tu dong sang buoc tiep."
-    else:
-        out["message"] = ". ".join(parts) + ". Xem anh roi bam Xac nhan de sang buoc tiep."
+    # Mot thong diep duy nhat: khong con nhanh "tu dong sang buoc tiep".
+    out["message"] = ". ".join(parts) + ". Xem anh roi bam Xac nhan de sang buoc tiep."
     return out
 
 
