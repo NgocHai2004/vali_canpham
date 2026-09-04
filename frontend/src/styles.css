@@ -10157,18 +10157,84 @@ textarea.input {
    PHAI co tien to .cap-flat: .cap-flat .cap-grid (0,2,0) ep luoi ve 2 cot, ghi
    de mat selector tran .cap-grid--identify (0,1,0). */
 .cap-flat .cap-grid--identify {
+  /* CAU TRUC giu nguyen: 4 cot x 2 hang. */
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  /* San rieng, HEP hon 118px cua muc I: o day mot cot chi ~205px, lay 118px cho
-     nhan thi o nhap con ~80px — qua chat. 84px vua du nhan dai nhat cua muc nay
-     ("Chieu cao (cm)" ~80px) va van la SAN CHUNG nen ca 4 cot thang hang. */
-  --cf-lab: 84px;
+  /* KHONG dat --cf-lab rieng nua => ke thua 128px cua .cap-flat, DUNG san voi muc
+     I va II. Nhan cua ca ba muc do rong bang nhau, va o nhap bat dau o cung mot
+     toa do so voi le o chua no.
+     Truoc day muc nay an san rieng 84px, ly do ghi trong comment cu: "mot cot chi
+     ~205px, lay 128px cho nhan thi o nhap con ~80px, qua chat". Ly do do da het
+     dung tu khi muc III chuyen sang .cap-col--full (tran het be ngang, moi cot
+     trong 4 cot ~315px chu khong con ~205px) - 128px cho nhan van con ~180px cho
+     o nhap, xap xi dung be rong o nhap cua muc I ("CMND/CCCD/Ho chieu" nam trong
+     luoi 2 cot cua nua trang, o nhap cung ~175px). */
 }
 /* Dau vet rieng: 2 cot cuoi. CHI dat grid-column — cot nhan de nguyen theo san
    chung o tren, de nhan cua no thang hang voi "Dai tai" / "Di hinh" cung muc.
    Truoc day rule nay ghi lai grid-template-columns: minmax(auto, 20%) => 20% cua
    HAI cot (~110px) trong khi cac o khac lay 40% cua MOT cot (~80px): dung la o
    "thut ra" ro nhat trong muc III. */
+/* O NHAP hep lai 7%: cot gia tri lay 0.93fr thay vi 1fr => con lai 7% la khe
+   trong ben phai moi truong. Nhan KHONG doi (van san --cf-lab 128px chung voi
+   muc I va II) nen le trai cac o nhap van thang mot duong doc.
+   Dung <1fr chu khong dat width co dinh: khe co gian theo be ngang trang. */
+.cap-flat .cap-grid--identify .info-field {
+  grid-template-columns: minmax(var(--cf-lab), max-content) minmax(0, 0.93fr);
+}
 .cap-flat .cap-grid--identify .span-2col { grid-column: span 2; }
+/* "Dau vet rieng" tran 2 cot => khoang trong con lai to gap doi, 7% cua no thanh
+   khe rong gap doi cac o mot cot, nhin nhu textarea bi cat ngan. Giu 1fr de o nay
+   sat le phai, giong cac hang tran ngang o muc I va II. */
+.cap-flat .cap-grid--identify .span-2col.info-field {
+  grid-template-columns: minmax(var(--cf-lab), max-content) minmax(0, 1fr);
+}
+/* COT 2 cua muc III dong thang voi COT 2 cua muc II ("Don vi bat").
+   "Chieu cao (cm)" (hang 1) va "Di hinh" (hang 2) la dung hai truong nam o cot 2
+   cua luoi 4 cot, nen mot rule lo ca hai.
+
+   Vi sao lech san: hai luoi khac hinh hoc.
+     Muc II  nam trong cot trai cua .cap-sheet--split (1fr / 1.06fr, khe 26px) roi
+             chia 2 cot khe 20px => cot 2 bat dau o (L-20)/2 + 20, L=(W-26)/2.06.
+     Muc III tran het be ngang W, chia 4 cot khe 20px => cot 2 bat dau o
+             (W-60)/4 + 20.
+   Hieu hai so: 0.007282W + 1.31 => ~9px o cua so 1000px, ~13px o 1600px. Do lech
+   GIAN theo W, nen mot con so px co dinh chi dung o dung mot be rong (va -7% theo
+   be rong o, ~20px, thi dich qua nhieu).
+
+   Doi bien sang be rong CUA CHINH O nay (ew) de dat vao transform duoc:
+     ew = (W - 60)/4  =>  W = 4ew + 60
+     do lech = 0.007282(4ew + 60) + 1.31 = 0.029128ew + 1.75
+   tuc 2.9128% cua be rong o, CONG 1.75px. translateX lay % theo be rong chinh no
+   nen calc() duoi day khop DUNG o moi be rong man hinh, khong phai xap xi.
+   Kiem: W=1000 (ew=235) => 6.84+1.75 = 8.59px; W=1600 (ew=385) => 11.21+1.75 =
+   12.96px - trung hai dau da tinh o tren.
+
+   PHU THUOC ba con so: ty le 1.06fr va khe 26px cua .cap-sheet--split, khe 20px cua
+   .cap-grid. Doi bat ky so nao thi phai tinh lai cong thuc nay.
+
+   transform chu KHONG margin-left am: margin am keo le trai ra ma giu le phai, tuc
+   o nhap RONG THEM - triet tieu phan vua hep lai o rule tren. transform dich ca
+   nhan va o nhap, kich thuoc khong doi.
+   nth-child(4n+2) = con thu 2 va thu 6. So 4 la SO COT cua luoi: doi so cot, hay
+   them/bo truong trong SectionIdentify, thi phai tinh lai.
+
+   CHI cot 2 duoc dich. Cot 3 ("Song mui"), cot 4 ("Nep tai duoi") va o tran 2 cot
+   ("Dau vet rieng") KHONG dich - de nguyen vi tri tu nhien cua luoi. Truoc day ba
+   cai do bi dich luy tien (2d, 3d, 2d) theo y "don ca hang ve trai"; nhung nhu the
+   ca nua phai cua muc III bi keo lech khoi le cua to giay. */
+.cap-flat .cap-grid--identify .info-field:nth-child(4n + 2) {
+  transform: translateX(calc(-2.9128% - 1.75px));
+}
+/* COT 4 ("Nep tai duoi") lay 1fr, KHONG phai 0.93fr nhu ba cot dau.
+   Ly do: cot 4 la cot CUOI nen o nhap cua no ket thuc o mep phai cua luoi - dung
+   cho o nhap "Dau vet rieng" (tran cot 3-4, cung 1fr) ket thuc. Neu de 0.93fr thi
+   no hut vao 7% va hai o xep tren nhau lai le nhau o canh phai - de thay nhat
+   trong ca muc vi chung nam sat duoi nhau.
+   Ba cot dau van 0.93fr: khe 7% cua chung la khe PHAN CACH voi cot ben canh, con
+   cot 4 khong co cot nao ben phai nen khong can khe do. */
+.cap-flat .cap-grid--identify .info-field:nth-child(4n + 4) {
+  grid-template-columns: minmax(var(--cf-lab), max-content) minmax(0, 1fr);
+}
 .cap-flat .cap-grid .info-field-label,
 .cap-flat .info-field-label {
   line-height: 1.25;
