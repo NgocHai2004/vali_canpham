@@ -1,18 +1,52 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
 import { MATCH_ROWS, SUBJECTS } from "./sceneMatchDemo";
+import { SCORE_TOTAL } from "./sceneDemo";
 import {
-  IcChevDown, IcChevRight, IcChevUp, IcCheck, IcDots, IcExport, IcFilter,
-  IcGrid, IcInfo, IcList, IcPageNext, IcPagePrev, IcPerson, IcPlus,
-  IcReanalyze, IcSearch, IcUpload,
+  IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
+  IcGrid, IcList, IcPageNext, IcPagePrev, IcPencil, IcPlus,
+  IcReanalyze, IcTick, IcTrash, IcUpload,
 } from "./sceneMatchIcons";
 
 // Man "Phan tich doi sanh" — dung theo design D:\Downloads\Phan tich doi sanh.
 // Vu an / ma phien / danh sach dau vet = data THAT tu API.
 // Ket qua doi sanh + ho so doi tuong = data gia (chua co engine trich minutiae).
 const PAGE_SIZE = 5;
+
+// time trong data gia la "DD/MM/YYYY HH:MM" -> so sanh chuoi se sai (03/09 vs 12/08).
+// Doi sang YYYYMMDDHHMM de sort. Bo ham nay khi backend tra ISO timestamp.
+// Thang diem 0..22 nhu design: cung thang voi so diem minutiae o cot "Diem
+// tuong dong" va o trang chi tiet (SCORE_TOTAL trong sceneDemo).
+const SCORE_MIN = 0;
+const SCORE_MAX = SCORE_TOTAL;
+const SCORE_MID = SCORE_TOTAL / 2;
+const clampScore = (v) =>
+  Math.max(SCORE_MIN, Math.min(SCORE_MAX, Number(v) || SCORE_MIN));
+
+// Thu tu 4 o "Sắp xếp theo" dung nhu design.
+// Design: 3 kieu sap xep cho panel dau vet.
+const TRACE_SORTS = [
+  ["newest", "smp.tsort.newest"],
+  ["oldest", "smp.tsort.oldest"],
+  ["code", "smp.tsort.code"],
+];
+
+const SORT_OPTS = [
+  ["newest", "smp.sort.newest"],
+  ["oldest", "smp.sort.oldest"],
+  ["score_desc", "smp.sort.score_desc"],
+  ["score_asc", "smp.sort.score_asc"],
+];
+
+const traceCode = (it) =>
+  `DVHT-${String(it.captured_at || "").slice(0, 4)}-${String(it.seq).padStart(4, "0")}`;
+
+function timeKey(r) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/.exec(r.time || "");
+  return m ? Number(m[3] + m[2] + m[1] + m[4] + m[5]) : 0;
+}
 
 export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   const { t, formatDateTime } = useI18n();
@@ -22,13 +56,23 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   const [err, setErr] = useState("");
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("");
+  const [advOpen, setAdvOpen] = useState(false);
+  const [subjOpen, setSubjOpen] = useState(false);
+  const [subjectSel, setSubjectSel] = useState(() => new Set());   // rong = tat ca
+  const [fingerFilter, setFingerFilter] = useState("");
+  const [minScore, setMinScore] = useState(SCORE_MIN);
+  const [sortBy, setSortBy] = useState("newest");       // design: mac dinh "Mới nhất"
   const [traceQ, setTraceQ] = useState("");
+  const [traceSort, setTraceSort] = useState("newest");
+  const [editTrace, setEditTrace] = useState(null);   // != null => mo modal sua
+  const [delTrace, setDelTrace] = useState(null);     // != null => mo popup xac nhan xoa
   const [view, setView] = useState("grid");      // grid | list
   const [picked, setPicked] = useState(() => new Set());
   const [openSub, setOpenSub] = useState(SUBJECTS[0]?.id || "");
   const [uploading, setUploading] = useState(false);
-  const [fullId, setFullId] = useState("");   // != "" => mo trang chi tiet dau vet
+  // Dong da bam trong bang KET QUA DOI SANH: giu ca id dau vet + row de trang
+  // chi tiet hien dung so lieu cua dong do (truoc day tu dung lai theo seq => lech).
+  const [full, setFull] = useState(null);   // != null => mo trang chi tiet dau vet
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,24 +93,65 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   // ----- Ket qua doi sanh (fake) -----
   const rows = useMemo(() => {
     const kw = q.trim().toLowerCase();
-    return MATCH_ROWS.filter((r) => {
-      if (subjectFilter && r.name !== subjectFilter) return false;
+    const out = MATCH_ROWS.filter((r) => {
+      if (subjectSel.size && !subjectSel.has(r.name)) return false;
+      if (fingerFilter && r.finger !== fingerFilter) return false;
+      if (r.score < minScore) return false;
       if (!kw) return true;
       return `${r.code} ${r.name}`.toLowerCase().includes(kw);
     });
-  }, [q, subjectFilter]);
+    // filter() da tra array moi nen sort() tai cho khong dung vao MATCH_ROWS.
+    const cmp = {
+      newest:     (a, b) => timeKey(b) - timeKey(a),
+      oldest:     (a, b) => timeKey(a) - timeKey(b),
+      score_desc: (a, b) => b.score - a.score,
+      score_asc:  (a, b) => a.score - b.score,
+    }[sortBy];
+    return cmp ? out.sort(cmp) : out;
+  }, [q, subjectSel, fingerFilter, minScore, sortBy]);
+
+  // Danh sach ngon tay lay tu chinh data -> khong can export thu tu tu sceneMatchDemo.
+  const FINGER_OPTS = useMemo(
+    () => [...new Set(MATCH_ROWS.map((r) => r.finger))], []);
+  // Badge dem so dieu kien dang thu hep ket qua (sort chi doi thu tu -> khong dem).
+  const filterCount = (fingerFilter ? 1 : 0) + (minScore > SCORE_MIN ? 1 : 0)
+    + (subjectSel.size ? 1 : 0);
+  const resetFilter = () => {
+    setFingerFilter("");
+    setMinScore(SCORE_MIN);
+    setSortBy("newest");
+    setSubjectSel(new Set());
+  };
+  const toggleSubj = (name) => setSubjectSel((prev) => {
+    const n = new Set(prev);
+    n.has(name) ? n.delete(name) : n.add(name);
+    return n;
+  });
+  // Design: "Tất cả đối tượng" / "Đã chọn N đối tượng" — 1 nguoi thi hien ten.
+  const subjLabel = subjectSel.size === 0
+    ? t("smp.all_subjects")
+    : subjectSel.size === 1
+      ? [...subjectSel][0]
+      : t("smp.subj.n_picked", { n: subjectSel.size });
 
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  useEffect(() => { setPage(1); }, [q, subjectFilter]);
+  useEffect(() => { setPage(1); }, [q, subjectSel, fingerFilter, minScore, sortBy]);
 
   // ----- Dau vet hien truong (that) -----
   const shownTraces = useMemo(() => {
     const kw = traceQ.trim().toLowerCase();
-    if (!kw) return traces;
-    return traces.filter((x) =>
-      `${x.seq} ${x.collection_source || ""}`.toLowerCase().includes(kw));
-  }, [traces, traceQ]);
+    const out = kw
+      ? traces.filter((x) =>
+          `${traceCode(x)} ${x.seq} ${x.collection_source || ""}`.toLowerCase().includes(kw))
+      : traces.slice();
+    const cmp = {
+      newest: (a, b) => String(b.captured_at || "").localeCompare(String(a.captured_at || "")),
+      oldest: (a, b) => String(a.captured_at || "").localeCompare(String(b.captured_at || "")),
+      code: (a, b) => (a.seq || 0) - (b.seq || 0),
+    }[traceSort];
+    return cmp ? out.sort(cmp) : out;
+  }, [traces, traceQ, traceSort]);
 
   const toggle = (id) => setPicked((s) => {
     const n = new Set(s);
@@ -95,8 +180,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   // Xoa / sua ghi chu: dung lai api co san, confirm+prompt native nhu DataCapturePage.
   const delTraces = async (items) => {
     if (!items.length) return;
-    const names = items.map((x) => `#${x.seq}`).join(", ");
-    if (!window.confirm(t("scene.del.body", { n: names }))) return;
+    setDelTrace(null);
     setUploading(true);
     setErr("");
     try {
@@ -110,20 +194,17 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
     }
   };
 
-  const editNote = async (it) => {
-    const text = window.prompt(t("scene.detail.note"), it.note || "");
-    if (text === null) return;
+  const saveTrace = async (it, patch) => {
     setErr("");
     try {
-      await api.updateSceneTrace(it.id, text);
-      setTraces((prev) => prev.map((x) => (x.id === it.id ? { ...x, note: text.trim() } : x)));
+      await api.updateSceneTrace(it.id, patch);
+      setTraces((prev) => prev.map((x) => (x.id === it.id ? { ...x, ...patch } : x)));
+      setEditTrace(null);
     } catch (ex) {
       setErr(ex.message || t("scene.err.save_note"));
     }
   };
 
-  const traceCode = (it) =>
-    `DVHT-${String(it.captured_at || "").slice(0, 4)}-${String(it.seq).padStart(4, "0")}`;
 
   const from = rows.length ? (page - 1) * PAGE_SIZE + 1 : 0;
   const to = Math.min(page * PAGE_SIZE, rows.length);
@@ -133,10 +214,10 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   // Bo ham nay khi backend tra trace_id trong ket qua doi sanh.
   const traceFor = (absIdx) => (traces.length ? traces[absIdx % traces.length] : null);
 
-  const fullItem = fullId ? traces.find((x) => x.id === fullId) : null;
+  const fullItem = full ? traces.find((x) => x.id === full.id) : null;
   if (fullItem) {
     return (
-      <SceneTraceFull item={fullItem} session={session} onBack={() => setFullId("")} />
+      <SceneTraceFull item={fullItem} row={full.row} session={session} onBack={() => setFull(null)} />
     );
   }
 
@@ -155,7 +236,12 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
               <div className="smp-case-code">
                 {t("smp.case")}: {session?.code || "—"}
               </div>
-              <span className="smp-chip smp-chip-green">{t("smp.analyzing")}</span>
+              {/* Trang thai vu an, KHONG phai trang thai phan tich: truoc day hardcode
+                  "Dang phan tich" nen vu da dong o list cung hien xanh. Dung dung key +
+                  class nhu SceneCasePicker de 2 cho khong lech nhau. */}
+              <span className={"smp-chip " + (session?.status === "open" ? "smp-chip-green" : "scp-chip-grey")}>
+                {t(session?.status === "open" ? "session.status.open_dot" : "session.status.closed_dot")}
+              </span>
             </div>
             <div className="smp-case-name">
               {session?.case_name || t("scene.no_case")}
@@ -186,16 +272,136 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
               onChange={(e) => setQ(e.target.value)}
               placeholder={t("smp.match.search_ph")}
             />
-            <select
-              className="smp-select"
-              value={subjectFilter}
-              onChange={(e) => setSubjectFilter(e.target.value)}
+            <PopMenu
+              label={t("smp.all_subjects")}
+              btnClassName="smp-trg smp-trg-subj"
+              popClassName="smp-pop-subj"
+              width={260}
+              closeOnClick={false}
+              onState={setSubjOpen}
+              trigger={<>
+                <span>{subjLabel}</span>
+                <IcCaret s={15} open={subjOpen} />
+              </>}
             >
-              <option value="">{t("smp.all_subjects")}</option>
-              {SUBJECTS.map((s) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
+              {/* Design: chon nhieu doi tuong; "Tất cả" = bo hết lựa chọn. */}
+              <button
+                type="button"
+                className={"smp-opt" + (subjectSel.size === 0 ? " on" : "")}
+                onClick={() => setSubjectSel(new Set())}
+              >
+                {t("smp.all_subjects")}
+                {subjectSel.size === 0 && <IcTick />}
+              </button>
+              {SUBJECTS.map((sub) => (
+                <button
+                  type="button"
+                  key={sub.id}
+                  className={"smp-opt" + (subjectSel.has(sub.name) ? " on" : "")}
+                  onClick={() => toggleSubj(sub.name)}
+                >
+                  {sub.name}
+                  {subjectSel.has(sub.name) && <IcTick />}
+                </button>
               ))}
-            </select>
+            </PopMenu>
+            <PopMenu
+              label={t("smp.filter")}
+              btnClassName="smp-trg smp-trg-filter"
+              popClassName="smp-adv"
+              width={420}
+              closeOnClick={false}
+              onState={setAdvOpen}
+              trigger={<>
+                <IcFilter />
+                {t("smp.filter")}
+                {filterCount > 0 && <span className="smp-trg-badge">{filterCount}</span>}
+                <IcCaret open={advOpen} />
+              </>}
+              render={(close) => (
+                <>
+                  <div className="smp-adv-head">
+                    <span className="smp-adv-title">{t("smp.filter.adv")}</span>
+                    <button
+                      type="button"
+                      className="smp-adv-x"
+                      aria-label={t("common.close")}
+                      onClick={close}
+                    ><IcClose /></button>
+                  </div>
+
+                  <div className="smp-adv-grid">
+                    <div className="smp-adv-wide">
+                      <div className="smp-adv-lb">{t("smp.sort")}</div>
+                      <div className="smp-seg">
+                        {SORT_OPTS.map(([key, k]) => (
+                          <button
+                            type="button"
+                            key={key}
+                            className={sortBy === key ? "on" : ""}
+                            onClick={() => setSortBy(key)}
+                          >{t(k)}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="smp-adv-lb">{t("smp.filter.finger")}</div>
+                      <select
+                        className="smp-adv-sel"
+                        value={fingerFilter}
+                        onChange={(e) => setFingerFilter(e.target.value)}
+                      >
+                        <option value="">{t("smp.filter.all_fingers")}</option>
+                        {FINGER_OPTS.map((f) => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="smp-adv-scorehd">
+                      <span>{t("smp.filter.min_score")}</span>
+                      <span className="smp-adv-scoreval">
+                        <input
+                          className="smp-adv-num"
+                          type="number"
+                          min={SCORE_MIN}
+                          max={SCORE_MAX}
+                          value={minScore}
+                          onChange={(e) => setMinScore(clampScore(e.target.value))}
+                        />
+                        <span className="smp-adv-max">/ {SCORE_MAX}</span>
+                      </span>
+                    </div>
+                    <input
+                      className="smp-adv-range"
+                      type="range"
+                      min={SCORE_MIN}
+                      max={SCORE_MAX}
+                      value={minScore}
+                      onChange={(e) => setMinScore(clampScore(e.target.value))}
+                      aria-label={t("smp.filter.min_score")}
+                      // CSS khong doc duoc value cua input range -> gan % fill inline.
+                      style={{ "--smp-fill": `${(minScore / SCORE_MAX) * 100}%` }}
+                    />
+                    <div className="smp-adv-ticks">
+                      <span>{SCORE_MIN}</span><span>{SCORE_MID}</span><span>{SCORE_MAX}</span>
+                    </div>
+                  </div>
+
+                  <div className="smp-adv-foot">
+                    <button
+                      type="button"
+                      className="smp-adv-reset"
+                      disabled={!filterCount && sortBy === "newest"}
+                      onClick={resetFilter}
+                    >{t("smp.filter.reset")}</button>
+                    <button type="button" className="smp-adv-apply" onClick={close}>
+                      {t("smp.filter.apply")}
+                    </button>
+                  </div>
+                </>
+              )}
+            />
           </div>
         </div>
 
@@ -219,7 +425,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
           )}
           {!loading && pageRows.map((r, i) => {
             const it = traceFor((page - 1) * PAGE_SIZE + i);
-            const open = it ? () => setFullId(it.id) : undefined;
+            const open = it ? () => setFull({ id: it.id, row: r }) : undefined;
             return (
               <div
                 className={"smp-mt-row" + (it ? " go" : "")}
@@ -241,7 +447,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
                 <div className="smp-dim">{r.cccd}</div>
                 <div className="smp-dim smp-ellip">{r.finger}</div>
                 <div>
-                  <span className="smp-score">{r.score}</span>{" "}
+                  <span className="smp-score">{r.score}/{SCORE_TOTAL}</span>{" "}
                   <span className="smp-dim">{r.pct}</span>
                 </div>
                 <div>
@@ -303,12 +509,14 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
           formatDateTime={formatDateTime}
           onAddFiles={addTraces}
           uploading={uploading}
-          onDelete={delTraces}
-          onEditNote={editNote}
-          onReload={load}
+          onDelete={(items) => setDelTrace(items[0] || null)}
+          onEdit={setEditTrace}
+          sort={traceSort}
+          setSort={setTraceSort}
         />
         <SubjectPanel
           t={t}
+          subjects={SUBJECTS}
           openSub={openSub}
           setOpenSub={setOpenSub}
           // ponytail: chi chan theo status (co trong payload san). Backend con chan
@@ -322,46 +530,141 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
             : ""}
         />
       </div>
+
+      {editTrace && (
+        <TraceEditModal
+          t={t}
+          item={editTrace}
+          code={traceCode(editTrace)}
+          onClose={() => setEditTrace(null)}
+          onSave={saveTrace}
+        />
+      )}
+
+      {delTrace && (
+        <div
+          className="smp-modal-bd"
+          onMouseDown={(e) => e.target === e.currentTarget && setDelTrace(null)}
+        >
+          <div className="smp-modal smp-modal-sm" role="dialog" aria-modal="true">
+            <div className="smp-modal-head">
+              <span className="smp-modal-title">{t("scene.del.title")}</span>
+              <button
+                type="button"
+                className="smp-adv-x"
+                aria-label={t("common.close")}
+                onClick={() => setDelTrace(null)}
+              ><IcClose s={17} /></button>
+            </div>
+            <div className="smp-modal-msg">
+              {t("scene.del.body", { n: traceCode(delTrace) })}
+            </div>
+            <div className="smp-modal-foot">
+              <button type="button" className="smp-modal-cancel" onClick={() => setDelTrace(null)}>
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="smp-modal-del"
+                disabled={uploading}
+                onClick={() => delTraces([delTrace])}
+              >{t("common.delete")}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ---------- Menu ⋮ ----------
-   Dung <details> native: tu toggle, khong can state + outside-click handler.
-   ponytail: bam ra ngoai khong tu dong dong menu. Them handler document
-   mousedown neu thay vuong. */
-function DotsMenu({ label, children }) {
+function PopMenu({
+  label, trigger, children, render, onState,
+  popClassName = "", width = 176, closeOnClick = true, btnClassName = "smp-menu-btn",
+}) {
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const popId = useId();          // label la chuoi i18n dung chung -> id phai tu useId
+  const [open, setOpen] = useState(false);
+
+  // Menu nam trong .smp-tr-card-img (height 64px, overflow hidden) va .smp-tr-list
+  // (overflow-y auto) -> position:absolute bi cat mat. Dung popover native: browser
+  // dua element len top layer, khong ancestor overflow nao cat duoc.
+  // Toa do phai tu tinh (CSS anchor positioning chua co tren Chromium cua Electron 33).
+  const place = (h) => {
+    const b = btnRef.current?.getBoundingClientRect();
+    const pop = popRef.current;
+    if (!b || !pop) return;
+    const W = width, M = 8;                  // khop min-width 168 + padding trong CSS
+    const left = Math.max(M, Math.min(b.right - W + 2, window.innerWidth - W - M));
+    const below = b.bottom + 6;
+    // Het cho ben duoi (the o hang cuoi) -> mo len tren.
+    const top = below + h > window.innerHeight - M
+      ? Math.max(M, b.top - 6 - h)
+      : below;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${top}px`;
+  };
+
   return (
-    <details
-      className="smp-menu"
-      onClick={(e) => e.stopPropagation()}   // trong the row/card co onClick toggle chon anh
-    >
-      <summary aria-label={label} title={label}><IcDots /></summary>
-      <div className="smp-menu-pop">{children}</div>
-    </details>
+    <div className="smp-menu" onClick={(e) => e.stopPropagation()}>
+      <button
+        ref={btnRef}
+        type="button"
+        className={btnClassName + (open ? " on" : "")}
+        aria-label={label}
+        title={label}
+        popoverTarget={popId}
+      >{trigger}</button>
+      <div
+        ref={popRef}
+        id={popId}
+        popover="auto"
+        className={`smp-menu-pop ${popClassName}`}
+        // ponytail: uoc luong chieu cao (44px/item) de dat cho dung ngay lan dau —
+        // luc beforetoggle popover con display:none nen do that ra 0. onToggle do
+        // lai chinh xac, chi lech neu uoc luong sai (item xuong 2 dong).
+        onBeforeToggle={(e) => {
+          if (e.newState === "open") place(44 * (popRef.current?.children.length || 2) + 14);
+        }}
+        onToggle={(e) => {
+          if (e.newState === "open") place(popRef.current.offsetHeight);
+          setOpen(e.newState === "open");
+          onState && onState(e.newState === "open");
+        }}
+        onClick={closeOnClick ? () => popRef.current?.hidePopover() : undefined}
+      >
+        {render ? render(() => popRef.current?.hidePopover()) : children}
+      </div>
+    </div>
   );
 }
 
 /* ---------- Panel: DẤU VẾT HIỆN TRƯỜNG (data thật) ---------- */
 function SceneTracePanel({
   t, traces, total, q, setQ, view, setView, picked, toggle, traceCode, formatDateTime,
-  onAddFiles, uploading, onDelete, onEditNote, onReload,
+  onAddFiles, uploading, onDelete, onEdit, sort, setSort,
 }) {
-  const pickedItems = traces.filter((x) => picked.has(x.id));
-  // Menu tren tung anh: viec chi lien quan den anh do.
-  const rowMenu = (it) => (
-    <DotsMenu label={t("scene.row.actions")}>
-      <button type="button" onClick={() => onEditNote(it)}>{t("scene.note_add")}</button>
-      <a href={it.url} download target="_blank" rel="noreferrer">{t("scene.detail.download")}</a>
+  const [dragOver, setDragOver] = useState(false);
+  // Design: 2 nut Chinh sua / Xoa ngay tren the, thay cho menu "...".
+  const actions = (it, grid) => (
+    <div className={"smp-act" + (grid ? " smp-act-grid" : "")} onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
-        className="smp-menu-del"
+        className="smp-act-edit"
+        title={t("smp.tr.edit")}
+        aria-label={t("smp.tr.edit")}
+        onClick={() => onEdit(it)}
+      ><IcPencil s={grid ? 12 : 13} /></button>
+      <button
+        type="button"
+        className="smp-act-del"
+        title={t("common.delete")}
+        aria-label={t("common.delete")}
         disabled={uploading}
         onClick={() => onDelete([it])}
-      >{t("common.delete")}</button>
-    </DotsMenu>
+      ><IcTrash s={grid ? 12 : 13} /></button>
+    </div>
   );
-  const [dragOver, setDragOver] = useState(false);
   const pick = (e) => {
     onAddFiles(e.target.files);
     e.target.value = "";     // chon lai cung file van chay onChange
@@ -393,19 +696,6 @@ function SceneTracePanel({
               onChange={pick}
             />
           </label>
-          <DotsMenu label={t("scene.row.actions")}>
-            <button type="button" onClick={onReload} disabled={uploading}>
-              {t("scene.btn.refresh")}
-            </button>
-            <button
-              type="button"
-              className="smp-menu-del"
-              disabled={uploading || !pickedItems.length}
-              onClick={() => onDelete(pickedItems)}
-            >
-              {t("common.delete")}{pickedItems.length ? ` (${pickedItems.length})` : ""}
-            </button>
-          </DotsMenu>
         </div>
       </div>
 
@@ -428,14 +718,39 @@ function SceneTracePanel({
         />
       </label>
 
-      <div className="smp-panel-tools smp-panel-tools-row">
+      <div className="smp-tr-tools">
         <input
-          className="smp-search"
+          className="smp-search smp-tr-search"
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t("smp.trace.search_ph")}
         />
+        <div className="smp-panel-tools">
+        <PopMenu
+          label={t("smp.filter")}
+          btnClassName="smp-trg smp-trg-tsort"
+          popClassName="smp-pop-tsort"
+          width={200}
+          closeOnClick={false}
+          trigger={<>
+            <IcFilter s={14} />
+            {t("smp.filter")}
+          </>}
+        >
+          <div className="smp-pop-cap">{t("smp.sort")}</div>
+          {TRACE_SORTS.map(([key, k]) => (
+            <button
+              type="button"
+              key={key}
+              className={"smp-opt" + (sort === key ? " on" : "")}
+              onClick={() => setSort(key)}
+            >
+              {t(k)}
+              {sort === key && <IcTick />}
+            </button>
+          ))}
+        </PopMenu>
         <div className="smp-viewtoggle">
           <button
             type="button"
@@ -449,6 +764,7 @@ function SceneTracePanel({
             onClick={() => setView("list")}
             aria-label={t("smp.view.list")}
           ><IcList /></button>
+        </div>
         </div>
       </div>
 
@@ -469,8 +785,8 @@ function SceneTracePanel({
               </div>
               <div className="smp-dim">{formatDateTime(it.captured_at)}</div>
               <div className="smp-dim">{t("smp.trace.pending")}</div>
+              {actions(it, false)}
               <div className="smp-check">{picked.has(it.id) && <span className="smp-tick-dot"><IcCheck /></span>}</div>
-              {rowMenu(it)}
             </div>
           ))}
         </div>
@@ -485,7 +801,7 @@ function SceneTracePanel({
               <div className="smp-tr-card-img">
                 <img src={it.url} alt={traceCode(it)} loading="lazy" />
                 {picked.has(it.id) && <span className="smp-tick-dot smp-tick-abs"><IcCheck /></span>}
-                <div className="smp-menu-abs">{rowMenu(it)}</div>
+                {actions(it, true)}
               </div>
               <div className="smp-tr-card-body">
                 <div className="smp-strong smp-ellip">{traceCode(it)}</div>
@@ -500,10 +816,94 @@ function SceneTracePanel({
   );
 }
 
+/* ---------- Modal: CHỈNH SỬA DẤU VẾT ---------- */
+/* Ma dau vet sinh tu seq (traceCode) nen khong sua duoc; 3 truong con lai
+   (loai dau vet, vi tri thu thap, ghi chu) PATCH len backend. */
+function TraceEditModal({ t, item, code, onClose, onSave }) {
+  const [form, setForm] = useState({
+    trace_type: item.trace_type || "",
+    collection_source: item.collection_source || "",
+    note: item.note || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const save = async () => {
+    setSaving(true);
+    await onSave(item, form);
+    setSaving(false);
+  };
+  return (
+    <div
+      className="smp-modal-bd"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="smp-modal" role="dialog" aria-modal="true" aria-label={t("smp.tr.edit_title")}>
+        <div className="smp-modal-head">
+          <span className="smp-modal-title">{t("smp.tr.edit_title")}</span>
+          <button
+            type="button"
+            className="smp-adv-x"
+            aria-label={t("common.close")}
+            onClick={onClose}
+          ><IcClose s={17} /></button>
+        </div>
+        <div className="smp-modal-body">
+          <div>
+            <div className="smp-modal-lb">{t("smp.tr.f_code")}</div>
+            {/* Ma sinh tu so thu tu anh trong phien -> khong cho sua. */}
+            <input className="smp-modal-in" value={code} readOnly disabled />
+          </div>
+          <div>
+            <div className="smp-modal-lb">{t("scene.col.type")}</div>
+            <input
+              className="smp-modal-in"
+              value={form.trace_type}
+              onChange={set("trace_type")}
+              maxLength={100}
+              placeholder={t("smp.tr.f_type_ph")}
+            />
+          </div>
+          <div>
+            <div className="smp-modal-lb">{t("smp.tr.f_place")}</div>
+            <input
+              className="smp-modal-in"
+              value={form.collection_source}
+              onChange={set("collection_source")}
+              maxLength={200}
+              placeholder={t("smp.tr.f_place_ph")}
+            />
+          </div>
+          <div>
+            <div className="smp-modal-lb">{t("smp.tr.f_note")}</div>
+            <textarea
+              className="smp-modal-in"
+              rows="3"
+              maxLength={500}
+              value={form.note}
+              onChange={set("note")}
+              placeholder={t("smp.tr.f_note_ph")}
+            />
+          </div>
+        </div>
+        <div className="smp-modal-foot">
+          <button type="button" className="smp-modal-cancel" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="smp-modal-save" disabled={saving} onClick={save}>
+            {saving ? t("common.saving") : t("smp.tr.save")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Panel: HỒ SƠ ĐỐI TƯỢNG (data giả) ---------- */
-function SubjectPanel({ t, openSub, setOpenSub, onAdd, addDisabledHint }) {
-  const total = SUBJECTS.length;
-  const photos = SUBJECTS.reduce((n, s) => n + s.photoCount, 0);
+function SubjectPanel({
+  t, subjects, openSub, setOpenSub, onAdd, addDisabledHint,
+}) {
+  const total = subjects.length;
+  const photos = subjects.reduce((n, s) => n + s.photoCount, 0);
 
   return (
     <section className="smp-panel smp-panel-subject">
@@ -526,11 +926,13 @@ function SubjectPanel({ t, openSub, setOpenSub, onAdd, addDisabledHint }) {
       </div>
 
       <div className="smp-sub-list">
-        {SUBJECTS.map((s) => {
+        {subjects.map((s) => {
           const open = s.id === openSub;
           return open ? (
             <div className="smp-sub-open" key={s.id}>
-              <div className="smp-sub-photo" aria-hidden="true" />
+              <div className="smp-sub-photo">
+                {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
+              </div>
               <div className="smp-sub-info">
                 <div className="smp-top-line">
                   <span className="smp-strong">{s.name}</span>
@@ -570,7 +972,9 @@ function SubjectPanel({ t, openSub, setOpenSub, onAdd, addDisabledHint }) {
           ) : (
             <div className="smp-sub-row" key={s.id} onClick={() => setOpenSub(s.id)}>
               <div className="smp-sub-row-left">
-                <div className="smp-sub-avatar" aria-hidden="true" />
+                <div className="smp-sub-avatar">
+                  {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
+                </div>
                 <div>
                   <div className="smp-strong">{s.name}</div>
                   <div className="smp-dim">CCCD: {s.cccd}</div>

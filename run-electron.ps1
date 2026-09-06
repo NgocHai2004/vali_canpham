@@ -6,9 +6,9 @@
 #   1. Mongo (mongod.exe truc tiep, KHONG Docker)  -> 127.0.0.1:27017
 #   2. Services usb + fp                          -> 8766 / 8765
 #   3. Backend uvicorn                            -> 127.0.0.1:8000
-#   4. Build frontend (bo qua neu dist co)
+#   4. Build frontend (luon build; -SkipBuild de bo qua)
 #   5. Electron (npm start trong electron/)
-param([switch]$ForceBuild)
+param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'
 $root     = $PSScriptRoot                       # app_cccd/
@@ -93,14 +93,17 @@ for ($i=0; $i -lt 60; $i++) {
     Start-Sleep -Milliseconds 1000
 }
 
-# ---- 4. Build frontend (bo qua neu dist co va khong -ForceBuild) ----
+# ---- 4. Build frontend ----
+# Luon build: Electron doc thang frontend/dist (electron/config.js), nen dist cu
+# = app hien code cu. Vite chi build lai phan doi nen mat vai giay.
+# -SkipBuild de bo qua khi chac chan dist da moi.
 Write-Step "4/5 Frontend build..."
-if ($ForceBuild -or -not (Test-Path (Join-Path $dist 'index.html'))) {
+if ($SkipBuild) {
+    Write-Host "  -SkipBuild: dung dist/ hien co."
+} else {
     Push-Location $frontend
     try { npm run build } finally { Pop-Location }
     Write-Host "  Da build frontend -> dist/"
-} else {
-    Write-Host "  Da co dist/index.html (bo qua build). Dung -ForceBuild de rebuild."
 }
 
 # ---- 5. Electron ----

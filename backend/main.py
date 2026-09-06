@@ -2252,7 +2252,11 @@ async def create_scene_trace(
 
 
 class SceneTracePatch(BaseModel):
-    note: str = Field(default="", max_length=500)
+    """PATCH thật: field nào None là không gửi -> giữ nguyên giá trị cũ.
+    Không dùng default="" vì caller chỉ sửa ghi chú sẽ xoá trắng 2 field kia."""
+    note: Optional[str] = Field(default=None, max_length=500)
+    trace_type: Optional[str] = Field(default=None, max_length=100)
+    collection_source: Optional[str] = Field(default=None, max_length=200)
 
 
 @app.patch("/api/scene/traces/{trace_id}")
@@ -2265,10 +2269,18 @@ async def update_scene_trace(
     doc = await db.scene_traces.find_one({"_id": _oid(trace_id)})
     if not doc:
         raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
-    await db.scene_traces.update_one(
-        {"_id": doc["_id"]}, {"$set": {"note": body.note.strip()}}
-    )
-    doc["note"] = body.note.strip()
+    patch = {
+        k: v.strip()
+        for k, v in (
+            ("note", body.note),
+            ("trace_type", body.trace_type),
+            ("collection_source", body.collection_source),
+        )
+        if v is not None
+    }
+    if patch:
+        await db.scene_traces.update_one({"_id": doc["_id"]}, {"$set": patch})
+        doc.update(patch)
     await _log(request, user, "update", "scene_trace", f"#{doc.get('seq')}",
                ref_id=trace_id, session_id=doc.get("session_id"))
     return _s_scene(doc)

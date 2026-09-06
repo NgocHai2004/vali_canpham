@@ -1,0 +1,43 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: app_cccd
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      # ponytail: khong co dongle/usb_service trong container -> bypass.
+      # Bo dong nay khi chay that co USB service.
+      DONGLE_BYPASS: "1"
+      USB_SERVICE_URL: http://host.docker.internal:8766
+      FP_SERVICE_URL: http://host.docker.internal:8765
+    volumes:
+      # Anh/report da co + model: mount thay vi COPY vao image (.dockerignore loai uploads/).
+      - ./backend/uploads:/app/uploads
+      - ./models:/models:ro
+      - ./model_insight:/model_insight:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:

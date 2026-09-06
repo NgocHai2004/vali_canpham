@@ -6,13 +6,16 @@
 // mẫu này để đúng bố cục đã chốt. Có dữ liệu thật thì mẫu tự tắt.
 //
 // Ảnh đều là ảnh THẬT, lấy từ hai nguồn khác nhau đúng theo nghiệp vụ:
-//   - Vết hiện trường: 20 file latent trong backend/uploads/scene_demo/
-//   - Vân tay đối chiếu: vân tay lăn đã thu nhận qua máy quét, trong
-//     backend/uploads/ (xem ENROLLED bên dưới)
+//   - Vết hiện trường: 17 ảnh latent đã cắt, backend/uploads/latent_cut/
+//   - Vân tay đối chiếu: 49 bản vân tay, backend/uploads/vantay_synth/
 // Riêng các con số đối sánh (điểm minutiae, %, kết luận) là số dựng — hệ
 // thống chưa có engine trích minutiae.
 //
 // Xoá file này sau khi backend lưu đủ các trường trên.
+
+// Tổng số điểm đặc trưng của 1 lần đối sánh. Dùng chung cho bảng KẾT QUẢ ĐỐI
+// SÁNH, thanh trượt "Điểm tối thiểu" và trang chi tiết => cả 3 chỗ cùng thang.
+export const SCORE_TOTAL = 22;
 
 // 60 dấu vết: đủ nhiều trang để thấy phân trang, không lặp ảnh quá lộ.
 export const DEMO_TOTAL = 60;
@@ -33,66 +36,86 @@ const DEMO_OFFICER = "Nguyễn Ngọc Hải";
 const DEMO_NOTE =
   "Vân tay thu được trên bề mặt ngoài của kính tầng 2, phòng phía Tây.";
 
-// 20 ảnh latent thật, giải nén từ bộ "Dấu vết - Latent" vào
-// backend/uploads/scene_demo/ (backend mount /uploads bằng StaticFiles).
-// Thư mục này nằm trong .gitignore nên ảnh không vào repo.
+// Vết hiện trường (latent): 17 ảnh đã cắt sẵn, khổ dọc ~2:3 (130..146 x 188..217),
+// trong backend/uploads/latent_cut/ (backend mount /uploads bằng StaticFiles).
+// Thư mục nằm trong .gitignore nên ảnh không vào repo.
 const LATENT = [
-  "1601010010201.png",
-  "1601180010401.png",
-  "1601270010201.png",
-  "1601300010101.png",
-  "1602040010901.png",
-  "1602230010401.png",
-  "1602230010501.png",
-  "1602250010201.png",
-  "1603160010101.png",
-  "1604110010101.png",
-  "1604180010301.png",
-  "1605090020301.png",
-  "1605100010101.png",
-  "1605100010201.png",
-  "1605100010501.png",
-  "1605130010101.png",
-  "1605290010101.png",
-  "1606170010101.png",
-  "1607020010601.png",
-  "1607210010501.png",
+  "dauvantay_01.png",
+  "dauvantay_02.png",
+  "dauvantay_03.png",
+  "dauvantay_04.png",
+  "dauvantay_05.png",
+  "dauvantay_06.png",
+  "dauvantay_07.png",
+  "dauvantay_08.png",
+  "dauvantay_09.png",
+  "dauvantay_10.png",
+  "vantay_02.png",
+  "vantay_03.png",
+  "vantay_04.png",
+  "vantay_05.png",
+  "vantay_06.png",
+  "vantay_07.png",
+  "vantay_08.png",
 ];
 
-// Ảnh latent gốc là 512x512, khác khổ ảnh đối chiếu (300x400) nên đã crop
-// lấy phần giữa theo tỉ lệ 3:4 rồi resize về đúng 300x400, ghi sang
-// scene_crop/ (ảnh gốc trong scene_demo/ vẫn giữ nguyên).
-const LATENT_BASE = "/uploads/scene_crop/";
+const LATENT_BASE = "/uploads/latent_cut/";
 
-// Vân tay ĐỐI CHIẾU: không phải latent, mà là vân tay lăn THẬT đã thu nhận
-// qua máy quét và nằm sẵn trong backend/uploads/ (grayscale 300x400 hoặc
-// 400x500 PNG). Thư mục uploads còn lẫn ảnh chân dung, ảnh thẻ CCCD và ảnh
-// quét lỗi/trắng, nên danh sách dưới đây đã lọc tay: chỉ giữ file đúng là
-// vân tay và đủ rõ nét (độ tương phản + độ phủ mực vùng trung tâm).
+// Vân tay ĐỐI CHIẾU: 49 bản vân tay 380x380 trong backend/uploads/vantay_synth/.
+// Đủ nhiều để 60 dấu vết + 9 đối tượng x 10 ngón không lặp ảnh quá lộ.
 const ENROLLED = [
-  "20260721095252_6a5f41745fb131b5ff122b62.png",
-  "20260721104638_6a5f4e0e5fb131b5ff122b73.png",
-  "20260722091102_6a6089268bc28ce0b8826d5a.png",
-  "20260728021823_6a68116fd97fabc55d7d7bca.png",
-  "20260729071717_6a69a8fda56dc0f97d2c8502.png",
-  "20260804074339_6a71982bf6d3100319d82483.png",
-  "20260806103421_6a74632d3b838176cdbb5d9b.png",
-  "20260806104138_6a7464e23b838176cdbb5daf.png",
-  "20260807072651_6a7588bb989cdea278da0cc0.png",
-  "20260807073254_6a758a265fa804995ffbe49b.png",
-  "20260807073444_6a758a945fa804995ffbe4b8.png",
-  "20260808031029_6a769e25da6df88218bda526.png",
-  "20260813025321_6a7d31a18a7301f452d91da5.png",
-  "20260813032042_6a7d380a3f5334697d542ec3.png",
-  "20260813032159_6a7d38573f5334697d542edd.png",
-  "20260813034110_6a7d3cd65c01946f7ed0c70b.png",
-  "20260821105241_6a882df9d5f5a396f0886ddd.png",
-  "20260822050429_6a892dddd5f5a396f0886e31.png",
-  "20260822063442_6a894302d5f5a396f0886e3e.png",
-  "20260822080859_6a89591bd5f5a396f0886e54.png",
+  "vantay_synth_02.png",
+  "vantay_synth_03.png",
+  "vantay_synth_04.png",
+  "vantay_synth_05.png",
+  "vantay_synth_06.png",
+  "vantay_synth_07.png",
+  "vantay_synth_08.png",
+  "vantay_synth_09.png",
+  "vantay_synth_10.png",
+  "vantay_synth_11.png",
+  "vantay_synth_12.png",
+  "vantay_synth_13.png",
+  "vantay_synth_14.png",
+  "vantay_synth_15.png",
+  "vantay_synth_16.png",
+  "vantay_synth_17.png",
+  "vantay_synth_18.png",
+  "vantay_synth_19.png",
+  "vantay_synth_20.png",
+  "vantay_synth_21.png",
+  "vantay_synth_22.png",
+  "vantay_synth_23.png",
+  "vantay_synth_24.png",
+  "vantay_synth_25.png",
+  "vantay_synth_26.png",
+  "vantay_synth_27.png",
+  "vantay_synth_28.png",
+  "vantay_synth_29.png",
+  "vantay_synth_30.png",
+  "vantay_synth_31.png",
+  "vantay_synth_32.png",
+  "vantay_synth_33.png",
+  "vantay_synth_34.png",
+  "vantay_synth_35.png",
+  "vantay_synth_36.png",
+  "vantay_synth_37.png",
+  "vantay_synth_38.png",
+  "vantay_synth_39.png",
+  "vantay_synth_40.png",
+  "vantay_synth_41.png",
+  "vantay_synth_42.png",
+  "vantay_synth_43.png",
+  "vantay_synth_44.png",
+  "vantay_synth_45.png",
+  "vantay_synth_46.png",
+  "vantay_synth_47.png",
+  "vantay_synth_48.png",
+  "vantay_synth_49.png",
+  "vantay_synth_50.png",
 ];
 
-const ENROLLED_BASE = "/uploads/";
+const ENROLLED_BASE = "/uploads/vantay_synth/";
 
 // Vết hiện trường (latent) — ảnh cán bộ thu tại hiện trường.
 export function latentUrl(seq) {
@@ -113,15 +136,21 @@ export function demoImage(seq, kind, role = "latent") {
   return role === "candidate" ? enrolledUrl(s) : latentUrl(s);
 }
 
-// Toạ độ % các điểm đặc trưng để vẽ overlay lên ảnh.
-export function minutiae(seq) {
+// Toạ độ % các điểm đặc trưng để vẽ overlay lên ảnh (ảnh 03/04 trong thư mục
+// đối sánh). CÙNG một bộ toạ độ dùng cho cả ảnh latent và ảnh đối chiếu, nên
+// chấm số k trên ảnh 03 và chấm số k trên ảnh 04 là 1 cặp điểm khớp — đó là
+// cách minh hoạ "hai ảnh giống nhau ở đâu".
+// Vị trí là số DỰNG: hệ thống chưa có engine trích minutiae.
+export function minutiae(seq, n = 9) {
   const out = [];
-  for (let i = 0; i < 9; i++) {
-    const a = ((i * 47 + seq * 11) % 360) * (Math.PI / 180);
-    const r = 12 + ((i * 13 + seq * 3) % 26);
+  for (let i = 0; i < n; i++) {
+    // Xoắn ốc theo góc vàng: điểm phủ đều vùng giữa ảnh thay vì dồn 1 vòng tròn.
+    const a = i * 2.39996 + seq * 0.37;
+    const r = 8 + 26 * Math.sqrt((i + 0.5) / n);
     out.push({
-      x: (50 + r * Math.cos(a)).toFixed(1),
-      y: (50 + r * Math.sin(a)).toFixed(1),
+      x: +(50 + r * Math.cos(a)).toFixed(1),
+      // Ảnh vân tay khổ 3:4 => giãn trục y cho chấm phủ hết vùng vân.
+      y: +(50 + r * Math.sin(a) * 1.15).toFixed(1),
     });
   }
   return out;
@@ -162,8 +191,11 @@ export const DEMO_ITEMS = Array.from({ length: DEMO_TOTAL }, (_, i) => {
 // Cột 01 = vết hiện trường (latent), cột 02 = vân tay đối chiếu đã thu nhận.
 export function demoShots(item) {
   const seq = item?.seq ?? 1;
+  // Anh latent = ANH THAT cua dau vet dang xem (item.url), khong dung lai theo
+  // seq: url trong DB gan theo index tuyet doi nen dung seq se ra anh khac.
+  const latent = item?.url || demoImage(seq, "raw", "latent");
   return [
-    { key: "raw1", labelKey: "scene.shot.raw1", url: demoImage(seq, "raw", "latent") },
+    { key: "raw1", labelKey: "scene.shot.raw1", url: latent },
     { key: "raw2", labelKey: "scene.shot.raw2", url: demoImage(seq, "raw", "candidate") },
     { key: "dot1", labelKey: "scene.shot.dot1", url: demoImage(seq, "dots", "latent") },
     { key: "dot2", labelKey: "scene.shot.dot2", url: demoImage(seq, "dots", "candidate") },
@@ -175,6 +207,9 @@ export function demoShots(item) {
 // đã thu nhận qua máy quét trong hệ thống.
 export function demoFiles(item) {
   const seq = item?.seq ?? 1;
+  // File 01/03 = ANH THAT cua dau vet dang xem => the 4.1 khop anh o bang KET
+  // QUA DOI SANH / DAU VET HIEN TRUONG va o o anh latent ben tren.
+  const latent = item?.url || demoImage(seq, "raw", "latent");
   return [
     {
       n: 1,
@@ -182,7 +217,7 @@ export function demoFiles(item) {
       name: "01_latent_original.png",
       groupKey: "scene.file.g_raw",
       kindKey: "scene.file.k_latent",
-      url: demoImage(seq, "raw", "latent"),
+      url: latent,
       size: 1.2,
     },
     {
@@ -200,7 +235,9 @@ export function demoFiles(item) {
       name: "03_latent_minutiae.png",
       groupKey: "scene.file.g_dots",
       kindKey: "scene.file.k_latent",
-      url: demoImage(seq, "dots"),
+      // Đúng ảnh 01, chấm minutiae vẽ overlay khi render (xem SceneTraceFull).
+      url: latent,
+      dots: true,
       size: 1.3,
     },
     {
@@ -209,26 +246,28 @@ export function demoFiles(item) {
       name: "04_candidate_minutiae.png",
       groupKey: "scene.file.g_dots",
       kindKey: "scene.file.k_candidate",
-      url: demoImage(seq + 3, "dots"),
+      // Đúng ảnh 02, cùng bộ toạ độ chấm với ảnh 03 => thấy cặp điểm khớp.
+      url: demoImage(seq, "raw", "candidate"),
+      dots: true,
       size: 1.3,
     },
   ];
 }
 
-// Kết quả đối sánh mẫu. Engine trích minutiae chưa có trong hệ thống nên
-// toàn bộ số liệu dưới đây là số dựng, KHÔNG phải kết quả đối sánh thật.
-export function demoMatch(item) {
-  const seq = item?.seq ?? 1;
-  const total = 22;
-  const found = 17 + (seq % 5);
+// Kết quả đối sánh mẫu của ĐÚNG dòng vừa bấm trong bảng "KẾT QUẢ ĐỐI SÁNH".
+// Bảng đó chỉ liệt kê các cặp TRÙNG KHỚP nên verdict luôn là match, và mọi số
+// liệu phải lấy từ chính row — trước đây hàm này tự dựng số điểm theo seq của
+// dấu vết nên chi tiết nói khác bảng (dòng ghi Trùng khớp, chi tiết ghi Cần
+// thẩm định). Điểm minutiae vẫn là số dựng: quy từ % của row cho khớp bảng.
+export function demoMatch(item, row) {
   return {
-    verdict: found >= 19 ? "match" : "review",
-    found,
-    total,
-    percent: ((found / total) * 100).toFixed(1),
-    finger: "Ngón giữa - Bàn tay phải",
-    subject: "Nghi phạm: Trần Văn A (SN 1992)",
-    analyzed_at: "24/05/2025 10:42",
+    verdict: "match",
+    found: row.score,
+    total: SCORE_TOTAL,
+    percent: String(row.pct).replace(/[^\d.]/g, ""),
+    finger: row.finger,
+    subject: `Nghi phạm: ${row.name} (CCCD ${row.cccd})`,
+    analyzed_at: row.time,
     analyst: DEMO_OFFICER,
     quality: "Cao",
     confidence: "Rất cao",
