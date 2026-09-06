@@ -8,6 +8,9 @@ import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
+import SceneCasePicker from "./SceneCasePicker";
+import SceneMatchPage from "./SceneMatchPage";
+import "./sceneMatch.css";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { useI18n, LanguageSwitch } from "./i18n";
 
@@ -74,6 +77,7 @@ const Icon = {
 const NAV_BASE = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: Icon.dashboard },
   { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
+  { key: "scene_traces", labelKey: "nav.scene_traces", icon: Icon.folder },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
   { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
   { key: "search", labelKey: "nav.search", icon: Icon.search },
@@ -90,6 +94,8 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   const { t, locale } = useI18n();
   useEffect(() => { setLastLocale(locale); }, [locale]);
   const [page, setPage] = useState("dashboard");
+  // Vu an dang xem trong tab Dau vet hien truong ("" = dang o bang chon).
+  const [sceneSessionId, setSceneSessionId] = useState("");
   const [editingDetainee, setEditingDetainee] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [sessionCtx, setSessionCtx] = useState(null);
@@ -159,6 +165,13 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   const addDetaineeToSession = (sessionId) => {
     setEditingDetainee(null);
     setSessionCtx({ sessionId, sessionCode: null, sessionReadOnly: false });
+    setPage("session_capture");
+  };
+  // Thêm đối tượng từ màn Phân tích đối sánh: cùng luồng thu nhận, nhưng lưu/huỷ
+  // xong quay lại đúng vụ án đang xem (sceneSessionId vẫn giữ nguyên).
+  const addSubjectFromScene = (sessionId) => {
+    setEditingDetainee(null);
+    setSessionCtx({ sessionId, sessionCode: null, sessionReadOnly: false, returnTo: "scene_traces" });
     setPage("session_capture");
   };
   const editDetaineeInSession = (detainee, session) => {
@@ -238,6 +251,17 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
         <main className="content">
           {page === "dashboard" && <DashboardHome go={goPage} isAdmin={isAdmin} fullName={fullName} />}
           {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
+          {page === "scene_traces" && (
+            sceneSessionId ? (
+              <SceneMatchPage
+                sessionId={sceneSessionId}
+                onBack={() => setSceneSessionId("")}
+                onAddSubject={addSubjectFromScene}
+              />
+            ) : (
+              <SceneCasePicker onPick={setSceneSessionId} />
+            )
+          )}
           {page === "cells" && <CellsPage />}
           {page === "sessions" && (
             <SessionListPage

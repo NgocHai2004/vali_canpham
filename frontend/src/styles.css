@@ -10907,3 +10907,20 @@ textarea.input {
 .nsb-sheet .nsb-photo-ph { font-size: 8.5px; color: #64748b; text-align: center; }
 .nsb-sheet .nsb-photo-cap { font-size: 8.5px; text-align: center; width: 24mm; }
 .nsb-sheet .nsb-208-right { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+
+/* Bo loc tren bang chon vu an (tab Dau vet hien truong). */
+.scene-list-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  padding: 12px 16px 16px;
+}
+.scene-list-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.scene-list-filters .control { min-width: 190px; }
