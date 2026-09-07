@@ -122,3 +122,20 @@ image copy*.png
 # ===== OS / editor thêm =====
 desktop.ini
 $RECYCLE.BIN/
+
+# ===== Output xem thu cua tools/norm_vantay.py =====
+# Sinh lai bang: python tools/norm_vantay.py <src_dir> _norm_preview
+# 23MB anh, ban dung that da nam o backend/uploads/ -> khong can push.
+_norm_preview/
+
+# ===== Script tien ich local (khong push) =====
+# fe.ps1  : mo Vite dev + backend qua Docker
+# app.ps1 : build dist + mo app Electron
+# Repo da co run.ps1 / run-electron.ps1 cho luong chuan (mongo portable + uvicorn).
+fe.ps1
+app.ps1
+
+# ===== Script push chua PAT — TUYET DOI khong commit =====
+push.ps1
+.git-token
+orca-qc.ps1

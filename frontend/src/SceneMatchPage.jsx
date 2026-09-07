@@ -1,19 +1,27 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "./api";
 import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
 import { MATCH_ROWS, SUBJECTS } from "./sceneMatchDemo";
+import { fmtSize } from "./SceneTracesPage";
 import { SCORE_TOTAL } from "./sceneDemo";
 import {
   IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
-  IcGrid, IcList, IcPageNext, IcPagePrev, IcPencil, IcPlus,
+  IcEye, IcPageNext, IcPagePrev, IcPencil, IcPlus,
   IcReanalyze, IcTick, IcTrash, IcUpload,
 } from "./sceneMatchIcons";
 
 // Man "Phan tich doi sanh" — dung theo design D:\Downloads\Phan tich doi sanh.
 // Vu an / ma phien / danh sach dau vet = data THAT tu API.
 // Ket qua doi sanh + ho so doi tuong = data gia (chua co engine trich minutiae).
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;   // design: "Hien thi 1 - 10 cua 20"
+
+// Ten file: backend KHONG luu ten goc luc upload (_save_scene_image doi ten thanh
+// "<timestamp>_<ObjectId>.png"), nen ten hien thi lay tu duoi url. Bo query/hash
+// cho chac vi url co the co "?v=..". ponytail: doi sang field ten goc that neu
+// backend luu them, cho do sua o day 1 cho.
+const fileName = (u) => (u || "").split(/[?#]/)[0].split("/").pop() || "—";
 
 // time trong data gia la "DD/MM/YYYY HH:MM" -> so sanh chuoi se sai (03/09 vs 12/08).
 // Doi sang YYYYMMDDHHMM de sort. Bo ham nay khi backend tra ISO timestamp.
@@ -61,12 +69,11 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   const [subjectSel, setSubjectSel] = useState(() => new Set());   // rong = tat ca
   const [fingerFilter, setFingerFilter] = useState("");
   const [minScore, setMinScore] = useState(SCORE_MIN);
-  const [sortBy, setSortBy] = useState("newest");       // design: mac dinh "Mới nhất"
+  const [sortBy, setSortBy] = useState("score_desc");   // mac dinh "Điểm cao nhất"
   const [traceQ, setTraceQ] = useState("");
   const [traceSort, setTraceSort] = useState("newest");
   const [editTrace, setEditTrace] = useState(null);   // != null => mo modal sua
   const [delTrace, setDelTrace] = useState(null);     // != null => mo popup xac nhan xoa
-  const [view, setView] = useState("grid");      // grid | list
   const [picked, setPicked] = useState(() => new Set());
   const [openSub, setOpenSub] = useState(SUBJECTS[0]?.id || "");
   const [uploading, setUploading] = useState(false);
@@ -352,7 +359,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
                         onChange={(e) => setFingerFilter(e.target.value)}
                       >
                         <option value="">{t("smp.filter.all_fingers")}</option>
-                        {FINGER_OPTS.map((f) => <option key={f} value={f}>{f}</option>)}
+                        {FINGER_OPTS.map((f) => <option key={f} value={f}>{t(f)}</option>)}
                       </select>
                     </div>
                   </div>
@@ -392,7 +399,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
                     <button
                       type="button"
                       className="smp-adv-reset"
-                      disabled={!filterCount && sortBy === "newest"}
+                      disabled={!filterCount && sortBy === "score_desc"}
                       onClick={resetFilter}
                     >{t("smp.filter.reset")}</button>
                     <button type="button" className="smp-adv-apply" onClick={close}>
@@ -405,6 +412,8 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
           </div>
         </div>
 
+        {/* Design bo head+body trong 1 khung vien bo goc (kieu bang Excel). */}
+        <div className="smp-mt-wrap">
         <div className="smp-mt-head">
           <div>{t("smp.col.stt")}</div>
           <div>{t("smp.col.code")}</div>
@@ -445,7 +454,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
                 </div>
                 <div className="smp-ellip">{r.name}</div>
                 <div className="smp-dim">{r.cccd}</div>
-                <div className="smp-dim smp-ellip">{r.finger}</div>
+                <div className="smp-dim smp-ellip">{t(r.finger)}</div>
                 <div>
                   <span className="smp-score">{r.score}/{SCORE_TOTAL}</span>{" "}
                   <span className="smp-dim">{r.pct}</span>
@@ -458,6 +467,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
               </div>
             );
           })}
+        </div>
         </div>
 
         <div className="smp-pg">
@@ -501,8 +511,6 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
           total={traces.length}
           q={traceQ}
           setQ={setTraceQ}
-          view={view}
-          setView={setView}
           picked={picked}
           toggle={toggle}
           traceCode={traceCode}
@@ -641,13 +649,21 @@ function PopMenu({
 
 /* ---------- Panel: DẤU VẾT HIỆN TRƯỜNG (data thật) ---------- */
 function SceneTracePanel({
-  t, traces, total, q, setQ, view, setView, picked, toggle, traceCode, formatDateTime,
+  t, traces, total, q, setQ, picked, toggle, traceCode, formatDateTime,
   onAddFiles, uploading, onDelete, onEdit, sort, setSort,
 }) {
   const [dragOver, setDragOver] = useState(false);
-  // Design: 2 nut Chinh sua / Xoa ngay tren the, thay cho menu "...".
+  const [zoom, setZoom] = useState(null);
+  // Design: 3 nut Xem / Chinh sua / Xoa ngay tren the, thay cho menu "...".
   const actions = (it, grid) => (
     <div className={"smp-act" + (grid ? " smp-act-grid" : "")} onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="smp-act-view"
+        title={t("common.view")}
+        aria-label={t("common.view")}
+        onClick={() => setZoom(it)}
+      ><IcEye s={grid ? 12 : 13} /></button>
       <button
         type="button"
         className="smp-act-edit"
@@ -751,26 +767,12 @@ function SceneTracePanel({
             </button>
           ))}
         </PopMenu>
-        <div className="smp-viewtoggle">
-          <button
-            type="button"
-            className={view === "grid" ? "on" : ""}
-            onClick={() => setView("grid")}
-            aria-label={t("smp.view.grid")}
-          ><IcGrid /></button>
-          <button
-            type="button"
-            className={view === "list" ? "on" : ""}
-            onClick={() => setView("list")}
-            aria-label={t("smp.view.list")}
-          ><IcList /></button>
-        </div>
         </div>
       </div>
 
       {traces.length === 0 ? (
         <div className="scene-empty">{t("smp.trace.empty")}</div>
-      ) : view === "list" ? (
+      ) : (
         <div className="smp-tr-list">
           {traces.map((it) => (
             <div
@@ -781,36 +783,27 @@ function SceneTracePanel({
               <img className="smp-thumb-md" src={it.url} alt={traceCode(it)} loading="lazy" />
               <div className="smp-tr-meta">
                 <div className="smp-strong">{traceCode(it)}</div>
-                <div className="smp-dim smp-ellip">{it.collection_source || "—"}</div>
+                <div className="smp-dim smp-ellip">{fileName(it.url)}</div>
               </div>
-              <div className="smp-dim">{formatDateTime(it.captured_at)}</div>
-              <div className="smp-dim">{t("smp.trace.pending")}</div>
+              <div className="smp-dim smp-ellip smp-tr-src">{it.collection_source || "—"}</div>
+              <div className="smp-dim smp-tr-time">{formatDateTime(it.captured_at)}</div>
+              <div className="smp-dim smp-tr-size">{fmtSize(it.size)}</div>
               {actions(it, false)}
               <div className="smp-check">{picked.has(it.id) && <span className="smp-tick-dot"><IcCheck /></span>}</div>
             </div>
           ))}
         </div>
-      ) : (
-        <div className="smp-tr-grid">
-          {traces.map((it) => (
-            <div
-              key={it.id}
-              className={"smp-tr-card" + (picked.has(it.id) ? " on" : "")}
-              onClick={() => toggle(it.id)}
-            >
-              <div className="smp-tr-card-img">
-                <img src={it.url} alt={traceCode(it)} loading="lazy" />
-                {picked.has(it.id) && <span className="smp-tick-dot smp-tick-abs"><IcCheck /></span>}
-                {actions(it, true)}
-              </div>
-              <div className="smp-tr-card-body">
-                <div className="smp-strong smp-ellip">{traceCode(it)}</div>
-                <div className="smp-dim smp-ellip">{it.collection_source || "—"}</div>
-                <div className="smp-dim smp-ellip">{formatDateTime(it.captured_at)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+      )}
+
+      {/* Xem anh chi tiet: dung lai .scene-zoom-backdrop cua styles.css.
+          Portal ra body: .smp-panel-trace co transform (hover lift -2px) nen no
+          la containing block cua position:fixed => overlay chi phu panel
+          (709x457) thay vi ca man hinh. */}
+      {zoom && createPortal(
+        <div className="scene-zoom-backdrop" onMouseDown={() => setZoom(null)}>
+          <img src={zoom.url} alt={traceCode(zoom)} />
+        </div>,
+        document.body
       )}
     </section>
   );
@@ -948,15 +941,22 @@ function SubjectPanel({
                 <button type="button" className="btn-link">{t("smp.sub.detail")}</button>
               </div>
               <div className="smp-hands">
+                {/* Design xep Tay phai truoc Tay trai. */}
                 {[["right", t("smp.sub.right")], ["left", t("smp.sub.left")]].map(([key, label]) => (
                   <div key={key}>
                     <div className="smp-hand-title">{label}</div>
                     <div className="smp-fingers">
-                      {s[key].map((f) => (
-                        <div key={f.label}>
-                          <img className="smp-finger" src={f.url} alt={f.label} loading="lazy" />
-                          <div className="smp-hand-label">{f.label}</div>
-                        </div>
+                      {/* Tay trai: ut -> cai; tay phai: cai -> ut. Doc lien 2 ban la
+                          thu tu ngon chay deu tu trai qua phai nhu 2 ban tay up xuong. */}
+                      {(key === "left" ? [...s[key]].reverse() : s[key]).map((f) => (
+                        <img
+                          className="smp-finger"
+                          key={f.label}
+                          src={f.url}
+                          alt={t(f.label)}
+                          title={t(f.label)}
+                          loading="lazy"
+                        />
                       ))}
                     </div>
                   </div>

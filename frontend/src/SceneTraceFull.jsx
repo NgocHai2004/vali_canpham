@@ -47,10 +47,16 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
     [t("scene.detail.officer"), item.created_by || item.device_id || "—"],
   ];
 
+  // Ty le + dia diem lap lai so lieu da co o dai verification / panel thong tin
+  // dau vet — de o day de doc het ket luan trong 1 panel.
+  // Chat luong anh + do tin cay CO Y khong dua vao day: da co o dai verification
+  // duoi cung, dua len nua la hien 2 lan tren cung 1 trang.
   const result = [
     [t("scene.match.points"), `${m.found}/${m.total}`],
-    [t("scene.match.finger"), m.finger],
+    [t("scene.match.percent"), `${m.percent}%`],
+    [t("scene.match.finger"), t(m.finger)],
     [t("scene.match.subject"), m.subject],
+    [t("scene.match.place"), m.place],
     [t("scene.match.at"), m.analyzed_at],
     [t("scene.match.by"), m.analyst],
   ];
@@ -230,7 +236,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
                 <div className="stf-doc-col">
                   <div className="stf-doc-col-h">{t("scene.report.candidate")}</div>
                   <img src={files[1]?.url} alt={t("scene.report.candidate")} loading="lazy" />
-                  <div className="stf-doc-cap">{m.finger} — {m.subject}</div>
+                  <div className="stf-doc-cap">{t(m.finger)} — {m.subject}</div>
                 </div>
               </div>
             </div>
@@ -251,7 +257,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
       <section className="stf-card stf-verify">
         <h3 className="stf-h">{t("scene.verify.title")}</h3>
         <div className="stf-verify-row">
-          <span className="stf-verify-finger">{m.finger}</span>
+          <span className="stf-verify-finger">{t(m.finger)}</span>
           <div className="stf-verify-imgs">
             <img src={files[2]?.url} alt={t("scene.report.latent")} loading="lazy" />
             <img src={files[3]?.url} alt={t("scene.report.candidate")} loading="lazy" />

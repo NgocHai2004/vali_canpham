@@ -90,7 +90,7 @@ export default function SceneCasePicker({ onPick }) {
               />
             </div>
             <div
-              className="smp-viewtoggle scp-seg"
+              className="scp-seg"
               role="group"
               aria-label={t("scene.case.filter_label")}
             >

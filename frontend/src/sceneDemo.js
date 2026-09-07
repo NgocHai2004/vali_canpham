@@ -6,8 +6,8 @@
 // mẫu này để đúng bố cục đã chốt. Có dữ liệu thật thì mẫu tự tắt.
 //
 // Ảnh đều là ảnh THẬT, lấy từ hai nguồn khác nhau đúng theo nghiệp vụ:
-//   - Vết hiện trường: 17 ảnh latent đã cắt, backend/uploads/latent_cut/
-//   - Vân tay đối chiếu: 49 bản vân tay, backend/uploads/vantay_synth/
+//   - Vết hiện trường: 18 ảnh latent đã cắt, backend/uploads/latent_cut/
+//   - Vân tay đối chiếu: 50 bản vân tay, backend/uploads/vantay_synth/
 // Riêng các con số đối sánh (điểm minutiae, %, kết luận) là số dựng — hệ
 // thống chưa có engine trích minutiae.
 //
@@ -36,7 +36,7 @@ const DEMO_OFFICER = "Nguyễn Ngọc Hải";
 const DEMO_NOTE =
   "Vân tay thu được trên bề mặt ngoài của kính tầng 2, phòng phía Tây.";
 
-// Vết hiện trường (latent): 17 ảnh đã cắt sẵn, khổ dọc ~2:3 (130..146 x 188..217),
+// Vết hiện trường (latent): 18 ảnh đã cắt sẵn, khổ 800x750 (~16:15),
 // trong backend/uploads/latent_cut/ (backend mount /uploads bằng StaticFiles).
 // Thư mục nằm trong .gitignore nên ảnh không vào repo.
 const LATENT = [
@@ -50,6 +50,7 @@ const LATENT = [
   "dauvantay_08.png",
   "dauvantay_09.png",
   "dauvantay_10.png",
+  "vantay_01.png",
   "vantay_02.png",
   "vantay_03.png",
   "vantay_04.png",
@@ -61,9 +62,10 @@ const LATENT = [
 
 const LATENT_BASE = "/uploads/latent_cut/";
 
-// Vân tay ĐỐI CHIẾU: 49 bản vân tay 380x380 trong backend/uploads/vantay_synth/.
+// Vân tay ĐỐI CHIẾU: 50 bản vân tay 800x750 trong backend/uploads/vantay_synth/.
 // Đủ nhiều để 60 dấu vết + 9 đối tượng x 10 ngón không lặp ảnh quá lộ.
 const ENROLLED = [
+  "vantay_synth_01.png",
   "vantay_synth_02.png",
   "vantay_synth_03.png",
   "vantay_synth_04.png",
@@ -149,8 +151,8 @@ export function minutiae(seq, n = 9) {
     const r = 8 + 26 * Math.sqrt((i + 0.5) / n);
     out.push({
       x: +(50 + r * Math.cos(a)).toFixed(1),
-      // Ảnh vân tay khổ 3:4 => giãn trục y cho chấm phủ hết vùng vân.
-      y: +(50 + r * Math.sin(a) * 1.15).toFixed(1),
+      // Ảnh 800x750 (~16:15) gần vuông => không cần giãn trục y như khổ 3:4 cũ.
+      y: +(50 + r * Math.sin(a)).toFixed(1),
     });
   }
   return out;

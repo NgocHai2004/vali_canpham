@@ -131,6 +131,12 @@ export const IcClose = ({ s = 16 }) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 );
+export const IcEye = ({ s = 13 }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" strokeWidth="1.9" {...S}>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12S18 18.5 12 18.5 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
 export const IcPencil = ({ s = 13 }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" strokeWidth="1.9" {...S}>
     <path d="M15.5 4.5l4 4L8 20H4v-4L15.5 4.5Z" />

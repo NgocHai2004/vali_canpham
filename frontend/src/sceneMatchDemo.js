@@ -17,12 +17,17 @@ const NAMES = [
   ["Ngô Quang Huy", "012345678920", "02/08/1987", "Nam"],
 ];
 
+// Khoa i18n, khong phai chuoi cung: bang KET QUA DOI SANH truoc hardcode tieng
+// Viet nen doi sang EN van hien "Ngon tro phai". Dung lai fp.finger.* co san.
 const FINGERS = [
-  "Ngón trỏ phải", "Ngón giữa phải", "Ngón cái phải",
-  "Ngón trỏ trái", "Ngón áp út phải", "Ngón cái trái",
+  "fp.finger.right_index.long", "fp.finger.right_middle.long", "fp.finger.right_thumb.long",
+  "fp.finger.left_index.long", "fp.finger.right_ring.long", "fp.finger.left_thumb.long",
 ];
 
-export const FINGER_LABELS = ["Cái", "Trỏ", "Giữa", "Áp út", "Út"];
+export const FINGER_LABELS = [
+  "settings.fp.digit.thumb", "settings.fp.digit.index", "settings.fp.digit.middle",
+  "settings.fp.digit.ring", "settings.fp.digit.little",
+];
 
 // 4 doi tuong: 1 mo rong san (doi tuong chinh) + 3 thu gon.
 export const SUBJECTS = NAMES.map(([name, cccd, dob, sex], i) => ({

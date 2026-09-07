@@ -183,12 +183,6 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 }
 .smp-drop-main { color: #d3e2f7; font-size: 13px; }
 .smp-drop-sub { color: #7f95b5; font-size: 12px; margin-top: 4px; }
-.smp-viewtoggle { display: flex; border-radius: 9px; border: 1px solid var(--smp-line2); overflow: hidden; }
-.smp-viewtoggle button {
-  width: 38px; height: 36px; border: 0; background: transparent;
-  color: #7f95b5; cursor: pointer; font-size: 15px;
-}
-.smp-viewtoggle button.on { background: #12294b; color: var(--smp-blue); }
 
 .smp-tr-list {
   display: flex; flex-direction: column; gap: 8px;
@@ -196,31 +190,27 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
   margin-top: 14px;
 }
 .smp-tr-row {
-  display: grid; grid-template-columns: 40px minmax(0, 1fr) 118px 96px 58px 22px;
+  /* 7 cot: thumb | ma+ten file | vi tri dau vet | thoi gian | size | nut | tick.
+     Vi tri dau vet tach ra cot rieng (truoc nam duoi ma trong .smp-tr-meta) nen
+     phai THEM track, khong thi no an vao cot thoi gian. minmax(0,..) de ten dai
+     bi ellipsis chu khong day rong cot. */
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 0.8fr) 118px 72px 90px 26px;
   align-items: center; gap: 12px; padding: 5px 10px; border-radius: 10px; flex: 0 0 auto;
   border: 1.5px solid #1b3355; background: rgba(11,24,44,.7); cursor: pointer;
 }
-.smp-tr-row:hover, .smp-tr-card:hover { border-color: #3a5f8c; }
-.smp-tr-row.on, .smp-tr-card.on { border-color: #2272e8; }
+.smp-tr-row:hover { border-color: #3a5f8c; }
+.smp-tr-row.on { border-color: #2272e8; }
 .smp-tr-meta { min-width: 0; }
 .smp-thumb-md {
   width: 40px; height: 40px; border-radius: 6px;
   border: 1px solid #2b4a72; object-fit: cover; display: block; background: #35383d;
 }
+.smp-tr-src { text-align: left; }
+/* Lui cot thoi gian sang phai: padding-left chu KHONG transform/margin — cot
+   rong co dinh 118px, transform se day chu tran sang cot size ben canh. */
+.smp-tr-time { padding-left: 16px; }
+.smp-tr-size { text-align: right; }
 .smp-check { color: #2272e8; font-weight: 700; text-align: right; }
-.smp-tr-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); grid-auto-rows: max-content;
-  gap: 12px; flex: 1; min-height: 0; overflow-y: auto; align-content: start; padding-right: 4px;
-  margin-top: 14px;
-}
-.smp-tr-card {
-  border-radius: 10px; border: 1.5px solid #1b3355;
-  background: rgba(11,24,44,.7); padding: 6px; cursor: pointer; min-width: 0;
-}
-.smp-tr-card-img { position: relative; border-radius: 7px; overflow: hidden; height: 64px; background: #35383d; }
-.smp-tr-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.smp-tr-card-body { padding: 6px 2px 2px; min-width: 0; font-size: 11px; }
-.smp-tr-card-body > div { margin-top: 2px; }
 
 /* Hồ sơ đối tượng */
 /* Chỉ hiện tối đa 5 thẻ (1 mở rộng + 4 thu gọn), còn lại scroll.
@@ -300,15 +290,10 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
      - stroke="#fff"     -> currentColor, ma .smp-check co color:#2272e8
                             => dau tich XANH tren nen XANH = vo hinh (loi o list view)
      - strokeWidth="3"   -> 1.9px = net qua mo
-   Grid view khong bi mau vi .smp-tr-card-img khong set color do.
    Ep lai ca 3 ngay trong dot, khong sua rule global de khong anh huong ca app. */
 .smp-tick-dot > svg {
   width: 12px; height: 12px; flex: 0 0 auto;
   stroke: #fff; stroke-width: 3;
-}
-.smp-tick-abs {
-  position: absolute; top: 6px; right: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.5);
 }
 .smp-sub-row-right { display: flex; align-items: center; gap: 16px; color: #9db3d1; }
 /* Icon trong nút phải thẳng hàng với chữ. */
@@ -383,8 +368,8 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 }
 
 /* ---------- Menu ... (popover native) ----------
-   Truoc dung position:absolute -> bi cat boi 3 ancestor: .smp-tr-card-img
-   (height 64px + overflow hidden), .smp-tr-list/.smp-tr-grid (overflow-y auto)
+   Truoc dung position:absolute -> bi cat boi 2 ancestor: .smp-tr-list
+   (overflow-y auto)
    va .smp-panel-trace/.smp (overflow hidden). Popover len top layer nen khong
    ancestor nao cat duoc; toa do do JS gan (xem DotsMenu). */
 .smp-menu { position: relative; }
@@ -441,8 +426,14 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
   border-bottom: 1px solid var(--smp-line);
 }
 .scp .smp-panel-tools { gap: 10px; }
-/* Segmented dùng .smp-viewtoggle nhưng ô là chữ nên phải bỏ width 38px cố định. */
-.scp-seg button { width: auto; padding: 0 14px; font-size: 13px; font-family: inherit; }
+/* Segmented cua man Chon vu an: truoc dung lai .smp-viewtoggle (nut chuyen
+   grid/list), nhung class do da xoa cung che do luoi -> style khung nam o day. */
+.scp-seg { display: flex; border-radius: 9px; border: 1px solid var(--smp-line2); overflow: hidden; }
+.scp-seg button {
+  width: auto; height: 36px; padding: 0 14px; border: 0; background: transparent;
+  color: #7f95b5; cursor: pointer; font-size: 13px; font-family: inherit;
+}
+.scp-seg button.on { background: #12294b; color: var(--smp-blue); }
 .scp-seg button:not(:last-child) { border-right: 1px solid var(--smp-line2); }
 .scp-refresh { color: #9db3d1; }
 .scp-refresh:hover { color: #d3e2f7; border-color: var(--smp-blue); }
@@ -609,7 +600,11 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
    393px trong khi panel ket qua chi can 169px). */
 .stf-top {
   display: grid; grid-template-columns: 300px 1fr 1fr; gap: 12px;
-  align-items: stretch; flex: 0 0 auto;
+  align-items: stretch;
+  /* grow-only: an thêm cho khi man cao, nhung khong co duoi noi dung
+     (flex-shrink 0) -> chu trong 3 panel khong bao gio bi cat. Cho du con lai
+     roi vao .stf-mid, nen 4.1/4.2 la 2 panel nho lai truoc. */
+  flex: 1 0 auto;
 }
 /* Panel anh stretch bang 2 card ben canh. Anh ben trong dung position:absolute
    nen KHONG gop vao chieu cao noi tai cua hang -> hang van cao theo card (246px),
@@ -620,19 +615,21 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 }
 .stf-latent-btn {
   position: relative; flex: 1; min-width: 0; padding: 0; cursor: pointer;
-  border-radius: 8px; border: 1px solid #2b4a72; background: #2f3237;
-  box-shadow: inset 0 0 40px rgba(0,0,0,.75); overflow: hidden;
+  border-radius: 8px; border: 1px solid #2b4a72; background: #fff;
+  overflow: hidden;
 }
 .stf-latent-btn img {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
 }
 .stf-latent-btn:hover { border-color: #3a5f8c; }
 
-/* Thong tin: label 138px + value. Ket qua: label/value dan ra 2 mep. */
+/* Ca 2 panel hang 1 dung chung the: label co dinh + value trai. Panel ket qua
+   can cot nhan rong hon (nhan dai nhat "So diem tuong dong (minutiae)" = 174px,
+   138px se lam no wrap 2 dong). */
 .stf-kv { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; font-size: 12.5px; }
 .stf-kv-row { display: grid; grid-template-columns: 138px 1fr; column-gap: 12px; align-items: center; }
-.stf-kv-spread .stf-kv-row { grid-template-columns: 1fr auto; }
-.stf-kv-spread .stf-v, .stf-kv-spread .stf-verdict { text-align: right; }
+.stf-kv-spread .stf-kv-row { grid-template-columns: 186px 1fr; }
+
 .stf-k { color: var(--stf-dim); }
 .stf-v { color: #e6eefb; min-width: 0; overflow-wrap: anywhere; }
 .stf-verdict { font-weight: 600; letter-spacing: .4px; }
@@ -649,11 +646,13 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
   display: flex; flex-direction: column; min-width: 0; padding: 8px;
   border-radius: 10px; border: 1px solid #24486f; background: rgba(9,19,35,.75);
 }
-.stf-file-head { display: flex; align-items: flex-start; gap: 7px; }
+/* center (khong flex-start): tieu de 2 dong nen so bi dinh sat dinh, can giua
+   cho no ngang voi khoi 2 dong. */
+.stf-file-head { display: flex; align-items: center; gap: 7px; }
 .stf-file-n {
-  flex: 0 0 19px; width: 19px; height: 19px; border-radius: 4px;
+  flex: 0 0 23px; width: 23px; height: 23px; border-radius: 5px;
   display: flex; align-items: center; justify-content: center;
-  background: #2272e8; color: #fff; font-size: 11.5px; font-weight: 600;
+  background: #2272e8; color: #fff; font-size: 13px; font-weight: 600;
 }
 .stf-file-title {
   min-width: 0; font-size: 11.5px; line-height: 1.4; color: #cbdcf3; min-height: 32px;
@@ -746,6 +745,15 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 /* 3 truong chia deu cho trong con lai -> phu het chieu ngang dai verification.
    Chip ngon tay + 2 anh giu size that, chi 3 o so gian ra. */
 .stf-stat { min-width: 0; flex: 1; }
+/* Lui 3 o so sang phai: KHONG dung transform/padding-right duoc — o thu 3 da
+   sat mep phai (do x=1862 = mep trong sau padding-right 22px), day nua la tran.
+   Nen no ra khoang trong TRUOC nhom: 3 o cung flex:1 nen ca nhom dich sang phai
+   va moi o chi hep di 1/3 cua so nay.
+   Dat margin-right o .stf-verify-imgs, KHONG dung :nth-of-type tren .stf-stat:
+   .stf-verify-finger la <span> nen trong so cac con DIV thi 3 o so la thu 2,3,4
+   -> :nth-of-type(3) tro vao o GIUA (do duoc: 54px roi vao khe stat1|stat2).
+   Margin o phan tu truoc nhom khong phu thuoc tag nen khong sai kieu do. */
+.stf-verify-imgs { margin-right: 76px; }
 /* Nhan + ket qua cung can giua trong o -> ket qua nam giua ten truong.
    3 o rong deu nhau nen can giua trong o cung la can giua so voi nhan. */
 .stf-stat { text-align: center; }
@@ -938,6 +946,7 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
   display: flex; align-items: center; justify-content: center;
   background: rgba(11,26,48,.8); cursor: pointer;
 }
+.smp-act-view { border: 1px solid #2f5b8f; color: #cbdcf3; }
 .smp-act-edit { border: 1px solid #2f5b8f; color: #cbdcf3; }
 .smp-act-edit:hover { background: #2272e8; border-color: #3a86f5; color: #fff; }
 .smp-act-del { border: 1px solid #6b2740; color: #f4a3b6; }
@@ -947,12 +956,6 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 
 /* Trên thẻ lưới: nổi ở góc dưới-trái ảnh, nền đậm hơn để đọc được trên ảnh.
    Design đặt ở left/bottom nên không còn chồng lên dấu tích ở góc trên-phải. */
-.smp-act-grid {
-  position: absolute; left: 5px; bottom: 5px; gap: 5px;
-}
-.smp-act-grid button {
-  width: 22px; height: 22px; flex: 0 0 22px; border-radius: 6px; background: rgba(6,13,26,.82);
-}
 
 /* ---- Modal Chỉnh sửa dấu vết ---- */
 .smp-modal-bd {
@@ -1037,7 +1040,7 @@ textarea.smp-modal-in { resize: none; }
   padding: 1px 5px 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.stf-c09-act { gap: 14px; margin-top: 8px; }
+.stf-c09-act { gap: 26px; margin-top: 8px; }
 .stf-c09-act > button, .stf-c09-act > .stf-btn-usb { padding: 7px 13px; font-size: 12px; }
 
 /* Dai verification. */
@@ -1061,10 +1064,15 @@ textarea.smp-modal-in { resize: none; }
 .stf-files { flex: 1; min-height: 0; align-content: stretch; }
 .stf-file { min-height: 0; }
 .stf-file-img { flex: 1 1 auto; min-height: 64px; }
+/* cover (khong fill/contain): fill keo doc 1.35x lam bien dang van tay. cover giu
+   dung ti le, bo day khung => 4 the nhin bang nhau vi anh da chuan hoa van cao 88%
+   canvas (tools/norm_vantay.py). Doi lai: cover bam theo chieu cao nen cat 2 ben,
+   chi giu 74% chieu ngang anh — van nao rong >74% canvas se mat ria.
+   ponytail: muon khong cat gi thi sua khung ve ti le anh (217x203 cho 800x750). */
 .stf-file-img img { height: 100%; object-fit: cover; }
 /* Ket qua doi sanh cao bang Chi tiet dau vet: cac dong dan deu ra ca cot. */
 .stf-top .stf-card .stf-kv { flex: 1; }
-.stf-kv-spread { justify-content: space-between; }
+
 
 /* Lat cuoi: sau khi cho panel bang chieu cao nhau con tran 19px @1440x900. */
 .stf-verify { padding: 8px 12px; }
@@ -1087,12 +1095,11 @@ textarea.smp-modal-in { resize: none; }
 .stf-doc-pair { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .stf-doc-pair-body { flex: 1; min-height: 0; }
 .stf-doc-col { display: flex; flex-direction: column; }
-/* Anh ghep vao bao cao: object-fit cover, nhung khung phai co ti le doc ~3:4 —
-   de flex keo full chieu rong cot (282x120) thi cover cat mat gan het van tay.
-   aspect-ratio lay chieu rong tu chieu cao => 2 anh (130x198 va 380x380) cung
-   mot khung, khong meo, khong lech co. */
+/* Anh ghep vao bao cao: khung phai theo ti le anh that (800x750 = 16/15), khong
+   thi cover cat mat van tay. aspect-ratio lay chieu rong tu chieu cao => ca 2
+   nguon (latent_cut + vantay_synth) cung mot khung, khong meo, khong lech co. */
 .stf-doc-col img {
-  flex: 1; width: auto; aspect-ratio: 3 / 4;
+  flex: 1; width: auto; aspect-ratio: 16 / 15;
   min-height: 46px; max-height: 120px; margin: 6px auto; object-fit: cover;
 }
 
@@ -1104,10 +1111,10 @@ textarea.smp-modal-in { resize: none; }
      button -> sweep anh sang 1 luot + --glow + cyan          (nhu .btn-ghost / .btn-mini)
    @keyframes btn-sweep va cac token --glow / --shadow-hover / --primary-2 da co
    global trong styles.css nen KHONG dinh nghia lai o day.
-   Dat o CUOI file de thang cac rule hover cu o tren (vd .smp-tr-card:hover). */
+   Dat o CUOI file de thang cac rule hover cu o tren (vd .smp-tr-row:hover). */
 
 /* ---- Panel & the ---- */
-.smp .smp-panel, .smp .smp-tr-card, .smp .smp-tr-row,
+.smp .smp-panel, .smp .smp-tr-row,
 .smp .smp-sub-row, .smp .smp-sub-open,
 .stf .stf-card, .stf .stf-latent, .stf .stf-file {
   transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
@@ -1116,7 +1123,7 @@ textarea.smp-modal-in { resize: none; }
    :hover KHONG lan len DOM ancestor: dua chuot vao trong popover la panel mat
    hover. Trigger co class .on suot thoi gian popover mo => dung lam co giu hover. */
 .smp .smp-panel:hover, .smp .smp-panel:has(.smp-trg.on),
-.smp .smp-tr-card:hover, .smp .smp-tr-row:hover,
+.smp .smp-tr-row:hover,
 .smp .smp-sub-row:hover, .smp .smp-sub-open:hover,
 .stf .stf-card:hover, .stf .stf-latent:hover, .stf .stf-file:hover {
   transform: translateY(-2px);
@@ -1139,7 +1146,7 @@ textarea.smp-modal-in { resize: none; }
 .smp .smp-icon-btn, .smp .smp-menu-btn, .smp .smp-trg,
 .smp .smp-adv-reset, .smp .smp-adv-apply, .smp .smp-act button,
 .smp .smp-modal-cancel, .smp .smp-modal-save, .smp .smp-pg button,
-.smp .smp-viewtoggle button, .scp .scp-refresh,
+.scp .scp-refresh,
 .stf .smp-btn-ghost, .stf .smp-btn-line, .stf .stf-btn-usb {
   position: relative;
   overflow: hidden;
@@ -1149,7 +1156,7 @@ textarea.smp-modal-in { resize: none; }
 .smp .smp-icon-btn::after, .smp .smp-menu-btn::after, .smp .smp-trg::after,
 .smp .smp-adv-reset::after, .smp .smp-adv-apply::after, .smp .smp-act button::after,
 .smp .smp-modal-cancel::after, .smp .smp-modal-save::after, .smp .smp-pg button::after,
-.smp .smp-viewtoggle button::after, .scp .scp-refresh::after,
+.scp .scp-refresh::after,
 .stf .smp-btn-ghost::after, .stf .smp-btn-line::after, .stf .stf-btn-usb::after {
   content: "";
   position: absolute;
@@ -1167,7 +1174,7 @@ textarea.smp-modal-in { resize: none; }
 .smp .smp-adv-reset:hover:not(:disabled)::after, .smp .smp-adv-apply:hover::after,
 .smp .smp-act button:hover:not(:disabled)::after, .smp .smp-modal-cancel:hover::after,
 .smp .smp-modal-save:hover:not(:disabled)::after, .smp .smp-pg button:hover:not(:disabled)::after,
-.smp .smp-viewtoggle button:hover::after, .scp .scp-refresh:hover::after,
+.scp .scp-refresh:hover::after,
 .stf .smp-btn-ghost:hover:not(:disabled)::after, .stf .smp-btn-line:hover::after,
 .stf .stf-btn-usb:hover:not(:disabled)::after {
   animation: btn-sweep 0.55s ease;
@@ -1180,8 +1187,8 @@ textarea.smp-modal-in { resize: none; }
 .smp .smp-btn-ghost:hover:not(:disabled), .smp .smp-btn-line:hover,
 .smp .smp-icon-btn:hover:not(:disabled), .smp .smp-menu-btn:hover,
 .smp .smp-trg:hover, .smp .smp-adv-reset:hover:not(:disabled),
+.smp .smp-act-view:hover,
 .smp .smp-modal-cancel:hover, .smp .smp-pg button:hover:not(:disabled),
-.smp .smp-viewtoggle button:hover,
 .scp .scp-refresh:hover,
 .stf .smp-btn-ghost:hover:not(:disabled), .stf .smp-btn-line:hover {
   background: rgba(53, 216, 255, 0.1);
@@ -1243,13 +1250,13 @@ textarea.smp-modal-in { resize: none; }
 .stf-file-img .stf-dot-m > i { display: none; }
 
 /* ---- Chua cho lift trong container scroll ----
-   .smp-tr-list / .smp-tr-grid / .smp-sub-list deu overflow-y:auto va padding-top:0,
+   .smp-tr-list / .smp-sub-list deu overflow-y:auto va padding-top:0,
    nen translateY(-2px) cua the o HANG DAU vuot len tren mep padding box => bi cat
    mat canh tren. Chua 4px headroom o dinh; voi 2 list co margin-top:14px thi tru
    margin lai 10px de vi tri nhin thay + vung noi dung khong doi. */
 /* 6px chu khong 4px: khi hover the con, panel nhac -2px VA the nhac -2px, cong
    don 4px so voi mep clip cua list -> 4px vua du bang, con thieu 1px an toan. */
-.smp .smp-tr-list, .smp .smp-tr-grid {
+.smp .smp-tr-list {
   padding-top: 6px;
   margin-top: 8px;
   scroll-padding-top: 6px;
@@ -1286,3 +1293,211 @@ textarea.smp-modal-in { resize: none; }
   .stf-doc-pair { margin-top: 4px; }
   .stf-c09-act { margin-top: 6px; }
 }
+
+/* ---- Can lai ti le 2 hang: hang 1 to len, hang 2 nho lai ----
+   .stf-mid la flex:1 1 auto nen chi can noi rong hang 1 (bo bot cac nhat cat
+   o block thu gon phia tren) — hang 2 tu hut lai dung phan con lai, tong chieu
+   cao khong doi => van khong scroll.
+   ponytail: so tinh cho 1080px; man thap hon co @media (max-height:820px) lo. */
+.stf-top { gap: 14px; }
+.stf-top .stf-card { padding: 18px 20px; }
+.stf-top .stf-kv { gap: 11px; margin-top: 13px; font-size: 12.5px; }
+.stf-latent { padding: 12px; }
+
+/* Ten panel la muc dinh huong cua man -> to hon han noi dung. Cac thanh phan
+   trong panel bu lai (kv 12.5px, the 4.1 va to giay C09 nho lai) nen tong
+   chieu cao khong doi => van khong scroll. */
+.stf .stf-h { font-size: 17px; padding-bottom: 12px; }
+.stf .stf-h-sub { font-size: 13px; }
+
+/* Bu cho tieu de: noi dung 2 panel hang 2 + dai verification nho lai. */
+/* Chu trong the 4.1: 10-11px doc kho -> tang. Anh cap max-height de nhuong
+   cho phan chu vua tang; .stf-file-img la flex:1 nen no tu co lai, khong tran. */
+.stf-file-title { font-size: 12.5px; }
+.stf-file-name { font-size: 12.5px; }
+.stf-file-meta { font-size: 11.5px; }
+.stf-file-n { flex: 0 0 27px; width: 27px; height: 27px; font-size: 15px; }
+.stf-file-act > .smp-btn-line { padding: 8px 0; font-size: 12.5px; border: 1px solid var(--stf-line2); }
+/* To giay C09: 9px doc kho -> tang len. Anh van tay (flex:1, min-height 46px,
+   max 92px) la van xa: chu cao them thi anh co lai, panel khong tran. */
+.stf-doc-nation { font-size: 12px; }
+.stf-doc-motto { font-size: 11px; }
+.stf-doc-title { font-size: 13.5px; }
+.stf-doc-sub { font-size: 10.5px; }
+.stf-doc-grid { font-size: 11px; }
+.stf-doc-pair { font-size: 11px; }
+.stf-doc-lb { flex: 0 0 106px; padding: 4px 6px; }
+.stf-doc-cell > span:last-child { padding: 4px 6px; }
+.stf-doc-col-h { padding: 3px; }
+.stf-c09-act > button, .stf-c09-act > .stf-btn-usb { padding: 10px 17px; font-size: 13px; }
+.stf-stat .stf-k { font-size: 12px; }
+.stf-stat-big { font-size: 21px; margin-top: 4px; }
+.stf-stat-of { font-size: 12px; }
+.stf-stat-ok { font-size: 12.5px; margin-top: 5px; }
+.stf-verify-finger { padding: 9px 13px; font-size: 13px; }
+.stf-verify { padding: 11px 14px; }
+.stf-verify-row { gap: 15px; margin-top: 8px; }
+.stf-verify-imgs img { width: 158px; height: 60px; }
+.stf-verify .stf-h { font-size: 14.5px; }
+
+/* 4.1 chua 4 the theo hang ngang nen an chieu ngang; 4.2 chi co to giay 2 cot
+   nen nhuong duoc. 1.05fr/1fr => the 4.1 chi rong 201px (bop chu). */
+.stf-mid { grid-template-columns: 1.42fr 1fr; }
+
+/* Hang 2 chiu phan bu: bot dem + ha san anh de 2 panel nen duoc. */
+.stf-folder, .stf-c09 { padding: 9px 11px; }
+.stf-files { gap: 8px; }
+.stf-file { padding: 7px; }
+.stf-file-img { min-height: 46px; }
+.stf-file-title { min-height: 26px; }
+.stf-file-name, .stf-file-act { margin-top: 7px; }
+.stf-doc { margin-top: 7px; padding: 7px 11px; }
+.stf-doc-col img { max-height: 92px; margin: 4px auto; }
+.stf-c09-act { margin-top: 7px; }
+
+/* ================= Ap design "Phan tich doi sanh" =================
+   Khac chinh so voi ban truoc: hang co duong ke ngan (border-bottom tung o)
+   thay vi cach nhau bang gap, cot nhan 138px / 190px, anh van tay 36x48. */
+
+/* Hang 1: ke ngan giua cac dong. Padding thay cho gap -> duong ke chay lien
+   het chieu ngang panel (design ve border-bottom tren ca 2 o cua moi hang). */
+.stf-top .stf-kv { gap: 0; }
+.stf-top .stf-kv-row { padding: 5px 0; border-bottom: 1px solid #16304f; }
+.stf-top .stf-kv-row:last-child { border-bottom: 0; }
+/* Dat sau .stf-top .stf-card de thang o do uu tien bang nhau (cung 0,3,0). */
+.stf-top .stf-card .stf-kv-row { grid-template-columns: 138px 1fr; }
+.stf-top .stf-kv-spread .stf-kv-row { grid-template-columns: 190px 1fr; }
+
+/* Anh van tay trong the HO SO DOI TUONG: design 36x48, vien sang hon. */
+.smp-hands { gap: 16px; }
+.smp-hand-title {
+  font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.smp-finger {
+  width: 48px; height: 64px; border-radius: 6px;
+  border: 1px solid #3a5f8c; background: #0b1a30;
+}
+
+/* ---- Bang KET QUA DOI SANH: ap 1:1 design "Phan tich doi sanh" ----
+   Design ve bang kieu Excel: khung ngoai bo 8px, dau bang nen dam, ke doc
+   giua tung o, hang lien nhau bang border-top (khong gap, khong bo goc). */
+.smp-mt-wrap {
+  border: 1px solid #21395c; border-radius: 8px; overflow: hidden;
+  display: flex; flex-direction: column;
+  /* flex:0 0 auto + BO min-height:0 — cap doi phai di cung nhau.
+     Mac dinh la flex:0 1 auto (shrink=1) nen wrap bi bop theo chieu cao panel:
+     can 397px (dau bang 46 + 10 hang 351) ma chi duoc 365 => overflow:hidden
+     an mat hang 10. .smp-mt-body da co flex:0 0 auto nhung wrap BOC no thi
+     khong, nen body du cao van bi wrap cat. */
+  flex: 0 0 auto;
+}
+.smp-mt-head, .smp-mt-row {
+  grid-template-columns:
+    56px 1.25fr 74px 1.55fr 1.3fr 1.6fr 1.15fr 1.05fr 1.35fr 40px;
+  align-items: stretch; gap: 0;
+}
+.smp-mt-head {
+  padding: 0; border-bottom: 0; background: #10233f;
+  color: #a9bedb; font-size: 12.5px; font-weight: 600;
+}
+.smp-mt-head > * {
+  padding: 7px 8px; border-right: 1px solid #21395c;
+  display: flex; align-items: center;
+}
+.smp-mt-head > :last-child { border-right: 0; }
+
+/* Hang: ke ngan doc + duong tren, bo goc va gap bi bo theo design. */
+.smp-mt-body { gap: 0; }
+.smp-mt-row {
+  padding: 0; border-radius: 0; border: 0; border-top: 1px solid #16304f;
+  font-size: 13px;
+}
+.smp-mt-row > * {
+  padding: 4px 8px; border-right: 1px solid #16304f;
+  display: flex; align-items: center; min-width: 0;
+}
+.smp-mt-row > :last-child { border-right: 0; }
+/* Design can giua: STT, anh, ket qua, thoi gian; con lai can trai. */
+.smp-mt-head > :nth-child(1), .smp-mt-row > :nth-child(1),
+.smp-mt-head > :nth-child(3), .smp-mt-row > :nth-child(3),
+.smp-mt-head > :nth-child(8), .smp-mt-row > :nth-child(8),
+.smp-mt-head > :nth-child(9), .smp-mt-row > :nth-child(9),
+.smp-mt-head > :nth-child(10), .smp-mt-row > :nth-child(10) { justify-content: center; }
+.smp-mt-head > :nth-child(6), .smp-mt-row > :nth-child(6),
+.smp-mt-head > :nth-child(7), .smp-mt-row > :nth-child(7) { justify-content: flex-start; }
+/* Bo dich chuyen translateX cua ban truoc — design khong co. */
+.smp-mt-head > :nth-child(n+4):nth-child(-n+9),
+.smp-mt-row > :nth-child(n+4):nth-child(-n+9),
+.smp-mt-head > :nth-child(3), .smp-mt-row > :nth-child(3) { transform: none; }
+.smp-mt-row > :nth-child(9) { font-size: 12.5px; }
+.smp-thumb-sm { width: 26px; height: 26px; border-radius: 4px; margin: 0; }
+
+/* 10 hang / trang nhu design. Bang o design la flex:0 0 auto (cao dung noi
+   dung) nen hang khong gian ra chia deu chieu cao con lai; grid-auto-rows de
+   hang cao dung noi dung, panel duoi tu nhan phan con lai. */
+.smp-mt-body {
+  /* 10 track khai bao tuong minh => track trong VAN co chieu cao, nen trang
+     cuoi chi con 2 hang thi bang giu nguyen khung 10 hang (8 o trong) thay vi
+     co lai. grid-auto-rows khong lam duoc viec nay: no chi sinh track khi co
+     item. minmax de hang cao hon 35px neu chu xuong dong. */
+  grid-template-rows: repeat(10, minmax(0, 1fr));
+  /* flex:1 + min-height:0, KHONG phai 0 0 auto: panel .smp-panel-match cao co
+     dinh (flex:1 1 0 do .smp chia) nen bang phai co lai duoc. De 0 0 auto thi
+     bang 10 hang day .smp-pg xuong duoi day panel va overflow:hidden cat mat no
+     (do duoc: pg bottom 623 > panel bottom 601). */
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+/* Ke doc chay xuyen ca o trong -> khung bang lien mach nhu design. */
+.smp-mt-row:last-child { border-bottom: 1px solid #16304f; }
+
+/* Vien khung anh trong panel HO SO DOI TUONG: dung xanh cua theme
+   (--smp-blue #4f9dff) thay vi xanh xam #3a5f8c/#2b4a72.
+   Ha alpha xuong .5 de vien ro nhung khong hut mat khoi anh.
+   box-sizing: border-box de vien khong day kich thuoc o ra (phep tinh chieu
+   cao the o .smp dua vao 72/86). */
+.smp-sub-photo, .smp-sub-avatar {
+  border: 1px solid var(--smp-blue);
+  box-sizing: border-box;
+}
+/* Anh van tay sang, vien 1px alpha .5 bi anh lan mat (do duoc rgb(45,92,152)
+   = xanh nhat gan het tren nen the) -> dung mau dac va day 2px cho thay ro. */
+.smp-finger {
+  border: 2px solid var(--smp-blue);
+  box-sizing: border-box;
+}
+.smp-thumb-md, .smp-thumb-sm { border-color: var(--smp-blue); }
+
+/* Anh xem toan man hinh: .scene-zoom-backdrop img o styles.css chi co
+   max-width/max-height nen anh NHO hon khung se giu nguyen co goc (800x750 chi
+   dung 74% chieu cao). width/height:100% + object-fit:contain thi anh phong to
+   den khi cham mep, van dung ti le, khong bi meo va khong vuot khung. */
+.scene-zoom-backdrop img {
+  /* Anh NHO hon khung phai duoc phong to (max-* o styles.css chi chan anh to,
+     khong keo anh nho len). Chi ep MOT chieu (height) roi de width:auto tu tinh
+     theo ti le => khong meo. Ep ca min-width + min-height thi anh 800x750 bi keo
+     thanh 1400x1016 (lech ti le); width/height:100% cung sai vi backdrop la grid
+     place-items:center nen 100% do theo grid area (anh phinh 1856x1740, tran man).
+     max-height cua styles.css van chan lai neu anh cao hon khung. */
+  height: min(100%, 860px);
+  width: auto;
+  object-fit: contain;
+}
+
+/* Lui gia tri cac truong sang phai mot chut o ca 2 panel hang 1.
+   Noi cot nhan thay vi padding-left tren gia tri: gia tri dai (dia chi, ten
+   doi tuong) van duoc dung het cho con lai, khong bi day tran ra mep panel. */
+.stf-top .stf-card .stf-kv-row { grid-template-columns: 166px 1fr; }
+.stf-top .stf-kv-spread .stf-kv-row { grid-template-columns: 218px 1fr; }
+
+/* .smp-mt-wrap phai co lai duoc, khong thi .smp-pg bi day ra ngoai panel va
+   overflow:hidden cua panel cat mat no (do duoc: tong con 477 > khung 461).
+   flex:1 + min-height:0 cho khung bang nhan dung phan con lai sau head + pg. */
+.smp-panel-match .smp-mt-wrap { flex: 1; min-height: 0; }
+/* Bang 10 hang phai vua trong khung: mt-head 46 + 10 hang. Sàn 0 cho track co
+   lai het thay vi tran 3px roi bi overflow cat mat mep hang 10. */
+.smp-panel-match .smp-mt-body { overflow: hidden; }
+.smp-panel-match .smp-mt-row > * { padding-top: 2px; padding-bottom: 2px; }
+.smp-panel-match .smp-thumb-sm { width: 22px; height: 22px; }

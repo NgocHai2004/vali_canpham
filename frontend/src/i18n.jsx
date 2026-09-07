@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { translations, AVAILABLE_LOCALES } from "./locales";
 
 const LANG_KEY = "cccd_lang";
-const DEFAULT_LOCALE = "vi";
+const DEFAULT_LOCALE = "en";
 const SUPPORTED = AVAILABLE_LOCALES.map((l) => l.code);
 const FADE_MS = 180; // 150–250ms spec range
 
