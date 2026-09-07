@@ -16,6 +16,12 @@ export const IcExport = () => (
   </svg>
 );
 
+export const IcDownload = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" strokeWidth="1.8" {...S}>
+    <path d="M12 3v11" /><path d="M8 11l4 4 4-4" /><path d="M4 19h16" />
+  </svg>
+);
+
 export const IcSearch = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" strokeWidth="1.8" {...S} stroke="#7f95b5">
     <circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" />

@@ -9,7 +9,7 @@ import { SCORE_TOTAL } from "./sceneDemo";
 import {
   IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
   IcEye, IcPageNext, IcPagePrev, IcPencil, IcPlus,
-  IcReanalyze, IcTick, IcTrash, IcUpload,
+  IcDots, IcReanalyze, IcTick, IcTrash, IcUpload,
 } from "./sceneMatchIcons";
 
 // Man "Phan tich doi sanh" — dung theo design D:\Downloads\Phan tich doi sanh.
@@ -77,6 +77,8 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   const [picked, setPicked] = useState(() => new Set());
   const [openSub, setOpenSub] = useState(SUBJECTS[0]?.id || "");
   const [uploading, setUploading] = useState(false);
+  const [spinning, setSpinning] = useState(false);   // 1 vong xoay icon moi lan bam "Phan tich lai"
+  const [exporting, setExporting] = useState(false);  // icon truot xuong roi ve cho khi bam "Xuat bao cao"
   // Dong da bam trong bang KET QUA DOI SANH: giu ca id dau vet + row de trang
   // chi tiet hien dung so lieu cua dong do (truoc day tu dung lai theo seq => lech).
   const [full, setFull] = useState(null);   // != null => mo trang chi tiet dau vet
@@ -165,6 +167,10 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
     n.has(id) ? n.delete(id) : n.add(id);
     return n;
   });
+  // Chon tat ca = danh sach DANG HIEN (shownTraces, da loc + tim), khong phai
+  // toan bo traces: nguoi dung thay gi thi chon dung cai do.
+  const selectAllShown = () => setPicked(new Set(shownTraces.map((x) => x.id)));
+  const clearSel = () => setPicked(new Set());
 
   // Import anh hien truong: POST /api/scene/traces (endpoint da co), xong reload.
   const addTraces = async (files) => {
@@ -256,8 +262,21 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
           </div>
         </div>
         <div className="smp-top-actions">
-          <button type="button" className="smp-btn-ghost"><IcReanalyze />{t("smp.reanalyze")}</button>
-          <button type="button" className="smp-btn-ghost"><IcExport />{t("smp.export")}</button>
+          <button type="button" className="smp-btn-ghost" onClick={() => setSpinning(true)}>
+            {/* onAnimationEnd de tren span, KHONG tren button: button co animation
+                btn-sweep tren ::after luc hover, event do bubble len button va se
+                tat spin som. */}
+            <span className={"smp-ic" + (spinning ? " smp-ic-spin" : "")} onAnimationEnd={() => setSpinning(false)}>
+              <IcReanalyze />
+            </span>
+            {t("smp.reanalyze")}
+          </button>
+          <button type="button" className="smp-btn-ghost" onClick={() => setExporting(true)}>
+            <span className={"smp-ic" + (exporting ? " smp-ic-out" : "")} onAnimationEnd={() => setExporting(false)}>
+              <IcExport />
+            </span>
+            {t("smp.export")}
+          </button>
         </div>
       </div>
 
@@ -521,6 +540,8 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
           onEdit={setEditTrace}
           sort={traceSort}
           setSort={setTraceSort}
+          onSelectAll={selectAllShown}
+          onClearSel={clearSel}
         />
         <SubjectPanel
           t={t}
@@ -650,8 +671,11 @@ function PopMenu({
 /* ---------- Panel: DẤU VẾT HIỆN TRƯỜNG (data thật) ---------- */
 function SceneTracePanel({
   t, traces, total, q, setQ, picked, toggle, traceCode, formatDateTime,
-  onAddFiles, uploading, onDelete, onEdit, sort, setSort,
+  onAddFiles, uploading, onDelete, onEdit, sort, setSort, onSelectAll, onClearSel,
 }) {
+  // "Chon tat ca" tinh tren danh sach DANG HIEN (da loc/tim), khong phai toan bo
+  // traces — nguoi dung thay gi thi chon dung cai do.
+  const allPicked = traces.length > 0 && traces.every((x) => picked.has(x.id));
   const [dragOver, setDragOver] = useState(false);
   const [zoom, setZoom] = useState(null);
   // Design: 3 nut Xem / Chinh sua / Xoa ngay tren the, thay cho menu "...".
@@ -766,6 +790,23 @@ function SceneTracePanel({
               {sort === key && <IcTick />}
             </button>
           ))}
+        </PopMenu>
+        {/* Nut 3 cham: chon/bo chon tat ca. Dung lai PopMenu (popover native) nhu
+            nut Bo loc ben canh, khong tu dung dropdown moi. */}
+        <PopMenu
+          label={t("smp.trace.bulk")}
+          btnClassName="smp-trg smp-trg-bulk"
+          popClassName="smp-pop-bulk"
+          width={196}
+          trigger={<IcDots />}
+        >
+          <button type="button" className="smp-opt" onClick={onSelectAll}>
+            {t("smp.trace.select_all")}
+            {allPicked && <IcTick />}
+          </button>
+          <button type="button" className="smp-opt" onClick={onClearSel}>
+            {t("smp.trace.clear_sel")}
+          </button>
         </PopMenu>
         </div>
       </div>

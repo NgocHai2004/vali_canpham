@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useI18n } from "./i18n";
 import { demoFiles, demoMatch, minutiae } from "./sceneDemo";
 import { traceCode } from "./SceneTracesPage";
-import { IcChevDown, IcExport, IcPagePrev } from "./sceneMatchIcons";
+import { IcChevDown, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatchIcons";
 
 // Trang chi tiet 1 dau vet — mo tu 1 dong bang KET QUA DOI SANH.
 // Bo cuc 1:1 design D:\Downloads\Phan tich doi sanh:
@@ -243,8 +243,14 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
           </div>
 
           <div className="stf-c09-act">
-            <button type="button" className="smp-btn-ghost" disabled>{t("scene.report.view")}</button>
-            <button type="button" className="smp-btn-ghost" disabled>{t("scene.report.pdf")}</button>
+            <button type="button" className="smp-btn-ghost" disabled>
+              <IcEye s={15} />
+              {t("scene.report.view")}
+            </button>
+            <button type="button" className="smp-btn-ghost" disabled>
+              <IcDownload />
+              {t("scene.report.pdf")}
+            </button>
             <button type="button" className="stf-btn-usb" disabled>
               <IcExport />
               {t("scene.report.usb")}

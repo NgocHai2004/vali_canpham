@@ -799,6 +799,17 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
   justify-content: center; gap: 8px;
   width: 104px; flex: 0 0 104px; padding: 9px 14px; font-size: 13px;
 }
+/* Nut 3 cham (chon tat ca) canh nut Bo loc: vuong, cao BANG nut Bo loc (40px)
+   de 2 nut thang hang. .smp-trg co padding 9px 14px cho nut co chu, o day bo
+   padding ngang di vi chi co icon. */
+.smp-trg-bulk {
+  justify-content: center; gap: 0;
+  width: 40px; flex: 0 0 40px; padding: 9px 0;
+}
+/* IcDots dat fill="#7f95b5" trong SVG, nhung rule global `svg { stroke: currentColor }`
+   cua Dashboard.jsx ep size 20px -> giu 16px cho khop icon khac tren toolbar. */
+.smp-trg-bulk > svg { width: 16px; height: 16px; }
+
 /* Dropdown "Tất cả đối tượng". */
 .smp-trg-subj {
   justify-content: space-between; gap: 12px;
@@ -818,6 +829,11 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 /* .smp-menu-pop lo phần khung; đây chỉ là bề rộng + hàng lựa chọn. */
 .smp-pop-subj { width: 260px; }
 .smp-pop-tsort { width: 200px; }
+/* PHAI khop voi prop width={196} cua PopMenu: place() tinh left = btn.right - W + 2
+   theo con so JS, con be ngang that lai do CSS quyet dinh. Khong co rule nay thi
+   popover roi ve min-width 168px (cua .smp-menu-pop) => JS can le cho 196 nhung
+   box chi 168 => lech 28px sang trai. Doi 1 so thi doi ca 2 cho. */
+.smp-pop-bulk { width: 196px; }
 /* Design không đặt max-height, nhưng ở đây danh sách là 1 + 9 đối tượng
    (design vẽ 4) nên phải cho cuộn, không thì popover dài quá màn hình. */
 /* :popover-open de thang .smp-menu-pop:popover-open{overflow:visible} — cung
@@ -1501,3 +1517,22 @@ textarea.smp-modal-in { resize: none; }
 .smp-panel-match .smp-mt-body { overflow: hidden; }
 .smp-panel-match .smp-mt-row > * { padding-top: 2px; padding-bottom: 2px; }
 .smp-panel-match .smp-thumb-sm { width: 22px; height: 22px; }
+
+/* Icon "Phan tich lai" xoay 1 vong khi bam. Dung lai @keyframes lg-spin cua
+   styles.css (global) nen khong viet keyframes moi.
+   display TACH RIENG khoi class spin: span la flex item nen "inline" bi blockify
+   thanh block (cao theo line-box ~21px) con "inline-flex" thanh flex (cao 16px
+   theo svg) -> nut nhay size luc bat/tat spin. Giu display co dinh o .smp-ic. */
+.smp-ic { display: inline-flex; }
+.smp-ic-spin { animation: lg-spin 0.6s ease-in-out; }
+
+/* Icon "Xuat bao cao": file truot xuong khoi nut, roi vao lai tu tren xuong giua
+   nut. Keyframes rieng vi phai "nhay" tu duoi len tren luc opacity 0 (45% -> 55%),
+   slideUp cua styles.css chi di 1 chieu nen khong tai dung duoc. */
+@keyframes smp-ic-drop {
+  0%   { transform: translateY(0);     opacity: 1; }
+  45%  { transform: translateY(14px);  opacity: 0; }
+  55%  { transform: translateY(-14px); opacity: 0; }
+  100% { transform: translateY(0);     opacity: 1; }
+}
+.smp-ic-out { animation: smp-ic-drop 0.55s ease-in-out; }
