@@ -463,25 +463,29 @@ def test_weak_cluster_differs_only_by_low_not_by_stopping():
     `low`, va do chinh la thu FE dung de to do ngon dang ngo cho can bo thay.
     """
     sid = _new_session_at_slap()
-    weak = FingerCapture(slot=2, quality=20, template=b"T2", image=b"")
+    weak = FingerCapture(slot=1, quality=20, template=b"T1", image=b"")
     # Cum TOT: dung lai, low rong.
     r = _capture(sid, "left_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
     data = r.json()
     assert data["needs_confirm"] is True
     assert data["low"] == []
     client.post(f"/api/session/{sid}/confirm_step", json={"step": "left_hand"})
-    # Cum YEU: cung dung lai, nhung low chi ra dung ngon yeu.
-    r = _capture(sid, "thumbs", [_ok(1), weak])
+    # Buoc YEU: cung dung lai, nhung low chi ra dung ngon yeu. Ngon cai chup RIENG
+    # tung ngon nen buoc nay chi co 1 ngon.
+    r = _capture(sid, "thumb_left", [weak])
     data = r.json()
     assert data["needs_confirm"] is True
-    assert [w["code"] for w in data["low"]] == ["right_thumb"]
-    assert _steps(data)["thumbs"] is False
-    # Xac nhan cum yeu: ngon yeu van duoc luu, chi mang co low_quality.
-    r = client.post(f"/api/session/{sid}/confirm_step", json={"step": "thumbs"})
+    assert [w["code"] for w in data["low"]] == ["left_thumb"]
+    assert _steps(data)["thumb_left"] is False
+    # Xac nhan buoc yeu: ngon yeu van duoc luu, chi mang co low_quality.
+    r = client.post(f"/api/session/{sid}/confirm_step", json={"step": "thumb_left"})
     assert r.status_code == 200, r.text
-    assert _finger(r.json(), "right_thumb")["low_quality"] is True
-    # Con cum right_hand chua chup => chua xong.
+    assert _finger(r.json(), "left_thumb")["low_quality"] is True
+    # Con cai phai + right_hand chua chup => chua xong.
     assert r.json()["finished"] is False
+    r = _capture(sid, "thumb_right", [_ok(1)])
+    assert r.json()["finished"] is False
+    client.post(f"/api/session/{sid}/confirm_step", json={"step": "thumb_right"})
     r = _capture(sid, "right_hand", [_ok(1), _ok(2), _ok(3), _ok(4)])
     assert r.json()["finished"] is False
     r = client.post(f"/api/session/{sid}/confirm_step", json={"step": "right_hand"})

@@ -50,17 +50,28 @@ from morfin import FingerType, SlapPosition  # noqa: E402
 # theo giai phau. Mapping duoi day chi dung khi nguoi dan dat tay DUNG CHIEU
 # (long ban tay up xuong, dau ngon huong ra xa nguoi dat).
 #
-# SDK khong cho biet ngon cai nao la trai/phai (SLAP_LABELS chi co
-# "Thumb A"/"Thumb B") => chup ngon cai TUNG BEN MOT, ban tay do frontend
-# chi dinh qua step, khong doan.
-# Thu tu 3 buoc: 4 ngon trai -> 2 ngon cai -> 4 ngon phai.
+# NGON CAI CHUP TUNG NGON MOT, khong chup chum 2 cai.
 #
-# CHUA XAC MINH DUOC tren thiet bi that: voi SlapPosition.THUMB, slot nao la
-# ngon cai TRAI. SDK chi tra "Thumb A"/"Thumb B", khong noi ben nao. Mapping
-# duoi day theo dung quy uoc cua cac slap khac (slot 1 = trai nhat trong anh),
-# tuc la nguoi dan dat 2 ngon cai canh nhau thi cai trai nam ben trai anh.
-# => Can 1 lan chup that de xac nhan. Neu bi nguoc, doi thu tu 2 ma trong
-#    "codes" cua buoc "thumbs" la xong, khong phai sua logic.
+# Ly do: SDK chi tra "Thumb A"/"Thumb B" (SLAP_LABELS), KHONG noi ben nao la
+# trai. Chup chum 2 cai thi phai suy slot -> ngon theo toa do x, va do la mot
+# phep DOAN khong kiem chung duoc: dat nguoc tay la template cai trai gan cho
+# cai phai, sai am tham, khong ai phat hien. Chup rieng thi buoc DA BIET no la
+# ngon nao - het cho doan.
+#
+# Duong de chup 1 ngon cai: tham so `exceptions` cua StartCapture (co che da
+# dung san cho ngon "khong co van tay"). Khai ngon cai BEN KIA la absent thi
+# auto_capture chot frame o 1 ngon. Xem "absent_extra" duoi day.
+#
+# Hai loi phu duoc sua theo: redo() xoa theo step["codes"] nen chup lai cai trai
+# khong con xoa luon cai phai; va khung nhay o frontend bao hieu dung tung ngon
+# cai thay vi ca o.
+#
+# Thu tu 4 buoc chum = DUNG THU TU 3 O TREN MAN HINH, trai sang phai:
+#   4 ngon trai -> cai trai -> cai phai -> 4 ngon phai
+# Cung quy uoc voi ROLL_ORDER: can bo doc mot mach, khong phai nhay o.
+#
+# Ten buoc la "thumb_left", KHONG phai "left_thumb": STEP_BY_NAME va s.fingers
+# la hai khong gian ten khac nhau, trung chu la moi goi loi tra nham bang.
 SLAP_STEPS: list[dict] = [
     {
         "step": "left_hand",
@@ -70,18 +81,28 @@ SLAP_STEPS: list[dict] = [
         "codes": ["left_little", "left_ring", "left_middle", "left_index"],
     },
     {
+        "step": "thumb_left",
+        "slap": SlapPosition.THUMB,
+        "label_vi": "Ngon cai trai",
+        "expect": 1,
+        "codes": ["left_thumb"],
+        # Ngon cai PHAI khai absent => SDK khong cho du 2 ngon moi chot frame.
+        "absent_extra": ["right_thumb"],
+    },
+    {
+        "step": "thumb_right",
+        "slap": SlapPosition.THUMB,
+        "label_vi": "Ngon cai phai",
+        "expect": 1,
+        "codes": ["right_thumb"],
+        "absent_extra": ["left_thumb"],
+    },
+    {
         "step": "right_hand",
         "slap": SlapPosition.RIGHT_HAND,
         "label_vi": "4 ngon ban tay phai",
         "expect": 4,
         "codes": ["right_index", "right_middle", "right_ring", "right_little"],
-    },
-    {
-        "step": "thumbs",
-        "slap": SlapPosition.THUMB,
-        "label_vi": "2 ngon cai",
-        "expect": 2,
-        "codes": ["left_thumb", "right_thumb"],
     },
 ]
 
@@ -300,6 +321,36 @@ def _bmp_to_png_b64(blob: bytes, thumb: Optional[int] = None,
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
+def _png_width(blob: bytes) -> int:
+    """Be ngang anh slap THO (pixel), de quy toa do x cua ngon ra phan tram.
+
+    Doc tu anh GOC chu khong phai anh da thumbnail: toa do x trong ImageInfo la
+    toa do tren anh goc. Tra 0 khi khong doc duoc - caller bo qua viec dat so.
+    """
+    if not blob:
+        return 0
+    try:
+        return Image.open(io.BytesIO(blob)).width
+    except Exception:  # noqa: BLE001 - anh loi khong duoc lam do ca lan chup
+        return 0
+
+
+def _mark_x_pct(fc, slap_w: int) -> Optional[float]:
+    """Vi tri ngang (phan tram) de dat so % cua mot ngon tren anh chum.
+
+    Dung phan tram chu khong pixel: anh FE hien la ban da thumbnail(600) roi con
+    scale theo CSS, nen pixel cua anh goc khong con y nghia o phia FE.
+
+    Lay DIEM GIUA ngon (x -> x2). Neu SDK khong ghi RightBottomCordinates (x2 <=
+    x) thi lui ve dung canh trai: so lech ve ben trai mot chut nhung VAN dung
+    ngon, hon la khong hien so nao.
+    """
+    if slap_w <= 0:
+        return None
+    x = fc.x + (fc.x2 - fc.x) / 2 if fc.x2 > fc.x else fc.x
+    return round(max(0.0, min(100.0, x / slap_w * 100)), 1)
+
+
 @dataclass
 class FingerRecord:
     code: str
@@ -506,6 +557,10 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     # nen neu khong khai bao ngon vang thi SDK cho den het timeout roi tra -2019
     # => api tra 408 "chup that bai", khong bao gio den duoc 422 co huong dan.
     codes = [c for c in step["codes"] if not s.fingers[c].missing]
+    # absent_extra = ngon KHONG thuoc buoc nay nhung phai khai voi SDK la vang, de
+    # auto_capture chot frame o dung so ngon cua buoc. Chi buoc ngon cai dung: chup
+    # cai trai thi cai phai la absent_extra. Thieu no thi SlapPosition.THUMB cho du
+    # 2 ngon den het timeout roi tra -2019 => 408 vinh vien.
     if not codes:
         raise HTTPException(
             400,
@@ -513,7 +568,8 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
             "ngon nao de chup.",
         )
     expect = len(codes)
-    absent = [c for c in step["codes"] if s.fingers[c].missing]
+    absent = ([c for c in step["codes"] if s.fingers[c].missing]
+              + step.get("absent_extra", []))
 
     if not _capture_lock.acquire(blocking=False):
         raise HTTPException(409, "Dang co lenh chup khac chay.")
@@ -621,6 +677,10 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     nq_slots = set(result.no_quality)
     captured = []
     low = []
+    # marks = so % dat DUNG VI TRI tung ngon tren anh chum. Chi buoc CHUM: anh lan
+    # co 1 ngon va % cua no da hien o o ngon trong luoi 10 o.
+    marks = []
+    slap_w = _png_width(result.slap_image) if not step.get("roll") else 0
     for code, fc in zip(codes, got):
         rec = s.fingers[code]
         rec.template_b64 = base64.b64encode(fc.template).decode("ascii")
@@ -639,12 +699,27 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         captured.append({**rec.to_public(include_template=True),
                          "image_b64": rec.image_b64,
                          "thumb_b64": _bmp_to_png_b64(fc.image, thumb=200, center=True)})
-        if rec.no_quality or rec.quality < _min_quality(code):
+        weak = rec.quality < _min_quality(code)
+        if rec.no_quality or weak:
             low.append({
                 "code": code, "name_vi": FINGER_NAME[code],
                 "reason": "no_quality" if rec.no_quality else "weak",
                 "quality": fc.quality, "need": _min_quality(code),
             })
+        # Mot mark = mot so % dat len anh chum. `low` o tren la danh sach ngon dang
+        # ngo (FE dung cho o xac nhan); mark la CHO DAT SO, ngon nao cung co - nen
+        # hai cai nay khong gop duoc.
+        if slap_w > 0:
+            x_pct = _mark_x_pct(fc, slap_w)
+            if x_pct is not None:
+                marks.append({
+                    "code": code, "name_vi": FINGER_NAME[code],
+                    "quality": fc.quality, "no_quality": rec.no_quality,
+                    # `low` tinh o service, khong de FE tu suy: nguong RIENG tung
+                    # ngon la chuyen cua service (xem _min_quality), FE ghep hai
+                    # bang de to mau la mot cho lech nua khong can co.
+                    "low": weak, "x_pct": x_pct,
+                })
 
     # Chup lai cum thi coi nhu xac nhan cu khong con hieu luc: can bo phai xem
     # anh MOI roi xac nhan lai. Neu khong bo, cum da xac nhan mot lan se tu dong
@@ -691,6 +766,9 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         "step": step["step"],
         "captured": captured,
         "slap_thumb_b64": s.slap_images[step["step"]],
+        # So % dat DUNG VI TRI tung ngon tren anh chum (xem _slap_marks). Rong voi
+        # buoc lan: anh lan chi co 1 ngon va % cua no da hien o o ngon trong luoi.
+        "slap_marks": marks,
         # Nguong tung ngon. Frontend phai dung map nay de to mau badge, khong
         # hardcode 50 - admin dat nguong RIENG cho tung ngon trong Settings.
         "min_quality_by_code": {c: _min_quality(c) for c in codes},

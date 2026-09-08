@@ -43,18 +43,33 @@ export const FP_CODE_TO_KEY = {
   right_little: "fp_r5",
 };
 
-// 3 cum dung bang dung cum may Morfin chup 1 lan (khop SLAP_STEPS cua
-// morfin_service): 4 ngon trai | 2 ngon cai | 4 ngon phai.
+// 3 cum = BO CUC LUOI (nhom 4 | 2 | 4), va la nguon THU TU cho FP_ROLL_ORDER.
 //
-// CHI con dung cho hang van CHUM (3 anh ca ban tay) - KHONG con dung cho luoi 10
-// o van lan nua. Truoc day luoi 10 o nhom theo cum nay va nhap nhay CA CUM, vi
-// 10 o do thuc chat la 10 ngon CAT RA tu 3 anh chum. Gio van lan chup rieng tung
-// ngon (FP_ROLL_STEPS) nen luoi nhap nhay TUNG O.
+// `step` o day KHONG con khop ten buoc nao cua morfin_service: ngon cai gio chup
+// rieng tung ngon (thumb_left / thumb_right), khong con buoc "thumbs". Giu lai vi
+// no vo hai va xoa ca hang thi FP_ROLL_ORDER mat nguon thu tu - dung cai loi ma
+// comment duoi day canh bao. Muon tra step theo ma ngon thi dung FINGER_STEP_OF.
+//
+// CHI con dung cho bo cuc/thu tu - KHONG dung cho luoi 10 o van lan nua. Truoc day
+// luoi 10 o nhom theo cum nay va nhap nhay CA CUM, vi 10 o do thuc chat la 10 ngon
+// CAT RA tu 3 anh chum. Gio van lan chup rieng tung ngon (FP_ROLL_STEPS) nen luoi
+// nhap nhay TUNG O.
 export const FP_CLUSTERS = [
   { step: "left_hand", codes: ["left_little", "left_ring", "left_middle", "left_index"] },
   { step: "thumbs", codes: ["left_thumb", "right_thumb"] },
   { step: "right_hand", codes: ["right_index", "right_middle", "right_ring", "right_little"] },
 ];
+
+// Ma ngon -> ten buoc CHUM cua morfin_service (khop FINGERS[].step trong api.py).
+// Ngon cai co buoc RIENG tung ngon, khong dung chung "thumbs" nhu truoc.
+export const FINGER_STEP_OF = {
+  left_little: "left_hand", left_ring: "left_hand",
+  left_middle: "left_hand", left_index: "left_hand",
+  left_thumb: "thumb_left",
+  right_thumb: "thumb_right",
+  right_index: "right_hand", right_middle: "right_hand",
+  right_ring: "right_hand", right_little: "right_hand",
+};
 
 // Van LAN: 1 ngon = 1 buoc = 1 lan StartCapture(ROLL). Phai khop DUNG thu tu
 // ROLL_ORDER trong api.py, vi service tra next_step theo thu tu do.
@@ -76,17 +91,41 @@ export const FP_ROLL_CODE_BY_STEP = Object.fromEntries(
 
 // Ảnh vân PHẲNG (plain/slap) — 3 ảnh cụm nguyên bản từ máy, khớp đúng STEPS ở trên.
 // Vân LĂN (roll) vẫn dùng key fp_l1..fp_r5 như cũ để tương thích dữ liệu đã lưu.
+// O "2 ngon cai" CHIA DOI: ngon cai chup TUNG NGON MOT (2 buoc thumb_left /
+// thumb_right o morfin_service), nen o do chua HAI anh rieng thay vi mot anh chum.
+// Ly do tach o service: SDK chi tra "Thumb A"/"Thumb B", khong noi ben nao la
+// trai => chup chum 2 cai thi phai doan, doan sai la template gan nham ngon.
+//
+// O co `sub` thi KHONG co `step`/`key` anh cua rieng no: moi nua tu mang key va
+// step cua nua do. Ba o giu nguyen (grid 4fr 2fr 4fr khong doi).
 export const FP_PLAIN_SLOTS = [
   { key: "fp_plain_left", step: "left_hand", labelKey: "capture.fp.plain_left" },
-  { key: "fp_plain_thumbs", step: "thumbs", labelKey: "capture.fp.plain_thumbs" },
+  {
+    key: "fp_plain_thumbs",
+    labelKey: "capture.fp.plain_thumbs",
+    sub: [
+      { key: "fp_plain_left_thumb", step: "thumb_left", side: "left",
+        labelKey: "capture.fp.plain_left_thumb" },
+      { key: "fp_plain_right_thumb", step: "thumb_right", side: "right",
+        labelKey: "capture.fp.plain_right_thumb" },
+    ],
+  },
   { key: "fp_plain_right", step: "right_hand", labelKey: "capture.fp.plain_right" },
 ];
+
+// Moi o anh chum (ke ca 2 nua cua o ngon cai) duoi dang phang, de vong thu va
+// bo dem khong phai tu di xuyen `sub` o moi cho dung den.
+export const FP_PLAIN_CELLS = FP_PLAIN_SLOTS.flatMap((sl) => sl.sub || [sl]);
 
 // Anh CA VUNG PLATEN (anh slap tong) cua mot buoc -> key anh trong `photos`.
 // Vong thu tra bang nay de biet buoc dang chay ghi anh vao o nao.
 export const FP_SHEET_KEY_BY_STEP = Object.fromEntries(
-  FP_PLAIN_SLOTS.map((sl) => [sl.step, sl.key]),
+  FP_PLAIN_CELLS.map((sl) => [sl.step, sl.key]),
 );
+
+// Anh chum cu (truoc khi tach ngon cai): MOT anh 2 ngon cai o key nay. Ho so da
+// luu van doc duoc - o ngon cai hien nguyen anh cu, khong chia doi, khong migrate.
+export const FP_PLAIN_LEGACY_THUMBS = "fp_plain_thumbs";
 
 // Hinh ban tay so do: 4 ngon + ngon cai, ngon dang can lan thi sang len.
 // Ban tay TRAI la hinh goc (nhin tu mu ban tay, ngon cai o ben phai);

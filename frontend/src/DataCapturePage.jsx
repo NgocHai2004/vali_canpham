@@ -3,7 +3,7 @@ import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
 import { api, fpApi, cccdApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
-import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
+import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_CELLS, FP_PLAIN_LEGACY_THUMBS, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
 import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
@@ -14,10 +14,12 @@ import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
 import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
 import { useI18n, apiT } from "./i18n";
 import { getMeasurementHeight } from "./lib/heightMeasurement";
+import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
 export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
   const { t, formatDateLong } = useI18n();
+  const features = useFeatures();
   const isEdit = Boolean(initial && initial.id);
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
@@ -56,6 +58,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // platen phang chi dau ngon tiep xuc). Hardcode 50 o day se to do ngon ut du
   // no da dat nguong cua chinh no.
   const [fpMinQ, setFpMinQ] = useState({});
+  // So % dat DUNG VI TRI tung ngon tren anh CHUM, key = key anh (fp_plain_left...).
+  // Gia tri la slap_marks tu service: [{code, quality, no_quality, low, x_pct}].
+  //
+  // CHI SONG TRONG LUC THU, co y: khong ghi vao `photos` va khong vao payload luu
+  // ho so. So % la de can bo XEM roi quyet dinh Xac nhan hay Chup lai; luu no vao
+  // ho so thi phai chon giua nam so vao pixel anh (sua ban ghi chinh thuc cua van
+  // chum) hay them field vao schema - ca hai deu dat hon gia tri no mang lai.
+  // Mo lai ho so cu: anh con nguyen, khong con so.
+  //
+  // RIENG voi fpQuality: fpQuality khoa theo MA NGON cho luoi 10 o van LAN. Hai
+  // duong khac nhau, khong duoc gop - xem comment o cho set fpQuality trong
+  // collectFingersRun.
+  const [fpPlainMarks, setFpPlainMarks] = useState({});
   const [fpStatus, setFpStatus] = useState("");
   // fpError truoc day la STATE CHET: 28 cho goi setFpError ma khong mot JSX nao
   // doc no => moi loi chup roi vao hu khong. Can bo dat 3 ngon (cum cho 4) thi
@@ -180,7 +195,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } catch { /* recognize fail → không hỏng flow chụp */ }
   }, [t]);
 
+  // YOLO tat -> khong can height_image/height_offset (khong do tu dong nua).
   useEffect(() => {
+    if (!features.height_yolo) return undefined;
     let cancelled = false;
     api.measurementConfig()
       .then((cfg) => {
@@ -193,7 +210,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         if (!cancelled) { setHeightImage(100); setHeightOffset(103); }
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [features.height_yolo]);
 
   useEffect(() => {
     setForm(seed.form);
@@ -246,11 +263,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       return next;
     });
 
+  // YOLO tat -> khong tu dong dien height_cm. Truong height_cm van nhap tay.
   const applyMeasuredHeight = useCallback(({ linePixelHeight, imageHeight }) => {
+    if (!features.height_yolo) return;
     const measured = getMeasurementHeight({ linePixelHeight, imageHeight, heightImage, heightOffset });
     if (!measured || measured < 50 || measured > 250) return;
     setForm((f) => ({ ...f, height_cm: String(measured) }));
-  }, [heightImage, heightOffset]);
+  }, [heightImage, heightOffset, features.height_yolo]);
 
   // Nhap DOI 1 o van tay => chup lai CA CUM chua ngon do (4 ngon ban tay hoac
   // 2 ngon cai). Morfin la slap scanner: 4 ngon den tu cung 1 anh, khong tach
@@ -538,6 +557,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         } catch (e) {
           setFpError(t("capture.err.save_photo", { message: e.message }));
         }
+      }
+      // So % dat DUNG VI TRI tung ngon tren anh chum vua chup (service tinh x_pct
+      // tren anh GOC, xem _mark_x_pct). Dat NGOAI try/catch upload o tren: upload
+      // anh loi thi van con so de can bo doc, va nguoc lai.
+      //
+      // KHONG vao `photos`, KHONG vao payload luu ho so - xem comment o fpPlainMarks.
+      if (plainKey && !step.roll && capRes.slap_marks) {
+        setFpPlainMarks((p) => ({ ...p, [plainKey]: capRes.slap_marks }));
       }
       // CHI buoc LAN duoc ghi vao 10 o fp_l1..fp_r5 (va fp_templates).
       //
@@ -860,6 +887,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // không lặp lại thẻ cũ. Thẻ mới vào thì chèn dữ liệu lên form.
   useEffect(() => {
     if (sessionReadOnly) return;
+    // May doc CCCD tat -> khong lang nghe dau doc, khong bao loi "chua san sang".
+    // Cac truong CCCD o muc I van nhap tay binh thuong.
+    if (!features.cccd_reader) return;
 
     let stopped = false;
     const ac = new AbortController();
@@ -925,7 +955,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         cccdApi.cancel(sid).catch(() => { /* noop */ });
       }
     };
-  }, [sessionReadOnly]);
+    // features.cccd_reader ve muon (sau khi fetch /api/config/features) nen phai
+    // co trong deps, khong thi vong lap da chay roi khong dung lai duoc.
+  }, [sessionReadOnly, features.cccd_reader]);
 
   // Tự động bật quét vân tay khi vào trang. Máy quét chưa sẵn sàng thì thử lại
   // âm thầm mỗi 3s (không hiện lỗi đỏ) — giống vòng CCCD, cắm máy vào là tự chạy.
@@ -1229,7 +1261,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const captureTimeStr = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-  const plainCount = FP_PLAIN_SLOTS.filter((sl) => photos[sl.key]).length;
+  // Dem theo LAN CHUP (4), khong theo o (3): ngon cai chup rieng tung ngon nen o
+  // ngon cai la 2 lan. Dem theo o thi chup xong cai trai da nhay 2/3, con thieu
+  // mot lan nua ma so khong doi - can bo khong biet con phai chup gi.
+  //
+  // Ho so CU chi co fp_plain_thumbs (mot anh 2 ngon cai): tinh la 2 lan, nho vay
+  // ho so cu du anh van hien 4/4 chu khong tut ve 3/4 nhu the con thieu.
+  const plainCount = FP_PLAIN_CELLS.filter((sl) => photos[sl.key]).length
+    + (photos[FP_PLAIN_LEGACY_THUMBS]
+       && !photos.fp_plain_left_thumb && !photos.fp_plain_right_thumb ? 2 : 0);
   // Icon ban tay cho 3 o van CHUM: to nhung ngon O DO CAN THU (4 ngon trai / 2
   // ngon cai / 4 ngon phai), cac ngon con lai de mo. Y het o lan - o lan to dung
   // ngon cua chinh no de noi "o nay la ngon nao", khong phai de bao da thu xong.
@@ -1241,22 +1281,25 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // Cung khong co blink: luc dang thu thi NHAY KHUNG NGOAI cua o (class .active ->
   // fp-cell-pulse, giong o lan), khong nhay tung ngon.
   //
-  // O "2 ngon cai" gom ca hai ban tay => tra ve MOT MANG hinh (2 cai); hai o kia
-  // mot hinh.
-  const plainHandsByStep = useMemo(() => {
+  // Khoa theo KEY ANH, khong theo ten buoc, va moi key ra DUNG MOT hinh.
+  //
+  // Truoc day khoa theo step cua FP_CLUSTERS va o "2 ngon cai" tra ve MOT MANG 2
+  // hinh (2 ban tay). Gio ngon cai chup rieng tung ngon nen moi NUA o can dung mot
+  // hinh cua rieng no - mang 2 hinh se ve ca hai ban tay vao moi nua.
+  //
+  // Nguon la FP_PLAIN_CELLS (da phang ca `sub`), KHONG phai FP_CLUSTERS:
+  // FP_CLUSTERS con giu step "thumbs" cu (xem constants.js) nen tra bang theo no se
+  // khong bao gio khop thumb_left / thumb_right.
+  const plainHandByKey = useMemo(() => {
     const out = {};
-    for (const cluster of FP_CLUSTERS) {
-      const hands = [];
-      for (const code of cluster.codes) {
-        const side = code.startsWith("left") ? "left" : "right";
-        let hand = hands.find((h) => h.side === side);
-        if (!hand) {
-          hand = { side, active: [] };
-          hands.push(hand);
-        }
-        hand.active.push(code.replace(/^(left|right)_/, ""));
-      }
-      out[cluster.step] = hands;
+    for (const cell of FP_PLAIN_CELLS) {
+      const codes = FP_CLUSTERS.flatMap((c) => c.codes)
+        .filter((code) => FINGER_STEP_OF[code] === cell.step);
+      if (!codes.length) continue;
+      out[cell.key] = {
+        side: codes[0].startsWith("left") ? "left" : "right",
+        active: codes.map((code) => code.replace(/^(left|right)_/, "")),
+      };
     }
     return out;
   }, []);
@@ -1552,18 +1595,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="fp-block">
             <h3 className="cap-sub-title cap-sub-title--fp">
               {t("capture.fp.plain_full")}
-              <span className="fp-row-count">{plainCount} / 3</span>
+              <span className="fp-row-count">{plainCount} / 4</span>
             </h3>
             <div className="fp-plain-row">
-              {/* BA o, dung 3 buoc chum cua morfin_service (SLAP_STEPS):
-                  4 ngon trai | 2 ngon cai | 4 ngon phai. */}
+              {/* BA o, BON lan chup (SLAP_STEPS cua morfin_service):
+                  4 ngon trai | cai trai + cai phai | 4 ngon phai.
+                  O ngon cai CHIA DOI - moi nua mot lan chup rieng. */}
               {FP_PLAIN_SLOTS.map((slot) => {
-                const filled = !!photos[slot.key];
+                // O thuong: chinh no la mot nua duy nhat => dung MOT duong code cho
+                // ca hai loai o, khong nhanh rieng cho o ngon cai.
+                const halves = slot.sub || [slot];
+                // Ho so CU (truoc khi tach ngon cai) chi co mot anh 2 ngon cai o key
+                // fp_plain_thumbs. Hien nguyen anh do, KHONG chia doi va khong migrate:
+                // anh cu van la ban ghi hop le.
+                const legacy = !!slot.sub && !!photos[FP_PLAIN_LEGACY_THUMBS]
+                  && !halves.some((h) => photos[h.key]);
+                const filled = legacy || halves.every((h) => photos[h.key]);
                 // Dang chup DUNG cum nay => nhay khung ngoai cua o, giong o lan.
                 // Truoc day doi chieu fpConfirm?.step: fpConfirm chi co gia tri khi
                 // vong da TAM DUNG cho xac nhan, ma luc do fpRunning = false => dieu
                 // kien nay chua bao gio dung, khung chua bao gio nhay.
-                const active = fpRunning && fpActiveStep === slot.step;
+                const active = fpRunning && halves.some((h) => fpActiveStep === h.step);
                 return (
                   <div
                     key={slot.key}
@@ -1571,25 +1623,62 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       (active ? " active neon-active" : "")}
                     title={t(slot.labelKey)}
                   >
-                    <div className="fp-plain-thumb">
-                      {filled
-                        ? <img src={photos[slot.key]} alt={t(slot.labelKey)} />
-                        : (
-                          // Chua co anh cum => hien ICON BAN TAY thay dau "—" cu.
-                          // CHI to cac ngon THUOC CUM NAY va da thu duoc; khong nhay
-                          // tung ngon (viec nhay do khung ngoai cua o lo, xem .active).
-                          // O "2 ngon cai" ra 2 hinh (trai + phai), hai o kia 1 hinh.
-                          <span className="fp-plain-hands">
-                            {(plainHandsByStep[slot.step] || []).map((h) => (
-                              <HandGlyph
-                                key={h.side}
-                                side={h.side}
-                                active={h.active}
-                                className="plain"
-                              />
-                            ))}
-                          </span>
-                        )}
+                    <div className={"fp-plain-thumb"
+                      + (slot.sub && !legacy ? " fp-plain-thumb--split" : "")}>
+                      {legacy
+                        ? <img src={photos[FP_PLAIN_LEGACY_THUMBS]} alt={t(slot.labelKey)} />
+                        : halves.map((h) => {
+                          const img = photos[h.key];
+                          // So % dat dung vi tri tung ngon. Chi co trong LUC THU
+                          // (fpPlainMarks khong duoc luu vao ho so).
+                          const marks = img ? (fpPlainMarks[h.key] || []) : [];
+                          const hand = plainHandByKey[h.key];
+                          // Nua o dang chup thi NUA do nhay, khong phai ca o: ngon cai
+                          // gio chup rieng nen bao hieu duoc chinh xac tung ngon.
+                          const hActive = !!slot.sub && fpRunning
+                            && fpActiveStep === h.step;
+                          return (
+                            <div
+                              key={h.key}
+                              className={"fp-plain-part"
+                                + (slot.sub ? " fp-plain-half" : "")
+                                + (hActive ? " active neon-active" : "")}
+                              title={slot.sub ? t(h.labelKey) : undefined}
+                            >
+                              {img
+                                ? <img src={img} alt={t(h.labelKey || slot.labelKey)} />
+                                : (
+                                  // Chua co anh => hien ICON BAN TAY thay dau "—" cu.
+                                  // CHI to cac ngon THUOC O NAY; khong nhay tung ngon
+                                  // (viec nhay do khung ngoai lo, xem .active).
+                                  <span className="fp-plain-hands">
+                                    {hand && (
+                                      <HandGlyph side={hand.side} active={hand.active}
+                                        className="plain" />
+                                    )}
+                                  </span>
+                                )}
+                              {marks.length > 0 && (
+                                <span className="fp-mark-strip">
+                                  {marks.map((m) => (
+                                    <span
+                                      key={m.code}
+                                      className={"fp-mark"
+                                        + (m.no_quality ? " nq" : m.low ? " low" : "")}
+                                      style={{ left: `${m.x_pct}%` }}
+                                      title={m.name_vi}
+                                    >
+                                      {/* no_quality = SDK khong do duoc, KHONG phai
+                                          0% - hien 0 se lam can bo tuong ngon hong.
+                                          Dung quy uoc cua luoi 10 o van lan. */}
+                                      {m.no_quality ? "—" : m.quality}
+                                    </span>
+                                  ))}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                     {/* KHONG con nhan chu duoi o ("Long ban tay trai", "4 ngon
                         trai"...). Nam dong chu x ~15px chiem cho ma khong noi them

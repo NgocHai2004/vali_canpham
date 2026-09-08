@@ -9339,6 +9339,58 @@ textarea.input {
 .fp-plain-ph { color: #b3bdcc; font-size: 20px; }
 .fp-plain-cell.done .fp-plain-thumb { border-color: rgba(36, 215, 119, 0.6); background: #fff; }
 .fp-plain-cell.active .fp-plain-thumb { border-color: var(--maroon-2, #a62436); }
+
+/* Mot nua o (hoac ca o voi o thuong) - khung de dat dai so % len dung anh.
+   position: relative la CHO QUYET DINH: .fp-mark-strip dinh theo khung NAY, neu
+   khong no se dinh theo ca o va so cua nua phai nam len nua trai. */
+.fp-plain-part {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.fp-plain-part img { width: 100%; height: 100%; object-fit: contain; }
+/* O ngon cai: HAI anh rieng, moi nua mot lan chup. Vach doc mang o giua. */
+.fp-plain-thumb--split { display: flex; place-items: stretch; }
+.fp-plain-thumb--split .fp-plain-half { flex: 1 1 0; }
+.fp-plain-thumb--split .fp-plain-half + .fp-plain-half {
+  border-left: 1px solid var(--paper-line, #d8dde6);
+}
+/* Nua o dang chup thi NUA do sang, khong phai ca o: ngon cai chup rieng tung
+   ngon nen bao hieu duoc chinh xac ngon nao may dang doi. */
+.fp-plain-thumb--split .fp-plain-half.active {
+  background: rgba(166, 36, 54, 0.06);
+}
+
+/* Dai so % o DAY anh chum. Nen mo vi so phai doc duoc tren CA vung van (toi) lan
+   nen anh (trang) - khong co nen thi so trang tren nen trang la mat han. */
+.fp-mark-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+/* left = x_pct do service tinh (diem giua ngon, tinh tren anh goc). translateX(-50%)
+   de so CAN GIUA vi tri do chu khong bat dau tu do. */
+.fp-mark {
+  position: absolute;
+  bottom: 2px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  white-space: nowrap;
+}
+.fp-mark.low { color: #ff6b7a; }
+/* no_quality: SDK khong do duoc, KHONG phai van tay kem => xam, khong do. To do
+   se bao can bo chup lai mot ngon ma chup lai cung khong co so. */
+.fp-mark.nq { color: #c7ceda; font-weight: 600; }
 .fp-plain-label {
   text-align: center;
   font-size: 11px;
@@ -10637,69 +10689,118 @@ textarea.input {
   letter-spacing: 0.6px;
 }
 
-/* ---- Van LAN: 2 hang x 5 o, moi hang co nhan tay doc ben trai ---- */
-.fps-sheet .fps-roll-row { display: grid; grid-template-columns: 7mm 1fr; gap: 1.5mm; }
-/* Nhan "TAY TRAI/PHAI" quay doc de khong an be rong cua 5 o van. */
-.fps-sheet .fps-hand-tag {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #000;
-  background: #f1f5f9;
+/* ---- Van LAN theo mau giay: BANG KE LIEN, khong khe ho, khong to mau ----
+   Do tren anh mau (635x720): 5 cot deu nhau x = 23/136/255/375/494/607, moi hang
+   gom BANG ANH (y 335..435) + BANG HE SO (y 437..456). Hang TREN la tay PHAI.
+   Nhan ngon nam TRONG o anh (goc tren-trai), khong co cot "TAY TRAI/PHAI" doc va
+   khong co so thu tu 1..10 — dung y mau. */
+.fps-sheet .fps-roll-table {
+  /* border-collapse mo phong bang net lien: chi ke 1 duong giua 2 o. */
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1.1px solid #000;
+  border-right: 0;
+  border-bottom: 0;
+}
+.fps-sheet .fps-cell {
+  min-width: 0;
+  border-right: 1.1px solid #000;
+  border-bottom: 1.1px solid #000;
+}
+/* O anh van lan: nhan ngon + he so tu (numerator) chong len goc tren. */
+.fps-sheet .fps-cell-box {
+  position: relative;
+  /* 100px tren anh mau (635px = 210mm) => 30.8mm */
+  height: 30.8mm;
+  background: #fff;
+  overflow: hidden;
+}
+.fps-sheet .fps-cell-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.fps-sheet .fps-cell-name {
+  position: absolute;
+  top: 0.6mm;
+  left: 1mm;
+  right: 1mm;
+  font-size: 9px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Chu de tren anh van van doc duoc ma khong che net van. */
+  text-shadow: 0 0 1.5px #fff, 0 0 1.5px #fff;
+}
+.fps-sheet .fps-cell-num {
+  position: absolute;
+  top: 0.6mm;
+  right: 1mm;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1px;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  text-shadow: 0 0 1.5px #fff, 0 0 1.5px #fff;
 }
-.fps-sheet .fps-roll-cells { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1.5mm; }
-.fps-sheet .fps-cell { display: flex; flex-direction: column; min-width: 0; }
-/* So thu tu in tren chi ban (1..10) + ten ngon, tren dinh moi o. */
-.fps-sheet .fps-cell-head {
-  display: flex;
-  align-items: baseline;
-  gap: 1.2mm;
-  padding: 0.5mm 1mm;
-  border: 1px solid #000;
-  border-bottom: 0;
-  font-size: 9.5px;
-  background: #f1f5f9;
-}
-.fps-sheet .fps-cell-head > b { font-size: 10.5px; }
-.fps-sheet .fps-cell-head > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-/* Khung van lan: cao co dinh theo mau giay (o van lan cao hon rong). */
-.fps-sheet .fps-cell-box {
-  height: 30mm;
-  border: 1px solid #000;
-  background: #fff;
+/* Bang HE SO duoi moi hang anh: o trong de can bo ghi tay, so mau in san. */
+.fps-sheet .fps-coef {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  /* dai he so cao 19px tren mau => 5.9mm */
+  min-height: 5.9mm;
+  font-size: 10px;
+  font-weight: 700;
 }
-.fps-sheet .fps-cell-box img { width: 100%; height: 100%; object-fit: contain; }
 
-/* ---- Van CHUM 4-2-4: 2 anh 4 ngon rong, anh 2 ngon cai hep hon ---- */
-.fps-sheet .fps-plain-row { display: grid; grid-template-columns: 4fr 2fr 4fr; gap: 1.5mm; }
-.fps-sheet .fps-plain { display: flex; flex-direction: column; min-width: 0; }
+/* ---- Khoi duoi cung: 4 cot theo mau (x = 23/235/315/395/607) ----
+   Rong | hep | hep | rong => 212/80/80/212 tren tong 584 = 36.3/13.7/13.7/36.3%.
+   Hai cot giua la 2 o ngon CAI (co dai phan cach o y 599 va y 618 tren mau). */
+.fps-sheet .fps-plain-row {
+  display: grid;
+  grid-template-columns: 36.3% 13.7% 13.7% 36.3%;
+  border: 1.1px solid #000;
+  border-right: 0;
+  border-bottom: 0;
+}
+.fps-sheet .fps-plain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1.1px solid #000;
+  border-bottom: 1.1px solid #000;
+}
+.fps-sheet .fps-plain-cap {
+  padding: 0.4mm 1mm;
+  min-height: 4.6mm;
+  box-sizing: border-box;
+  border-bottom: 1.1px solid #000;
+  font-size: 8.5px;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Cot hep (ngon cai) co THEM mot dai nho duoi nhan — khop mau. */
+/* Cot ngon cai: dai nhan 5.9mm + dai trong 5.9mm (mau: ke o y 599 va y 618). */
+.fps-sheet .fps-plain.thumb .fps-plain-cap { min-height: 5.9mm; }
+.fps-sheet .fps-plain.thumb .fps-plain-cap2 {
+  min-height: 5.9mm;
+  border-bottom: 1.1px solid #000;
+}
 .fps-sheet .fps-plain-box {
-  height: 32mm;
-  border: 1px solid #000;
+  /* Ca khoi duoi cao 122px tren mau => 37.6mm: cot ngoai 4.6+33, cot cai 5.9+5.9+25.9. */
+  flex: 1 1 auto;
+  min-height: 33mm;
   background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.fps-sheet .fps-plain-box img { width: 100%; height: 100%; object-fit: contain; }
-.fps-sheet .fps-plain-cap {
-  padding: 0.5mm 1mm;
-  border: 1px solid #000;
-  border-top: 0;
-  font-size: 9.5px;
-  text-align: center;
-  background: #f1f5f9;
-}
+.fps-sheet .fps-plain.thumb .fps-plain-box { min-height: 25.9mm; }
+.fps-sheet .fps-plain-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 /* ---- Ky ten ---- */
 .fps-sheet .fps-sign-row {
