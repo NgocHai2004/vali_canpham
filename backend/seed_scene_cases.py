@@ -58,36 +58,30 @@ def main():
     db.work_sessions.delete_many({"seed_demo": True})
     print(f"da xoa {len(old)} phien seed cu")
 
-    # Phien dang mo san (neu co) duoc backfill case_name thay vi tao trung.
-    live = db.work_sessions.find_one({"officer": OFFICER, "status": "open"})
+    # ponytail: CA 6 vu an deu la doc moi co seed_demo=True. Ban goc backfill
+    # case_name vao phien THAT dang mo => sua data that, va lan chay sau khong don
+    # duoc vi phien do khong co co seed_demo.
     base = datetime(2026, 8, 3, 8, 30)
     n_tr = 0
 
     for i, (case_name, location, commune) in enumerate(CASES):
         opened = base + timedelta(days=i * 4, hours=i)
-        if i == 0 and live:
-            sid = live["_id"]
-            db.work_sessions.update_one({"_id": sid}, {"$set": {
-                "case_name": case_name, "commune_code": commune, "location": location,
-            }})
-            print(f"backfill case_name cho phien dang mo {live.get('code')}")
-        else:
-            sid = db.work_sessions.insert_one({
-                "code": f"S{opened.strftime('%Y%m%d')}-{i + 1:04d}",
-                "status": "closed",
-                "case_name": case_name,
-                "commune_code": commune,
-                "officer": OFFICER,
-                "officer_full_name": full_name,
-                "location": location,
-                "note": "Phien seed demo.",
-                "opened_at": opened,
-                "closed_at": opened + timedelta(hours=6),
-                "detainee_count": 0,
-                "report_url": None,
-                "report_filename": None,
-                "seed_demo": True,
-            }).inserted_id
+        sid = db.work_sessions.insert_one({
+            "code": f"S{opened.strftime('%Y%m%d')}-{i + 1:04d}",
+            "status": "closed",
+            "case_name": case_name,
+            "commune_code": commune,
+            "officer": OFFICER,
+            "officer_full_name": full_name,
+            "location": location,
+            "note": "Phien seed demo.",
+            "opened_at": opened,
+            "closed_at": opened + timedelta(hours=6),
+            "detainee_count": 0,
+            "report_url": None,
+            "report_filename": None,
+            "seed_demo": True,
+        }).inserted_id
 
         for k in range(PER_CASE):
             g = i * PER_CASE + k
@@ -112,8 +106,10 @@ def main():
             })
             n_tr += 1
 
-    # self-check: du 6 vu an co ten, du 60 dau vet, moi vu du PER_CASE
-    codes = list(db.work_sessions.find({"officer": OFFICER, "case_name": {"$ne": ""}}))
+    # self-check: du 6 vu an co ten, du 60 dau vet, moi vu du PER_CASE.
+    # ponytail: loc theo seed_demo. Ban goc dung {"case_name": {"$ne": ""}} => match
+    # ca phien THAT co case_name=None (None != "") nen assert fail oan tren DB co san.
+    codes = list(db.work_sessions.find({"officer": OFFICER, "seed_demo": True}))
     assert len(codes) == len(CASES), f"vu an: {len(codes)} != {len(CASES)}"
     assert n_tr == len(CASES) * PER_CASE, n_tr
     for s in codes:

@@ -2338,7 +2338,11 @@ async def create_scene_trace(
 
 
 class SceneTracePatch(BaseModel):
-    note: str = Field(default="", max_length=500)
+    """PATCH thật: field nào None là không gửi -> giữ nguyên giá trị cũ.
+    Không dùng default="" vì caller chỉ sửa ghi chú sẽ xoá trắng 2 field kia."""
+    note: Optional[str] = Field(default=None, max_length=500)
+    trace_type: Optional[str] = Field(default=None, max_length=100)
+    collection_source: Optional[str] = Field(default=None, max_length=200)
 
 
 @app.patch("/api/scene/traces/{trace_id}")

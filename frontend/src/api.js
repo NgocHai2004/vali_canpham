@@ -297,9 +297,11 @@ export const api = {
     fd.append("source", source);
     return request("/api/scene/traces", { method: "POST", body: fd });
   },
-  updateSceneTrace: (id, note) => request(`/api/scene/traces/${id}`, {
+  // patch = { note?, trace_type?, collection_source? }. Field khong gui thi backend
+  // giu nguyen. Truyen string thay object van chay (chi sua ghi chu) cho caller cu.
+  updateSceneTrace: (id, patch) => request(`/api/scene/traces/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ note: note || "" }),
+    body: JSON.stringify(typeof patch === "string" ? { note: patch } : patch),
   }),
   deleteSceneTrace: (id) => request(`/api/scene/traces/${id}`, { method: "DELETE" }),
 };

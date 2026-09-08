@@ -5,7 +5,7 @@ import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
 import { MATCH_ROWS, SUBJECTS } from "./sceneMatchDemo";
 import { fmtSize } from "./SceneTracesPage";
-import { SCORE_TOTAL } from "./sceneDemo";
+import { DEMO_ITEMS, SCORE_TOTAL } from "./sceneDemo";
 import {
   IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
   IcEye, IcPageNext, IcPagePrev, IcPencil, IcPlus,
@@ -225,9 +225,14 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   // Ket qua doi sanh la data gia nen chua co FK sang dau vet that -> gan theo
   // thu tu (index tuyet doi trong rows) cho anh va link chi tiet luon khop nhau.
   // Bo ham nay khi backend tra trace_id trong ket qua doi sanh.
-  const traceFor = (absIdx) => (traces.length ? traces[absIdx % traces.length] : null);
+  //
+  // Phien chua co dau vet that => dung DEMO_ITEMS (giong SceneTracesPage) de anh
+  // va link chi tiet van hoat dong. Neu de null thi anh hong + hang khong bam
+  // duoc, khong xem duoc man Chi tiet doi sanh.
+  const matchTraces = traces.length ? traces : DEMO_ITEMS;
+  const traceFor = (absIdx) => matchTraces[absIdx % matchTraces.length];
 
-  const fullItem = full ? traces.find((x) => x.id === full.id) : null;
+  const fullItem = full ? matchTraces.find((x) => x.id === full.id) : null;
   if (fullItem) {
     return (
       <SceneTraceFull item={fullItem} row={full.row} session={session} onBack={() => setFull(null)} />
