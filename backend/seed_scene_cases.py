@@ -3,8 +3,10 @@
 Chay: .venv/Scripts/python.exe backend/seed_scene_cases.py
 Idempotent — moi doc seed deu co seed_demo=True, chay lai thi xoa roi bom lai.
 
-ponytail: tro url thang vao /uploads/scene_crop/ (anh da co san) thay vi copy
+ponytail: tro url thang vao /uploads/latent_cut/ (anh da co san) thay vi copy
 sang /uploads/scene/. Copy file khi nao can xoa doc lap tung anh.
+Cung bo anh voi LATENT trong frontend/src/sceneDemo.js => anh dau vet o bang
+KET QUA DOI SANH / DAU VET HIEN TRUONG khop voi anh demo.
 """
 import os
 import sys
@@ -16,7 +18,7 @@ MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "app_cccd")
 OFFICER = os.getenv("SEED_OFFICER", "canbo01")
 
-IMG_DIR = os.path.join(os.path.dirname(__file__), "uploads", "scene_crop")
+IMG_DIR = os.path.join(os.path.dirname(__file__), "uploads", "latent_cut")
 PER_CASE = 10
 
 # 6 vu an: (ten vu an, dia diem, xa/phuong)
@@ -93,7 +95,7 @@ def main():
             db.scene_traces.insert_one({
                 "session_id": sid,
                 "seq": k + 1,
-                "url": f"/uploads/scene_crop/{imgs[g % len(imgs)]}",
+                "url": f"/uploads/latent_cut/{imgs[g % len(imgs)]}",
                 "size": 90000 + (g * 5137) % 40000,
                 "mime": "image/png",
                 "note": NOTE,
