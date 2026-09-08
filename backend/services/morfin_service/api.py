@@ -50,28 +50,34 @@ from morfin import FingerType, SlapPosition  # noqa: E402
 # theo giai phau. Mapping duoi day chi dung khi nguoi dan dat tay DUNG CHIEU
 # (long ban tay up xuong, dau ngon huong ra xa nguoi dat).
 #
-# NGON CAI CHUP TUNG NGON MOT, khong chup chum 2 cai.
+# NGON CAI CHUP CHUM CA HAI NGON trong MOT lan - khong tach duoc.
 #
-# Ly do: SDK chi tra "Thumb A"/"Thumb B" (SLAP_LABELS), KHONG noi ben nao la
-# trai. Chup chum 2 cai thi phai suy slot -> ngon theo toa do x, va do la mot
-# phep DOAN khong kiem chung duoc: dat nguoc tay la template cai trai gan cho
-# cai phai, sai am tham, khong ai phat hien. Chup rieng thi buoc DA BIET no la
-# ngon nao - het cho doan.
+# DA THU tach thanh 2 buoc 1 ngon (thumb_left / thumb_right, moi buoc khai ngon
+# cai ben kia vao tham so `exceptions` cua StartCapture) va SDK TU CHOI. Log tu
+# thiet bi that (Morfin MORPHS, serial 10783121):
 #
-# Duong de chup 1 ngon cai: tham so `exceptions` cua StartCapture (co che da
-# dung san cho ngon "khong co van tay"). Khai ngon cai BEN KIA la absent thi
-# auto_capture chot frame o 1 ngon. Xem "absent_extra" duoi day.
+#   step=thumb_left THAT BAI code=-2019 (Capture timeout) frames=64 count=4
+#   msg='Hand Position [UNKNOWN]'
 #
-# Hai loi phu duoc sua theo: redo() xoa theo step["codes"] nen chup lai cai trai
-# khong con xoa luon cai phai; va khung nhay o frontend bao hieu dung tung ngon
-# cai thay vi ca o.
+# Doc ra: frames=64 nghia la cam bien CO thay ngon (preview doc duoc Quality 62),
+# nen khong phai loi dat tay hay thiet bi. Nhung count=4: SDK VAN cho DU 4 ngon
+# du da khai 1 ngon vao exceptions => `exceptions` KHONG ha duoc so ngon SDK cho
+# o che do chum. Va 'Hand Position [UNKNOWN]' cho biet no khong nhan ra tu the
+# mot ngon cai don le. auto_capture khong bao gio chot frame => het timeout.
 #
-# Thu tu 4 buoc chum = DUNG THU TU 3 O TREN MAN HINH, trai sang phai:
-#   4 ngon trai -> cai trai -> cai phai -> 4 ngon phai
+# count=4 cung LOAI duong "chup ngon cai o LEFT_HAND/RIGHT_HAND voi 3 ngon kia
+# khai absent": cung dua vao exceptions de ha so ngon, se 408 y nhu vay.
+#
+# => Ngon cai phai chup chum 2 ngon. Hau qua phai chap nhan: slot nao la ngon cai
+#    TRAI phai suy theo toa do x (slot 1 = trai nhat trong anh), vi SDK chi tra
+#    "Thumb A"/"Thumb B" chu khong noi ben nao. Nguoi dan dat nguoc hai ngon cai
+#    thi template bi gan lech sang ngon kia. Khong co duong nao khac o che do FLAT.
+#    Muon chup rieng tung ngon cai thi phai dung FingerType.ROLL (van LAN, da chay
+#    tot - xem ROLL_STEPS), nhung do la van lan chu khong phai van phang.
+#
+# Thu tu 3 buoc chum = DUNG THU TU 3 O TREN MAN HINH, trai sang phai:
+#   4 ngon trai -> 2 ngon cai -> 4 ngon phai
 # Cung quy uoc voi ROLL_ORDER: can bo doc mot mach, khong phai nhay o.
-#
-# Ten buoc la "thumb_left", KHONG phai "left_thumb": STEP_BY_NAME va s.fingers
-# la hai khong gian ten khac nhau, trung chu la moi goi loi tra nham bang.
 SLAP_STEPS: list[dict] = [
     {
         "step": "left_hand",
@@ -81,21 +87,11 @@ SLAP_STEPS: list[dict] = [
         "codes": ["left_little", "left_ring", "left_middle", "left_index"],
     },
     {
-        "step": "thumb_left",
+        "step": "thumbs",
         "slap": SlapPosition.THUMB,
-        "label_vi": "Ngon cai trai",
-        "expect": 1,
-        "codes": ["left_thumb"],
-        # Ngon cai PHAI khai absent => SDK khong cho du 2 ngon moi chot frame.
-        "absent_extra": ["right_thumb"],
-    },
-    {
-        "step": "thumb_right",
-        "slap": SlapPosition.THUMB,
-        "label_vi": "Ngon cai phai",
-        "expect": 1,
-        "codes": ["right_thumb"],
-        "absent_extra": ["left_thumb"],
+        "label_vi": "2 ngon cai",
+        "expect": 2,
+        "codes": ["left_thumb", "right_thumb"],
     },
     {
         "step": "right_hand",
@@ -766,7 +762,7 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         "step": step["step"],
         "captured": captured,
         "slap_thumb_b64": s.slap_images[step["step"]],
-        # So % dat DUNG VI TRI tung ngon tren anh chum (xem _slap_marks). Rong voi
+        # So % dat DUNG VI TRI tung ngon tren anh chum (xem _mark_x_pct). Rong voi
         # buoc lan: anh lan chi co 1 ngon va % cua no da hien o o ngon trong luoi.
         "slap_marks": marks,
         # Nguong tung ngon. Frontend phai dung map nay de to mau badge, khong

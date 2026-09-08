@@ -125,4 +125,5 @@ image copy*.png
 # ===== OS / editor thêm =====
 desktop.ini
 $RECYCLE.BIN/
+
 electron/app.asar

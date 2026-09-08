@@ -184,6 +184,7 @@ export const api = {
   updateMe: (body) => request("/api/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
   verifyDongle: () => request("/api/auth/dongle-verify", { skipAuthExpire: true }),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
+  featureConfig: () => request("/api/config/features"),
   measurementConfig: () => request("/api/config/measurement"),
   updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
   fingerprintConfig: () => request("/api/config/fingerprint"),

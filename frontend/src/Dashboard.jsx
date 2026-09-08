@@ -10,6 +10,7 @@ import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { useI18n, LanguageSwitch } from "./i18n";
+import { useFeatures } from "./lib/features";
 
 const Icon = {
   dashboard: (
@@ -281,15 +282,19 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   );
 }
 
+// Chip thiet bi tren header. Chip cccd/scale bi an khi thiet bi tuong ung tat
+// (xem lib/features.js) — camera va van tay luon hien.
 const DEVICE_CHIPS = [
   { key: "camera", labelKey: "header.device.camera" },
-  { key: "cccd", labelKey: "header.device.cccd" },
+  { key: "cccd", labelKey: "header.device.cccd", feature: "cccd_reader" },
   { key: "fp", labelKey: "header.device.fp" },
-  { key: "scale", labelKey: "header.device.scale" },
+  { key: "scale", labelKey: "header.device.scale", feature: "weight_scale" },
 ];
 
 function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee }) {
   const { t } = useI18n();
+  const features = useFeatures();
+  const chips = DEVICE_CHIPS.filter((d) => !d.feature || features[d.feature]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [viewingMatch, setViewingMatch] = useState(null);
@@ -337,7 +342,7 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
 
       <div className="header-actions">
         <div className="device-chips" role="group" aria-label={t("header.device_group")}>
-          {DEVICE_CHIPS.map((d) => {
+          {chips.map((d) => {
             const ok = Boolean(devices?.[d.key]);
             const label = t(d.labelKey);
             return (
@@ -497,6 +502,9 @@ function useNotifState() {
 
 function useDeviceConnections() {
   const [status, setStatus] = useState({ camera: false, cccd: false, fp: false, scale: false });
+  const features = useFeatures();
+  const cccdOn = features.cccd_reader;
+  const scaleOn = features.weight_scale;
 
   useEffect(() => {
     let cancelled = false;
@@ -530,7 +538,12 @@ function useDeviceConnections() {
     };
 
     const runAll = async () => {
-      const [camera, cccd, fp] = await Promise.all([checkCamera(), checkCccd(), checkFp()]);
+      // Co CCCD tat -> khong poll /api/cccd/health (chip da an, khoi goi vo ich).
+      const [camera, cccd, fp] = await Promise.all([
+        checkCamera(),
+        cccdOn ? checkCccd() : Promise.resolve(false),
+        checkFp(),
+      ]);
       if (cancelled) return;
       setStatus((prev) => ({ ...prev, camera, cccd, fp }));
     };
@@ -552,6 +565,8 @@ function useDeviceConnections() {
     let closed = false;
     let retry = 0;
     let retryTimer = null;
+    // Co can tat -> khong mo WS, khong retry. Chip "scale" da an nen khong can
+    // trang thai; server cung dong ngay neu co client cu goi vao.
 
     const openWs = () => {
       try {
@@ -578,7 +593,7 @@ function useDeviceConnections() {
       retryTimer = setTimeout(openWs, delay);
     };
 
-    openWs();
+    if (scaleOn) openWs();
 
     return () => {
       cancelled = true;
@@ -587,7 +602,9 @@ function useDeviceConnections() {
       if (retryTimer) clearTimeout(retryTimer);
       try { ws && ws.close(); } catch { /* noop */ }
     };
-  }, []);
+    // Phu thuoc vao 2 co: co ve muon (sau khi fetch /api/config/features xong)
+    // nen phai chay lai effect de dong WS / dung poll cho dung.
+  }, [cccdOn, scaleOn]);
 
   return status;
 }
@@ -3593,6 +3610,7 @@ const FP_SETTINGS_DIGITS = ["thumb", "index", "middle", "ring", "little"];
 
 function SettingsPage() {
   const { t } = useI18n();
+  const features = useFeatures();
   const [heightImage, setHeightImage] = useState("");
   const [heightOffset, setHeightOffset] = useState("");
   const [loading, setLoading] = useState(true);
@@ -3774,7 +3792,8 @@ function SettingsPage() {
             </form>
           </section>
 
-          <section className="table-card settings-card">
+          {/* Card cong thuc chieu cao chi co nghia khi YOLO bat — an khi tat. */}
+          <section className="table-card settings-card" hidden={!features.height_yolo}>
             <div className="settings-card-head">
               <span className="settings-card-icon">{Icon.chart}</span>
               <div>

@@ -3,7 +3,7 @@ import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
 import { api, fpApi, cccdApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
-import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_CELLS, FP_PLAIN_LEGACY_THUMBS, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
+import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FINGER_STEP_OF, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_LAYERS_BY_STEP, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
 import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
@@ -565,6 +565,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       // KHONG vao `photos`, KHONG vao payload luu ho so - xem comment o fpPlainMarks.
       if (plainKey && !step.roll && capRes.slap_marks) {
         setFpPlainMarks((p) => ({ ...p, [plainKey]: capRes.slap_marks }));
+      }
+      // O NGON CAI hien HAI LAYER - mot layer moi ngon cai, moi layer la anh RIENG
+      // cua ngon do (captured[].image_b64 - SDK tach san tung ngon trong cung lan
+      // chup chum). Van la MOT lan chup: da thu tach thanh 2 lan chup 1 ngon va
+      // thiet bi tu choi (-2019, count=4) - xem SLAP_STEPS trong api.py.
+      //
+      // Layer luu vao photos theo key rieng (fp_plain_left_thumb /
+      // fp_plain_right_thumb) nen ho so co ca anh tung ngon cai, khong chi anh chum.
+      const layers = FP_PLAIN_LAYERS_BY_STEP[step.step];
+      if (layers && !step.roll) {
+        for (const ly of layers) {
+          const c = (capRes.captured || []).find((x) => x.code === ly.code);
+          if (!c?.image_b64) continue;
+          try {
+            const f = await b64PngToFile(c.image_b64, `${ly.key}.png`);
+            const up = await api.uploadPhoto(f);
+            setPhotos((p) => ({ ...p, [ly.key]: up.url }));
+          } catch (e) {
+            setFpError(t("capture.err.save_photo", { message: e.message }));
+          }
+        }
       }
       // CHI buoc LAN duoc ghi vao 10 o fp_l1..fp_r5 (va fp_templates).
       //
@@ -1261,15 +1282,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const captureTimeStr = `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-  // Dem theo LAN CHUP (4), khong theo o (3): ngon cai chup rieng tung ngon nen o
-  // ngon cai la 2 lan. Dem theo o thi chup xong cai trai da nhay 2/3, con thieu
-  // mot lan nua ma so khong doi - can bo khong biet con phai chup gi.
-  //
-  // Ho so CU chi co fp_plain_thumbs (mot anh 2 ngon cai): tinh la 2 lan, nho vay
-  // ho so cu du anh van hien 4/4 chu khong tut ve 3/4 nhu the con thieu.
-  const plainCount = FP_PLAIN_CELLS.filter((sl) => photos[sl.key]).length
-    + (photos[FP_PLAIN_LEGACY_THUMBS]
-       && !photos.fp_plain_left_thumb && !photos.fp_plain_right_thumb ? 2 : 0);
+  const plainCount = FP_PLAIN_SLOTS.filter((sl) => photos[sl.key]).length;
   // Icon ban tay cho 3 o van CHUM: to nhung ngon O DO CAN THU (4 ngon trai / 2
   // ngon cai / 4 ngon phai), cac ngon con lai de mo. Y het o lan - o lan to dung
   // ngon cua chinh no de noi "o nay la ngon nao", khong phai de bao da thu xong.
@@ -1281,25 +1294,41 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // Cung khong co blink: luc dang thu thi NHAY KHUNG NGOAI cua o (class .active ->
   // fp-cell-pulse, giong o lan), khong nhay tung ngon.
   //
-  // Khoa theo KEY ANH, khong theo ten buoc, va moi key ra DUNG MOT hinh.
+  // O "2 ngon cai" gom ca hai ban tay => tra ve MOT MANG hinh (2 cai); hai o kia
+  // mot hinh.
   //
-  // Truoc day khoa theo step cua FP_CLUSTERS va o "2 ngon cai" tra ve MOT MANG 2
-  // hinh (2 ban tay). Gio ngon cai chup rieng tung ngon nen moi NUA o can dung mot
-  // hinh cua rieng no - mang 2 hinh se ve ca hai ban tay vao moi nua.
-  //
-  // Nguon la FP_PLAIN_CELLS (da phang ca `sub`), KHONG phai FP_CLUSTERS:
-  // FP_CLUSTERS con giu step "thumbs" cu (xem constants.js) nen tra bang theo no se
-  // khong bao gio khop thumb_left / thumb_right.
-  const plainHandByKey = useMemo(() => {
+  // Nguon la FP_PLAIN_SLOTS + FINGER_STEP_OF, KHONG phai step cua FP_CLUSTERS:
+  // `step` trong FP_CLUSTERS chi con la nhan bo cuc, khong bao dam khop ten buoc
+  // cua service (xem constants.js). FINGER_STEP_OF la bang duy nhat anh xa ma ngon
+  // -> ten buoc that.
+  const plainHandsByStep = useMemo(() => {
     const out = {};
-    for (const cell of FP_PLAIN_CELLS) {
-      const codes = FP_CLUSTERS.flatMap((c) => c.codes)
-        .filter((code) => FINGER_STEP_OF[code] === cell.step);
-      if (!codes.length) continue;
-      out[cell.key] = {
-        side: codes[0].startsWith("left") ? "left" : "right",
-        active: codes.map((code) => code.replace(/^(left|right)_/, "")),
-      };
+    for (const slot of FP_PLAIN_SLOTS) {
+      const hands = [];
+      for (const code of FP_ROLL_ORDER) {
+        if (FINGER_STEP_OF[code] !== slot.step) continue;
+        const side = code.startsWith("left") ? "left" : "right";
+        let hand = hands.find((h) => h.side === side);
+        if (!hand) {
+          hand = { side, active: [] };
+          hands.push(hand);
+        }
+        hand.active.push(code.replace(/^(left|right)_/, ""));
+      }
+      if (hands.length) out[slot.step] = hands;
+    }
+    return out;
+  }, []);
+  // Glyph cho MOT ngon (dung cho layer cua o ngon cai): mot ban tay, to dung ngon
+  // cua layer do. Tra ve MANG mot phan tu de vong render dung chung mot duong voi
+  // plainHandsByStep (o thuong tra mang 1-2 ban tay).
+  const plainHandsByCode = useMemo(() => {
+    const out = {};
+    for (const code of FP_ROLL_ORDER) {
+      out[code] = [{
+        side: code.startsWith("left") ? "left" : "right",
+        active: [code.replace(/^(left|right)_/, "")],
+      }];
     }
     return out;
   }, []);
@@ -1598,87 +1627,98 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               <span className="fp-row-count">{plainCount} / 4</span>
             </h3>
             <div className="fp-plain-row">
-              {/* BA o, BON lan chup (SLAP_STEPS cua morfin_service):
-                  4 ngon trai | cai trai + cai phai | 4 ngon phai.
-                  O ngon cai CHIA DOI - moi nua mot lan chup rieng. */}
+              {/* BA o, dung 3 buoc chum cua morfin_service (SLAP_STEPS):
+                  4 ngon trai | 2 ngon cai | 4 ngon phai. */}
               {FP_PLAIN_SLOTS.map((slot) => {
-                // O thuong: chinh no la mot nua duy nhat => dung MOT duong code cho
-                // ca hai loai o, khong nhanh rieng cho o ngon cai.
-                const halves = slot.sub || [slot];
-                // Ho so CU (truoc khi tach ngon cai) chi co mot anh 2 ngon cai o key
-                // fp_plain_thumbs. Hien nguyen anh do, KHONG chia doi va khong migrate:
-                // anh cu van la ban ghi hop le.
-                const legacy = !!slot.sub && !!photos[FP_PLAIN_LEGACY_THUMBS]
-                  && !halves.some((h) => photos[h.key]);
-                const filled = legacy || halves.every((h) => photos[h.key]);
+                const img = photos[slot.key];
+                // So % dat dung vi tri tung ngon tren anh chum. Chi co trong LUC THU
+                // (fpPlainMarks khong duoc luu vao ho so).
+                const marks = img ? (fpPlainMarks[slot.key] || []) : [];
+                // O NGON CAI co 2 LAYER: moi layer mot ngon cai, anh RIENG cua ngon do
+                // (SDK tach san trong cung lan chup chum). Hai o kia: mot layer, anh chum.
+                const layers = FP_PLAIN_LAYERS_BY_STEP[slot.step];
+                // `parts` gop ca hai truong hop lam MOT duong code cho vong render.
+                // Layer cua ngon cai lay mark cua DUNG ngon do va dat lai x_pct = 50:
+                // anh layer la anh mot ngon da canh giua, khong con la anh chum nen toa
+                // do x tren anh chum khong con y nghia o day.
+                const parts = layers
+                  ? layers.map((ly) => ({
+                    key: ly.key,
+                    labelKey: ly.labelKey,
+                    img: photos[ly.key],
+                    hands: plainHandsByCode[ly.code],
+                    marks: photos[ly.key]
+                      ? marks.filter((m) => m.code === ly.code)
+                        .map((m) => ({ ...m, x_pct: 50 }))
+                      : [],
+                  }))
+                  : [{
+                    key: slot.key, labelKey: slot.labelKey, img,
+                    hands: plainHandsByStep[slot.step], marks,
+                  }];
+                // "Xong" = MOI layer da co anh. O ngon cai thieu mot ngon van la chua xong.
+                const filled = parts.every((p) => !!p.img);
                 // Dang chup DUNG cum nay => nhay khung ngoai cua o, giong o lan.
                 // Truoc day doi chieu fpConfirm?.step: fpConfirm chi co gia tri khi
                 // vong da TAM DUNG cho xac nhan, ma luc do fpRunning = false => dieu
                 // kien nay chua bao gio dung, khung chua bao gio nhay.
-                const active = fpRunning && halves.some((h) => fpActiveStep === h.step);
+                const active = fpRunning && fpActiveStep === slot.step;
                 return (
                   <div
                     key={slot.key}
                     className={"fp-plain-cell " + (filled ? "done" : "empty") +
                       (active ? " active neon-active" : "")}
-                    title={t(slot.labelKey)}
+                    /* O ngon cai KHONG dat title o day: moi layer tu mang ten ngon
+                       cua no. Dat ca hai cho thi tooltip hien "2 ngon cai" roi
+                       "Cai trai" - lap, va doc ra thi thanh "Cai trai / Cai trai". */
+                    title={layers ? undefined : t(slot.labelKey)}
                   >
                     <div className={"fp-plain-thumb"
-                      + (slot.sub && !legacy ? " fp-plain-thumb--split" : "")}>
-                      {legacy
-                        ? <img src={photos[FP_PLAIN_LEGACY_THUMBS]} alt={t(slot.labelKey)} />
-                        : halves.map((h) => {
-                          const img = photos[h.key];
-                          // So % dat dung vi tri tung ngon. Chi co trong LUC THU
-                          // (fpPlainMarks khong duoc luu vao ho so).
-                          const marks = img ? (fpPlainMarks[h.key] || []) : [];
-                          const hand = plainHandByKey[h.key];
-                          // Nua o dang chup thi NUA do nhay, khong phai ca o: ngon cai
-                          // gio chup rieng nen bao hieu duoc chinh xac tung ngon.
-                          const hActive = !!slot.sub && fpRunning
-                            && fpActiveStep === h.step;
-                          return (
-                            <div
-                              key={h.key}
-                              className={"fp-plain-part"
-                                + (slot.sub ? " fp-plain-half" : "")
-                                + (hActive ? " active neon-active" : "")}
-                              title={slot.sub ? t(h.labelKey) : undefined}
-                            >
-                              {img
-                                ? <img src={img} alt={t(h.labelKey || slot.labelKey)} />
-                                : (
-                                  // Chua co anh => hien ICON BAN TAY thay dau "—" cu.
-                                  // CHI to cac ngon THUOC O NAY; khong nhay tung ngon
-                                  // (viec nhay do khung ngoai lo, xem .active).
-                                  <span className="fp-plain-hands">
-                                    {hand && (
-                                      <HandGlyph side={hand.side} active={hand.active}
-                                        className="plain" />
-                                    )}
-                                  </span>
-                                )}
-                              {marks.length > 0 && (
-                                <span className="fp-mark-strip">
-                                  {marks.map((m) => (
-                                    <span
-                                      key={m.code}
-                                      className={"fp-mark"
-                                        + (m.no_quality ? " nq" : m.low ? " low" : "")}
-                                      style={{ left: `${m.x_pct}%` }}
-                                      title={m.name_vi}
-                                    >
-                                      {/* no_quality = SDK khong do duoc, KHONG phai
-                                          0% - hien 0 se lam can bo tuong ngon hong.
-                                          Dung quy uoc cua luoi 10 o van lan. */}
-                                      {m.no_quality ? "—" : m.quality}
-                                    </span>
-                                  ))}
+                      + (layers ? " fp-plain-thumb--split" : "")}>
+                      {/* O NGON CAI: hai LAYER, moi layer mot ngon cai voi anh RIENG
+                          cua ngon do (SDK tach san trong cung lan chup). Hai o kia:
+                          mot layer duy nhat, anh chum ca ban tay.
+                          Dung MOT duong code cho ca hai loai o - `parts` la [chinh o]
+                          voi o thuong, la [cai trai, cai phai] voi o ngon cai. */}
+                      {parts.map((p) => (
+                        <div
+                          key={p.key}
+                          className={"fp-plain-part" + (layers ? " fp-plain-half" : "")}
+                          title={layers ? t(p.labelKey) : undefined}
+                        >
+                          {p.img
+                            ? <img src={p.img} alt={t(p.labelKey)} />
+                            : (
+                              // Chua co anh => hien ICON BAN TAY thay dau "—" cu.
+                              // CHI to cac ngon THUOC LAYER NAY; khong nhay tung ngon
+                              // (viec nhay do khung ngoai cua o lo, xem .active).
+                              <span className="fp-plain-hands">
+                                {(p.hands || []).map((h) => (
+                                  <HandGlyph key={h.side} side={h.side}
+                                    active={h.active} className="plain" />
+                                ))}
+                              </span>
+                            )}
+                          {p.marks.length > 0 && (
+                            <span className="fp-mark-strip">
+                              {p.marks.map((m) => (
+                                <span
+                                  key={m.code}
+                                  className={"fp-mark"
+                                    + (m.no_quality ? " nq" : m.low ? " low" : "")}
+                                  style={{ left: `${m.x_pct}%` }}
+                                  title={m.name_vi}
+                                >
+                                  {/* no_quality = SDK khong do duoc, KHONG phai
+                                      0% - hien 0 se lam can bo tuong ngon hong.
+                                      Dung quy uoc cua luoi 10 o van lan. */}
+                                  {m.no_quality ? "—" : m.quality}
                                 </span>
-                              )}
-                            </div>
-                          );
-                        })}
+                              ))}
+                            </span>
+                          )}
+                        </div>
+                      ))}
                     </div>
                     {/* KHONG con nhan chu duoi o ("Long ban tay trai", "4 ngon
                         trai"...). Nam dong chu x ~15px chiem cho ma khong noi them

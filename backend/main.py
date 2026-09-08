@@ -49,6 +49,25 @@ def _env_str_from_dotenv(name: str) -> str:
     return ""
 
 
+def _env_bool(name: str, default: bool = True) -> bool:
+    """Doc co bat/tat tinh nang tu env var, roi den .env (App_CCCD/.env).
+
+    Thieu co hoan toan -> default (True = bat), nen may nao chua cau hinh gi
+    van chay y nhu truoc. Chi "0"/"false"/"no"/"off" moi tat.
+    """
+    raw = _env_str_from_dotenv(name).strip().lower()
+    if not raw:
+        return default
+    return raw not in ("0", "false", "no", "off")
+
+
+# Co tat tam 3 thiet bi ngoai vi. Dat trong App_CCCD/.env de bat/tat khong phai
+# sua code. LUU Y: tat may KHONG anh huong cac truong nhap tay — so CCCD,
+# height_cm, weight_kg van nhap binh thuong, chi mat phan tu dong dien.
+FEATURE_CCCD_READER = _env_bool("FEATURE_CCCD_READER")
+FEATURE_WEIGHT_SCALE = _env_bool("FEATURE_WEIGHT_SCALE")
+FEATURE_HEIGHT_YOLO = _env_bool("FEATURE_HEIGHT_YOLO")
+
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "app_cccd")
 JWT_SECRET = _env_str_from_dotenv("JWT_SECRET") or "change-me-in-production-please-abc123xyz"
@@ -188,8 +207,12 @@ async def lifespan(app: FastAPI):
     # thể chưa kịp bật, và nó tự respawn nên phải đồng bộ lại mỗi lần backend
     # start. Không await để không block app ready.
     asyncio.create_task(_push_fp_quality_safe())
-    # Load YOLO person-detect model o background (khong block app ready)
-    threading.Thread(target=person_detect.load_blocking, daemon=True, name="yolo-load").start()
+    # Load YOLO person-detect model o background (khong block app ready).
+    # FEATURE_HEIGHT_YOLO=0 -> khong load, tiet kiem RAM/CPU luc khoi dong.
+    if FEATURE_HEIGHT_YOLO:
+        threading.Thread(target=person_detect.load_blocking, daemon=True, name="yolo-load").start()
+    else:
+        print("[feature] FEATURE_HEIGHT_YOLO=0 -> bo qua load model YOLO.")
     # Load InsightFace (buffalo_sc) o background cho nhan dien khuon mat
     threading.Thread(target=face_recognition_service.load_blocking, daemon=True, name="face-load").start()
     yield
@@ -1719,7 +1742,7 @@ async def upload_photo(
     # Ảnh có vạch đỏ CHỈ để frontend xem tạm ngay sau khi chụp (data URI, không ghi đĩa).
     # File lưu xuống đĩa + URL vào DB luôn là ẢNH GỐC SẠCH, không có vạch.
     preview_b64 = None
-    if type == "portrait" and person_detect.is_ready():
+    if type == "portrait" and FEATURE_HEIGHT_YOLO and person_detect.is_ready():
         try:
             boxed_bytes, n_persons, head_ratio = await anyio.to_thread.run_sync(
                 person_detect.draw_person_boxes, data
@@ -1748,6 +1771,8 @@ async def upload_photo(
 
 @app.get("/api/detect/health")
 async def detect_health(user: dict = Depends(get_current_user)):
+    if not FEATURE_HEIGHT_YOLO:
+        return {"ready": False, "enabled": False}
     return person_detect.get_status()
 
 
@@ -1855,6 +1880,17 @@ async def face_backfill(user: dict = Depends(get_current_user)):
     return {"updated": updated, "skipped": skipped, "failed": failed}
 
 
+@app.get("/api/config/features")
+async def features_config(user: dict = Depends(get_current_user)):
+    """Co bat/tat 3 thiet bi ngoai vi cho frontend an/hien UI tuong ung.
+    Moi user dang nhap deu doc duoc (khong chi admin) vi UI can no de render."""
+    return {
+        "cccd_reader": FEATURE_CCCD_READER,
+        "weight_scale": FEATURE_WEIGHT_SCALE,
+        "height_yolo": FEATURE_HEIGHT_YOLO,
+    }
+
+
 @app.get("/api/config/measurement")
 async def measurement_config(user: dict = Depends(get_current_user)):
     return {"height_image": get_height_image(), "height_offset": get_height_offset()}
@@ -1948,19 +1984,34 @@ from cccd_watcher import (
 )
 
 
+def _require_cccd_reader() -> None:
+    """Chan cac route can thiet bi doc CCCD khi FEATURE_CCCD_READER=0.
+
+    LUU Y: chi chan phan DOC BANG MAY. Cac truong CCCD (so CCCD, ho ten, ngay
+    sinh, que quan, dia chi, dan toc, ton giao) van nhap tay va luu binh thuong
+    qua POST/PUT /api/detainees.
+    """
+    if not FEATURE_CCCD_READER:
+        raise HTTPException(503, "Máy đọc CCCD đang tắt. Vui lòng nhập tay các trường CCCD.")
+
+
 @app.get("/api/cccd/health")
 async def cccd_health(user: dict = Depends(get_current_user)):
+    if not FEATURE_CCCD_READER:
+        return {"ok": False, "disabled": True}
     return _cccd_health()
 
 
 @app.post("/api/cccd/session/start")
 async def cccd_session_start(user: dict = Depends(get_current_user)):
+    _require_cccd_reader()
     sid = _cccd_start_session()
     return {"session_id": sid}
 
 
 @app.get("/api/cccd/session/{sid}/wait")
 async def cccd_session_wait(sid: str, timeout: int = Query(25, ge=1, le=60), user: dict = Depends(get_current_user)):
+    _require_cccd_reader()
     result = await _cccd_wait_session(sid, timeout)
     if result is None:
         raise HTTPException(404, "Phiên không tồn tại hoặc đã hết hạn.")
@@ -1971,6 +2022,7 @@ async def cccd_session_wait(sid: str, timeout: int = Query(25, ge=1, le=60), use
 
 @app.post("/api/cccd/session/{sid}/read_again")
 async def cccd_session_read_again(sid: str, user: dict = Depends(get_current_user)):
+    _require_cccd_reader()
     ok = _cccd_read_again(sid)
     if not ok:
         raise HTTPException(404, "Phiên không tồn tại.")
@@ -2046,6 +2098,7 @@ async def cccd_push(body: CCCDPushBody, request: Request):
     """Máy ngoài bắn dữ liệu CCCD vừa quét lên. Backend đẩy thẳng dữ liệu
     vào hàng đợi của mọi session đang long-poll /api/cccd/session/{sid}/wait
     — không phụ thuộc file watcher, không ghi ra data_cccd/."""
+    _require_cccd_reader()
     _require_cccd_key(request)
 
     now = datetime.utcnow()
@@ -2086,6 +2139,7 @@ async def cccd_push(body: CCCDPushBody, request: Request):
 async def cccd_upload_image(request: Request, file: UploadFile = File(...)):
     """Máy ngoài upload ảnh CCCD/khuôn mặt trước khi gọi /api/cccd/push.
     Trả URL để đưa vào field face_photo của POST /api/cccd/push."""
+    _require_cccd_reader()
     _require_cccd_key(request)
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
@@ -2113,6 +2167,8 @@ class WeightPushBody(BaseModel):
 
 @app.post("/api/weight/push")
 async def weight_push(body: WeightPushBody, request: Request):
+    if not FEATURE_WEIGHT_SCALE:
+        raise HTTPException(503, "Cân điện tử đang tắt. Vui lòng nhập cân nặng bằng tay.")
     if WEIGHT_API_KEY:
         if request.headers.get("X-Weight-Key", "") != WEIGHT_API_KEY:
             raise HTTPException(401, "Sai X-Weight-Key")
@@ -2127,11 +2183,19 @@ async def weight_push(body: WeightPushBody, request: Request):
 
 @app.get("/api/weight/last")
 async def weight_last(user: dict = Depends(get_current_user)):
+    if not FEATURE_WEIGHT_SCALE:
+        return {"weight_kg": None, "disabled": True}
     return _weight_hub.last_value or {"weight_kg": None}
 
 
 @app.websocket("/api/weight/ws")
 async def weight_ws(ws: WebSocket):
+    # Frontend khong mo WS nay khi co tat, nhung van phai chan phia server cho
+    # client cu (bundle da cache) — dong ngay, khong dang ky vao hub.
+    if not FEATURE_WEIGHT_SCALE:
+        await ws.accept()
+        await ws.close()
+        return
     await _weight_hub.connect(ws)
     try:
         while True:

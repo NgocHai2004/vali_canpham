@@ -9340,9 +9340,9 @@ textarea.input {
 .fp-plain-cell.done .fp-plain-thumb { border-color: rgba(36, 215, 119, 0.6); background: #fff; }
 .fp-plain-cell.active .fp-plain-thumb { border-color: var(--maroon-2, #a62436); }
 
-/* Mot nua o (hoac ca o voi o thuong) - khung de dat dai so % len dung anh.
+/* Khung trong o chum de dat dai so % len dung anh.
    position: relative la CHO QUYET DINH: .fp-mark-strip dinh theo khung NAY, neu
-   khong no se dinh theo ca o va so cua nua phai nam len nua trai. */
+   khong no se dinh theo ca trang. */
 .fp-plain-part {
   position: relative;
   min-width: 0;
@@ -9351,17 +9351,6 @@ textarea.input {
   overflow: hidden;
 }
 .fp-plain-part img { width: 100%; height: 100%; object-fit: contain; }
-/* O ngon cai: HAI anh rieng, moi nua mot lan chup. Vach doc mang o giua. */
-.fp-plain-thumb--split { display: flex; place-items: stretch; }
-.fp-plain-thumb--split .fp-plain-half { flex: 1 1 0; }
-.fp-plain-thumb--split .fp-plain-half + .fp-plain-half {
-  border-left: 1px solid var(--paper-line, #d8dde6);
-}
-/* Nua o dang chup thi NUA do sang, khong phai ca o: ngon cai chup rieng tung
-   ngon nen bao hieu duoc chinh xac ngon nao may dang doi. */
-.fp-plain-thumb--split .fp-plain-half.active {
-  background: rgba(166, 36, 54, 0.06);
-}
 
 /* Dai so % o DAY anh chum. Nen mo vi so phai doc duoc tren CA vung van (toi) lan
    nen anh (trang) - khong co nen thi so trang tren nen trang la mat han. */
@@ -10007,6 +9996,37 @@ textarea.input {
 }
 .cap-flat .fp-plain-cell.done .fp-plain-thumb { border-color: #cfe6d8; background: #fff; }
 .cap-flat .fp-plain-cell.active .fp-plain-thumb { border-color: var(--cf-blue); }
+/* Mot NUA o (o ngon cai), hoac ca o voi hai o kia. PHAI co kich thuoc that:
+   glyph ban tay ben trong khoa theo % chieu cao, nen khung cao 0 lam glyph mat han.
+   .fp-plain-thumb la grid mot o => .fp-plain-part phai tu trai het o do. */
+.cap-flat .fp-plain-part {
+  position: relative;
+  /* place-self: stretch la CHO QUYET DINH, khong phai width/height 100%.
+     .fp-plain-thumb la grid `place-items: center` => con cua no KHONG duoc keo gian,
+     no co theo noi dung. Glyph ben trong khoa `height: 84%`, ma % cua mot khung
+     chieu cao khong xac dinh thi khong giai duoc => SVG roi ve kich thuoc goc cua
+     viewBox (37x38px), tuc la icon teo lai bang hat dau.
+     stretch tra lai chieu cao XAC DINH cho ca chuoi %: part -> .fp-plain-hands
+     (height 100%) -> glyph (height 84%). */
+  place-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.cap-flat .fp-plain-part img { width: 100%; height: 100%; object-fit: contain; }
+/* O NGON CAI: HAI LAYER canh nhau, moi layer mot ngon voi anh RIENG cua ngon do
+   (SDK tach san tung ngon trong cung lan chup chum). Doi grid -> flex de hai layer
+   chia deu be ngang. */
+.cap-flat .fp-plain-thumb--split { display: flex; place-items: stretch; }
+.cap-flat .fp-plain-thumb--split .fp-plain-half { flex: 1 1 0; }
+/* Vach chia RO giua hai ngon: net lien 2px, dam hon vien o (1px), chay het chieu
+   cao. Hai layer la hai NGON khac nhau - phai thay ngay day la hai o rieng, khong
+   phai mot anh bi ke mot vach mo. */
+.cap-flat .fp-plain-thumb--split .fp-plain-half + .fp-plain-half {
+  border-left: 2px solid var(--cf-edge);
+}
 /* #c3cad6 tren nen nhat chi 1.55:1 — o trong la THONG TIN ("chua co anh"). */
 .cap-flat .fp-plain-ph { color: var(--cf-muted); font-size: 16px; }
 /* Icon ban tay trong o van CHUM khi chua co anh. To cac ngon O DO CAN THU (khong
@@ -10023,14 +10043,17 @@ textarea.input {
   height: 100%;
   color: var(--cf-muted);
 }
-/* O chum ty le 16/9, thap hon o lan => khoa theo CHIEU CAO (%) chu khong dat
-   width co dinh: o "2 ngon cai" co 2 hinh nen width co dinh se tran ra ngoai o
-   khi cot phai bi hep. aspect-ratio giu dung ti le viewBox (37x38). */
+/* O chum ty le 4/3, thap hon o lan => khoa theo CHIEU CAO (%) chu khong dat
+   width co dinh: hinh phai co lai duoc khi cot phai bi hep. aspect-ratio giu dung
+   ti le viewBox (37x38).
+   Glyph o day chi de noi "o nay la ngon nao" khi CHUA co anh - no la nhan, khong
+   phai noi dung cua o. De no chiem gan het o thi luc chua chup nhin nang hon ca
+   luc da co anh van tay that. Giu nho, canh giua. */
 .cap-flat .fp-plain-hands .hand-glyph {
-  height: 84%;
+  height: 46%;
   width: auto;
   aspect-ratio: 37 / 38;
-  max-width: 46%;
+  max-width: 44%;
 }
 /* KHONG to xanh cho ngon dang danh dau. Ngon duoc danh dau o day nghia la "o nay
    can thu ngon do", khong phai "da thu xong" - y het o lan. Mau lay theo
@@ -10723,7 +10746,7 @@ textarea.input {
 }
 .fps-sheet .fps-cell-name {
   position: absolute;
-  top: 0.6mm;
+  top: 1.1mm;
   left: 1mm;
   right: 1mm;
   font-size: 9px;
@@ -10736,7 +10759,7 @@ textarea.input {
 }
 .fps-sheet .fps-cell-num {
   position: absolute;
-  top: 0.6mm;
+  top: 1.1mm;
   right: 1mm;
   font-size: 10px;
   font-weight: 700;
@@ -10770,25 +10793,67 @@ textarea.input {
   border-right: 1.1px solid #000;
   border-bottom: 1.1px solid #000;
 }
+/* Chu can GIUA dai theo chieu doc (flex, khong phai padding-top) de khong dinh
+   duong ke tren/duoi — nhan "4 ngón trái" / "Cái phải" truoc bi de len net ke. */
 .fps-sheet .fps-plain-cap {
-  padding: 0.4mm 1mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6mm 1mm;
   min-height: 4.6mm;
   box-sizing: border-box;
   border-bottom: 1.1px solid #000;
   font-size: 8.5px;
   line-height: 1.15;
   text-align: center;
+}
+/* Cat chu qua dai o con TRONG .fps-plain-cap, khong o chinh no: flex container
+   khong tu ellipsis duoc, phai dat overflow tren chinh phan tu chua text. */
+.fps-sheet .fps-plain-cap > span {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Cot hep (ngon cai) co THEM mot dai nho duoi nhan — khop mau. */
-/* Cot ngon cai: dai nhan 5.9mm + dai trong 5.9mm (mau: ke o y 599 va y 618). */
-.fps-sheet .fps-plain.thumb .fps-plain-cap { min-height: 5.9mm; }
-.fps-sheet .fps-plain.thumb .fps-plain-cap2 {
-  min-height: 5.9mm;
+/* Hai o ngon CAI: dai TREN gop lam MOT o trai het ca hai cot ("In 2 ngón"),
+   ten ngon ("Cái trái" / "Cái phải") o dai duoi cua tung cot.
+   Cao tong = 5.9 (dai gop) + 5.9 (ten ngon) + 25.9 (anh) = 37.7mm, khop cot ngoai. */
+.fps-sheet .fps-thumbs {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1.1px solid #000;
   border-bottom: 1.1px solid #000;
 }
+/* Hai o cai nam ngang duoi dai gop. Khong dung subgrid: bo xuat PDF
+   (html2canvas) chua ho tro, ma hai dai duoi deu cao co dinh nen flex la du. */
+.fps-sheet .fps-thumbs-cells {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fps-sheet .fps-thumbs-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6mm 1mm;
+  min-height: 5.9mm;
+  box-sizing: border-box;
+  border-bottom: 1.1px solid #000;
+  font-size: 8.5px;
+  line-height: 1.15;
+  text-align: center;
+}
+.fps-sheet .fps-thumb-cell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 50%;
+  min-width: 0;
+}
+/* Duong phan cach giua o cai TRAI va o cai PHAI (canh ngoai do .fps-thumbs ke). */
+.fps-sheet .fps-thumb-cell:first-child { border-right: 1.1px solid #000; }
+.fps-sheet .fps-thumb-cell .fps-plain-cap { min-height: 5.9mm; }
 .fps-sheet .fps-plain-box {
   /* Ca khoi duoi cao 122px tren mau => 37.6mm: cot ngoai 4.6+33, cot cai 5.9+5.9+25.9. */
   flex: 1 1 auto;
@@ -10799,7 +10864,7 @@ textarea.input {
   justify-content: center;
   overflow: hidden;
 }
-.fps-sheet .fps-plain.thumb .fps-plain-box { min-height: 25.9mm; }
+.fps-sheet .fps-thumb-cell .fps-plain-box { min-height: 25.9mm; }
 .fps-sheet .fps-plain-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 /* ---- Ky ten ---- */

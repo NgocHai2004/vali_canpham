@@ -65,8 +65,8 @@ export const FP_CLUSTERS = [
 export const FINGER_STEP_OF = {
   left_little: "left_hand", left_ring: "left_hand",
   left_middle: "left_hand", left_index: "left_hand",
-  left_thumb: "thumb_left",
-  right_thumb: "thumb_right",
+  left_thumb: "thumbs",
+  right_thumb: "thumbs",
   right_index: "right_hand", right_middle: "right_hand",
   right_ring: "right_hand", right_little: "right_hand",
 };
@@ -91,41 +91,52 @@ export const FP_ROLL_CODE_BY_STEP = Object.fromEntries(
 
 // Ảnh vân PHẲNG (plain/slap) — 3 ảnh cụm nguyên bản từ máy, khớp đúng STEPS ở trên.
 // Vân LĂN (roll) vẫn dùng key fp_l1..fp_r5 như cũ để tương thích dữ liệu đã lưu.
-// O "2 ngon cai" CHIA DOI: ngon cai chup TUNG NGON MOT (2 buoc thumb_left /
-// thumb_right o morfin_service), nen o do chua HAI anh rieng thay vi mot anh chum.
-// Ly do tach o service: SDK chi tra "Thumb A"/"Thumb B", khong noi ben nao la
-// trai => chup chum 2 cai thi phai doan, doan sai la template gan nham ngon.
+// BA o = BA lan chup chum, khop dung SLAP_STEPS cua morfin_service.
 //
-// O co `sub` thi KHONG co `step`/`key` anh cua rieng no: moi nua tu mang key va
-// step cua nua do. Ba o giu nguyen (grid 4fr 2fr 4fr khong doi).
+// DA THU tach o ngon cai thanh 2 nua (2 lan chup rieng tung ngon cai) va SDK TU
+// CHOI: thiet bi that tra -2019 voi count=4 va 'Hand Position [UNKNOWN]' - tham so
+// `exceptions` cua StartCapture KHONG ha duoc so ngon SDK cho o che do chum. Vi vay
+// ngon cai buoc phai chup chum ca hai ngon trong mot lan. Chi tiet o api.py, cho
+// dinh nghia SLAP_STEPS.
 export const FP_PLAIN_SLOTS = [
   { key: "fp_plain_left", step: "left_hand", labelKey: "capture.fp.plain_left" },
+  // O ngon cai hien HAI LAYER - mot layer moi ngon cai, moi layer la anh RIENG cua
+  // ngon do do SDK tach ra (captured[].image_b64), khong phai mot anh 2 ngon.
+  //
+  // Van la MOT lan chup: da thu tach thanh 2 lan chup 1 ngon va thiet bi tu choi
+  // (xem SLAP_STEPS trong api.py). Nhung mot lan StartCapture(THUMB) tra ve ca anh
+  // tong VA anh tach san tung ngon, nen hai layer van la anh tung ngon that.
   {
     key: "fp_plain_thumbs",
+    step: "thumbs",
     labelKey: "capture.fp.plain_thumbs",
-    sub: [
-      { key: "fp_plain_left_thumb", step: "thumb_left", side: "left",
-        labelKey: "capture.fp.plain_left_thumb" },
-      { key: "fp_plain_right_thumb", step: "thumb_right", side: "right",
-        labelKey: "capture.fp.plain_right_thumb" },
+    layers: [
+      { code: "left_thumb", labelKey: "capture.fp.plain_left_thumb" },
+      { code: "right_thumb", labelKey: "capture.fp.plain_right_thumb" },
     ],
   },
   { key: "fp_plain_right", step: "right_hand", labelKey: "capture.fp.plain_right" },
 ];
 
-// Moi o anh chum (ke ca 2 nua cua o ngon cai) duoi dang phang, de vong thu va
-// bo dem khong phai tu di xuyen `sub` o moi cho dung den.
-export const FP_PLAIN_CELLS = FP_PLAIN_SLOTS.flatMap((sl) => sl.sub || [sl]);
-
 // Anh CA VUNG PLATEN (anh slap tong) cua mot buoc -> key anh trong `photos`.
 // Vong thu tra bang nay de biet buoc dang chay ghi anh vao o nao.
 export const FP_SHEET_KEY_BY_STEP = Object.fromEntries(
-  FP_PLAIN_CELLS.map((sl) => [sl.step, sl.key]),
+  FP_PLAIN_SLOTS.map((sl) => [sl.step, sl.key]),
 );
 
-// Anh chum cu (truoc khi tach ngon cai): MOT anh 2 ngon cai o key nay. Ho so da
-// luu van doc duoc - o ngon cai hien nguyen anh cu, khong chia doi, khong migrate.
-export const FP_PLAIN_LEGACY_THUMBS = "fp_plain_thumbs";
+// Ten buoc -> cac LAYER cua o do, moi layer mot ngon, kem key anh rieng trong
+// `photos`. Chi o ngon cai co layer; hai o kia hien mot anh chum nhu cu.
+//
+// Key anh dat theo ma ngon ("fp_plain_" + code) de khong dung voi key anh chum
+// (fp_plain_thumbs) - ho so luu duoc CA anh chum lan hai anh tung ngon cai.
+export const FP_PLAIN_LAYERS_BY_STEP = Object.fromEntries(
+  FP_PLAIN_SLOTS
+    .filter((sl) => sl.layers)
+    .map((sl) => [sl.step, sl.layers.map((ly) => ({
+      ...ly,
+      key: "fp_plain_" + ly.code,
+    }))]),
+);
 
 // Hinh ban tay so do: 4 ngon + ngon cai, ngon dang can lan thi sang len.
 // Ban tay TRAI la hinh goc (nhin tu mu ban tay, ngon cai o ben phai);
