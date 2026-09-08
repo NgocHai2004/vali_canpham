@@ -9794,16 +9794,7 @@ textarea.input {
   aspect-ratio: auto;
   flex: 1 1 0;
   min-height: 0;
-  /* TRAN chieu cao: khong co no thi `flex: 1 1 0` cho 4 o chum GIAN RA LAP het
-     chieu cao con lai cua cot, day hang nut + phan ben duoi ra khoi tam nhin.
-     Dat tran theo be ngang cot (cqw) de o van co gian theo man hinh:
-     .fp-plain-row chia 0.8/1.4/0.8 => cot ngoai ~ 26% be ngang hang. 42cqw (truoc
-     60cqw) ha CA BON khung anh (2 o ban tay + 2 nua o ngon cai) xuong ro ret de
-     hang nut va phan ben duoi lo ra trong tam nhin, khong phai cuon.
-     Anh `object-fit: contain` nen ha chieu cao khong cat mat gi cua anh. */
-  max-height: 42cqw;
 }
-.cap-flat .fp-side > .fp-block > .fp-plain-row { container-type: inline-size; }
 /* Hang nut xuong DAY cot => mep duoi thang mep duoi hang 2 cua luoi van lan.
    HEP theo CHIEU DOC (padding 5px thay 8px, khong margin): hang nut la thu duy
    nhat trong cot co chieu cao co dinh, nen chieu cao cua no chinh la phan lam cot
@@ -9860,10 +9851,7 @@ textarea.input {
 .cap-flat .fp-preview-grid.fp-preview-grid--single-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  /* row-gap 3px (truoc 8px, goc 20px): 2 hang o van lan SAT lai. Khe doc chi con
-     du de tach nhan/chip hang tren khoi o hang duoi, khong con khoang trong.
-     column-gap giu 10px - be ngang khong lien quan gi den viec nay. */
-  gap: 3px 10px;
+  gap: 20px 10px;
   align-items: start;
 }
 .cap-flat .fp-preview-cell {
@@ -9914,16 +9902,10 @@ textarea.input {
    Nen bo aspect-ratio va tinh thang chieu cao tu BE NGANG O: 1cqw = 1% be ngang cua
    .fp-preview-cell (container o duoi), 75cqw = 3/4 be ngang = dung chieu cao cua ty
    le 4/3 cu, cong 2px. Van co gian theo be ngang nhu truoc, chi cao hon 2px. */
-/* container-type dat tren LUOI, khong tren tung o: 1cqw = 1% be ngang cua CA
-   LUOI, giong nhau cho moi o => 10 o cao BANG NHAU.
-   Truoc day container-type nam tren .fp-preview-cell nen 75cqw do theo be ngang
-   TUNG O; o hang 2 rong khac hang 1 (nut ⊘ / nhan khac nhau) => hai hang lech
-   chieu cao. Chia 5 cot, tru 4 khe 10px => moi cot ~ (100% - 40px)/5. */
-.cap-flat .fp-preview-grid.fp-preview-grid--single-row { container-type: inline-size; }
-.cap-flat .fp-preview-cell { container-type: normal; }
+.cap-flat .fp-preview-cell { container-type: inline-size; }
 .cap-flat .fp-preview-cell .fp-preview-thumb {
   aspect-ratio: auto;
-  height: calc((75cqw - 30px) / 5);
+  height: calc(75cqw);
 }
 .cap-flat .fp-preview-thumb img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 .cap-flat .fp-preview-cell.done .fp-preview-thumb { border-color: #cfe6d8; }
@@ -10010,11 +9992,8 @@ textarea.input {
      khi cot trai (10 o lan 2 hang) ~287px => thua mot khoang trong duoi hang nut.
      Keo o chum dai ra lap khoang do va day hang "Luu ho so" xuong duoi, van con
      thap hon cot trai nen KHONG lam to giay cao them (khong sinh scroll).
-     Anh slap that la anh ngang, `object-fit: contain` => khong cat gi. */
-  /* 16/10 thay 4/3: o chum THAP hon => hang nut + phan ben duoi hien ra trong
-     tam nhin, khong phai cuon. Anh `object-fit: contain` nen ha chieu cao khong
-     cat mat gi cua anh van. */
-  aspect-ratio: 16 / 10;
+     Anh slap that la anh ngang, `object-fit: contain` => 4/3 khong cat gi. */
+  aspect-ratio: 4 / 3;
   border: 1px solid var(--cf-edge);
   border-radius: 8px;
   background: #f7f8fa;

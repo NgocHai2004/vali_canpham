@@ -452,15 +452,6 @@ sessions: dict[str, Session] = {}
 _lock = threading.Lock()
 # 1 handle thiet bi cho ca process => chi cho 1 capture chay cung luc.
 _capture_lock = threading.Lock()
-# Thoi gian toi da /api/capture/stop cho luong chup cu nha _capture_lock.
-# Dai hon mot nhip SDK thoat khoi cho, nhung khong de request treo vo han.
-# /api/capture/stop cho luong chup cu nha _capture_lock. Phai LON HON thoi gian
-# cho toi da cua engine (ROLL_TIMEOUT 30 + 10 = 40s) — dat 8s nhu truoc la bo cho
-# truoc khi lock duoc nha, tra ve som va client tuong thiet bi ranh.
-STOP_LOCK_TIMEOUT = 45.0
-# capture() cho bao lau sau khi engine.stop() de giat thiet bi tu lan chup cu.
-# engine.stop() cat cho ngay nen luong cu thoat trong ~1s; 12s la du du.
-PREEMPT_TIMEOUT = 12.0
 
 app = FastAPI(title="Morfin Slap Enroll")
 
@@ -494,16 +485,8 @@ def list_fingers() -> list[dict]:
 
 @app.get("/api/steps")
 def list_steps() -> list[dict]:
-    # `roll` PHAI co o day, khong chi o /api/session/{sid}.
-    # Frontend retryFingerprint (double-click vao o de thu lai) lay group tu DUNG
-    # endpoint nay roi set fpActiveRoll = !!group.roll. Thieu co => fpActiveRoll
-    # luon false trong ca lan thu lai => dieu kien `fpRunning && fpActiveRoll` o
-    # luoi 10 o khong bao gio dung => o KHONG nhay vien lam, can bo double-click
-    # xong khong biet may dang doi ngon nao. Vong thu chinh khong bi vi no doc
-    # next_step tu /session (cho do da tra `roll`).
     return [{"step": s["step"], "label_vi": s["label_vi"],
-             "expect": s["expect"], "codes": s["codes"],
-             "roll": bool(s.get("roll"))} for s in STEPS]
+             "expect": s["expect"], "codes": s["codes"]} for s in STEPS]
 
 
 @app.get("/api/live")
@@ -584,18 +567,8 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     absent = ([c for c in step["codes"] if s.fingers[c].missing]
               + step.get("absent_extra", []))
 
-    # Khong tra 409 ngay. Lan chup cu co the con dang cho tay TOI 40 GIAY
-    # (ROLL_TIMEOUT 30 + 10 trong engine.done.wait), va truong hop pho bien nhat
-    # la: can bo roi trang giua luc dang cho => React unmount, mount lai, phien
-    # MOI goi capture trong khi luong cu chua thoat. Tra 409 o day lam man hinh
-    # moi dung ~40s (nguoi dung: "1 luc sau da duoc").
-    #
-    # Xu ly: GIANH thiet bi - bao SDK thoi cho (engine.stop()) de luong cu thoat
-    # som, roi cho lock trong PREEMPT_TIMEOUT. Chi 409 khi that su khong giat duoc.
     if not _capture_lock.acquire(blocking=False):
-        engine.stop()
-        if not _capture_lock.acquire(timeout=PREEMPT_TIMEOUT):
-            raise HTTPException(409, "Dang co lenh chup khac chay.")
+        raise HTTPException(409, "Dang co lenh chup khac chay.")
     try:
         if step.get("roll"):
             # Lan: 1 ngon, mot lan StartCapture(ROLL) keo dai (~50 khung/giay
@@ -959,24 +932,7 @@ def del_session(sid: str) -> dict:
 
 @app.post("/api/capture/stop")
 def stop_capture() -> dict:
-    """Dung lan chup dang chay VA cho den khi thiet bi that su ranh.
-
-    Vi sao phai cho: engine.stop() chi bao SDK thoi cho tay. Request capture() cu
-    van dang block trong engine.capture_slap()/capture_roll(), nen no CHUA chay
-    den `finally` de nha _capture_lock. Neu tra ve ngay tai day, client (frontend
-    luc roi trang) tuong thiet bi da ranh, mount lai trang va goi capture moi ->
-    acquire(blocking=False) that bai -> 409 "Dang co lenh chup khac chay."
-    Do dung la bug "thoat giua luc thu nhan roi vao lai thi van tay khong chay".
-
-    Cho bang cach acquire chinh _capture_lock: acquire duoc = luong cu da thoat
-    va da nha lock = thiet bi ranh thuc su. Nha ra ngay sau do.
-    """
-    code = engine.stop()
-    # Timeout de khong treo request neu luong cu vi ly do nao do khong thoat.
-    got = _capture_lock.acquire(timeout=STOP_LOCK_TIMEOUT)
-    if got:
-        _capture_lock.release()
-    return {"ok": True, "code": code, "device_free": got}
+    return {"ok": True, "code": engine.stop()}
 
 
 class QualityCfgReq(BaseModel):

@@ -211,28 +211,31 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           />
         )}
 
+        {/* Sidebar chi con icon (cot 56px). Nhan chu hien qua tooltip khi hover
+            (data-tip + CSS ::after) — khong dung title= de tranh tooltip he thong
+            cham va lech tong mau. aria-label giu cho trinh doc man hinh. */}
         <aside className="sidebar">
-          <div className="sidebar-title">{t("nav.function_group")}</div>
-
           <nav className="nav">
             {NAV.map((item) => (
               <button
                 key={item.key}
                 className={`nav-item ${page === item.key ? "active" : ""}`}
                 onClick={() => goPage(item.key)}
+                data-tip={t(item.labelKey)}
+                aria-label={t(item.labelKey)}
+                aria-current={page === item.key ? "page" : undefined}
               >
                 <span className="nav-icon">{item.icon}</span>
-                <span>{t(item.labelKey)}</span>
               </button>
             ))}
           </nav>
 
-          <div className="security-card">
+          <div
+            className="security-card"
+            data-tip={`${t("nav.security_title")} — ${t("nav.security_desc")}`}
+            aria-label={t("nav.security_title")}
+          >
             <div className="security-icon">{Icon.shield}</div>
-            <div>
-              <strong>{t("nav.security_title")}</strong>
-              <p>{t("nav.security_desc")}</p>
-            </div>
           </div>
         </aside>
 
@@ -4269,7 +4272,9 @@ const styles = `
     height: 100dvh;
     overflow: hidden;
     display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
+    /* Sidebar chi con cot icon (56px) — nhan chu qua tooltip khi hover.
+       Truoc day 200px; thu lai tra ~145px chieu rong cho vung noi dung. */
+    grid-template-columns: 56px minmax(0, 1fr);
     grid-template-rows: 55px minmax(0, 1fr);
     background:
       radial-gradient(circle at 75% 10%, rgba(22, 139, 255, .10), transparent 28%),
@@ -4633,8 +4638,10 @@ const styles = `
     position: relative;
     display: flex;
     flex-direction: column;
-    padding: 5px 5px 5px;
-    overflow: hidden;
+    align-items: center;
+    padding: 5px 4px;
+    /* KHONG dat overflow:hidden — tooltip phai tran ra ngoai cot 56px. */
+    overflow: visible;
     background:
       radial-gradient(circle at 50% -30%, rgba(22, 139, 255, .14), transparent 55%),
       linear-gradient(180deg, rgba(10, 26, 54, 0.9) 0%, rgba(6, 20, 42, 0.9) 100%);
@@ -4644,44 +4651,96 @@ const styles = `
     color: var(--text);
   }
 
-  .sidebar-title {
-    padding: 0 6px 12px;
-    color: var(--muted);
-    font-size: 10.5px;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-  }
+  /* .sidebar-title da bo khoi markup: cot 56px khong du cho chu
+     "NHOM CHUC NANG". Nhan tung muc hien qua tooltip khi hover. */
 
   .nav {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 6px;
+    width: 100%;
   }
+
+  /* ===== Tooltip cho sidebar icon =====
+     Hien ben phai icon khi hover/focus. Dung data-tip (khong dung title= de
+     tranh tooltip he thong cham + lech tong mau). */
+  .nav-item[data-tip]::before,
+  .security-card[data-tip]::before {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-4px);
+    z-index: 60;
+    max-width: 240px;
+    width: max-content;
+    padding: 7px 11px;
+    border: 1px solid rgba(53, 216, 255, .28);
+    border-radius: 9px;
+    background: linear-gradient(180deg, rgba(12, 30, 60, .98), rgba(6, 20, 42, .98));
+    box-shadow: 0 10px 26px -10px rgba(2, 8, 23, .9);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .2px;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease, visibility .16s;
+  }
+  /* Mui nhon tro vao icon */
+  .nav-item[data-tip]::after,
+  .security-card[data-tip]::after {
+    content: "";
+    position: absolute;
+    left: calc(100% + 4px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-4px);
+    z-index: 61;
+    width: 7px;
+    height: 7px;
+    rotate: 45deg;
+    border-left: 1px solid rgba(53, 216, 255, .28);
+    border-bottom: 1px solid rgba(53, 216, 255, .28);
+    background: rgba(9, 25, 51, .98);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease, visibility .16s;
+  }
+  .nav-item[data-tip]:hover::before,
+  .nav-item[data-tip]:focus-visible::before,
+  .nav-item[data-tip]:hover::after,
+  .nav-item[data-tip]:focus-visible::after,
+  .security-card[data-tip]:hover::before,
+  .security-card[data-tip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
+  }
+  /* O vuong 44x44 chua icon. KHONG dat overflow:hidden — tooltip phai tran ra
+     ngoai; phan cat vach sang da chuyen vao .nav-icon. */
   .nav-item {
     position: relative;
-    overflow: hidden;
-    width: 100%;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 12px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
     border: 1px solid rgba(53, 216, 255, .08);
     border-radius: 12px;
     background: rgba(53, 216, 255, .03);
     color: var(--muted);
-    text-align: left;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.25;
     transition: .2s cubic-bezier(.4, 0, .2, 1);
   }
   .nav-item:hover {
     color: var(--text);
     background: rgba(22, 139, 255, .14);
     border-color: rgba(53, 216, 255, .3);
-    transform: translateX(2px);
     box-shadow: 0 6px 16px -8px rgba(22, 139, 255, .5);
   }
   .nav-item.active {
@@ -4692,8 +4751,10 @@ const styles = `
       0 8px 18px rgba(6, 55, 158, .45),
       inset 0 1px 0 rgba(255, 255, 255, .18);
   }
-  /* Animated light trail along the top edge of the active nav item */
-  .nav-item.active::after {
+  /* Vach sang chay tren dinh muc dang chon.
+     DAT TRONG .nav-icon (khong phai .nav-item::after) vi ::after cua .nav-item
+     da dung cho mui nhon tooltip — de chung o cung selector se de nhau. */
+  .nav-item.active .nav-icon::after {
     content: "";
     position: absolute;
     top: 0;
@@ -4712,7 +4773,11 @@ const styles = `
     100% { transform: translateX(320%); opacity: 0; }
   }
 
+  /* position:relative + overflow:hidden de vach sang (::after) chay trong o icon
+     va bi cat gon theo bo goc. */
   .nav-icon {
+    position: relative;
+    overflow: hidden;
     width: 34px;
     height: 34px;
     flex: 0 0 auto;
@@ -4731,25 +4796,28 @@ const styles = `
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
   }
 
+  /* Cum an ninh bao mat: thu thanh o icon khien 44x44, chu di vao tooltip
+     (2 dong chu cu khong con cho trong cot 56px). */
   .security-card {
+    position: relative;
     margin-top: auto;
-    display: flex;
-    gap: 12px;
-    padding: 14px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
     border: 1px solid rgba(53, 216, 255, .18);
-    border-radius: 14px;
+    border-radius: 12px;
     background: linear-gradient(145deg, rgba(22, 139, 255, .16), rgba(40, 93, 222, .08));
     color: var(--text);
   }
-  .security-card strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 12.5px; }
-  .security-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
   .security-icon {
     flex: 0 0 auto;
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     display: grid;
     place-items: center;
-    border-radius: 10px;
+    border-radius: 9px;
     color: var(--primary-2);
     background: rgba(53, 216, 255, .14);
   }
@@ -4762,9 +4830,12 @@ const styles = `
     padding: 6px 6px;
   }
 
+  /* Khong chan be ngang: sidebar da thu tu 200px xuong 56px, phan giai phong
+     phai vao noi dung chu khong thanh le trong. Truoc day max-width:1700px lam
+     man >1756px co le trong hai ben. */
   .page {
-    max-width: 1700px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     height: 100%;
     min-height: 0;
     display: flex;
@@ -8683,7 +8754,6 @@ const styles = `
     border-right: 1px solid var(--border) !important;
     color: var(--text) !important;
   }
-  .sidebar-title { color: var(--muted) !important; }
   .nav-item {
     background: rgba(53, 216, 255, .03) !important;
     border-color: rgba(53, 216, 255, .08) !important;
@@ -8762,7 +8832,9 @@ const styles = `
 
   /* Modern High-Tech Enterprise UI — disable light trails when reduced motion */
   @media (prefers-reduced-motion: reduce) {
-    .nav-item.active::after,
+    /* Vach sang da chuyen tu .nav-item::after sang .nav-icon::after
+       (::after cua .nav-item gio dung cho mui nhon tooltip). */
+    .nav-item.active .nav-icon::after,
     .stat-card::after {
       animation: none !important;
       opacity: 0;
