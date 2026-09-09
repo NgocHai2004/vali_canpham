@@ -411,6 +411,25 @@ class Session:
         return all(self.fingers[c].done for c in STEP_BY_NAME[step]["codes"])
 
     def step_done(self, step: str) -> bool:
+        # Buoc ma MOI ngon deu danh dau "khong co van tay" => XONG, khong doi xac nhan.
+        #
+        # Xac nhan ton tai de can bo XEM ANH roi chap nhan. Buoc nay khong co anh nao
+        # ca, nen khong co gi de xem va khong co gi de xac nhan.
+        #
+        # Thieu nhanh nay thi buoc lan cua ngon thieu KHONG BAO GIO done: ten buoc
+        # ("roll_left_little") chi duoc vao self.confirmed ben trong capture()
+        # (auto_confirmed cho buoc lan), ma ngon thieu thi khong bao gio chup =>
+        # next_step() tra ve mai buoc do => finished mai la False. Hau qua tren FE:
+        # bao "chua xong" va BO QUA tra cuu trung 10 ngon (matchFingerprint nam trong
+        # nhanh srvDone) - mat mot chuc nang nghiep vu that voi moi nguoi thieu ngon.
+        # mark_none cung khong vao duoc: no discard(rec.step), ma rec.step la ten buoc
+        # CHUM ("left_hand"), khong phai "roll_left_little".
+        #
+        # Ap cho ca buoc chum: cum ma ca 4 ngon deu thieu cung thoat duoc (truoc day
+        # capture() tra 400 "khong con ngon nao de chup" lap vo han).
+        codes = STEP_BY_NAME[step]["codes"]
+        if all(self.fingers[c].missing for c in codes):
+            return True
         return step in self.confirmed and self.step_captured(step)
 
     def next_step(self) -> Optional[dict]:

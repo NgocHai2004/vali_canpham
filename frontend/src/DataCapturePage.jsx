@@ -101,7 +101,17 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [fpConfirm, setFpConfirm] = useState(null);
   // Ma ngon dang danh dau "khong co van tay" (ghi none, khong co anh). Giu o
   // state rieng de o ngon hien duoc dau none NGAY, ke ca truoc khi co session.
-  const [fpNoneCodes, setFpNoneCodes] = useState([]);
+  //
+  // NAP TU seed.photos.fp_missing, khong khoi tao rong.
+  //
+  // Truoc day la `useState([])` va khong co cho nao nap lai => co HAI NGUON ngon
+  // thieu lech nhau khi mo lai ho so cu de sua: fp_missing (duoc luu vao ho so)
+  // con nguyen, nhung fpNoneCodes rong. Hau qua: o mat badge `none`, isNone = false
+  // nen vong thu LAN LAI dung ngon da xac nhan la khong co van (fpStepHasData doc
+  // fpNoneCodesRef), va double-click lai an vao no.
+  // Nap o day thi luoi o, fpCount va vong thu dung CUNG MOT nguon su that.
+  const [fpNoneCodes, setFpNoneCodes] = useState(
+    () => (Array.isArray(seed.photos?.fp_missing) ? seed.photos.fp_missing : []));
   // Ref nhan banh cua fpNoneCodes de doc gia tri MOI NHAT trong startFpCollect /
   // retryFingerprint khi duoc goi tu closure auto-start (effect khong co deps moi,
   // giu closure render dau => state fpNoneCodes trong do la []) . Neu khong dung
@@ -331,6 +341,21 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     if (!measured || measured < 50 || measured > 250) return;
     setForm((f) => ({ ...f, height_cm: String(measured) }));
   }, [heightImage, heightOffset, features.height_yolo]);
+
+  // Bam vao mot o VAN LAN => thu ngon do. Duong duy nhat, khong dieu kien.
+  //
+  // O dang `none` van thu duoc, va PHAI bo dau none TRUOC khi thu: capture() cua
+  // service loai ngon `missing` khoi `codes`, con lai rong => HTTP 400 "Ca cum...
+  // khong con ngon nao de chup". Bam vao o la y dinh ro rang "ngon nay co van, thu
+  // di", nen bo dau la dung - khong phai tac dung phu.
+  //
+  // fpToggleNone lo phan dong bo: xoa co local, goi markNone(value=false) len
+  // service neu dang co session, va cat nhip chup dang chay.
+  const fpCaptureRollCell = async (fpCode, photoKey, isNone) => {
+    if (isNone) await fpToggleNone(fpCode);
+    await fpRequestJump(FP_ROLL_STEP(fpCode),
+      () => retryFingerprint(photoKey, fpCode));
+  };
 
   // Double-click vao MOT O trong khi vong thu DANG chay => thu o do TRUOC.
   //
@@ -782,6 +807,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         capRes = await fpApi.capture(sid, step.step);
       } catch (e) {
         if (fpAbortRef.current) break;
+        // LOI NAY DO TA CAT, khong phai may loi => quay lai dau vong NGAY.
+        //
+        // fpStopExpectedRef truoc day duoc SET o hai cho (fpRequestJump,
+        // fpToggleNone) ma KHONG CHO NAO DOC - co chet. Hau qua: bam vao o de thu
+        // ngon khac thi stopCapture() lam capture() dang do nem loi, roi khoi duoi
+        // day chay `fails++` + sleepFp(600ms * fails, tran 5s) TRUOC KHI vong quay
+        // lai dau doc fpJumpRef => moi cu bam phai cho them ngan ay moi thay may
+        // chuyen ngon. Con toast mot loi ma chinh ta gay ra.
+        // Doc va tat co ngay tai day: khong toast, khong cong fails, khong ngu.
+        if (fpStopExpectedRef.current) {
+          fpStopExpectedRef.current = false;
+          continue;
+        }
         // KHONG dung vong vi loi. Truoc day het 15 lan la break => vong thu chet
         // giua duong, va startFpCollect (finally) da set fpAutoStoppedRef = true
         // nen auto-start KHONG BAO GIO chay lai => man hinh dung han, cac cum sau
@@ -1313,7 +1351,22 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     };
   }, [sessionReadOnly]);
 
-  const fpCount = FINGERS.filter((f) => photos[f.key]).length;
+  // Ngon DA XU LY = co anh HOAC da danh dau "khong co van tay".
+  //
+  // Truoc day chi dem `photos[f.key]`, ma ngon danh dau thieu bi set ve "" (xem
+  // fpToggleNone) => nguoi mat mot ngon thi KPI dung "9 / 10" vinh vien va o
+  // checklist "Van tay" khong bao gio tick (`ok: fpCount === 10`). Khong chan Luu
+  // (required: false) nhung can bo doc man hinh se tuong con viec chua lam.
+  //
+  // Doc tu photos.fp_missing chu khong tu state fpNoneCodes: fp_missing duoc LUU
+  // vao ho so, nen mo lai ho so cu de sua thi con nguyen, con fpNoneCodes chi song
+  // trong phien thu.
+  //
+  // Anh huong den vong auto-start (fpCountRef.current < 10): du 10 ngon ke ca ngon
+  // thieu thi khong tu chay lai nua - dung, vi khong con gi de thu.
+  const fpMissingCodes = photos.fp_missing || [];
+  const fpCount = FINGERS.filter(
+    (f) => photos[f.key] || fpMissingCodes.includes(f.code)).length;
   // Ngon nao da thu -> sang len tren 2 icon ban tay tong quan o khoi KPI.
   const fpDoneByHand = useMemo(() => {
     const out = { left: [], right: [] };
@@ -1805,7 +1858,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       // o da thu xong lai sang len nhu dang bi thu lai. Bao hieu cua
                       // buoc chum thuoc 3 o fp_plain_* (theo fpActiveStep), khong phai
                       // luoi nay.
-                      const cellActive = fpRunning && fpActiveRoll && (
+                      // `!isNone` la CHOT: o da danh dau thieu KHONG BAO GIO sang.
+                      //
+                      // Thieu no thi o vua tich ⊘ van nhap nhay nhu dang cho thu:
+                      // fpActiveCodes duoc set TRUOC khi can bo bam ⊘ va giu nguyen
+                      // suot lan chup do, nen dieu kien duoi van dung. Can bo thay o
+                      // co badge `none` ma vien vẫn sang => tuong may vẫn doi ngon do.
+                      const cellActive = fpRunning && fpActiveRoll && !isNone && (
                         fpActiveCodes.length
                           ? fpActiveCodes.includes(fpCode)
                           : fpNextCode === fpCode
@@ -1827,18 +1886,39 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                           // vong thu chay ngay khi vao trang nen fpRunning gan
                           // nhu luon true, phai Khoa moi bam duoc. fpToggleNone
                           // tu lo phan con lai (cat lan chup dang chay).
-                          onClick={fpNoneMode ? () => fpToggleNone(fpCode) : undefined}
-                          onDoubleClick={() => !fpRunning && !fpNoneMode && !isNone && retryFingerprint(key, fpCode)}
+                          // MOT LAN CLICK = THU NGON NAY. Khong dieu kien nao ca.
+                          //
+                          // Nut ⊘ tren o da BO HAN. No nam de len o o goc tren-trai
+                          // (left:2px top:2px, 18x18) va chi hien khi hover, nen mot
+                          // cu bam vao goc do roi vao NUT chu khong vao o => o bi
+                          // danh dau `none` thay vi duoc thu. Vung bam nho, khong co
+                          // ranh gioi nhin thay, va no lam DUONG THU HAI cho mot viec
+                          // ma nut "Ngón thiếu" o header da lo. Bo di thi bam vao o
+                          // chi con dung MOT nghia.
+                          //
+                          // KHONG chan gi:
+                          //   - dang thu ngon khac  => fpRequestJump chen ngang: cat
+                          //     nhip chup hien tai, thu ngon nay truoc, roi vong tu
+                          //     quay lai cho dang do (jumpTarget + luat bo qua).
+                          //   - o da co anh        => thu lai, ghi de anh cu.
+                          //   - o dang `none`      => THU LUON, va bo dau none truoc
+                          //     khi thu (xem fpClearNoneThenCapture): giu none thi
+                          //     service loai ngon do khoi `codes` => 400 "khong con
+                          //     ngon nao de chup".
+                          onClick={
+                            fpNoneMode ? () => fpToggleNone(fpCode)
+                              : () => fpCaptureRollCell(fpCode, key, isNone)
+                          }
                           title={
                             fpNoneMode
                               ? (isNone
                                   ? t("capture.fp.none_mode_tap_off", { name: label })
                                   : t("capture.fp.none_mode_tap_on", { name: label }))
                               : isNone
-                                ? t("capture.fp.none_hint")
-                                : filled ? t("capture.fp.dbl_retake") : t("capture.fp.dbl_take")
+                                ? t("capture.fp.tap_take_none", { name: label })
+                                : filled ? t("capture.fp.tap_retake") : t("capture.fp.tap_take")
                           }
-                          style={{ cursor: fpRunning || (isNone && !fpNoneMode) ? "default" : "pointer" }}
+                          style={{ cursor: "pointer" }}
                         >
                           {/* So 1..10 theo thu tu in tren chi ban giay. O van
                               nhom theo cum chup nen so khong lien tiep — day la
@@ -1867,24 +1947,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                               const cls = q >= need + 20 ? "good" : q >= need ? "ok" : "bad";
                               return <span className={"fp-cell-quality " + cls}>{q}%</span>;
                             })()}
-                            {/* Bat/tat "khong co van tay" cho rieng o nay. Phai la nut
-                                that (khong phai double-click o) vi double-click da danh
-                                cho chup lai cum, va danh dau none can dung duoc CA KHI
-                                chua co session. */}
-                            <button
-                              type="button"
-                              className={"fp-cell-none-btn" + (isNone ? " on" : "")}
-                              onClick={(e) => { e.stopPropagation(); fpToggleNone(fpCode); }}
-                              /* Khong chan theo fpRunning: day la nut can bam DUNG
-                                 LUC may dang chay het timeout vi cho du 4 ngon.
-                                 Xem fpToggleNone. */
-                              title={isNone
-                                ? t("capture.fp.none_off", { name: label })
-                                : t("capture.fp.none_on", { name: label })}
-                              aria-pressed={isNone}
-                            >
-                              ⊘
-                            </button>
+                            {/* NUT ⊘ DA BO HAN khoi o.
+                                No nam de len o o goc tren-trai (left:2px top:2px,
+                                18x18) va chi hien khi hover, nen mot cu bam vao goc
+                                do roi vao NUT chu khong vao o => o bi danh dau `none`
+                                thay vi duoc thu. Vung bam nho, khong co ranh gioi
+                                nhin thay, va no la DUONG THU HAI cho viec ma nut
+                                "Ngón thiếu" o header da lo roi.
+                                Gio: bam vao o = THU ngon do (mot nghia duy nhat).
+                                Danh dau thieu: bam "Ngón thiếu" o header roi bam vao o. */}
                           </div>
                           {/* KHONG co chip "Da thu" o day. Chip chi hien tren o DA co
                               anh, nen o da thu cao hon o chua thu => moi ngon lan xong
@@ -1957,23 +2028,31 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     key={slot.key}
                     className={"fp-plain-cell " + (filled ? "done" : "empty") +
                       (active ? " active neon-active" : "")}
-                    /* Double-click de THU LAI ca cum nay, doi xung voi o van lan.
+                    /* MOT LAN CLICK = CHUP LAI ca cum nay. Doi xung voi o van lan.
                        Truoc day o chum khong co duong thu lai nao ngoai nut "Chup
                        lai cum" - ma nut do CHI hien khi vong dang tam dung cho xac
                        nhan (fpConfirm). Cum da xac nhan xong roi moi phat hien anh
                        xau thi khong con cach nao chup lai ngoai xoa het lam lai.
-                       Chan giong o lan: dang chay thi khong chen, va mode "ngon
-                       thieu" thi de danh cho viec danh dau. */
-                    onDoubleClick={() => !fpRunning && !fpNoneMode && retryPlainStep(slot.step)}
+
+                       KHONG chan theo fpRunning (giong o lan): fpRequestJump chen
+                       ngang - cat nhip chup hien tai, chup cum nay truoc, roi vong tu
+                       quay lai cho dang do. Cum da co anh thi chup lai, ghi de.
+                       O chum khong co trang thai `none`: danh dau thieu la theo TUNG
+                       NGON, va cum chi con cho so ngon that su co (tham so `absent`
+                       cua SDK) nen van chup binh thuong. Ca cum deu thieu thi
+                       step_done da coi la xong, khong ai bam vao day nua.
+                       Mode "ngon thieu" van nhuong cho viec danh dau. */
+                    onClick={fpNoneMode ? undefined
+                      : () => fpRequestJump(slot.step, () => retryPlainStep(slot.step))}
                     /* O ngon cai KHONG dat title theo nhan cum o day: moi layer tu
                        mang ten ngon cua no. Dat ca hai cho thi tooltip hien "2 ngon
                        cai" roi "Cai trai" - lap, doc ra thanh "Cai trai / Cai trai".
                        Nhung tooltip HUONG DAN thu lai thi o nao cung can, nen o ngon
                        cai dung rieng cau khong kem ten cum. */
                     title={layers
-                      ? t("capture.fp.dbl_retake_plain_thumbs")
-                      : t("capture.fp.dbl_retake_plain", { name: t(slot.labelKey) })}
-                    style={{ cursor: fpRunning || fpNoneMode ? "default" : "pointer" }}
+                      ? t("capture.fp.tap_retake_plain_thumbs")
+                      : t("capture.fp.tap_retake_plain", { name: t(slot.labelKey) })}
+                    style={{ cursor: fpNoneMode ? "default" : "pointer" }}
                   >
                     <div className={"fp-plain-thumb"
                       + (layers ? " fp-plain-thumb--split" : "")}>
