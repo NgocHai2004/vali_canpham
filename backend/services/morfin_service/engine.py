@@ -140,6 +140,10 @@ class FingerCapture:
     quality: int = 0
     x: int = 0
     y: int = 0
+    # Canh PHAI cua ngon trong anh slap (RightBottomCordinates[0]). Chi dung de
+    # tinh diem GIUA ngon: api.py dat so % len anh chum theo (x + x2) / 2, neu chi
+    # co x thi so nam le ve canh trai cua ngon, ngon hep nhin nhu so cua ngon ke.
+    x2: int = 0
     template: bytes = b""
     image: bytes = b""
 
@@ -431,7 +435,8 @@ class CaptureEngine:
                                 "out_score": round(float(fi.out_score), 3),
                                 "result": fi.result, "used": src,
                                 "x": fi.LeftTopCordinates[0],
-                                "y": fi.LeftTopCordinates[1]})
+                                "y": fi.LeftTopCordinates[1],
+                                "x2": fi.RightBottomCordinates[0]})
                     if q is None:
                         if len(state["dropped"]) < 20:
                             state["dropped"].append(

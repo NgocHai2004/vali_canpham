@@ -76,7 +76,11 @@ if (Test-PortInUse 8766) {
 # CCCD Reader Service (Hanel HN-212) — chay nhu background process (khong phai
 # Windows service, tranh SCM kill). Chay tu publish/ de doc appsettings.json + DLL.
 $cccdExe = Join-Path $svc 'cccd_scanner\publish\CccdService.exe'
-if (Test-Path $cccdExe) {
+if ($env:FEATURE_CCCD_READER -eq '0') {
+    # Tat tam may doc CCCD (co trong App_CCCD/.env). Backend cung chan het route
+    # /api/cccd/* nen khong spawn exe nay la du. Cac truong CCCD van nhap tay.
+    Write-Host "  -> CCCD Reader: TAT (FEATURE_CCCD_READER=0) - bo qua spawn."
+} elseif (Test-Path $cccdExe) {
     # Neu Windows service CccdReaderService dang chay -> dung de tranh trung port/device.
     $cccdSvc = Get-Service -Name 'CccdReaderService' -ErrorAction SilentlyContinue
     if ($cccdSvc -and $cccdSvc.Status -eq 'Running') {

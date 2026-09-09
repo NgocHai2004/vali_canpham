@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, cccdApi, weightApi } from "./api";
 import { notify } from "./notifications";
 import { useI18n } from "./i18n";
+import { useFeatures } from "./lib/features";
 
 const emptyForm = {
   full_name: "",
@@ -29,6 +30,7 @@ function isoToDMY(iso) {
 
 export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const { t, formatDate } = useI18n();
+  const features = useFeatures();
   const [form, setForm] = useState(() => {
     if (!initial) return { ...emptyForm };
     return {
@@ -49,7 +51,10 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const cccdAbortRef = useRef(null);
   const weightFlashTimerRef = useRef(null);
 
+  // Can dien tu tat -> khong mo WS, khong tu dong dien weight_kg.
+  // Truong weight_kg van nhap tay binh thuong.
   useEffect(() => {
+    if (!features.weight_scale) return undefined;
     const close = weightApi.connect((payload) => {
       const kg = Math.round(payload.weight_kg);
       if (!kg || kg < 20 || kg > 200) return;
@@ -62,7 +67,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
       close();
       if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
     };
-  }, []);
+  }, [features.weight_scale]);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -199,7 +204,8 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                   disabled={uploading}
                 />
               </label>
-              {!initial && (
+              {/* May doc CCCD tat -> an nut. Cac truong CCCD ben duoi van nhap tay. */}
+              {!initial && features.cccd_reader && (
                 <button
                   type="button"
                   className="btn-cccd-reader"
