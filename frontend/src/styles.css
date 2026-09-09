@@ -2006,6 +2006,21 @@ textarea.input {
   }
 }
 
+/* Neo modal NHAP LIEU tu tren xuong thay vi can giua.
+   .modal-backdrop la flex + align-items: center, nen MOI thay doi chieu cao cua
+   modal deu lam trinh duyet can giua LAI => ca hop dich len/xuong.
+   KHONG them padding-top rieng: .modal-backdrop da co padding 20px va .modal co
+   max-height: calc(100vh - 40px) — hai so nay khop nhau. Doi padding-top len
+   (8vh chang han) thi modal cao hon khoang trong con lai va hang nut Huy/Luu bi
+   tran khoi day man hinh.
+   Chi nham form nhap (.small-modal); modal xem/anh van can giua nhu cu. */
+.modal-backdrop:has(.small-modal) {
+  align-items: flex-start;
+}
+/* Chua cho thanh cuon san: khong co dong nay thi luc noi dung vuot max-height,
+   thanh cuon xuat hien va bop chieu ngang noi dung => giat ngang. */
+.modal { scrollbar-gutter: stable; }
+
 .modal {
   position: relative;
   background:
@@ -5651,12 +5666,12 @@ textarea.input {
 /* ============ Session List Page ============ */
 .session-list-page {
   padding: 14px 18px;
-  margin: 0 auto;
+  margin: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-width: 1600px;
+  max-width: none;
 }
 
 .session-list-head {
@@ -9465,7 +9480,7 @@ textarea.input {
 .cap-flat .cap-sheet--split {
   max-width: none;
   margin: 0;
-  padding: 12px 20px 0;
+  padding: 9.5px 20px 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
   /* NGUON GOC cua "khoang trong rat lon" giua muc V va hang nut: `.case-main`
@@ -9483,14 +9498,32 @@ textarea.input {
   /* row-gap 16px: tach ba hang cua to giay (I+II | IV — III — V). Truoc de 0 vi
      ca trang phai vua khit mot man; gio to giay da cuon duoc (overflow: auto o
      duoi) nen tach ra cho de doc. */
-  gap: 16px 26px;
+  gap: 12px 26px;
   align-items: start;
 }
 /* gap 14px: khoang giua hai muc xep chong trong cung mot cot (I -> II). Truoc de
    4px, tieu de muc II gan nhu dinh vao o nhap cuoi cua muc I. */
-.cap-flat .cap-col { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.cap-flat .cap-col { min-width: 0; display: flex; flex-direction: column; gap: 10.5px; }
 /* Hang trai het be ngang, nam duoi 2 cot: dung cho muc V (van tay). */
 .cap-flat .cap-col--full { grid-column: 1 / -1; }
+/* MUC V (van tay) DAN RA HAI BEN, an het padding ngang cua to giay.
+   .cap-sheet--split co `padding: 12px 20px 0`, nen moi khoi ben trong - ke ca khoi
+   trai het be ngang nhu muc V - bi thut 20px moi ben. Muc V la khoi rong nhat trang
+   (10 o van lan + 3 o van chum tren cung mot hang) nen 40px do la 40px bi cat khoi
+   chinh cho can nhat.
+   Keo bang margin AM dung bang padding roi tra lai padding cho rieng khoi nay: dung
+   `width: calc(100% + 40px)` se lam o tran ra ngoai mep giay o hai dau. Muc III cung
+   la .cap-col--full nhung khong bi anh huong - no chi la mot hang o nhap, khong chat
+   be ngang. */
+.cap-flat .cap-col--full:has(> #cap-sec-fp) {
+  margin-left: -20px;
+  margin-right: -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+/* Hai cot cua muc V dan sat ra hai mep: khe giua giu 22px de hai muc khong dinh nhau,
+   nhung khong con le trong o hai dau. */
+.cap-flat .cap-col--full:has(> #cap-sec-fp) .fp-two-col { padding: 0; }
 
 /* Muc = khong con the co vien/bong; chi tieu de xanh + ke manh */
 .cap-flat .cap-sec {
@@ -9504,8 +9537,8 @@ textarea.input {
 .cap-flat .cap-sub-title {
   /* Thu khoang cach doc: ca trang phai vua mot man de thay duoc hang nut
      (Luu / Xem truoc ho so) o duoi cung ma khong phai cuon. */
-  margin: 6px 0 5px;
-  padding: 0 0 4px;
+  margin: 4.5px 0 4px;
+  padding: 0 0 3px;
   background: none;
   border-bottom: 1px solid var(--cf-line);
   color: var(--cf-head);
@@ -9531,7 +9564,7 @@ textarea.input {
   gap: 10px;
   background: none;
   padding: 0;
-  margin: 6px 0 5px;
+  margin: 4.5px 0 4px;
   border-bottom: 1px solid var(--cf-line);
 }
 .cap-flat .cap-sec-head .cap-sec-title {
@@ -9547,7 +9580,7 @@ textarea.input {
 /* gap doc 11px / ngang 20px: truoc day 7px/12px — cac o (va nhan cua chung) dinh
    sat nhau, doc theo hang bi roi. Trang khong con phai vua khit mot man nua
    (.cap-sheet--split da co overflow: auto) nen no ra duoc. */
-.cap-flat .cap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 20px; }
+.cap-flat .cap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8.5px 20px; }
 .cap-flat .cap-grid .span-3col { grid-column: 1 / -1; }
 .cap-flat .cap-grid .info-field-label,
 .cap-flat .info-field-label {
@@ -9560,7 +9593,7 @@ textarea.input {
 .cap-flat .cap-sec-body .control,
 .cap-flat .cap-sec-body .cap-textarea {
   width: 100%;
-  padding: 6px 9px;
+  padding: 5px 9px;
   border: 1px solid var(--cf-edge);
   border-radius: 8px;
   background: #fff;
@@ -9634,12 +9667,12 @@ textarea.input {
 .cap-flat .body-shots {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 7.5px;
 }
 .cap-flat .body-shot {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4.5px;
   min-width: 0;
 }
 .cap-flat .body-shot-head {
