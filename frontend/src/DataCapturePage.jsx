@@ -203,7 +203,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [heightImage, setHeightImage] = useState(100);
   const [heightOffset, setHeightOffset] = useState(103);
 
-  const lastCheckedCccdRef = useRef("");   // tránh gọi check-cccd lặp lại cùng 1 số
   const [dupModal, setDupModal] = useState({ open: false, matches: [] });  // cảnh báo trùng lúc Lưu
   const [checkingDup, setCheckingDup] = useState(false);   // đang gộp check khi bấm Lưu
 
@@ -1215,19 +1214,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       }
     }
 
-    // Cảnh báo nếu số CCCD vừa quét đã có trong danh sách (toàn hệ thống).
-    const cccd = (d.cccd_number || "").replace(/\D/g, "");
-    if (cccd && cccd.length >= 9 && cccd !== lastCheckedCccdRef.current) {
-      lastCheckedCccdRef.current = cccd;
-      try {
-        const r = await api.checkCccd(cccd);
-        if (r && r.matched && r.detainee) {
-          raiseAlert({ source: "cccd", detainee: r.detainee });
-        }
-      } catch (e) {
-        console.error("[CCCD] check duplicate failed:", e);
-      }
-    }
+    // BO tra cuu theo so CCCD. Truoc day quet the xong la tu goi api.checkCccd() roi
+    // bat canh bao "doi tuong da co trong danh sach" neu so CCCD trung. Gio doi chieu
+    // trung chi con dua vao ho ten + ngay sinh + gioi tinh, luc bam Luu ho so.
   };
 
   // Tự động lắng nghe đầu đọc CCCD ngay khi vào trang, chạy liên tục.
@@ -1530,8 +1519,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  // Bấm Lưu: gộp check-cccd + check-duplicate chạy song song 1 lần. Nếu phát hiện
-  // hồ sơ trùng → mở modal xác nhận (officer tự quyết). Không trùng → lưu luôn.
+  // Bam Luu: doi chieu ho so trung bang check-duplicate (ho ten + ngay sinh + gioi
+  // tinh). Neu phat hien trung -> mo modal xac nhan (officer tu quyet). Khong trung
+  // -> luu luon. KHONG con tra cuu theo so CCCD.
   const submit = async () => {
     if (!allRequiredValid) return;
     const cccd = (form.cccd_number || "").replace(/\D/g, "");
@@ -1543,8 +1533,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setCheckingDup(true);
     setErr("");
     try {
-      const [cccdRes, dupRes] = await Promise.allSettled([
-        cccd.length >= 9 ? api.checkCccd(cccd) : Promise.resolve({ matched: false }),
+      // BO tra cuu theo so CCCD. Chi con doi chieu ho ten + ngay sinh + gioi tinh
+      // (checkDuplicate). Truoc day con goi api.checkCccd(cccd) song song va coi
+      // trung so CCCD la mot "match" chan luu.
+      const [dupRes] = await Promise.allSettled([
         api.checkDuplicate(dupBody),
       ]);
 
@@ -1559,16 +1551,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         matches.push({ source, detainee });
       };
 
-      if (cccdRes.status === "fulfilled" && cccdRes.value?.matched && cccdRes.value.detainee) {
-        pushMatch(cccdRes.value.detainee, "cccd");
-      }
       if (dupRes.status === "fulfilled" && Array.isArray(dupRes.value?.duplicates)) {
         dupRes.value.duplicates.forEach((d) => pushMatch(d, "info"));
       }
 
-      // Cả 2 check đều lỗi mạng → không chặn officer vì lỗi hạ tầng, cho lưu luôn.
-      if (cccdRes.status === "rejected" && dupRes.status === "rejected") {
-        console.error("[dup-check] cả 2 API lỗi:", cccdRes.reason, dupRes.reason);
+      // Check loi mang -> khong chan officer vi loi ha tang, cho luu luon.
+      if (dupRes.status === "rejected") {
+        console.error("[dup-check] API loi:", dupRes.reason);
       }
 
       if (matches.length > 0) {
