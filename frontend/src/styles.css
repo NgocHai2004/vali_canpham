@@ -9146,7 +9146,7 @@ textarea.input {
 }
 
 /* ============================================================
-   Trang dang ky can pham — layout "to khai" (Stage 2)
+   Trang dang ky nghi pham — layout "to khai" (Stage 2)
    Vung khai NEN TRANG de doc/in; so muc + nut giu do man Cong an.
    ============================================================ */
 .cap-sheet {
@@ -10550,7 +10550,7 @@ textarea.input {
 /* ============================================================
    XEM TRUOC CHI BAN (FpSheetPreview) — mau chi ban giay
    ------------------------------------------------------------
-   Dung chung khung .preview-a4 / .preview-a4-portrait voi ho so can pham (210mm,
+   Dung chung khung .preview-a4 / .preview-a4-portrait voi ho so nghi pham (210mm,
    padding 10mm 15mm => long trang 180mm) nen xuat PDF qua buildProfilePdfBlob
    giong y. Rieng phan than dung tien to .fps- de KHONG dinh vao cac rule .pv-*
    cua to ho so.

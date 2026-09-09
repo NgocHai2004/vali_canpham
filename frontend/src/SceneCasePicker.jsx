@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import { useI18n } from "./i18n";
-import { IcChevRight, IcInfo, IcPageNext, IcPagePrev, IcReanalyze, IcSearch } from "./sceneMatchIcons";
+import { IcChevRight, IcClose, IcInfo, IcPageNext, IcPagePrev, IcPlus, IcReanalyze, IcSearch } from "./sceneMatchIcons";
 
 // Bảng chọn vụ án / phiên làm việc — bước đầu của tab Dấu vết hiện trường.
 // Đọc GET /api/sessions có sẵn, không thêm endpoint. Bấm 1 hàng là sang thẳng
@@ -34,7 +34,17 @@ export default function SceneCasePicker({ onPick }) {
   const [err, setErr] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [q, setQ] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+
+  // Gõ tới đâu gọi API tới đó là mỗi ký tự một request; chờ 300ms cho người dùng
+  // gõ xong. Ô nhập vẫn hiện ngay vì q là state riêng.
+  const [qSent, setQSent] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setQSent(q.trim()), 300);
+    return () => clearTimeout(id);
+  }, [q]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +52,11 @@ export default function SceneCasePicker({ onPick }) {
     try {
       const r = await api.listSessions({
         status: statusFilter,
+        q: qSent,
+        date_from: dateFrom,
+        // Ô "Đến" chọn theo ngày => backend parse ra 00:00, $lte sẽ loại hết vụ
+        // án trong chính ngày đó. Kéo tới cuối ngày cho khoảng lọc bao trọn.
+        date_to: dateTo ? `${dateTo}T23:59:59` : "",
         skip: String((page - 1) * PAGE_SIZE),
         limit: String(PAGE_SIZE),
       });
@@ -52,17 +67,19 @@ export default function SceneCasePicker({ onPick }) {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, page, t]);
+  }, [statusFilter, qSent, dateFrom, dateTo, page, t]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [statusFilter]);
+  // Đổi điều kiện lọc mà giữ nguyên page thì đang ở trang 3 của kết quả cũ sẽ ra
+  // bảng rỗng dù kết quả mới có hàng.
+  useEffect(() => { setPage(1); }, [statusFilter, qSent, dateFrom, dateTo]);
 
-  // Lọc theo tên vụ án / mã phiên ngay trên trang hiện tại.
-  const kw = q.trim().toLowerCase();
-  const rows = kw
-    ? items.filter((s) =>
-        `${s.case_name || ""} ${s.code || ""}`.toLowerCase().includes(kw))
-    : items;
+  const [newCase, setNewCase] = useState(null);   // null = đóng form
+
+  // Lọc chạy ở server (tên / mã / cán bộ / địa chỉ / ngày) nên items đã là kết
+  // quả của trang hiện tại và total là tổng đã lọc.
+  const rows = items;
+  const hasFilter = !!(qSent || dateFrom || dateTo);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -88,6 +105,28 @@ export default function SceneCasePicker({ onPick }) {
                 placeholder={t("scene.case.search_ph")}
                 aria-label={t("common.search")}
               />
+            </div>
+            {/* type=date chứ không phải datetime-local: cán bộ lọc theo ngày,
+                không ai nhớ phút mở vụ án. */}
+            <div className="scp-dates">
+              <label className="scp-date">
+                <span className="smp-dim">{t("common.from")}</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </label>
+              <label className="scp-date">
+                <span className="smp-dim">{t("common.to")}</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </label>
             </div>
             <div
               className="scp-seg"
@@ -115,6 +154,16 @@ export default function SceneCasePicker({ onPick }) {
               title={t("common.refresh")}
             >
               <IcReanalyze />
+            </button>
+            <button
+              type="button"
+              className="smp-btn-primary scp-new"
+              onClick={() => setNewCase({
+                case_name: "", officer_full_name: "", location: "",
+                occurred_at: "", note: "",
+              })}
+            >
+              <IcPlus /> {t("scene.case.new")}
             </button>
           </div>
         </div>
@@ -210,13 +259,13 @@ export default function SceneCasePicker({ onPick }) {
 
           {loading && <p className="scp-sr" role="status">{t("common.loading")}</p>}
 
-          {/* Rỗng vì hết vụ án khác hẳn rỗng vì từ khoá không khớp trang này —
-              tìm kiếm chỉ lọc 10 hàng đã tải nên phải nói rõ. */}
+          {/* Rỗng vì chưa có vụ án nào khác hẳn rỗng vì điều kiện lọc không khớp:
+              câu thứ hai cho cán bộ biết là phải xoá bộ lọc, không phải nhập liệu. */}
           {!loading && rows.length === 0 && (
             <div className="smp-drop scp-empty" role="status">
               <div className="smp-drop-ic"><IcInfo /></div>
               <div className="smp-drop-main">
-                {kw ? t("scene.case.empty_q", { q: q.trim() }) : t("scene.case.empty")}
+                {hasFilter ? t("scene.case.empty_q") : t("scene.case.empty")}
               </div>
             </div>
           )}
@@ -250,16 +299,140 @@ export default function SceneCasePicker({ onPick }) {
             ><IcPageNext /></button>
           </div>
           <div className="smp-pg-right">
-            {/* Tìm kiếm chỉ lọc trang hiện tại nên khi có từ khoá phải đổi câu,
-                không để "Hiển thị 1 - 10 của 42" đứng trên 3 hàng. */}
             <span className="smp-dim" aria-live="polite">
-              {kw
-                ? t("scene.case.matched", { n: rows.length })
+              {hasFilter
+                ? t("scene.case.matched", { n: total })
                 : t("smp.showing", { from, to, total })}
             </span>
           </div>
         </div>
       </section>
+
+      {newCase && (
+        <NewCaseModal
+          initial={newCase}
+          onClose={() => setNewCase(null)}
+          onSaved={(created) => {
+            setNewCase(null);
+            // Vào thẳng vụ án vừa tạo: cán bộ tạo vụ án là để nhập dấu vết ngay.
+            if (created?.id && onPick) onPick(created.id);
+            else load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewCaseModal({ initial, onClose, onSaved }) {
+  const { t } = useI18n();
+  const [form, setForm] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const canSave = form.case_name.trim().length > 0 && !saving;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!canSave) return;
+    setSaving(true);
+    setErr("");
+    try {
+      onSaved(await api.createSceneCase(form));
+    } catch (ex) {
+      setErr(ex.message || t("scene.case.new_err"));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="smp-modal-bd"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <form className="smp-modal" role="dialog" aria-modal="true" onSubmit={submit}>
+        <div className="smp-modal-head">
+          <span className="smp-modal-title">{t("scene.case.new_title")}</span>
+          <button
+            type="button"
+            className="smp-adv-x"
+            aria-label={t("common.close")}
+            onClick={onClose}
+          ><IcClose s={17} /></button>
+        </div>
+
+        <div className="smp-modal-body">
+          {err && <div className="lg-err" role="alert">{err}</div>}
+
+          <div>
+            <div className="smp-modal-lb">{t("scene.case.f_name")}</div>
+            <input
+              className="smp-modal-in"
+              value={form.case_name}
+              onChange={set("case_name")}
+              maxLength={200}
+              placeholder={t("scene.case.f_name_ph")}
+              autoFocus
+              required
+            />
+          </div>
+
+          <div>
+            <div className="smp-modal-lb">{t("scene.case.f_officer")}</div>
+            {/* Để trống thì backend lấy họ tên của tài khoản đang đăng nhập. */}
+            <input
+              className="smp-modal-in"
+              value={form.officer_full_name}
+              onChange={set("officer_full_name")}
+              maxLength={100}
+              placeholder={t("scene.case.f_officer_ph")}
+            />
+          </div>
+
+          <div>
+            <div className="smp-modal-lb">{t("scene.case.f_time")}</div>
+            <input
+              className="smp-modal-in"
+              type="datetime-local"
+              value={form.occurred_at}
+              onChange={set("occurred_at")}
+            />
+            <div className="smp-modal-note">{t("scene.case.f_time_note")}</div>
+          </div>
+
+          <div>
+            <div className="smp-modal-lb">{t("scene.case.f_place")}</div>
+            <input
+              className="smp-modal-in"
+              value={form.location}
+              onChange={set("location")}
+              maxLength={200}
+              placeholder={t("scene.case.f_place_ph")}
+            />
+          </div>
+
+          <div>
+            <div className="smp-modal-lb">{t("scene.case.f_note")}</div>
+            <textarea
+              className="smp-modal-in"
+              rows="3"
+              maxLength={500}
+              value={form.note}
+              onChange={set("note")}
+              placeholder={t("scene.case.f_note_ph")}
+            />
+          </div>
+        </div>
+
+        <div className="smp-modal-foot">
+          <button type="button" className="smp-modal-cancel" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+          <button type="submit" className="smp-modal-save" disabled={!canSave}>
+            {saving ? t("common.loading") : t("scene.case.new_save")}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

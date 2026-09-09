@@ -141,7 +141,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } catch { /* noop */ }
   }, [t]);
 
-  // Dedup đối sánh vân tay: 1 can phạm đã đăng ký = 1 cảnh báo trong 1 phiên chụp.
+  // Dedup đối sánh vân tay: 1 nghi phạm đã đăng ký = 1 cảnh báo trong 1 phiên chụp.
   const fpMatchedIdsRef = useRef(new Set());
   useEffect(() => { fpMatchedIdsRef.current = new Set(); }, [seed]);
 
@@ -609,7 +609,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         setFpStatus(t("capture.status.done_10"));
         setOk(t("capture.status.done_10_full"));
         // Sau khi thu đủ 10 ngón: tra cứu dùng left_thumb (theo logic BE mới).
-        // BE chỉ so left_thumb với left_thumb của can phạm, khớp nếu score > 80.
+        // BE chỉ so left_thumb với left_thumb của nghi phạm, khớp nếu score > 80.
         try {
           const latestPhotos = await new Promise((resolve) => {
             setPhotos((p) => { resolve(p); return p; });
@@ -1113,10 +1113,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         notify.add();
         setOk(t("capture.updated", { code: updated.code, name: updated.full_name }));
         if (onDone) onDone();
-        if (sessionId && onSavedInSession) {
+        if (onSavedInSession) {
           setTimeout(() => onSavedInSession(), 600);
         } else if (go) {
-          setTimeout(() => go("sessions"), 800);
+          setTimeout(() => go("detainees"), 800);
         }
       } else {
         const created = await api.createDetainee(body);
@@ -1219,10 +1219,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   const backToList = () => {
     if (onDone) onDone();
-    if (sessionId && onSavedInSession) {
+    if (onSavedInSession) {
       onSavedInSession();
     } else if (go) {
-      go("sessions");
+      go("detainees");
     }
   };
 

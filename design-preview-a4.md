@@ -1,6 +1,6 @@
 # Thiết kế — Trang "Xem trước hồ sơ" (A4 ngang)
 
-Tài liệu này mô tả layout cho **modal xem trước hồ sơ can phạm** đúng khổ **A4 landscape (297 × 210 mm)**, hiển thị toàn bộ dữ liệu trên **1 trang duy nhất**, **không có thanh cuộn**, sẵn sàng in ra hoặc xuất PDF khổ giấy ngang.
+Tài liệu này mô tả layout cho **modal xem trước hồ sơ nghi phạm** đúng khổ **A4 landscape (297 × 210 mm)**, hiển thị toàn bộ dữ liệu trên **1 trang duy nhất**, **không có thanh cuộn**, sẵn sàng in ra hoặc xuất PDF khổ giấy ngang.
 
 Chỉ mô tả **layout, kích thước, typography, thứ tự đọc**. Data đã có sẵn trong `form / photos / cells / session` — không đổi state hay API.
 
@@ -14,7 +14,7 @@ Chỉ mô tả **layout, kích thước, typography, thứ tự đọc**. Data �
 4. **Đọc kiểu Z** — mắt đi từ trái sang phải, trên xuống dưới. Sắp xếp block theo thứ tự đọc.
 5. **Đủ để in — đúng để tra cứu trên màn** — cùng 1 layout, không có 2 phiên bản riêng.
 6. **Tone ngành** — tiêu đề, viền, label header dùng đỏ đô Công an `#8E0000`; nền trắng, chữ đen (in tiết kiệm mực).
-7. **Chỉ 1 tiêu đề trang** — "HỒ SƠ CAN PHẠM", đặt trung tâm phía trên.
+7. **Chỉ 1 tiêu đề trang** — "HỒ SƠ NGHI PHẠM", đặt trung tâm phía trên.
 
 ---
 
@@ -69,7 +69,7 @@ Grid: `grid-template-columns: 76mm 1fr 52mm; align-items: center; gap: 6mm;`
 ```
 ┌──────────────────┬──────────────────────────────┬──────────────────────┐
 │                  │                              │                      │
-│ CỘNG HÒA XÃ HỘI  │      HỒ SƠ CAN PHẠM          │   ┌──────────────┐   │
+│ CỘNG HÒA XÃ HỘI  │      HỒ SƠ NGHI PHẠM          │   ┌──────────────┐   │
 │ CHỦ NGHĨA VIỆT   │                              │   │              │   │
 │ NAM              │  Số định danh: **CP0001**    │   │  ẢNH CCCD    │   │
 │ ─────            │  CCCD: 001203033844          │   │  MẶT TRƯỚC   │   │
@@ -84,7 +84,7 @@ Grid: `grid-template-columns: 76mm 1fr 52mm; align-items: center; gap: 6mm;`
 **Chi tiết:**
 - **Cột trái (76mm)**: Quốc hiệu 2 dòng, gạch chân 45×1 mm, canh giữa. Font 10.5px bold.
 - **Cột giữa (1fr)**:
-  - Tiêu đề `HỒ SƠ CAN PHẠM` — **22px bold, letter-spacing 2px, maroon #8E0000**, canh giữa.
+  - Tiêu đề `HỒ SƠ NGHI PHẠM` — **22px bold, letter-spacing 2px, maroon #8E0000**, canh giữa.
   - Dòng meta 11px: `Số định danh · CCCD · Mã phiên` — hiển thị 3 field trong 1 hoặc 2 dòng, format `label: **value**`.
 - **Cột phải (52mm)**: ảnh CCCD mặt trước, khung 44×28 mm, viền 1 px đen. Empty state: chữ nghiêng "Chưa có CCCD" trên nền `#F8FAFC` viền đứt.
 

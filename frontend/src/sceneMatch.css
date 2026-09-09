@@ -327,6 +327,23 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 .smp-field-sel { justify-content: space-between; gap: 22px; }
 .smp-field-grow { flex: 1; max-width: 300px; }
 .smp-field-mini { padding: 7px 12px; gap: 14px; font-size: 13px; }
+/* Khoảng ngày lọc vụ án: cao 36px cho thẳng hàng với .smp-field và .scp-seg. */
+.scp-dates { display: flex; align-items: center; gap: 8px; }
+.scp-date {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px;
+  padding: 0 12px; border-radius: 9px; box-sizing: border-box;
+  border: 1px solid var(--smp-line2); background: #0b1a30; color: #cbdcf3;
+  font-size: 13px; white-space: nowrap;
+}
+.scp-date input {
+  border: 0; background: transparent; color: #cbdcf3;
+  font-size: 13px; font-family: inherit; outline: none;
+}
+/* Icon lịch mặc định của Chromium là đen, gần như tàng hình trên nền tối. */
+.scp-date input::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(.55); cursor: pointer;
+}
+.scp-date input::-webkit-calendar-picker-indicator:hover { filter: invert(1) opacity(.9); }
 .smp-toolrow {
   display: flex; align-items: center; justify-content: space-between;
   gap: 14px; margin: 14px 0; flex-wrap: wrap;
@@ -438,6 +455,8 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 .scp-refresh { color: #9db3d1; }
 .scp-refresh:hover { color: #d3e2f7; border-color: var(--smp-blue); }
 .scp-refresh:disabled { opacity: .45; cursor: default; }
+/* Nut tao vu an: cao 36px cho bang hang cong cu (o tim kiem + segmented). */
+.scp-new { height: 36px; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 
 /* Vùng bảng cuộn dọc, header dính ở đỉnh khi cuộn. */
 .scp-wrap { flex: 1 1 0; min-height: 0; overflow: auto; }

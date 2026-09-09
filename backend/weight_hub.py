@@ -2,7 +2,7 @@
 """Pub/sub WebSocket hub cho cân nặng.
 
 Máy cân bên ngoài POST /api/weight/push -> hub.broadcast(payload) ->
-mọi WebSocket client (form đăng ký can phạm đang mở) nhận được ngay.
+mọi WebSocket client (form đăng ký nghi phạm đang mở) nhận được ngay.
 """
 from __future__ import annotations
 

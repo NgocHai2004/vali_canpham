@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, auth } from "./api";
+import { api } from "./api";
 import { useI18n, LanguageSwitch } from "./i18n";
 
 /* ---------- Lucide-style icons (thin 2px, round caps) ---------- */
@@ -66,18 +66,6 @@ export default function Login({ onLogin }) {
     setLoading(true);
     try {
       const data = await api.login(username.trim(), password);
-      try {
-        await api.verifyDongle();
-      } catch (dongleEx) {
-        auth.clear();
-        const msg = dongleEx?.message || "";
-        if (/USB service|Không kết nối được USB|Cannot reach the fingerprint|USB service is not/i.test(msg)) {
-          setErr(t("login.err.usb_down"));
-        } else {
-          setErr(t("login.err.no_dongle"));
-        }
-        return;
-      }
       onLogin(data.username, data.role, data.full_name || "");
     } catch (ex) {
       setErr(ex.message || t("login.err.failed"));

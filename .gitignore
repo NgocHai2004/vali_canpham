@@ -126,3 +126,30 @@ image copy*.png
 desktop.ini
 $RECYCLE.BIN/
 electron/app.asar
+
+# ===== Electron build output =====
+*.asar
+dist-electron/
+release/
+out/
+electron-builder.yml.local
+
+# ===== Lint / test cache =====
+.eslintcache
+.oxlintcache
+.cache/
+.tsbuildinfo
+*.tsbuildinfo
+
+# ===== Seed / DB dump (chứa dữ liệu thật, PII) =====
+backup_seed_*.json
+backend/backup_seed_*.json
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+
+# ===== Python build =====
+*.spec.bak
+backend/build/
+backend/dist/

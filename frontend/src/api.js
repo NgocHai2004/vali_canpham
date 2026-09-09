@@ -182,7 +182,6 @@ export const api = {
   },
   me: () => request("/api/auth/me"),
   updateMe: (body) => request("/api/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
-  verifyDongle: () => request("/api/auth/dongle-verify", { skipAuthExpire: true }),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
   measurementConfig: () => request("/api/config/measurement"),
   updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
@@ -215,11 +214,23 @@ export const api = {
     body: JSON.stringify({ fingers }),
   }),
 
-  // Luồng Search: quét 1 ngón bất kỳ, so với mọi ngón của can phạm. Ngưỡng rất cao (>95).
+  // Luồng Search: quét 1 ngón bất kỳ, so với mọi ngón của nghi phạm. Ngưỡng rất cao (>95).
   matchFingerprintSingle: (templateB64) => request("/api/detainees/match_fingerprint_single", {
     method: "POST",
     body: JSON.stringify({ template_b64: templateB64 }),
   }),
+
+  // ---- HBIE: trích đặc trưng vân tay roll + gallery đối sánh ----
+  // Trích lại đặc trưng cho 1 hồ sơ (dùng khi chụp lại ngón).
+  extractFp: (detId) => request(`/api/detainees/${detId}/extract_fp`, { method: "POST" }),
+
+  // Nạp lại gallery. BẮT BUỘC sau khi HBIE khởi động lại (DB 1:N là in_memory
+  // nên gallery mất sạch), và để nạp lần đầu cho hồ sơ cũ chưa có đặc trưng.
+  rebuildFpGallery: (force = false) =>
+    request(`/api/fp/gallery/rebuild${force ? "?force=true" : ""}`, { method: "POST" }),
+
+  // {online, total, extracted, enrolled} — cho cán bộ biết đối sánh có đáng tin chưa.
+  fpGalleryStatus: () => request("/api/fp/gallery/status"),
 
   uploadPhoto: async (file, type = "") => {
     const fd = new FormData();
@@ -271,12 +282,18 @@ export const api = {
     const s = qs.toString();
     return request(`/api/sessions${s ? `?${s}` : ""}`);
   },
-  getCurrentSession: () => request("/api/sessions/current"),
-  createSession: (body) => request("/api/sessions", { method: "POST", body: JSON.stringify(body || {}) }),
+
+  // Vụ án hiện trường. Khái niệm "phiên làm việc" đã bỏ: không còn mở/đóng phiên,
+  // hồ sơ nghi phạm gắn trực tiếp vào vụ án (hoặc không gắn vụ án nào).
+  createSceneCase: (body) => request("/api/scene/cases", {
+    method: "POST",
+    body: JSON.stringify(body || {}),
+  }),
+  updateSceneCase: (id, body) => request(`/api/scene/cases/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body || {}),
+  }),
   getSession: (id) => request(`/api/sessions/${id}`),
-  closeSession: (id) => request(`/api/sessions/${id}/close`, { method: "POST" }),
-  deleteSession: (id) => request(`/api/sessions/${id}`, { method: "DELETE" }),
-  downloadSessionReport: (id, filename) => downloadFile(`/api/sessions/${id}/report`, filename || `session_report.xlsx`),
   logSessionSync: (id, summary) => request(`/api/sessions/${id}/sync-log`, {
     method: "POST",
     body: JSON.stringify(summary || {}),

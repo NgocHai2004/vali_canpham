@@ -17,7 +17,7 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           maxLength={100} placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("full_name", e.target.value)} />
       </InfoField>
-      {/* "Ten goi khac" gom ca bi danh — can pham thuong khai nhieu ten, nen o
+      {/* "Ten goi khac" gom ca bi danh — nghi pham thuong khai nhieu ten, nen o
           nay trai ca hang.
           Ngoai ly do be ngang, span o day con GIU NHIP GHEP CAP cho ca muc: tru
           ho ten (trai hang) thi con 13 truong, so LE - de chay tu nhien thi mot

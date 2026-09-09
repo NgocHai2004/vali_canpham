@@ -6,8 +6,6 @@ import { notify } from "./notifications";
 import SyncDiffModal, { buildSyncDiff } from "./SyncDiffModal";
 import DetaineeForm from "./DetaineeForm";
 import DataCapturePage from "./DataCapturePage";
-import SessionListPage from "./SessionListPage";
-import SessionDetailPage from "./SessionDetailPage";
 import SceneCasePicker from "./SceneCasePicker";
 import SceneMatchPage from "./SceneMatchPage";
 import "./sceneMatch.css";
@@ -76,8 +74,8 @@ const Icon = {
 
 const NAV_BASE = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: Icon.dashboard },
-  { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
   { key: "scene_traces", labelKey: "nav.scene_traces", icon: Icon.folder },
+  { key: "session_capture", labelKey: "nav.capture", icon: Icon.file },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
   { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
   { key: "search", labelKey: "nav.search", icon: Icon.search },
@@ -97,7 +95,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   // Vu an dang xem trong tab Dau vet hien truong ("" = dang o bang chon).
   const [sceneSessionId, setSceneSessionId] = useState("");
   const [editingDetainee, setEditingDetainee] = useState(null);
-  const [activeSessionId, setActiveSessionId] = useState(null);
+  // Ngu canh thu nhan: chi con dung de gan ho so vao MOT VU AN va biet quay ve dau.
   const [sessionCtx, setSessionCtx] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const isAdmin = role === "admin";
@@ -105,96 +103,38 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   const deviceStatus = useDeviceConnections();
   const notifState = useNotifState();
 
-  const goPage = async (key, opts = {}) => {
+  const goPage = async (key) => {
     if (key !== "session_capture") {
       setEditingDetainee(null);
-      setSessionCtx(null);
-    }
-    if (key === "sessions") {
-      if (opts.openSessionId) {
-        setActiveSessionId(opts.openSessionId);
-        setPage("sessions_detail");
-        return;
-      }
-      setActiveSessionId(null);
       setSessionCtx(null);
     }
     setPage(key);
   };
 
+  // Sua ho so: mo thang form thu nhan, khong gan vu an (chi luong THEM MOI tu
+  // man Dau vet hien truong moi can gan vu an).
   const editDetainee = async (detainee) => {
-    // Admin không có phiên của riêng mình nên getCurrentSession() luôn 404.
-    // Vẫn giữ quyền SỬA hồ sơ → mở form trực tiếp, không gắn phiên.
-    if (isAdmin) {
-      await openEditForm(detainee);
-      return;
-    }
-    setEditingDetainee(detainee);
-    try {
-      const cur = await api.getCurrentSession();
-      setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
-      setActiveSessionId(cur.id);
-      setPage("session_capture");
-    } catch (ex) {
-      alert(t("session.open.err.officer_required_alt") || t("session.open.err.officer_required"));
-      setEditingDetainee(null);
-      setPage("sessions");
-    }
-  };
-
-  const openEditForm = async (detainee) => {
     let full = detainee;
     try {
       if (detainee?.id) full = await api.getDetainee(detainee.id);
     } catch { /* dùng dữ liệu có sẵn nếu không nạp được */ }
     setEditingDetainee(full);
     setSessionCtx(null);
-    setActiveSessionId(null);
     setPage("session_capture");
   };
 
-  const openSession = (sessionId) => {
-    setActiveSessionId(sessionId);
-    setPage("sessions_detail");
-  };
-  const backToSessionList = () => {
-    setActiveSessionId(null);
-    setSessionCtx(null);
-    setPage("sessions");
-  };
-  const addDetaineeToSession = (sessionId) => {
-    setEditingDetainee(null);
-    setSessionCtx({ sessionId, sessionCode: null, sessionReadOnly: false });
-    setPage("session_capture");
-  };
   // Thêm đối tượng từ màn Phân tích đối sánh: cùng luồng thu nhận, nhưng lưu/huỷ
   // xong quay lại đúng vụ án đang xem (sceneSessionId vẫn giữ nguyên).
   const addSubjectFromScene = (sessionId) => {
     setEditingDetainee(null);
-    setSessionCtx({ sessionId, sessionCode: null, sessionReadOnly: false, returnTo: "scene_traces" });
+    setSessionCtx({ sessionId, returnTo: "scene_traces" });
     setPage("session_capture");
   };
-  const editDetaineeInSession = (detainee, session) => {
-    setEditingDetainee(detainee);
-    setSessionCtx({
-      sessionId: session.id,
-      sessionCode: session.code,
-      sessionReadOnly: session.status !== "open",
-    });
-    setPage("session_capture");
-  };
-  const doneSessionCapture = () => {
+  const doneCapture = () => {
     setEditingDetainee(null);
-    if (activeSessionId) {
-      setPage("sessions_detail");
-    } else {
-      setPage("sessions");
-    }
-  };
-  const handleSessionClosed = () => {
+    const back = sessionCtx?.returnTo;
     setSessionCtx(null);
-    setActiveSessionId(null);
-    setPage("sessions");
+    setPage(back || "detainees");
   };
 
   return (
@@ -209,7 +149,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           onLogout={onLogout}
           isAdmin={isAdmin}
           onEditProfile={() => setShowProfileModal(true)}
-          onEditDetainee={openEditForm}
+          onEditDetainee={editDetainee}
         />
         {showProfileModal && (
           <ProfileEditModal
@@ -223,28 +163,31 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           />
         )}
 
-        <aside className="sidebar">
-          <div className="sidebar-title">{t("nav.function_group")}</div>
-
+        <aside className="sidebar" aria-label={t("nav.function_group")}>
           <nav className="nav">
             {NAV.map((item) => (
-              <button
-                key={item.key}
-                className={`nav-item ${page === item.key ? "active" : ""}`}
-                onClick={() => goPage(item.key)}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span>{t(item.labelKey)}</span>
-              </button>
+              <div className="nav-cell" key={item.key}>
+                <button
+                  className={`nav-item ${page === item.key ? "active" : ""}`}
+                  onClick={() => goPage(item.key)}
+                  aria-label={t(item.labelKey)}
+                  aria-current={page === item.key ? "page" : undefined}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                </button>
+                <span className="nav-tip" role="tooltip">{t(item.labelKey)}</span>
+              </div>
             ))}
           </nav>
 
-          <div className="security-card">
-            <div className="security-icon">{Icon.shield}</div>
-            <div>
-              <strong>{t("nav.security_title")}</strong>
-              <p>{t("nav.security_desc")}</p>
+          <div className="nav-cell security-cell">
+            <div className="security-card" tabIndex={0}>
+              <div className="security-icon">{Icon.shield}</div>
             </div>
+            <span className="nav-tip nav-tip-rich" role="tooltip">
+              <strong>{t("nav.security_title")}</strong>
+              <em>{t("nav.security_desc")}</em>
+            </span>
           </div>
         </aside>
 
@@ -263,33 +206,13 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
             )
           )}
           {page === "cells" && <CellsPage />}
-          {page === "sessions" && (
-            <SessionListPage
-              role={role}
-              username={username}
-              fullName={fullName}
-              onOpenSession={openSession}
-            />
-          )}
-          {page === "sessions_detail" && activeSessionId && (
-            <SessionDetailPage
-              sessionId={activeSessionId}
-              role={role}
-              onBack={backToSessionList}
-              onAddDetainee={addDetaineeToSession}
-              onEditDetainee={editDetaineeInSession}
-              onSessionClosed={handleSessionClosed}
-            />
-          )}
           {page === "session_capture" && (
             <DataCapturePage
               go={goPage}
               initial={editingDetainee}
               onDone={() => setEditingDetainee(null)}
               sessionId={sessionCtx?.sessionId}
-              sessionCode={sessionCtx?.sessionCode}
-              sessionReadOnly={sessionCtx?.sessionReadOnly}
-              onSavedInSession={doneSessionCapture}
+              onSavedInSession={doneCapture}
               onEditProfile={editDetainee}
             />
           )}
@@ -665,9 +588,8 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
   const activity = stats.activity_14d || [];
   const topCharges = stats.top_charges || [];
   const officers = stats.today_by_officer || [];
-  const recentSessions = stats.recent_sessions || [];
+  const recentCases = stats.recent_cases || [];
   const recentActivity = stats.recent_activity || [];
-  const openSession = stats.open_session;
   const missing = stats.missing_data_count || 0;
 
   const hour = now.getHours();
@@ -684,33 +606,21 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
           <h1>{greet}, {stats.open_session?.officer_full_name || fullName || t("dashboard.greet_officer_default")}</h1>
           <p>{timeStr} • {dateStr}</p>
         </div>
-        {/* Admin quản lý phiên chứ không chạy phiên → không có khối phiên ở trang chủ. */}
-        {isAdmin ? null : openSession ? (
-          <div className="dash-hero-session">
-            <div className="dash-hero-session-info">
-              <span className="dash-hero-badge">{t("dashboard.session.open_badge")}</span>
-              <strong className="mono">{openSession.code}</strong>
-              <small>{t("dashboard.session.detainee_count", { n: openSession.detainee_count || 0 })}</small>
-            </div>
-            <button className="button primary" onClick={() => go("sessions", { openSessionId: openSession.id })}>
-              {t("dashboard.session.enter")} {Icon.arrow}
-            </button>
-          </div>
-        ) : (
+        {/* Admin khong tu thu nhan ho so (backend chan 403) nen khong co loi vao nhanh. */}
+        {isAdmin ? null : (
           <div className="dash-hero-session dash-hero-session-empty">
             <div className="dash-hero-session-info">
-              <span className="dash-hero-badge dash-hero-badge-idle">{t("dashboard.session.idle_badge")}</span>
-              <small>{t("dashboard.session.idle_hint")}</small>
+              <span className="dash-hero-badge dash-hero-badge-idle">{t("nav.capture")}</span>
+              <small>{t("dashboard.capture_hint")}</small>
             </div>
-            <button className="button primary" onClick={() => go("sessions")}>
-              {Icon.plus} {t("dashboard.session.new")}
+            <button className="button primary" onClick={() => go("session_capture")}>
+              {Icon.plus} {t("nav.capture")}
             </button>
           </div>
         )}
       </div>
 
-      {/* Admin không có card "Phiên đang mở" → grid còn 3 cột (stat-grid-3). */}
-      <div className={isAdmin ? "stat-grid stat-grid-3" : "stat-grid"}>
+      <div className="stat-grid stat-grid-3">
         <StatCard
           tone="green"
           icon={Icon.file}
@@ -728,15 +638,6 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
           note={t("dashboard.stat.total.note")}
           onClick={() => go("detainees")}
         />
-        {!isAdmin && (
-          <StatCard
-            tone="purple"
-            icon={Icon.clipboard}
-            label={t("dashboard.stat.open_session")}
-            value={openSession ? 1 : 0}
-            note={openSession ? openSession.code : t("dashboard.stat.open_session.none")}
-          />
-        )}
         <StatCard
           tone={missing > 0 ? "orange" : "green"}
           icon={Icon.shield}
@@ -775,29 +676,26 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
 
         <section className="panel">
           <PanelHeader
-            title={t("dashboard.panel.recent_sessions")}
+            title={t("dashboard.panel.recent_cases")}
             action={t("dashboard.panel.view_all")}
-            onAction={() => go("sessions")}
+            onAction={() => go("scene_traces")}
           />
           <div className="session-list">
-            {recentSessions.map((s) => (
+            {recentCases.map((s) => (
               <div className="session-row" key={s.id}>
-                <span className={`session-dot ${s.status === "open" ? "open" : "closed"}`} />
+                <span className="session-dot open" />
                 <div className="session-main">
                   <div className="session-line">
-                    <strong className="mono">{s.code}</strong>
+                    <strong>{s.case_name || t("scene.no_case_name")}</strong>
                     <small>{s.officer_full_name || s.officer}</small>
                   </div>
                   <div className="session-meta">
-                    {t("dashboard.session.detainee_count", { n: s.detainee_count || 0 }).replace(/^.*? /, "")} • {formatDateTime(s.opened_at)}
+                    <span className="mono">{s.code}</span> • {formatDateTime(s.opened_at)}
                   </div>
                 </div>
-                <span className={`session-status ${s.status}`}>
-                  {s.status === "open" ? t("dashboard.session.status.open") : t("dashboard.session.status.closed")}
-                </span>
               </div>
             ))}
-            {!recentSessions.length && <div className="empty">{t("dashboard.session.list.empty")}</div>}
+            {!recentCases.length && <div className="empty">{t("scene.case.empty")}</div>}
           </div>
         </section>
 
@@ -4274,7 +4172,7 @@ const styles = `
     height: 100dvh;
     overflow: hidden;
     display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: 64px minmax(0, 1fr);
     grid-template-rows: 55px minmax(0, 1fr);
     background:
       radial-gradient(circle at 75% 10%, rgba(22, 139, 255, .10), transparent 28%),
@@ -4638,8 +4536,11 @@ const styles = `
     position: relative;
     display: flex;
     flex-direction: column;
-    padding: 5px 5px 5px;
-    overflow: hidden;
+    align-items: center;
+    padding: 8px 0 10px;
+    /* Tooltip bay ra ngoai rail nen khong duoc cat theo truc ngang */
+    overflow: visible;
+    z-index: 15;
     background:
       radial-gradient(circle at 50% -30%, rgba(22, 139, 255, .14), transparent 55%),
       linear-gradient(180deg, rgba(10, 26, 54, 0.9) 0%, rgba(6, 20, 42, 0.9) 100%);
@@ -4649,45 +4550,103 @@ const styles = `
     color: var(--text);
   }
 
-  .sidebar-title {
-    padding: 0 6px 12px;
-    color: var(--muted);
-    font-size: 10.5px;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-  }
-
   .nav {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 6px;
+    width: 100%;
+  }
+  /* Moi o giu 1 icon + tooltip; la anchor cho tooltip position:absolute */
+  .nav-cell {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
   }
   .nav-item {
     position: relative;
+    /* Giu light-trail cua muc active khong tran ra ngoai bo goc */
     overflow: hidden;
-    width: 100%;
+    width: 44px;
     height: 40px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 12px;
+    display: grid;
+    place-items: center;
+    padding: 0;
     border: 1px solid rgba(53, 216, 255, .08);
     border-radius: 12px;
     background: rgba(53, 216, 255, .03);
     color: var(--muted);
-    text-align: left;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.25;
     transition: .2s cubic-bezier(.4, 0, .2, 1);
   }
   .nav-item:hover {
     color: var(--text);
     background: rgba(22, 139, 255, .14);
     border-color: rgba(53, 216, 255, .3);
-    transform: translateX(2px);
     box-shadow: 0 6px 16px -8px rgba(22, 139, 255, .5);
+  }
+  .nav-item:focus-visible {
+    outline: 2px solid var(--primary-2);
+    outline-offset: 2px;
+  }
+
+  /* ===== Tooltip chu thich khi hover icon ===== */
+  .nav-tip {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 10px);
+    transform: translate(-6px, -50%);
+    z-index: 60;
+    max-width: 230px;
+    width: max-content;
+    padding: 7px 11px;
+    border: 1px solid rgba(53, 216, 255, .28);
+    border-radius: 9px;
+    background: linear-gradient(180deg, rgba(14, 33, 66, .98), rgba(6, 20, 42, .98));
+    box-shadow: 0 10px 26px rgba(2, 8, 23, .6);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.35;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease, visibility .16s;
+  }
+  /* Mui nhon tro ve phia icon */
+  .nav-tip::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: -4px;
+    width: 8px;
+    height: 8px;
+    transform: translateY(-50%) rotate(45deg);
+    border-left: 1px solid rgba(53, 216, 255, .28);
+    border-bottom: 1px solid rgba(53, 216, 255, .28);
+    background: rgba(11, 29, 60, .98);
+  }
+  .nav-cell:hover .nav-tip,
+  .nav-cell:focus-within .nav-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(0, -50%);
+  }
+  /* Tooltip 2 dong cho the bao mat */
+  .nav-tip-rich {
+    display: block;
+    white-space: normal;
+    width: 210px;
+  }
+  .nav-tip-rich strong { display: block; margin-bottom: 3px; font-size: 12.5px; }
+  .nav-tip-rich em {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: 1.5;
   }
   .nav-item.active {
     color: white;
@@ -4736,25 +4695,31 @@ const styles = `
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
   }
 
+  .security-cell { margin-top: auto; }
   .security-card {
-    margin-top: auto;
-    display: flex;
-    gap: 12px;
-    padding: 14px;
-    border: 1px solid rgba(53, 216, 255, .18);
-    border-radius: 14px;
-    background: linear-gradient(145deg, rgba(22, 139, 255, .16), rgba(40, 93, 222, .08));
-    color: var(--text);
-  }
-  .security-card strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 12.5px; }
-  .security-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
-  .security-icon {
-    flex: 0 0 auto;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 40px;
     display: grid;
     place-items: center;
-    border-radius: 10px;
+    border: 1px solid rgba(53, 216, 255, .18);
+    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(22, 139, 255, .16), rgba(40, 93, 222, .08));
+    color: var(--text);
+    cursor: default;
+  }
+  .security-card:focus-visible { outline: 2px solid var(--primary-2); outline-offset: 2px; }
+  /* Tooltip cua the bao mat neo o day (gan day rail) nen keo len tren */
+  .security-cell .nav-tip { top: auto; bottom: 0; transform: translate(-6px, 0); }
+  .security-cell:hover .nav-tip,
+  .security-cell:focus-within .nav-tip { transform: translate(0, 0); }
+  .security-cell .nav-tip::before { top: auto; bottom: 14px; transform: rotate(45deg); }
+  .security-icon {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
     color: var(--primary-2);
     background: rgba(53, 216, 255, .14);
   }
@@ -6044,7 +6009,7 @@ const styles = `
   .settings-preview-table td:last-child { font-weight: 600; }
   .settings-preview-table tr:last-child td { border-bottom: none; }
 
-  /* Danh sách can phạm — dùng cùng phong cách session-list */
+  /* Danh sách nghi phạm — dùng cùng phong cách session-list */
   .detainees-table-wrap {
     background: var(--bg-panel);
     border: 1px solid var(--border);
@@ -6763,7 +6728,7 @@ const styles = `
   .success-box { color: var(--success); background: rgba(36, 215, 119, 0.12); }
 
   @media (max-width: 1180px) {
-    .app { grid-template-columns: 220px minmax(0, 1fr); }
+    .app { grid-template-columns: 64px minmax(0, 1fr); }
     .header { padding: 0 20px; }
     .brand-title { font-size: 17px; }
     .user-info { display: none; }
@@ -8000,7 +7965,7 @@ const styles = `
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: repeat(9, minmax(0, 1fr));
   }
-  /* Biến thể 4 cột cho khối THÔNG TIN CAN PHẠM — 27 trường chia 4 cột × 7 hàng */
+  /* Biến thể 4 cột cho khối THÔNG TIN NGHI PHẠM — 27 trường chia 4 cột × 7 hàng */
   .personal-info--4col {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     /* Hàng tự co theo nội dung (không kéo giãn) để bỏ khoảng cách dòng lớn */
@@ -8010,7 +7975,7 @@ const styles = `
     gap: 2px 8px;
     padding: 3px 8px 4px;
   }
-  /* Thu nhỏ label + input riêng cho khối can phạm (không ảnh hưởng personal-info) */
+  /* Thu nhỏ label + input riêng cho khối nghi phạm (không ảnh hưởng personal-info) */
   .personal-info--4col .info-field { gap: 4px; }
   .personal-info--4col .info-field-label {
     font-size: 8.5px;
@@ -8023,7 +7988,7 @@ const styles = `
     border-radius: 4px;
   }
   .personal-info--4col .info-field select.control-sm { padding-right: 16px; }
-  /* Thu nhỏ radio "Diện giam giữ" (tạm giữ / tạm giam) trong khối can phạm */
+  /* Thu nhỏ radio "Diện giam giữ" (tạm giữ / tạm giam) trong khối nghi phạm */
   .personal-info--4col .radio-group-sm {
     height: 18px;
     gap: 8px;
@@ -8036,7 +8001,7 @@ const styles = `
     width: 12px;
     height: 12px;
   }
-  /* Trường Ghi chú — trong lưới can phạm giữ 1 ô như các trường khác để cột cân */
+  /* Trường Ghi chú — trong lưới nghi phạm giữ 1 ô như các trường khác để cột cân */
   .personal-info--3col .span-2col,
   .personal-info--4col .span-2col {
     grid-column: span 1;
@@ -8688,7 +8653,6 @@ const styles = `
     border-right: 1px solid var(--border) !important;
     color: var(--text) !important;
   }
-  .sidebar-title { color: var(--muted) !important; }
   .nav-item {
     background: rgba(53, 216, 255, .03) !important;
     border-color: rgba(53, 216, 255, .08) !important;

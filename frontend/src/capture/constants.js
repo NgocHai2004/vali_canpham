@@ -1,4 +1,4 @@
-// Hằng số cho trang thu nhận dữ liệu / đăng ký can phạm.
+// Hằng số cho trang thu nhận dữ liệu / đăng ký nghi phạm.
 // Tách ra từ DataCapturePage.jsx — nội dung giữ nguyên, không đổi logic.
 
 export const FINGERS = [

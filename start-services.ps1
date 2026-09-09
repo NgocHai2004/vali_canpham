@@ -47,7 +47,7 @@ function Test-PortInUse([int]$Port) {
 # MORFIN_SDK_DIR tro toi thu muc chua Morfin_Enroll_Core.dll + cac DLL phu
 # (~273MB). Neu chua set trong .env, service se tim ./runtime canh api.py.
 # LUU Y: template Morfin (FMR_V2005) KHONG so khop duoc voi template ZKFinger
-# cu. Can pham da enroll bang ZK phai enroll lai.
+# cu. Nghi pham da enroll bang ZK phai enroll lai.
 $fpSvcDir = Join-Path $svc 'morfin_service'
 if (-not $env:MORFIN_SDK_DIR) {
     Write-Warning "MORFIN_SDK_DIR chua set - morfin_service se tim runtime/ canh api.py."

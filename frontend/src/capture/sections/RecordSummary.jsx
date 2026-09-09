@@ -2,7 +2,7 @@ import { useI18n } from "../../i18n";
 
 // Thanh tom tat ho so — dai ngang, nhan nho + gia tri dam. KHONG phai the lon:
 // day la vung nhan dang ho so, khong phai dashboard, nen moi o chi cao 1 dong.
-// So ho so can pham / so chi ban / so AK do can bo dien tay (khong sinh tu dong)
+// So ho so nghi pham / so chi ban / so AK do can bo dien tay (khong sinh tu dong)
 // vi chung lay tu so dang ky giay cua don vi.
 function SumText({ label, value, onChange, placeholder, disabled, wide = false }) {
   return (

@@ -197,8 +197,8 @@ export default function SceneTracesPage({ go }) {
       <section className="panel scene-need-session">
         <h2>{t("scene.title")}</h2>
         <p>{t("scene.need_session")}</p>
-        <button className="btn-primary" onClick={() => go && go("sessions")}>
-          {t("scene.go_sessions")}
+        <button className="btn-primary" onClick={() => go && go("scene_traces")}>
+          {t("scene.go_cases")}
         </button>
       </section>
     );

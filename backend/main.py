@@ -417,7 +417,7 @@ class DetaineeIn(BaseModel):
     ethnicity: Optional[str] = None
     religion: Optional[str] = None
     # ---- Noi cu tru: the CCCD chi co ho khau (address); tam tru / cho o hien nay
-    # phai khai tay vi can pham thuong khong o dung dia chi tren the ----
+    # phai khai tay vi nghi pham thuong khong o dung dia chi tren the ----
     temp_address: Optional[str] = None               # noi tam tru
     current_address: Optional[str] = None            # noi o hien nay
     occupation: Optional[str] = None                 # nghe nghiep
@@ -470,38 +470,6 @@ class DetaineeIn(BaseModel):
     session_id: Optional[str] = None
 
 
-class WorkSessionIn(BaseModel):
-    case_name: str = Field(default="", max_length=200)
-    location: str = Field(default="", max_length=200)
-    note: str = Field(default="", max_length=500)
-    officer_full_name: Optional[str] = Field(default=None, max_length=100)
-    # ---- Noi giam giu cua CA PHIEN ----
-    # Mot phien thu nhan dien ra tai MOT cho cu the, nen chot dien + co so + buong
-    # ngay luc mo phien. Nho vay form ho so khong phai chon lai cho tung can pham:
-    # ca 3 gia tri nay duoc dien san tu phien dang mo.
-    custody_type: Optional[str] = Field(default=None, pattern=r"^(tam_giam|tam_giu)$")
-    facility_code: Optional[str] = None
-    sub_camp_code: Optional[str] = None
-    cell_code: Optional[str] = None
-
-
-async def _next_session_code() -> str:
-    today = datetime.utcnow().strftime("%Y%m%d")
-    counter_id = f"session_code_{today}"
-    doc = await db.counters.find_one_and_update(
-        {"_id": counter_id},
-        {"$inc": {"seq": 1}},
-        upsert=True,
-        return_document=True,
-    )
-    seq = doc["seq"] if doc else 1
-    return f"S{today}-{seq:04d}"
-
-
-async def _get_open_session_or_none(username: str) -> Optional[dict]:
-    return await db.work_sessions.find_one({"officer": username, "status": "open"})
-
-
 async def _next_cell_code() -> str:
     doc = await db.counters.find_one_and_update(
         {"_id": "cell_code"},
@@ -537,13 +505,6 @@ def _s_session(doc: dict) -> dict:
         if isinstance(v, datetime):
             out[k] = v.isoformat()
     return out
-
-
-def _ensure_session_editable(session_doc: dict, username: str, is_admin: bool) -> None:
-    if session_doc.get("status") != "open":
-        raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể chỉnh sửa.")
-    if session_doc.get("officer") != username and not is_admin:
-        raise HTTPException(403, "Bạn không có quyền thao tác trên phiên này.")
 
 
 def _make_token(username: str, role: str = "admin") -> str:
@@ -606,7 +567,7 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
         pass
 
 
-app = FastAPI(title="Thiết bị thu thập & quản lý căn cước can phạm", lifespan=lifespan)
+app = FastAPI(title="Thiết bị thu thập & quản lý căn cước nghi phạm", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
@@ -682,32 +643,6 @@ async def update_me(body: MePatch, request: Request, user: dict = Depends(get_cu
     }
 
 
-# ==================== USB DONGLE ====================
-USB_SERVICE_URL = os.getenv("USB_SERVICE_URL", "http://127.0.0.1:8766")
-
-
-@app.get("/api/auth/dongle-verify")
-async def dongle_verify(user: dict = Depends(get_current_user)):
-    """Layer bảo mật thứ 2: kiểm USB dongle đang cắm không.
-    Frontend poll endpoint này mỗi 5s sau khi login. 401 → auto logout.
-
-    - 200 OK: {ok: true, drive} — có dongle hợp lệ
-    - 401  : không phát hiện USB dongle
-    - 503  : usb_service không phản hồi (không đủ căn cứ logout)
-    """
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{USB_SERVICE_URL}/api/usb/verify")
-    except httpx.RequestError as e:
-        raise HTTPException(503, f"Không kết nối được USB service: {e}")
-    if resp.status_code != 200:
-        raise HTTPException(503, f"USB service lỗi ({resp.status_code}).")
-    data = resp.json()
-    if not data.get("ok"):
-        raise HTTPException(401, "Không phát hiện USB dongle. Vui lòng cắm USB.")
-    return {"ok": True, "drive": data.get("drive"), "user": user["username"]}
-
-
 # ==================== CELLS ====================
 @app.get("/api/cells")
 async def list_cells(user: dict = Depends(get_current_user)):
@@ -781,10 +716,10 @@ async def delete_cell(cell_id: str, request: Request, user: dict = Depends(get_c
     n_child = await db.cells.count_documents({"parent": code})
     if n_child > 0:
         raise HTTPException(400, f"Node đang có {n_child} node con, không thể xoá. Xoá con trước.")
-    # Không xoá buồng nếu còn can phạm
+    # Không xoá buồng nếu còn nghi phạm
     n = await db.detainees.count_documents({"cell_code": code})
     if n > 0:
-        raise HTTPException(400, f"Buồng đang có {n} can phạm, không thể xoá")
+        raise HTTPException(400, f"Buồng đang có {n} nghi phạm, không thể xoá")
     await db.cells.delete_one({"_id": _oid(cell_id)})
     await _log(request, user, "delete", "cell", code)
     return {"ok": True}
@@ -926,7 +861,7 @@ async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
     return _s(doc)
 
 
-# ---------- Fingerprint match (tra cứu can phạm bằng vân tay) ----------
+# ---------- Fingerprint match (tra cứu nghi phạm bằng vân tay) ----------
 FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
 FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "85"))  # luu cho cac luong khac (neu co)
 FP_MATCH_FINGER = os.getenv("FP_MATCH_FINGER", "left_thumb")     # ngon dung de ket luan
@@ -937,6 +872,34 @@ FP_FINGER_CODES = [
     "left_little", "left_ring", "left_middle", "left_index", "left_thumb",
     "right_thumb", "right_index", "right_middle", "right_ring", "right_little",
 ]
+
+# ---------- HBIE (engine đối sánh vân tay của Hisign) ----------
+HBIE_BASE = os.getenv("HBIE_BASE", "").strip() or _env_str_from_dotenv("HBIE_BASE") or "http://1.119.159.9:59832"
+HBIE_TOKEN = os.getenv("HBIE_TOKEN", "").strip() or _env_str_from_dotenv("HBIE_TOKEN")
+HBIE_DB_ID = int(os.getenv("HBIE_DB_ID", "1"))
+HBIE_TIMEOUT = _env_float("HBIE_TIMEOUT", 120.0)
+HBIE_DEFAULT_DPI = int(os.getenv("HBIE_DEFAULT_DPI", "500"))
+
+# NIST finger position. KHONG suy tu thu tu FP_FINGER_CODES (thu tu do la
+# left_little -> right_little, khac hoan toan NIST) — gan lech mot o la ca ho so
+# doi sanh sai nguoi ma khong bao loi.
+HBIE_POS = {
+    "right_thumb": 1, "right_index": 2, "right_middle": 3,
+    "right_ring": 4, "right_little": 5,
+    "left_thumb": 6, "left_index": 7, "left_middle": 8,
+    "left_ring": 9, "left_little": 10,
+}
+# type cua HBIE: 1=van lan (roll), 2=dau vet hien truong (latent), 3=van phang.
+HBIE_TYPE_ROLL = 1
+HBIE_TYPE_LATENT = 2
+
+# code ngon -> key anh trong photos (khop frontend/src/capture/constants.js)
+FP_CODE_TO_KEY = {
+    "left_thumb": "fp_l1", "left_index": "fp_l2", "left_middle": "fp_l3",
+    "left_ring": "fp_l4", "left_little": "fp_l5",
+    "right_thumb": "fp_r1", "right_index": "fp_r2", "right_middle": "fp_r3",
+    "right_ring": "fp_r4", "right_little": "fp_r5",
+}
 
 # ---------- Face recognition (nhận diện khuôn mặt bằng InsightFace buffalo_sc) ----------
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.4"))
@@ -950,12 +913,12 @@ class MatchFingerprintReq(BaseModel):
 
 @app.post("/api/detainees/match_fingerprint")
 async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_current_user)):
-    """Tra cứu can phạm bằng vân tay (logic moi).
+    """Tra cứu nghi phạm bằng vân tay (logic moi).
 
     Yeu cau FE gui du FP_REQUIRED_FINGER_COUNT ngon (mac dinh 10). Backend chi
     so sanh ngon FP_MATCH_FINGER (left_thumb) cua nguoi tra cuu voi left_thumb
-    cua tung can pham trong Mongo. Ket luan khop neu score > FP_LEFT_THUMB_THRESHOLD.
-    Tra top 10 can pham khop.
+    cua tung nghi pham trong Mongo. Ket luan khop neu score > FP_LEFT_THUMB_THRESHOLD.
+    Tra top 10 nghi pham khop.
     """
     fingers = body.fingers or {}
     # Dem so ngon co template khong trong
@@ -986,7 +949,7 @@ async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_
             fp_templates = (det.get("photos") or {}).get("fp_templates") or {}
             stored_tmpl = fp_templates.get(FP_MATCH_FINGER)
             if not stored_tmpl:
-                continue  # can pham khong co left_thumb -> khong the so
+                continue  # nghi pham khong co left_thumb -> khong the so
             try:
                 resp = await client.post(
                     f"{FP_SERVICE_URL}/api/match_pair",
@@ -1024,10 +987,10 @@ class MatchFingerprintSingleReq(BaseModel):
 
 @app.post("/api/detainees/match_fingerprint_single")
 async def match_fingerprint_single(body: MatchFingerprintSingleReq, user: dict = Depends(get_current_user)):
-    """Tra cứu can phạm bằng 1 template vân tay (luong Search, quet 1 ngon).
+    """Tra cứu nghi phạm bằng 1 template vân tay (luong Search, quet 1 ngon).
 
     Khac voi match_fingerprint (can 10 ngon + chi so left_thumb): endpoint nay
-    nhan 1 ngon bat ky, so voi TAT CA ngon cua moi can pham, lay best_score.
+    nhan 1 ngon bat ky, so voi TAT CA ngon cua moi nghi pham, lay best_score.
     Ket luan khop neu best_score > FP_SINGLE_THRESHOLD (mac dinh 95, rat chat)
     de giam doan nham khi chi co 1 ngon.
     """
@@ -1110,28 +1073,153 @@ async def _compute_face_embedding(portrait_url: str) -> list[float] | None:
         return None
 
 
+def _hbie_headers() -> dict:
+    return {"Authorization": f"Bearer {HBIE_TOKEN}"} if HBIE_TOKEN else {}
+
+
+async def _hbie_post(path: str, payload: dict) -> dict:
+    """Goi HBIE. Raise HTTPException de caller quyet dinh bo qua hay bao loi."""
+    url = f"{HBIE_BASE.rstrip('/')}{path}"
+    # connect ngan (5s) nhung read dai: vali chay offline phan lon thoi gian, doi
+    # het timeout de biet "khong co mang" lam treo luong luu ho so.
+    timeout = httpx.Timeout(HBIE_TIMEOUT, connect=5.0)
+    try:
+        # verify=False: HBIE noi bo dung cert tu ky.
+        async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+            resp = await client.post(url, json=payload, headers=_hbie_headers())
+    except httpx.TimeoutException:
+        raise HTTPException(504, f"HBIE quá thời gian chờ ({path}).")
+    except httpx.RequestError as e:
+        raise HTTPException(502, f"Không kết nối được HBIE ({path}): {e}")
+    if resp.status_code != 200:
+        raise HTTPException(502, f"HBIE lỗi {resp.status_code} ({path}): {resp.text[:200]}")
+    return resp.json()
+
+
+def _fp_image_b64(photos: dict, code: str) -> str | None:
+    """Doc anh van tay ngon `code` tu photos -> base64.
+
+    Dung anh HIEN THI fp_l1..fp_r5 (khong dung fp_templates): template Morfin la
+    FMR_V2005, HBIE /api/extract chi nhan ANH.
+    """
+    key = FP_CODE_TO_KEY.get(code)
+    if not key:
+        return None
+    val = (photos or {}).get(key) or ""
+    if not val:
+        return None
+    if val.startswith("data:"):
+        return val.split(",", 1)[-1]
+    path = _resolve_upload_path(val)
+    if not path:
+        return None
+    try:
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("ascii")
+    except OSError:
+        return None
+
+
+async def _extract_fp_features(det_id, photos: dict, dpi: int | None = None) -> dict:
+    """Trich dac trung HBIE cho tung ngon roll da chup.
+
+    May Morfin chup ROLL tung ngon rieng (ROLL_STEPS) nen anh vao day da la mot
+    ngon - KHONG can YOLO tach.
+    """
+    out: dict = {}
+    for code in FP_FINGER_CODES:
+        img = _fp_image_b64(photos, code)
+        if not img:
+            continue
+        payload = {
+            "image": img,
+            "dpi": int(dpi or HBIE_DEFAULT_DPI),
+            "pos": HBIE_POS[code],
+            "type": HBIE_TYPE_ROLL,
+        }
+        try:
+            data = await _hbie_post("/api/extract", payload)
+        except HTTPException:
+            continue
+        feature = data.get("feature")
+        if not feature:
+            continue
+        out[code] = {
+            "feature": feature,
+            "quality": data.get("quality"),
+            "landmark": data.get("landmark"),
+            "pos": HBIE_POS[code],
+            "type": HBIE_TYPE_ROLL,
+            "dpi": int(dpi or HBIE_DEFAULT_DPI),
+            "extracted_at": datetime.utcnow(),
+        }
+    if out:
+        await db.detainees.update_one(
+            {"_id": det_id}, {"$set": {"photos.fp_features": out}}
+        )
+    return out
+
+
+async def _hbie_save_person(det_id, fp_features: dict) -> dict | None:
+    """Ghi ca 10 ngon vao gallery HBIE.
+
+    /api/save THAY THE TOAN BO person nen phai gui du bo tu fp_features, khong
+    save tung ngon mot.
+    """
+    # id = pos (1-10) de khi doi sanh doc matches[].gal_id la suy ra duoc NGON nao
+    # khop. Danh id theo thu tu liet ke thi gal_id thanh vo nghia.
+    features = [
+        {"id": f["pos"], "pos": f["pos"], "type": f["type"], "data": f["feature"]}
+        for _code, f in sorted(fp_features.items())
+        if f.get("feature")
+    ]
+    if not features:
+        return None
+    payload = {"db": HBIE_DB_ID, "person": {"id": str(det_id), "features": features}}
+    try:
+        await _hbie_post("/api/save", payload)
+    except HTTPException:
+        return None
+    info = {"db": HBIE_DB_ID, "feature_count": len(features), "saved_at": datetime.utcnow()}
+    await db.detainees.update_one({"_id": det_id}, {"$set": {"photos.fp_gallery": info}})
+    return info
+
+
+async def _enroll_fp_gallery(det_id, photos: dict, dpi: int | None = None) -> dict:
+    """Trich dac trung + ghi gallery. Khong raise: ho so van phai luu duoc khi
+    mat mang (vali chay offline) - luc do fp_gallery = None va can rebuild sau.
+    """
+    try:
+        feats = await _extract_fp_features(det_id, photos, dpi)
+    except Exception:  # noqa: BLE001
+        return {"extracted": 0, "saved": False}
+    saved = await _hbie_save_person(det_id, feats) if feats else None
+    return {"extracted": len(feats), "saved": bool(saved)}
+
+
 @app.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
-    # Quản trị hệ thống không đi thu nhận can phạm → không TẠO hồ sơ mới.
+    # Quản trị hệ thống không đi thu nhận nghi phạm → không TẠO hồ sơ mới.
     # Vẫn giữ quyền SỬA/XOÁ hồ sơ để chữa dữ liệu cán bộ nhập sai.
     if user.get("role") == "admin":
         raise HTTPException(403, "Tài khoản quản trị hệ thống không thu nhận hồ sơ. Việc này do cán bộ thu nhận thực hiện.")
-    if not body.session_id:
-        raise HTTPException(400, "Bạn phải mở 1 phiên làm việc trước khi tạo hồ sơ.")
-    session_doc = await db.work_sessions.find_one({"_id": _oid(body.session_id)})
-    if not session_doc:
-        raise HTTPException(400, "Phiên làm việc không tồn tại.")
-    is_admin = user.get("role") == "admin"
-    _ensure_session_editable(session_doc, user["username"], is_admin)
+    # Ho so KHONG con bat buoc thuoc phien: khai niem "phien lam viec" da bo, can
+    # bo vao thang man dang ky. Van cho gan vao MOT VU AN (tuy chon) khi thu nhan
+    # nghi pham tu man Dau vet hien truong.
+    session_doc = None
+    if body.session_id:
+        session_doc = await db.work_sessions.find_one({"_id": _oid(body.session_id)})
+        if not session_doc:
+            raise HTTPException(400, "Vụ án không tồn tại.")
     _require_capture_fields(body)
     dob = _parse_dob(body.dob)
     now = datetime.utcnow()
 
     personal_id = (body.personal_id or "").strip()
     if not personal_id:
-        raise HTTPException(400, "Thiếu mã can phạm (personal_id).")
+        raise HTTPException(400, "Thiếu mã nghi phạm (personal_id).")
     if await db.detainees.find_one({"personal_id": personal_id}):
-        raise HTTPException(400, f"Mã can phạm '{personal_id}' đã có trong hệ thống.")
+        raise HTTPException(400, f"Mã nghi phạm '{personal_id}' đã có trong hệ thống.")
 
     doc = body.model_dump()
     doc.pop("session_id", None)
@@ -1145,7 +1233,7 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         "created_at": now,
         "updated_at": now,
         "created_by": user["username"],
-        "session_id": session_doc["_id"],
+        "session_id": session_doc["_id"] if session_doc else None,
     })
     try:
         res = await db.detainees.insert_one(doc)
@@ -1154,18 +1242,93 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
             raise HTTPException(400, f"Số định danh '{personal_id}' đã tồn tại (đồng thời), vui lòng thử lại.")
         raise
     doc["_id"] = res.inserted_id
-    await db.work_sessions.update_one(
-        {"_id": session_doc["_id"]},
-        {"$inc": {"detainee_count": 1}, "$set": {"updated_at": now}},
-    )
+    if session_doc:
+        await db.work_sessions.update_one(
+            {"_id": session_doc["_id"]},
+            {"$inc": {"detainee_count": 1}, "$set": {"updated_at": now}},
+        )
     # Face embedding từ portrait_front (nếu có ảnh local + model ready)
     portrait_url = (doc.get("photos") or {}).get("portrait_front") or ""
     fe = await _compute_face_embedding(portrait_url)
     if fe:
         await db.detainees.update_one({"_id": doc["_id"]}, {"$set": {"photos.face_embedding": fe}})
         doc.setdefault("photos", {})["face_embedding"] = fe
-    await _log(request, user, "create", "detainee", personal_id, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id), session_id=session_doc["_id"])
-    return _s(doc)
+    # Trich dac trung van tay + ghi gallery HBIE. Khong chan viec luu ho so:
+    # mat mang (vali offline) thi ho so van luu, gallery nap sau bang rebuild.
+    enroll = await _enroll_fp_gallery(doc["_id"], doc.get("photos") or {})
+    await _log(request, user, "create", "detainee", personal_id,
+               {"full_name": body.full_name, "case": session_doc.get("code") if session_doc else ""},
+               ref_id=str(res.inserted_id),
+               session_id=session_doc["_id"] if session_doc else None)
+    out = _s(doc)
+    out["fp_enroll"] = enroll
+    return out
+
+
+@app.post("/api/detainees/{det_id}/extract_fp")
+async def extract_fp(det_id: str, user: dict = Depends(get_current_user)):
+    """Trich lai dac trung + ghi gallery cho 1 ho so (dung khi chup lai ngon)."""
+    doc = await db.detainees.find_one({"_id": _oid(det_id)}, {"photos": 1})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy hồ sơ")
+    feats = await _extract_fp_features(doc["_id"], doc.get("photos") or {})
+    if not feats:
+        raise HTTPException(422, "Không trích được đặc trưng từ ảnh vân tay đã lưu.")
+    saved = await _hbie_save_person(doc["_id"], feats)
+    return {
+        "ok": True,
+        "extracted": len(feats),
+        "fingers": sorted(feats.keys()),
+        "quality": {c: f.get("quality") for c, f in feats.items()},
+        "gallery": _s(saved) if saved else None,
+    }
+
+
+@app.post("/api/fp/gallery/rebuild")
+async def fp_gallery_rebuild(
+    force: bool = Query(False, description="True = trích lại cả hồ sơ đã có đặc trưng"),
+    user: dict = Depends(get_current_user),
+):
+    """Nap lai toan bo gallery HBIE.
+
+    BAT BUOC sau khi HBIE restart: DB 1:N phai la in_memory nen gallery mat sach.
+    Cung dung de nap lan dau cho ho so cu (chua co fp_features).
+    """
+    try:
+        await _hbie_post("/api/create_db", {"id": HBIE_DB_ID, "in_memory": True})
+    except HTTPException:
+        pass  # DB da ton tai -> bo qua
+    total = ok = failed = 0
+    async for d in db.detainees.find({}, {"photos": 1}):
+        total += 1
+        photos = d.get("photos") or {}
+        feats = photos.get("fp_features") or {}
+        if force or not feats:
+            feats = await _extract_fp_features(d["_id"], photos)
+        if feats and await _hbie_save_person(d["_id"], feats):
+            ok += 1
+        else:
+            failed += 1
+    return {"ok": True, "db": HBIE_DB_ID, "total": total, "enrolled": ok, "failed": failed}
+
+
+@app.get("/api/fp/gallery/status")
+async def fp_gallery_status(user: dict = Depends(get_current_user)):
+    """Cho can bo biet doi sanh co dang tin chua: bao nhieu ho so da vao gallery."""
+    total = await db.detainees.count_documents({})
+    extracted = await db.detainees.count_documents({"photos.fp_features": {"$exists": True, "$ne": {}}})
+    enrolled = await db.detainees.count_documents({"photos.fp_gallery": {"$ne": None, "$exists": True}})
+    online = True
+    detail = ""
+    try:
+        await _hbie_post("/api/count_db", {"db": HBIE_DB_ID})
+    except HTTPException as e:
+        online = False
+        detail = str(e.detail)
+    return {
+        "hbie_base": HBIE_BASE, "db": HBIE_DB_ID, "online": online, "detail": detail,
+        "total": total, "extracted": extracted, "enrolled": enrolled,
+    }
 
 
 @app.patch("/api/detainees/{det_id}")
@@ -1189,7 +1352,7 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     if new_pid:
         conflict = await db.detainees.find_one({"personal_id": new_pid, "_id": {"$ne": _oid(det_id)}})
         if conflict:
-            raise HTTPException(400, f"Mã can phạm '{new_pid}' đã có trong hồ sơ khác.")
+            raise HTTPException(400, f"Mã nghi phạm '{new_pid}' đã có trong hồ sơ khác.")
         upd["personal_id"] = new_pid
         upd["cccd_number"] = body.cccd_number or upd.get("cccd_number", "")
     upd["updated_at"] = datetime.utcnow()
@@ -1252,7 +1415,7 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
         raise HTTPException(400, f"Buồng {new_code} không tồn tại")
     old_code = doc.get("cell_code") or ""
     if old_code == new_code:
-        raise HTTPException(400, "Can phạm đã ở buồng này")
+        raise HTTPException(400, "Nghi phạm đã ở buồng này")
     await db.detainees.update_one(
         {"_id": _oid(det_id)},
         {"$set": {"cell_code": new_code or None, "updated_at": datetime.utcnow()}},
@@ -1264,118 +1427,9 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
     return {"ok": True, "from": old_code, "to": new_code}
 
 
-async def _resolve_session_place(body: "WorkSessionIn") -> dict:
-    """Kiểm tra + chuẩn hoá nơi giam giữ của phiên (diện / cơ sở / phân trại / buồng).
-
-    Cả 4 trường đều tuỳ chọn để phiên cũ (và client cũ) vẫn mở được. Nhưng khi đã
-    gửi thì phải khớp nhau, vì hồ sơ trong phiên sẽ lấy y nguyên các giá trị này:
-    một buồng gán sai cơ sở sẽ làm mọi hồ sơ của phiên nằm sai chỗ, và đó là loại
-    sai không ai phát hiện lúc nhập.
-
-    Quan hệ được kiểm theo đúng cây của collection cells (xem create_cell):
-    buồng -> cha là phân trại HOẶC cơ sở (Nhà tạm giữ không có phân trại).
-    """
-    custody = (body.custody_type or "").strip() or None
-    facility = (body.facility_code or "").strip() or None
-    sub_camp = (body.sub_camp_code or "").strip() or None
-    cell = (body.cell_code or "").strip() or None
-
-    # Buồng/phân trại không thể đứng một mình: không có cơ sở thì không biết chúng
-    # thuộc đâu, và hồ sơ sẽ thiếu facility_code.
-    if (cell or sub_camp) and not facility:
-        raise HTTPException(400, "Chọn cơ sở giam giữ trước khi chọn phân trại/buồng.")
-
-    fac_doc = None
-    if facility:
-        fac_doc = await db.cells.find_one({"code": facility, "level": "facility"})
-        if not fac_doc:
-            raise HTTPException(400, f"Cơ sở giam giữ '{facility}' không tồn tại.")
-        # Diện là thuộc tính của cơ sở => lấy theo cơ sở, không tin giá trị client
-        # gửi lên. Client gửi lệch thì báo lỗi thay vì âm thầm ghi sai.
-        if custody and fac_doc.get("custody_type") != custody:
-            raise HTTPException(
-                400,
-                f"Cơ sở '{fac_doc.get('name', facility)}' thuộc diện khác với diện đã chọn.",
-            )
-        custody = fac_doc.get("custody_type") or custody
-
-    if sub_camp:
-        sc_doc = await db.cells.find_one({"code": sub_camp, "level": "sub_camp"})
-        if not sc_doc:
-            raise HTTPException(400, f"Phân trại '{sub_camp}' không tồn tại.")
-        if sc_doc.get("parent") != facility:
-            raise HTTPException(400, "Phân trại không thuộc cơ sở giam giữ đã chọn.")
-
-    if cell:
-        cell_doc = await db.cells.find_one({"code": cell, "level": "cell"})
-        if not cell_doc:
-            raise HTTPException(400, f"Buồng '{cell}' không tồn tại.")
-        parent = cell_doc.get("parent")
-        # Cha hợp lệ: phân trại đã chọn, hoặc chính cơ sở (trường hợp Nhà tạm giữ).
-        expected = {p for p in (sub_camp, facility) if p}
-        if parent not in expected:
-            raise HTTPException(400, "Buồng không thuộc cơ sở/phân trại đã chọn.")
-
-    return {
-        "custody_type": custody,
-        "facility_code": facility,
-        "sub_camp_code": sub_camp,
-        "cell_code": cell,
-    }
-
-
-# ==================== WORK SESSIONS ====================
-@app.post("/api/sessions")
-async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
-    officer_username = user["username"]
-    # Quản trị hệ thống không đi thu nhận can phạm → không mở phiên làm việc.
-    # Admin vẫn xem/đóng/xoá phiên + tải báo cáo của cán bộ (vai giám sát).
-    if user.get("role") == "admin":
-        raise HTTPException(403, "Tài khoản quản trị hệ thống không mở phiên thu nhận. Phiên làm việc do cán bộ thu nhận mở.")
-    existing = await _get_open_session_or_none(officer_username)
-    if existing:
-        raise HTTPException(409, f"Bạn đang có 1 phiên đang mở ({existing.get('code','?')}). Đóng phiên đó trước khi mở phiên mới.")
-    officer_doc = await db.users.find_one({"username": officer_username}) or {}
-    default_full_name = officer_doc.get("full_name", "") or officer_username
-    override = (body.officer_full_name or "").strip()
-    # Kiểm tra nơi giam giữ TRƯỚC khi sinh mã phiên: _next_session_code() tăng
-    # counter và không hoàn lại được, nên nếu để sau thì mỗi lần chọn buồng sai là
-    # đốt một số thứ tự, và dãy mã phiên trong ngày bị khuyết lỗ.
-    place = await _resolve_session_place(body)
-    now = datetime.utcnow()
-    doc = {
-        "code": await _next_session_code(),
-        "status": "open",
-        "case_name": body.case_name.strip(),
-        "officer": officer_username,
-        "officer_full_name": override or default_full_name,
-        "location": body.location.strip() or "Trung tâm thu thập dữ liệu",
-        "note": body.note.strip(),
-        "opened_at": now,
-        "closed_at": None,
-        "detainee_count": 0,
-        "report_url": None,
-        "report_filename": None,
-        **place,
-    }
-    res = await db.work_sessions.insert_one(doc)
-    doc["_id"] = res.inserted_id
-    await _log(request, user, "create", "work_session", doc["code"], ref_id=str(res.inserted_id), session_id=res.inserted_id)
-    return _s_session(doc)
-
-
-@app.get("/api/sessions/current")
-async def get_current_session(user: dict = Depends(get_current_user)):
-    # Admin không chạy phiên → luôn coi như không có phiên đang mở, kể cả khi
-    # dữ liệu cũ còn phiên do admin mở từ trước.
-    if user.get("role") == "admin":
-        raise HTTPException(404, "Tài khoản quản trị hệ thống không có phiên làm việc.")
-    doc = await _get_open_session_or_none(user["username"])
-    if not doc:
-        raise HTTPException(404, "Bạn chưa có phiên làm việc nào đang mở.")
-    return _s_session(doc)
-
-
+# ==================== VU AN ====================
+# Khai niem "phien lam viec" (mo/dong phien, 1 phien mo moi can bo) da bo. Collection
+# work_sessions gio chi chua VU AN, tao qua POST /api/scene/cases.
 @app.get("/api/sessions/full")
 async def list_sessions_full(
     status: Optional[str] = Query(None, pattern=r"^(open|closed)$"),
@@ -1388,7 +1442,7 @@ async def list_sessions_full(
     user: dict = Depends(get_current_user),
 ):
     """Trả về đầy đủ thông tin các phiên làm việc (cả đang mở lẫn đã đóng)
-    kèm danh sách hồ sơ can phạm bên trong mỗi phiên."""
+    kèm danh sách hồ sơ nghi phạm bên trong mỗi phiên."""
     filt: dict = {}
     if status:
         filt["status"] = status
@@ -1477,6 +1531,7 @@ async def list_sessions_full(
 @app.get("/api/sessions")
 async def list_sessions(
     status: Optional[str] = Query(None, pattern=r"^(open|closed)$"),
+    q: Optional[str] = Query(None, description="Ten vu an / ma vu an / can bo / dia chi"),
     mine_only: bool = Query(False),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -1487,6 +1542,18 @@ async def list_sessions(
     filt: dict = {}
     if status:
         filt["status"] = status
+    # Loc o server, KHONG loc tren 10 hang cua trang dang xem: vu an trang 3 khop
+    # tu khoa thi phai ra, ma total/phan trang cung phai tinh theo ket qua da loc.
+    if q and q.strip():
+        rx = re.escape(q.strip())
+        filt["$or"] = [
+            {"case_name": {"$regex": rx, "$options": "i"}},
+            {"code": {"$regex": rx, "$options": "i"}},
+            {"officer": {"$regex": rx, "$options": "i"}},
+            {"officer_full_name": {"$regex": rx, "$options": "i"}},
+            {"location": {"$regex": rx, "$options": "i"}},
+        ]
+    # Giu nguyen sau $or: non-admin van bi khoa ve chinh minh (AND voi $or).
     if mine_only or user.get("role") != "admin":
         filt["officer"] = user["username"]
     dt_from = _parse_dt(date_from)
@@ -1702,7 +1769,7 @@ async def delete_session(session_id: str, request: Request, user: dict = Depends
         raise HTTPException(403, "Bạn không có quyền xoá phiên này.")
     if doc.get("status") != "open" and user.get("role") != "admin":
         raise HTTPException(400, "Chỉ có thể xoá phiên đang mở, chưa đóng.")
-    # Xoá toàn bộ hồ sơ can phạm thuộc phiên này
+    # Xoá toàn bộ hồ sơ nghi phạm thuộc phiên này
     cursor = db.detainees.find({"session_id": doc["_id"]}, {"personal_id": 1})
     deleted_count = 0
     async for d in cursor:
@@ -2214,18 +2281,19 @@ async def _insert_scene_trace(
 
 
 async def _scene_session_or_400(session_id: Optional[str], username: str) -> dict:
-    """Ảnh hiện trường BẮT BUỘC thuộc 1 phiên. Có session_id thì dùng, không có
-    thì lấy phiên đang mở; không có phiên nào mở thì báo cần khởi tạo phiên."""
+    """Ảnh hiện trường BẮT BUỘC thuộc 1 vụ án. Không có case_id thì lấy vụ án mới
+    nhất của cán bộ (máy ngoài bắn ảnh lên không biết mã vụ án nào)."""
     if session_id:
         doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
         if not doc:
-            raise HTTPException(400, "Phiên làm việc không tồn tại.")
+            raise HTTPException(400, "Vụ án không tồn tại.")
         return doc
-    doc = await _get_open_session_or_none(username) if username else None
+    filt = {"officer": username} if username else {}
+    doc = await db.work_sessions.find_one(filt, sort=[("created_at", -1)])
+    if not doc and username:
+        doc = await db.work_sessions.find_one({}, sort=[("created_at", -1)])
     if not doc:
-        doc = await db.work_sessions.find_one({"status": "open"})
-    if not doc:
-        raise HTTPException(409, "Chưa có phiên làm việc nào đang mở. Cần khởi tạo phiên trước khi thêm dấu vết hiện trường.")
+        raise HTTPException(409, "Chưa có vụ án nào. Tạo vụ án trước khi thêm dấu vết hiện trường.")
     return doc
 
 
@@ -2243,6 +2311,93 @@ async def scene_health(request: Request):
         "max_bytes": SCENE_MAX_BYTES,
         "allowed_ext": sorted(SCENE_ALLOWED_EXT),
     }
+
+
+class SceneCaseIn(BaseModel):
+    case_name: str = Field(min_length=1, max_length=200)
+    officer_full_name: str = Field(default="", max_length=100)
+    location: str = Field(default="", max_length=200)
+    occurred_at: Optional[str] = None    # thoi diem xay ra vu an
+    note: str = Field(default="", max_length=500)
+
+
+async def _next_case_code() -> str:
+    year = datetime.utcnow().strftime("%Y")
+    doc = await db.counters.find_one_and_update(
+        {"_id": f"scene_case_{year}"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    return f"VA{year}-{(doc['seq'] if doc else 1):04d}"
+
+
+@app.post("/api/scene/cases")
+async def create_scene_case(body: SceneCaseIn, request: Request, user: dict = Depends(get_current_user)):
+    """Tao vu an hien truong.
+
+    KHONG dung POST /api/sessions: luong do chan admin, gioi han 1 phien mo moi
+    can bo, va bat chon noi giam giu - ca ba deu vo nghia voi vu an hien truong
+    (mot can bo co the theo nhieu vu cung luc, va hien truong khong phai buong giam).
+    Van ghi vao work_sessions de bang chon vu an + scene_traces dung nguyen link cu.
+    """
+    name = body.case_name.strip()
+    if not name:
+        raise HTTPException(400, "Thiếu tên vụ án.")
+    officer_doc = await db.users.find_one({"username": user["username"]}) or {}
+    now = datetime.utcnow()
+    occurred = _parse_dt(body.occurred_at)
+    doc = {
+        "code": await _next_case_code(),
+        "kind": "scene_case",
+        "status": "open",
+        "case_name": name,
+        "officer": user["username"],
+        "officer_full_name": (body.officer_full_name or "").strip()
+                             or officer_doc.get("full_name", "") or user["username"],
+        "location": body.location.strip(),
+        "note": body.note.strip(),
+        # opened_at = thoi diem xay ra vu an neu can bo nhap, khong thi lay luc tao.
+        # Bang chon vu an sort + hien cot thoi gian theo opened_at nen phai la
+        # truong nay, khong them truong moi roi UI khong doc tới.
+        "opened_at": occurred or now,
+        "occurred_at": occurred,
+        "created_at": now,
+        "closed_at": None,
+        "detainee_count": 0,
+        "report_url": None,
+        "report_filename": None,
+    }
+    res = await db.work_sessions.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    await _log(request, user, "create", "scene_case", doc["code"],
+               {"case_name": name, "location": doc["location"]},
+               ref_id=str(res.inserted_id), session_id=res.inserted_id)
+    return _s_session(doc)
+
+
+@app.patch("/api/scene/cases/{case_id}")
+async def update_scene_case(case_id: str, body: SceneCaseIn, request: Request, user: dict = Depends(get_current_user)):
+    doc = await db.work_sessions.find_one({"_id": _oid(case_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy vụ án.")
+    if doc.get("officer") != user["username"] and user.get("role") != "admin":
+        raise HTTPException(403, "Bạn không có quyền sửa vụ án này.")
+    occurred = _parse_dt(body.occurred_at)
+    patch = {
+        "case_name": body.case_name.strip(),
+        "officer_full_name": (body.officer_full_name or "").strip(),
+        "location": body.location.strip(),
+        "note": body.note.strip(),
+        "updated_at": datetime.utcnow(),
+    }
+    if occurred:
+        patch["occurred_at"] = occurred
+        patch["opened_at"] = occurred
+    await db.work_sessions.update_one({"_id": doc["_id"]}, {"$set": patch})
+    await _log(request, user, "update", "scene_case", doc.get("code", ""),
+               {"case_name": patch["case_name"]}, ref_id=case_id, session_id=doc["_id"])
+    return _s_session({**doc, **patch})
 
 
 @app.post("/api/scene/push")
@@ -2454,7 +2609,7 @@ EXCEL_COLS = [
 async def export_xlsx(user: dict = Depends(get_current_user)):
     wb = Workbook()
     ws = wb.active
-    ws.title = "Can pham"
+    ws.title = "Nghi pham"
     ws.append([h for _, h in EXCEL_COLS])
     async for d in db.detainees.find({}).sort("personal_id", 1):
         row = []
@@ -2529,7 +2684,7 @@ async def import_xlsx(file: UploadFile = File(...), request: Request = None, use
             date_in = _parse_dob(get("date_in"))
             personal_id = (get("personal_id") or "").strip()
             if not personal_id:
-                errors.append(f"Dòng {i}: thiếu mã can phạm (personal_id)")
+                errors.append(f"Dòng {i}: thiếu mã nghi phạm (personal_id)")
                 continue
             doc = {
                 "personal_id": personal_id,
@@ -2623,16 +2778,12 @@ async def stats(user: dict = Depends(get_current_user)):
             "count": row["count"],
         })
 
-    # Admin quản lý phiên chứ không chạy phiên → không có "phiên đang mở" của riêng mình.
-    open_session_doc = None
-    if user.get("role") != "admin":
-        open_session_doc = await _get_open_session_or_none(user["username"])
-    open_session = _s_session(open_session_doc) if open_session_doc else None
-
+    # Khai niem "phien lam viec" da bo. Trang chu hien 5 VU AN gan nhat: admin thay
+    # tat ca, can bo chi thay vu an minh tao.
     sess_filt: dict = {}
     if user.get("role") != "admin":
         sess_filt["officer"] = user["username"]
-    recent_sessions = [
+    recent_cases = [
         _s_session(d)
         async for d in db.work_sessions.find(sess_filt).sort("opened_at", -1).limit(5)
     ]
@@ -2667,8 +2818,7 @@ async def stats(user: dict = Depends(get_current_user)):
         "activity_14d": activity_14d,
         "top_charges": top_charges,
         "today_by_officer": officer_stats,
-        "open_session": open_session,
-        "recent_sessions": recent_sessions,
+        "recent_cases": recent_cases,
         "missing_data_count": missing_data_count,
         "recent_activity": recent_activity,
         "recent": recent,
@@ -2734,7 +2884,7 @@ async def list_logs(
     detainee_cache: dict = {}
 
     async def _resolve_detainee(ref_id, ref):
-        # Trả về tên + số căn cước can phạm cho cột báo cáo.
+        # Trả về tên + số căn cước nghi phạm cho cột báo cáo.
         if not ref_id and not ref:
             return None
         key = ref_id or ("ref:" + ref)
