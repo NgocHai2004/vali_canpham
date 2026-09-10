@@ -1393,12 +1393,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   useEffect(() => { fpRunningRef.current = fpRunning; }, [fpRunning]);
   useEffect(() => { fpCountRef.current = fpCount; }, [fpCount]);
 
+  // CHI 2 TRUONG BAT BUOC (danh dau * tren giao dien): ma ho so (personal_id)
+  // va so CCCD 12 chu so. Truoc day cccdOk con doi ho ten + ngay sinh, va
+  // backend doi them gioi tinh => 4 truong moi luu duoc. Nay can bo luu ho so
+  // voi 2 truong nay roi bo sung phan con lai sau.
   const checks = useMemo(() => {
     const personalOk = !!(form.personal_id || "").trim();
-    const cccdOk =
-      !!form.full_name.trim() &&
-      /^\d{12}$/.test(form.cccd_number || "") &&
-      !!form.dob;
+    const cccdOk = /^\d{12}$/.test(form.cccd_number || "");
     return [
       { key: "personal_id", label: t("capture.verify.item.code"), ok: personalOk, required: true },
       { key: "cccd", label: t("capture.verify.item.cccd"), ok: cccdOk, required: true },
@@ -1456,6 +1457,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         arrest_date: strOrNull(form.arrest_date),
         arrest_agency: strOrNull(form.arrest_agency),
         case_about: strOrNull(form.case_about),
+        fp_formula: strOrNull(form.fp_formula),
         // ---- III. Đặc điểm nhận dạng ----
         face_shape: strOrNull(form.face_shape),
         height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
@@ -1464,6 +1466,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         earlobe: strOrNull(form.earlobe),
         scars: strOrNull(form.scars),
         physical_abnormalities: strOrNull(form.physical_abnormalities),
+        // ---- Mau 208: vo/chong + can bo lap ----
+        spouse_name: strOrNull(form.spouse_name),
+        spouse_residence: strOrNull(form.spouse_residence),
+        officer_name: strOrNull(form.officer_name),
+        // ---- Mau 205: khoi can bo chi ban (o "Can bo lap CB" dung officer_name) ----
+        officer_sorter: strOrNull(form.officer_sorter),
+        officer_classifier: strOrNull(form.officer_classifier),
+        officer_class_checker: strOrNull(form.officer_class_checker),
         // ---- IV. Ảnh nhận dạng ----
         photo_url: photos.portrait_front || null,
         photos,
@@ -1708,7 +1718,11 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           </div>
         </section>
 
-        {/* ================ II. THONG TIN VU VIEC ================ */}
+        {/* ================ II. THONG TIN VU VIEC ================
+             Gom ca khoi 4 o CAN BO (mau 205) va o GHI CHU trai 2 cot — xem
+             SectionCase. Truoc day can bo la mot muc rieng (III) nam canh muc
+             nay; gop vao day thi cac muc duoi tro ve so cu: nhan dang III,
+             anh IV, van tay V. */}
         <section className="cap-sec" id="cap-sec-case">
           <h2 className="cap-sec-title">{t("capture.roman.2")}</h2>
           <div className="cap-sec-body">
@@ -1718,14 +1732,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
         </div>
 
-        {/* ---- Cot phai: chi anh nhan dang. Van tay (V) da tach xuong hang
+        {/* ---- Cot phai: chi anh nhan dang. Van tay (VI) da tach xuong hang
              rieng ben duoi vi luoi 10 o + 3 anh chum khong du cho trong nua o
              ngang; de canh muc III thi o van tay bi bop nho. ---- */}
         <div className="cap-col">
         {/* ================ IV. ANH NHAN DANG (3x4) ================ */}
         <section className="cap-sec" id="cap-sec-photo">
           <h2 className="cap-sec-title">
-            {t("capture.roman.4")}
+            {t("capture.roman.5")}
             <span className="fp-row-count">{portraitCount} / 3</span>
           </h2>
           <div className="cap-sec-body">
@@ -1743,9 +1757,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
         {/* ---- Hang giua, trai het be ngang: dac diem nhan dang ---- */}
         <div className="cap-col cap-col--full">
-        {/* ================ III. DAC DIEM NHAN DANG ================ */}
+        {/* ================ IV. DAC DIEM NHAN DANG ================ */}
         <section className="cap-sec" id="cap-sec-identify">
-          <h2 className="cap-sec-title">{t("capture.roman.3")}</h2>
+          <h2 className="cap-sec-title">{t("capture.roman.4")}</h2>
           <div className="cap-sec-body">
             <SectionIdentify form={form} setField={setField} disabled={sessionReadOnly} />
           </div>
@@ -1754,10 +1768,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
         {/* ---- Hang duoi, trai het be ngang: chi ban van tay ---- */}
         <div className="cap-col cap-col--full">
-        {/* ================ V. CHI BAN VAN TAY ================ */}
+        {/* ================ VI. CHI BAN VAN TAY ================ */}
         <section className="cap-sec" id="cap-sec-fp">
           <div className="cap-sec-head">
-            <h2 className="cap-sec-title">{t("capture.roman.5")}</h2>
+            <h2 className="cap-sec-title">{t("capture.roman.6")}</h2>
               <div className="fp-header-actions">
                 {fpConfirm && (
                   <>
@@ -2177,6 +2191,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <FpSheetPreviewModal
           form={form}
           photos={photos}
+          unitName={unitName}
           onClose={() => setFpSheetOpen(false)}
         />
       )}

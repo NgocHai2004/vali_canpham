@@ -18,7 +18,6 @@ export const LEGACY_FORM = {
   cmnd_old: "",
   distinguishing_features: "",
   mrz: "",
-  weight_kg: "",
   blood_type: "",
   cell_code: "",
   custody_type: "",
@@ -60,6 +59,7 @@ export const EMPTY_FORM = {
   arrest_date: "",        // bat ngay
   arrest_agency: "",      // don vi bat
   case_about: "",         // lap ve viec / ly do lap ho so
+  fp_formula: "",         // C/T van tay (cong thuc van tay, can bo tra cuu)
   // ---- III. Dac diem nhan dang ----
   face_shape: "",              // khuon mat
   height_cm: "",
@@ -68,6 +68,20 @@ export const EMPTY_FORM = {
   earlobe: "",                 // dai tai
   scars: "",                   // dau vet rieng
   physical_abnormalities: "",  // di hinh
+  weight_kg: "",               // can nang — mau 208 khong in, nhung layer 2 co
+  // ---- Mau 208: ho so AK + vo/chong + can bo lap ----
+  // Truoc day 3 dong nay tren to danh ban luon in TRONG (bang family[] da bo,
+  // khong co truong nao mang du lieu). Gio co o nhap that.
+  spouse_name: "",             // ho ten vo/chong
+  spouse_residence: "",        // cho o cua vo/chong
+  officer_name: "",            // can bo lap danh ban + "Can bo lap CB" mau 205
+  // ---- Mau 205: khoi 4 o can bo cuoi to chi ban ----
+  // O dau ("Can bo lap CB") KHONG co truong rieng: dung chung officer_name vi
+  // cung la nguoi lap ho so. Ba o duoi la cong doan luu tru/tra cuu sau khi lap,
+  // nguoi khac lam, nen phai co truong rieng.
+  officer_sorter: "",          // can bo sap xep
+  officer_classifier: "",      // can bo phan loai
+  officer_class_checker: "",   // can bo KT phan loai
   // ---- IV. Anh nhan dang: chi la 3 anh trong photos, khong co truong form ----
   ...LEGACY_FORM,
 };
@@ -129,6 +143,17 @@ export function normalizeInitial(initial) {
       earlobe: initial.earlobe || "",
       scars: initial.scars || "",
       physical_abnormalities: initial.physical_abnormalities || "",
+      weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
+      // ---- Mau 208: ho so AK + vo/chong + can bo lap ----
+      spouse_name: initial.spouse_name || "",
+      spouse_residence: initial.spouse_residence || "",
+      officer_name: initial.officer_name || "",
+      // ---- Mau 205: khoi can bo chi ban ----
+      officer_sorter: initial.officer_sorter || "",
+      officer_classifier: initial.officer_classifier || "",
+      officer_class_checker: initial.officer_class_checker || "",
+      // ---- C/T van tay ----
+      fp_formula: initial.fp_formula || "",
       // ---- Du lieu di qua: khong hien tren trang, chi de khong bi ghi None ----
       religion: initial.religion || "",
       issued_date: toDobInput(initial.issued_date),
@@ -137,7 +162,6 @@ export function normalizeInitial(initial) {
       cmnd_old: initial.cmnd_old || "",
       distinguishing_features: initial.distinguishing_features || "",
       mrz: initial.mrz || "",
-      weight_kg: initial.weight_kg != null ? String(initial.weight_kg) : "",
       blood_type: initial.blood_type || "",
       cell_code: initial.cell_code || "",
       custody_type: initial.custody_type || "",

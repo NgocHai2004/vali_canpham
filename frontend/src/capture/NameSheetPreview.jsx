@@ -120,11 +120,11 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
             {/* Mau giay co 3 dong trong de viet tiep noi dung vu viec. */}
             <div className="nsb-blank" />
             <div className="nsb-blank" />
-            {/* C/T van tay = cong thuc van tay, can bo tra cuu roi viet tay:
-                khong co truong nao trong form nen luon de trong. */}
+            {/* C/T van tay: da co o nhap (fp_formula) o muc II nen in duoc gia
+                tri that; con trong thi van la net ke de viet tay. */}
             <div className="nsb-ct">
               <span>{t("namesheet.field.fp_formula")}</span>
-              <span className="nsb-ct-line" />
+              <span className="nsb-ct-line">{val(form.fp_formula)}</span>
             </div>
           </div>
           <div className="nsb-fp2">
@@ -153,10 +153,11 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
         <div className="nsb-208-top">
           <div className="nsb-208-l">
             <L label={t("namesheet.field.ak_no")} value={val(form.ak_no)} />
-            {/* Vo/chong + cho o: bang family[] da bo khoi trang thu nhan nen hai
-                dong nay luon la net ke trong de viet tay. */}
-            <L label={t("namesheet.field.spouse")} value="" />
-            <L label={t("namesheet.field.residence")} value="" />
+            {/* Vo/chong + cho o: da co o nhap rieng (spouse_name / spouse_residence)
+                nen in duoc du lieu that. Truoc day hai dong nay luon la net ke
+                trong vi bang family[] bo di ma khong co truong nao thay. */}
+            <L label={t("namesheet.field.spouse")} value={val(form.spouse_name)} />
+            <L label={t("namesheet.field.residence")} value={val(form.spouse_residence)} />
             <div className="nsb-blank" />
           </div>
           {/* O dan ma vach: in khung de dan tem, khong co du lieu. */}
@@ -205,8 +206,8 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
             <L label={t("namesheet.field.abnormal")} value={val(form.physical_abnormalities)} />
             <div className="nsb-blank" />
             <div className="nsb-blank" />
-            {/* Can bo lap: ky tay sau khi in. */}
-            <L label={t("namesheet.field.officer")} value="" />
+            {/* Can bo lap: in san ten (truong officer_name), van ky tay sau khi in. */}
+            <L label={t("namesheet.field.officer")} value={val(form.officer_name)} />
           </div>
         </div>
       </div>

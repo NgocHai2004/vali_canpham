@@ -25,6 +25,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from openpyxl import Workbook, load_workbook
 
+from db_target import resolve_db_name
+
 def _env_str_from_dotenv(name: str) -> str:
     """Doc gia tri tu .env (App_CCCD/.env) khi env var chua set.
     Nguon su that duy nhat la .env — tranh lech secret giua cac cach start khac nhau
@@ -69,7 +71,10 @@ FEATURE_WEIGHT_SCALE = _env_bool("FEATURE_WEIGHT_SCALE")
 FEATURE_HEIGHT_YOLO = _env_bool("FEATURE_HEIGHT_YOLO")
 
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "app_cccd")
+# DB tach theo nhanh git: Hai_dev giu DB that `app_cccd`, nhanh khac dung DB
+# rieng. Hai nhanh KHONG cung schema (cases/case_id vs work_sessions/session_id)
+# nen dung chung mot DB la doc khong ra du lieu cua nhau. Xem backend/db_target.py.
+DB_NAME = resolve_db_name()
 JWT_SECRET = _env_str_from_dotenv("JWT_SECRET") or "change-me-in-production-please-abc123xyz"
 JWT_ALGO = "HS256"
 TOKEN_TTL_MINUTES = 60 * 8
@@ -426,7 +431,10 @@ class CellIn(BaseModel):
 
 
 class DetaineeIn(BaseModel):
-    full_name: str = Field(min_length=1, max_length=100)
+    # full_name KHONG con bat buoc: chi ban chi bat 2 truong (personal_id +
+    # cccd_number). De min_length=1 thi pydantic tra 422 truoc khi vao
+    # _require_capture_fields, tuc van chan luu du da noi rang buoc o duoi.
+    full_name: str = Field("", max_length=100)
     alias: Optional[str] = Field(None, max_length=200)   # bi danh / ten khac
     dob: Optional[str] = None
     gender: str = "male"
@@ -455,8 +463,15 @@ class DetaineeIn(BaseModel):
     # cha va me; family[] van dung cho vo/chong, con, anh chi em...
     father_name: Optional[str] = None                # ho ten cha
     mother_name: Optional[str] = None                # ho ten me
+    # Vo/chong tach rieng khoi family[] vi mau 208 cua danh ban co 2 dong CO DINH
+    # "Vo (chong)" + "Cho o". family[] van dung cho con, anh chi em...
+    spouse_name: Optional[str] = None                # ho ten vo/chong
+    spouse_residence: Optional[str] = None           # cho o cua vo/chong
     # ---- Thông tin vụ án ----
     case_about: Optional[str] = None                 # lap ve viec
+    # C/T van tay = cong thuc van tay, can bo tra cuu roi nhap. In tren CA HAI to
+    # (danh ban 204 + chi ban 205); truoc day hai to do luon in dong nay trong.
+    fp_formula: Optional[str] = None                 # C/T vân tay
     charge_detail: Optional[str] = None              # tội danh chi tiết
     arrest_date: Optional[str] = None                # ngày bắt
     arrest_agency: Optional[str] = None              # cơ quan thụ lý
@@ -478,6 +493,17 @@ class DetaineeIn(BaseModel):
     record_date: Optional[str] = None                # ngày lập của lần đó
     ak_no: Optional[str] = None                      # số hồ sơ AK
     record_scope: Optional[str] = None               # local | central
+    # Can bo lap danh ban: in san ten o cuoi mau 208 (van ky tay). Khac
+    # work_sessions.officer_full_name — do la nguoi mo PHIEN, con day la nguoi
+    # lap TO DANH BAN nay, co the khac khi mot phien nhieu can bo cung lam.
+    officer_name: Optional[str] = None               # cán bộ lập danh bản
+    # Mau 205 (chi ban) co RIENG mot khoi 4 o can bo o cuoi to. O dau tien
+    # ("Can bo lap CB") dung chung officer_name — cung la nguoi lap ho so, khong
+    # tach lam hai truong cho cung mot thong tin. Ba o con lai la cong doan
+    # LUU TRU/TRA CUU sau khi lap, nguoi khac lam, nen phai co truong rieng.
+    officer_sorter: Optional[str] = None             # cán bộ sắp xếp
+    officer_classifier: Optional[str] = None         # cán bộ phân loại
+    officer_class_checker: Optional[str] = None      # cán bộ KT phân loại
     height_cm: Optional[float] = Field(None, ge=50, le=250)
     weight_kg: Optional[float] = Field(None, ge=20, le=200)
     cell_code: Optional[str] = None
@@ -830,22 +856,21 @@ def _parse_dob(s: Optional[str]) -> Optional[str]:
 def _require_capture_fields(body: "DetaineeIn") -> None:
     """Enforce mandatory fields for the "Thu nhận dữ liệu" flow.
 
-    Client is free to send partial data via the legacy short form (edit modal),
-    but a create request must carry the 4 fields marked * on the chỉ bản form.
+    CHI 2 TRUONG BAT BUOC (dung 2 dau * tren giao dien): ma ho so (personal_id)
+    va so CCCD 12 chu so. Moi truong khac — ho ten, ngay sinh, gioi tinh, anh,
+    van tay — co hoac khong deu luu duoc; can bo bo sung sau.
+
+    personal_id KHONG kiem o day: create_detainee da tu kiem (bat buoc + chong
+    trung), con update_detainee cho phep de trong. Kiem lai o day se lam hong
+    duong sua ho so.
 
     Anh CCCD mat truoc KHONG con bat buoc: mau chi bản moi bo han khoi anh the,
     photos["cccd_front"] gio chi co khi doc duoc chip the — khong the lam dieu
     kien chan luu.
     """
     missing = []
-    if not body.full_name or not body.full_name.strip():
-        missing.append("Họ và tên")
     if not body.cccd_number:
         missing.append("Số CCCD (12 chữ số)")
-    if not body.dob:
-        missing.append("Ngày sinh")
-    if body.gender not in ("male", "female"):
-        missing.append("Giới tính")
     if missing:
         raise HTTPException(400, "Thiếu thông tin bắt buộc: " + ", ".join(missing))
 

@@ -35,7 +35,11 @@ export function RecordSummary({
   const { t } = useI18n();
   return (
     <div className="rec-sum" role="group" aria-label={t("capture.summary.record_id")}>
-      <SumText label={t("capture.summary.record_id")} value={form.personal_id}
+      {/* Dau * = bat buoc. Noi o day chu KHONG sua chuoi trong locales, vi khoa
+          nay con dung lam aria-label cua ca nhom o tren — them * vao locale thi
+          trinh doc man hinh doc ca dau sao cho nhom. Cung la quy uoc san co:
+          DetaineeForm.jsx dung t(...) + " *". */}
+      <SumText label={t("capture.summary.record_id") + " *"} value={form.personal_id}
         onChange={(v) => setField("personal_id", v)}
         placeholder={t("capture.form.personal_id_ph")} disabled={disabled} />
       <SumText label={t("capture.summary.record_sheet_no")} value={form.record_sheet_no}

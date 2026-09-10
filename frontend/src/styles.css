@@ -2006,16 +2006,18 @@ textarea.input {
   }
 }
 
-/* Neo modal NHAP LIEU tu tren xuong thay vi can giua.
-   .modal-backdrop la flex + align-items: center, nen MOI thay doi chieu cao cua
-   modal deu lam trinh duyet can giua LAI => ca hop dich len/xuong.
-   KHONG them padding-top rieng: .modal-backdrop da co padding 20px va .modal co
-   max-height: calc(100vh - 40px) — hai so nay khop nhau. Doi padding-top len
-   (8vh chang han) thi modal cao hon khoang trong con lai va hang nut Huy/Luu bi
-   tran khoi day man hinh.
-   Chi nham form nhap (.small-modal); modal xem/anh van can giua nhu cu. */
+/* .small-modal (form Them/Sua tai khoan + Ho so ca nhan) can GIUA man hinh.
+   LUU Y: Dashboard.jsx tu chen mot <style> runtime cung dinh nghia
+   .modal-backdrop / .modal / .small-modal. Sheet do nam sau file nay trong
+   document nen thang o cac thuoc tinh trung nhau => hai ben PHAI khai bao
+   giong nhau, neu khong modal se lech layer/lech vi tri.
+   Truoc day dong nay la align-items: flex-start (neo tu tren xuong de hop
+   khong dich khi cao thay doi), nhung backdrop cua Dashboard la grid
+   place-items: center => ket qua bi ghim sat dinh viewport thay vi can giua.
+   Doi lai center: form Ho so ca nhan se dich nhe khi mo them o doi mat khau,
+   con form tai khoan cao co dinh nen dung yen. */
 .modal-backdrop:has(.small-modal) {
-  align-items: flex-start;
+  align-items: center;
 }
 /* Chua cho thanh cuon san: khong co dong nay thi luc noi dung vuot max-height,
    thanh cuon xuat hien va bop chieu ngang noi dung => giat ngang. */
@@ -9504,6 +9506,24 @@ textarea.input {
 /* gap 14px: khoang giua hai muc xep chong trong cung mot cot (I -> II). Truoc de
    4px, tieu de muc II gan nhu dinh vao o nhap cuoi cua muc I. */
 .cap-flat .cap-col { min-width: 0; display: flex; flex-direction: column; gap: 10.5px; }
+/* HAI MUC CUNG MOT HANG (muc II "Thong tin vu viec" | muc "Can bo").
+   Nam trong cot trai cua .cap-sheet--split, chia doi tiep => moi muc mot nua cot.
+   Khe 20px dung bang khe cot cua .cap-grid nen o nhap cua hai muc thang hang voi
+   luoi 2 cot cua muc I ngay tren. align-items: start de mot muc thap hon khong bi
+   keo cao bang muc kia. */
+.cap-flat .cap-sec-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  min-width: 0;
+}
+/* Tieu de cua CA HAI muc trong hang thang nhau: muc dau tien cua .cap-col da bi
+   go margin-top (rule ben duoi), nhung muc thu hai trong cap thi khong — de nguyen
+   thi hai tieu de lech nhau ~11px. */
+.cap-flat .cap-sec-pair > .cap-sec > .cap-sec-title { margin-top: 0; }
+/* Luoi cua hai muc trong cap (II va III) khai bao O DUOI .cap-flat .cap-grid,
+   xem comment tai rule do — dat o day thi bi ghi de. */
 /* Hang trai het be ngang, nam duoi 2 cot: dung cho muc V (van tay). */
 .cap-flat .cap-col--full { grid-column: 1 / -1; }
 /* MUC V (van tay) DAN RA HAI BEN, an het padding ngang cua to giay.
@@ -9582,6 +9602,12 @@ textarea.input {
    (.cap-sheet--split da co overflow: auto) nen no ra duoc. */
 .cap-flat .cap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8.5px 20px; }
 .cap-flat .cap-grid .span-3col { grid-column: 1 / -1; }
+/* Muc II (.cap-grid--case) KHONG co rule rieng: dung dung luoi 2 cot mac dinh o
+   tren. 8 o dau (4 vu viec + 4 can bo) chia thanh 4 hang doi, o "Ghi chu" cuoi
+   muc mang .span-3col nen trai ca hang.
+   LUU Y neu can ghi de luoi cua mot muc nao: rule phai dat SAU .cap-flat
+   .cap-grid ngay tren — cung do dac hieu (0,2,0) nen rule viet sau thang. Dat
+   truoc thi bi ghi de im lang. Xem them comment cung y o .cap-grid--identify. */
 .cap-flat .cap-grid .info-field-label,
 .cap-flat .info-field-label {
   font-size: 11px;
@@ -10694,90 +10720,148 @@ textarea.input {
    lien (border-bottom) cho can bo viet bu.
    ============================================================ */
 .fps-sheet {
-  gap: 2mm;
-  font-size: 11px;
+  gap: 1.5mm;
+  font-size: 10.5px;
 }
 
-/* ---- Dau trang: quoc hieu ben trai, cac so hieu ben phai ---- */
-.fps-sheet .fps-top {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6mm;
-  align-items: start;
-}
-.fps-sheet .fps-org1,
-.fps-sheet .fps-org2 { font-weight: 700; font-size: 12px; line-height: 1.3; text-align: center; }
-.fps-sheet .fps-org-underline { width: 40mm; height: 1.1px; background: #000; margin: 2px auto 0; }
-.fps-sheet .fps-top-right { display: flex; flex-direction: column; gap: 1.6mm; min-width: 52mm; }
-/* Moi so hieu = mot dong ke: nhan + phan trong de viet so vao. */
-.fps-sheet .fps-nobox {
+/* ---- Goc tren phai: so hieu mau + thong tu (giong danh ban) ---- */
+.fps-sheet .fps-formno { text-align: right; font-size: 9.5px; line-height: 1.3; }
+.fps-sheet .fps-formno > div:first-child { font-weight: 700; }
+.fps-sheet .fps-formno-it { font-style: italic; }
+
+/* ---- Khung vien ngoai bao ca to ---- */
+.fps-sheet .fps-box { border: 1.3px solid #000; padding: 2mm; }
+
+/* ---- Hang tren: cot chi ban | cot nhan than ---- */
+.fps-sheet .fps-top { display: grid; grid-template-columns: 44mm 1fr; gap: 3mm; }
+.fps-sheet .fps-top-l {
   display: flex;
-  align-items: baseline;
-  gap: 2mm;
-  font-size: 11px;
+  flex-direction: column;
+  gap: 1.2mm;
+  padding-right: 3mm;
+  border-right: 1px solid #000;
 }
-.fps-sheet .fps-nobox > span { white-space: nowrap; }
-.fps-sheet .fps-nobox > b {
-  flex: 1 1 auto;
-  min-width: 22mm;
-  border-bottom: 0.9px dotted #000;
-  font-weight: 700;
-  /* min-height giu net ke thang hang khi o trong (khong co chu de do cao dong). */
-  min-height: 4.2mm;
-}
-
-/* ---- Tieu de to ---- */
-.fps-sheet .fps-title-row { text-align: center; margin: 1mm 0 0.5mm; }
 .fps-sheet .fps-title {
-  margin: 0;
-  font-size: 25px;
+  text-align: center;
+  font-size: 17px;
   font-weight: 700;
-  letter-spacing: 7px;
-  line-height: 1.1;
+  letter-spacing: 3px;
+  margin-bottom: 1mm;
 }
-.fps-sheet .fps-title-sub { font-size: 11px; font-style: italic; }
+.fps-sheet .fps-top-r { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+/* Nam/nu: mau giay in san ca hai de KHOANH TRON => ben duoc chon in dam co vong
+   tron, ben con lai mo di chu khong an mat. */
+.fps-sheet .fps-sex {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1mm;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.fps-sheet .fps-sex > b { font-weight: 400; color: #94a3b8; }
+.fps-sheet .fps-sex > b.on {
+  font-weight: 700;
+  color: #000;
+  border: 1.1px solid #000;
+  border-radius: 99px;
+  padding: 0 1.4mm;
+}
 
-/* ---- Khoi nhan than: cac dong ke ---- */
-.fps-sheet .fps-info { display: flex; flex-direction: column; gap: 1.4mm; }
-.fps-sheet .fps-row { display: flex; gap: 4mm; }
-/* flexGrow dat inline theo tung dong (ho ten rong hon gioi tinh...). flex-basis 0
-   de ty le grow quyet dinh be rong, khong bi do dai chu keo lech. */
+/* ---- Cac dong tran ngang trong khung (lap ve viec, C/T van tay) ---- */
+.fps-sheet .fps-mid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  margin-top: 1.2mm;
+  padding-top: 1.2mm;
+  border-top: 1px solid #000;
+  margin-bottom: 1.5mm;
+}
+
+/* ---- Dong ke chung: nhan + gia tri tren net ke ---- */
+/* flexGrow dat inline theo tung dong (ho ten rong hon o gioi tinh...). flex-basis
+   0 de ty le grow quyet dinh be rong, khong bi do dai chu keo lech. */
+.fps-sheet .fps-row { display: flex; gap: 3mm; }
 .fps-sheet .fps-line {
   display: flex;
   align-items: baseline;
-  gap: 1.5mm;
+  gap: 1.2mm;
   flex-basis: 0;
   min-width: 0;
 }
-.fps-sheet .fps-line-lab { white-space: nowrap; }
-.fps-sheet .fps-line-lab::after { content: ":"; }
-.fps-sheet .fps-line-val {
+.fps-sheet .fps-lab { white-space: nowrap; }
+.fps-sheet .fps-lab::after { content: ":"; }
+.fps-sheet .fps-lab sup { font-size: 7.5px; }
+.fps-sheet .fps-val {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 4.4mm;
+  min-height: 4.2mm;
   border-bottom: 0.9px dotted #000;
   font-weight: 600;
-  /* Gia tri dai (que quan, lap ve viec) khong duoc day dong ra ngoai long trang. */
+  /* Gia tri dai (que quan, lap ve viec) khong duoc day dong ra ngoai khung. */
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-/* ---- Tieu de khoi van tay ---- */
-.fps-sheet .fps-block-title {
-  margin: 1.5mm 0 0;
-  padding-bottom: 0.8mm;
-  border-bottom: 1.2px solid #000;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
+/* Dong ke TRONG (khong nhan): mau giay de san may dong cho can bo viet tiep
+   noi dung vu viec. Cung do cao/net ke voi .fps-val de xep thang hang. */
+.fps-sheet .fps-blank { min-height: 4.2mm; border-bottom: 0.9px dotted #000; }
+
+/* ---- Chu thich (1) duoi khung ---- */
+.fps-sheet .fps-foot { font-size: 9px; font-style: italic; }
+
+/* ---- Dai CAN BO + o ma vach (mau 205) ----
+   Do theo mau giay: NAM TRONG khung vien, ngay duoi "Lap ve viec"/"C/T van tay"
+   va TRUOC bang van lan. Ben trai la 4 dong can bo xep 2 cot x 2 hang, dung
+   .fps-line ke CHAM nhu moi dong khac cua to (khong phai o ke khung). Ben phai
+   la o "Mau so 209 / Noi dan ma vach" ke vien.
+   Truoc day khoi nay la 4 o ke khung nam NGOAI vien, cuoi to — sai ca vi tri
+   lan hinh thuc. */
+.fps-sheet .fps-officer-band {
+  display: grid;
+  /* Cot ma vach rong co dinh 34mm: o dan ma vach that, khong co gian theo chu. */
+  grid-template-columns: minmax(0, 1fr) 34mm;
+  gap: 3mm;
+  align-items: start;
+  margin-bottom: 1.5mm;
 }
+.fps-sheet .fps-officer-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  min-width: 0;
+}
+/* O dan ma vach: khung TRONG, chi 2 dong chu. Khong co du lieu — can bo dan ma
+   vach that vao day sau khi in, nen phai chua du cho. */
+.fps-sheet .fps-barcode {
+  border: 1.1px solid #000;
+  box-sizing: border-box;
+  min-height: 16mm;
+  padding: 0.8mm 1.2mm;
+  text-align: center;
+}
+.fps-sheet .fps-barcode-no { font-size: 9px; font-weight: 700; }
+.fps-sheet .fps-barcode-cap { font-size: 8.5px; font-style: italic; margin-top: 0.6mm; }
+
+/* ---- Khoi ky ten cuoi to: 2 cot deu nhau ----
+   Chi la tieu de + ghi chu "(Ky, ghi ro ho ten)" roi CHUA MOT KHOANG TRONG de
+   ky tay sau khi in => .fps-sign-space chi chiem cho, khong co net ke. */
+.fps-sheet .fps-sign-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+  margin-top: 2mm;
+}
+.fps-sheet .fps-sign { text-align: center; }
+.fps-sheet .fps-sign-role { font-weight: 700; font-size: 10px; }
+.fps-sheet .fps-sign-note { font-style: italic; font-size: 9px; }
+.fps-sheet .fps-sign-space { min-height: 16mm; }
 
 /* ---- Van LAN theo mau giay: BANG KE LIEN, khong khe ho, khong to mau ----
-   Do tren anh mau (635x720): 5 cot deu nhau x = 23/136/255/375/494/607, moi hang
-   gom BANG ANH (y 335..435) + BANG HE SO (y 437..456). Hang TREN la tay PHAI.
-   Nhan ngon nam TRONG o anh (goc tren-trai), khong co cot "TAY TRAI/PHAI" doc va
-   khong co so thu tu 1..10 — dung y mau. */
+   5 cot deu nhau, hang TREN la tay PHAI. Nhan ngon nam TRONG o anh (goc
+   tren-trai); khong co cot "TAY TRAI/PHAI" doc, khong so thu tu 1..10 va KHONG co
+   dai he so phan loai duoi moi hang — dung y mau 205. */
 .fps-sheet .fps-roll-table {
   /* border-collapse mo phong bang net lien: chi ke 1 duong giua 2 o. */
   display: grid;
@@ -10817,24 +10901,6 @@ textarea.input {
   text-overflow: ellipsis;
   /* Chu de tren anh van van doc duoc ma khong che net van. */
   text-shadow: 0 0 1.5px #fff, 0 0 1.5px #fff;
-}
-.fps-sheet .fps-cell-num {
-  position: absolute;
-  top: 1.1mm;
-  right: 1mm;
-  font-size: 10px;
-  font-weight: 700;
-  text-shadow: 0 0 1.5px #fff, 0 0 1.5px #fff;
-}
-/* Bang HE SO duoi moi hang anh: o trong de can bo ghi tay, so mau in san. */
-.fps-sheet .fps-coef {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* dai he so cao 19px tren mau => 5.9mm */
-  min-height: 5.9mm;
-  font-size: 10px;
-  font-weight: 700;
 }
 
 /* ---- Khoi duoi cung: 4 cot theo mau (x = 23/235/315/395/607) ----
@@ -10927,19 +10993,7 @@ textarea.input {
 }
 .fps-sheet .fps-thumb-cell .fps-plain-box { min-height: 25.9mm; }
 .fps-sheet .fps-plain-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
-
-/* ---- Ky ten ---- */
-.fps-sheet .fps-sign-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8mm;
-  margin-top: 2mm;
-  text-align: center;
-}
-.fps-sheet .fps-sign-role { font-size: 11px; font-weight: 700; }
-.fps-sheet .fps-sign-note { font-size: 10px; font-style: italic; }
-.fps-sheet .fps-sign-space { height: 14mm; }
-.fps-sheet .fps-sign-name { font-size: 11px; font-weight: 700; min-height: 4.5mm; }
+/* Khoi ky ten (.fps-sign-*) da bo: mau 205 khong co phan ky ten cuoi to. */
 
 /* ============================================================
    XEM TRUOC DANH BAN (NameSheetPreview) — Mau 204 + 208

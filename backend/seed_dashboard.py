@@ -10,6 +10,7 @@ Chạy:
 
 import argparse
 import asyncio
+import os
 import random
 import sys
 from datetime import datetime, timedelta
@@ -23,8 +24,15 @@ except Exception:
 import bcrypt
 from motor.motor_asyncio import AsyncIOMotorClient
 
-MONGO_URL = "mongodb://localhost:27017"
-DB_NAME = "app_cccd"
+# Chay duoc ca 2 kieu: `python -m backend.seed_dashboard` va `python seed_dashboard.py`.
+try:
+    from backend.db_target import DB_REAL, resolve_db_name, is_real_db
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from db_target import DB_REAL, resolve_db_name, is_real_db
+
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = resolve_db_name()
 
 
 def hash_password(pw: str) -> str:
@@ -100,7 +108,18 @@ async def _next_code(db, key: str, prefix: str, width: int = 4) -> str:
     return f"{prefix}{doc['seq']:0{width}d}"
 
 
-async def seed(reset: bool):
+async def seed(reset: bool, allow_real: bool = False):
+    # Chan seed/xoa vao DB that. Script nay ghi du lieu GIA; chay nham vao
+    # app_cccd la tron gia vao that, va voi --reset la xoa sach ho so that.
+    if is_real_db(DB_NAME) and not allow_real:
+        print(f"[TU CHOI] DB dich la '{DB_REAL}' — day la DB THAT cua don vi.")
+        print("  Seed du lieu gia vao day bi chan. Cach xu ly:")
+        print("  - Dang o nhanh Hai_dev? Chuyen sang nhanh khac roi chay lai.")
+        print("  - Muon DB khac: DB_NAME=app_cccd_thu python -m backend.seed_dashboard")
+        print("  - Thuc su muon ghi vao DB that: them --allow-real (khong khuyen khich).")
+        sys.exit(1)
+
+    print(f"[seed] DB dich: {DB_NAME}")
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
 

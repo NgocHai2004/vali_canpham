@@ -38,6 +38,10 @@ export function SectionIdentify({ form, setField, disabled = false }) {
         <input className="control control-sm" value={form.physical_abnormalities} disabled={disabled}
           onChange={(e) => setField("physical_abnormalities", e.target.value)} />
       </InfoField>
+      {/* O "Can nang" DA BO khoi trang: ca danh ban (204/208) lan chi ban (205)
+          deu khong in can nang. Truong `weight_kg` van di qua form nhu du lieu
+          an de khong ghi None len ho so cu. Chieu cao thi GIU: mau 208 co dong
+          "Chieu cao: 1m__". */}
       {/* Luoi muc III la 4 cot: hang 1 = khuon mat / chieu cao / song mui / nep
           tai duoi, hang 2 = dai tai / di hinh + o nay chiem 2 cot cuoi. */}
       <InfoField label={t("capture.identify.marks")} className="span-2col">
@@ -45,6 +49,12 @@ export function SectionIdentify({ form, setField, disabled = false }) {
           value={form.scars} disabled={disabled} placeholder={t("capture.scars_ph")}
           onChange={(e) => setField("scars", e.target.value)} />
       </InfoField>
+
+      {/* Vo (chong) + Cho o DA CHUYEN sang muc I, dat canh Ho ten cha / Ho ten me:
+          chung la THONG TIN THAN NHAN, khong phai dac diem nhan dang.
+          Khoi 4 o CAN BO DA TACH ra muc rieng (SectionOfficers), nam cung hang voi
+          muc II. Chi doi cho o nhap — cac truong (spouse_name / spouse_residence /
+          officer_*) va cho in tren mau 205/208 giu nguyen. */}
     </div>
   );
 }

@@ -3938,47 +3938,49 @@ function UserForm({ initial, onClose, onSaved }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal small-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal small-modal userform-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{isEdit ? t("userform.title.edit", { u: initial.username }) : t("userform.title.new")}</h3>
           <button onClick={onClose}>×</button>
         </div>
         <form className="form" onSubmit={submit}>
           {error && <div className="error-box">{error}</div>}
-          <FieldRow label={t("userform.field.username")}>
-            <input
-              className="control"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={isEdit}
-              required
-              minLength={3}
-              maxLength={40}
-              pattern="[a-zA-Z0-9_.\-]+"
-            />
-          </FieldRow>
-          <FieldRow label={t("userform.field.full_name")}>
-            <input className="control" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} required />
-          </FieldRow>
-          <FieldRow label={isEdit ? t("userform.field.pw_change") : t("userform.field.pw")}>
-            <input
-              className="control"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required={!isEdit}
-              minLength={isEdit ? 0 : 6}
-              maxLength={100}
-            />
-          </FieldRow>
-          <FieldRow label={t("userform.field.role")}>
-            <input
-              className="control"
-              value={isEdit ? (initial.role === "admin" ? t("userform.role.admin") : t("userform.role.user")) : t("userform.role.user")}
-              disabled
-              readOnly
-            />
-          </FieldRow>
+          <div className="userform-grid">
+            <FieldRow label={t("userform.field.username")}>
+              <input
+                className="control"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isEdit}
+                required
+                minLength={3}
+                maxLength={40}
+                pattern="[a-zA-Z0-9_.\-]+"
+              />
+            </FieldRow>
+            <FieldRow label={t("userform.field.full_name")}>
+              <input className="control" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={100} required />
+            </FieldRow>
+            <FieldRow label={isEdit ? t("userform.field.pw_change") : t("userform.field.pw")}>
+              <input
+                className="control"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required={!isEdit}
+                minLength={isEdit ? 0 : 6}
+                maxLength={100}
+              />
+            </FieldRow>
+            <FieldRow label={t("userform.field.role")}>
+              <input
+                className="control"
+                value={isEdit ? (initial.role === "admin" ? t("userform.role.admin") : t("userform.role.user")) : t("userform.role.user")}
+                disabled
+                readOnly
+              />
+            </FieldRow>
+          </div>
           <div className="modal-actions">
             <button type="button" className="button secondary" onClick={onClose}>{t("common.cancel")}</button>
             <button type="submit" className="button primary" disabled={saving}>
@@ -6404,10 +6406,14 @@ const styles = `
   }
   .state-box.error { color: #d93649; }
 
+  /* z-index PHAI cao hon moi thu trong khung app, khong chi hon anh em ke ben:
+     tooltip sidebar (.nav-item[data-tip]::before/::after) va panel thong bao
+     (.notif-panel) deu o z-index 60 => de 50 thi modal bi hai thu do de len,
+     nhin nhu "nhay layer". Dung 1000 cho khop voi styles.css. */
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: 1000;
     display: grid;
     place-items: center;
     padding: 24px;
@@ -6422,7 +6428,51 @@ const styles = `
     background: var(--bg-panel);
     box-shadow: 0 30px 80px rgba(0,0,0,.28);
   }
-  .small-modal { width: min(520px, 100%); }
+  /* Dat CA width va max-width: styles.css co .small-modal { max-width: 480px }
+     se bop lai neu o day chi khai bao width. */
+  .small-modal {
+    width: min(640px, 100%);
+    max-width: min(640px, 100%);
+    /* Tat 2 thanh scroll trang (phai + duoi):
+       - overflow-x: hidden — .modal o tren la overflow:auto (ca 2 truc), khong
+         co gi can cuon ngang trong form nhap.
+       - scrollbar-gutter: auto — styles.css dat 'stable' cho .modal, tuc LUON
+         chua san mot ranh scrollbar ben phai du khong co gi de cuon.
+       Van giu overflow-y: auto lam duong lui cho man hinh rat thap. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: auto;
+  }
+  /* Form Them/Sua tai khoan: rong gap 3 lan moc goc (520 -> 1560).
+     Rieng class .userform-modal, form Ho so ca nhan van giu 640 o tren. */
+  /* Dung 100% (khong phai 94vw): 100% la be ngang vung trong cua backdrop, da
+     tru padding 24px hai ben. Dat 94vw thi tren man hep hop rong hon cho trong
+     con lai => tran ngang. */
+  .userform-modal,
+  .userform-modal.small-modal {
+    width: min(1560px, 100%);
+    max-width: min(1560px, 100%);
+  }
+  /* Noi dung xep 1 COT (moi truong mot dong, chiem het be ngang).
+     Dung grid 1 cot chu khong phai block de 'gap' lo khoang cach deu. */
+  .userform-modal .form { padding: 30px 34px 34px; }
+  .userform-modal .userform-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+  /* Khoang cach do 'gap' cua grid lo, bo margin-bottom cua tung field. */
+  .userform-modal .userform-grid .field-row { margin-bottom: 0; }
+  .userform-modal .control { height: 46px; }
+  .userform-modal .modal-header { height: 76px; padding: 0 34px; }
+  .userform-modal .modal-actions { margin-top: 30px; }
+
+  /* styles.css ve mot vien conic-gradient bang .modal::before dat o inset:-1px.
+     Vien do danh cho modal cua styles.css; o day .modal da co border 1px +
+     border-radius 17px + box-shadow rieng, nen no thanh vien THU HAI lech ra
+     ngoai 1px (nhin nhu "nhay layer"). Va 1px tran ra do chinh la thu sinh
+     scrollbar ca hai truc trong hop overflow:auto. Bo han cho form nhap. */
+  .small-modal::before { display: none; }
 
   .sync-diff-modal {
     width: min(720px, 100%);
