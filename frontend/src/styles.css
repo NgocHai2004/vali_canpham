@@ -10724,22 +10724,39 @@ textarea.input {
   font-size: 10.5px;
 }
 
-/* ---- Goc tren phai: so hieu mau + thong tu (giong danh ban) ---- */
+/* ---- Goc tren phai: so hieu mau + thong tu — CA 3 DONG IN NGHIENG (mau giay) ---- */
 .fps-sheet .fps-formno { text-align: right; font-size: 9.5px; line-height: 1.3; }
-.fps-sheet .fps-formno > div:first-child { font-weight: 700; }
 .fps-sheet .fps-formno-it { font-style: italic; }
 
-/* ---- Khung vien ngoai bao ca to ---- */
-.fps-sheet .fps-box { border: 1.3px solid #000; padding: 2mm; }
+/* ---- Khung vien ngoai bao ca to ----
+   Padding 0: cac hang ben trong ke LIEN voi vien (bang van tay, khoi chum chay
+   het be rong khung nhu mau giay). Noi dung chu tu cach padding rieng.
+   flex: 1 de khung chiem het phan trang con lai — ty le cac hang ben trong
+   theo dung mau giay (xem flex-grow tung hang). */
+.fps-sheet .fps-box {
+  border: 1.3px solid #000;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
-/* ---- Hang tren: cot chi ban | cot nhan than ---- */
-.fps-sheet .fps-top { display: grid; grid-template-columns: 44mm 1fr; gap: 3mm; }
+/* ---- Hang tren: cot chi ban | cot nhan than ----
+   Ty le theo mau giay: cot trai ~30% be rong. Hang nay chiem ~25% chieu cao
+   khung (flex-grow 66 / tong ~248) — dung ty le mau 205. */
+.fps-sheet .fps-top {
+  display: grid;
+  grid-template-columns: 30% 1fr;
+  flex: 66 1 0;
+  min-height: 55mm;
+  border-bottom: 1.1px solid #000;
+}
 .fps-sheet .fps-top-l {
   display: flex;
   flex-direction: column;
   gap: 1.2mm;
-  padding-right: 3mm;
-  border-right: 1px solid #000;
+  padding: 2mm 3mm 2mm 2.5mm;
+  border-right: 1.1px solid #000;
 }
 .fps-sheet .fps-title {
   text-align: center;
@@ -10748,7 +10765,13 @@ textarea.input {
   letter-spacing: 3px;
   margin-bottom: 1mm;
 }
-.fps-sheet .fps-top-r { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
+.fps-sheet .fps-top-r {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  min-width: 0;
+  padding: 2mm 2.5mm;
+}
 /* Nam/nu: mau giay in san ca hai de KHOANH TRON => ben duoc chon in dam co vong
    tron, ben con lai mo di chu khong an mat. */
 .fps-sheet .fps-sex {
@@ -10767,16 +10790,34 @@ textarea.input {
   padding: 0 1.4mm;
 }
 
-/* ---- Cac dong tran ngang trong khung (lap ve viec, C/T van tay) ---- */
-.fps-sheet .fps-mid {
+/* Dong "Công thức vân tay": gia tri ke net DUT (mau giay in net dut sau nhan),
+   khac moi dong khac deu ke cham. */
+.fps-sheet .fps-val-solid { border-bottom-style: solid; border-bottom-width: 1px; }
+
+/* Dong "Nam/nữ, sinh ngày …/…/…": cum ben phai cua dong ho ten — Nam/nu khoanh
+   tron + nhan "sinh ngày" + 3 o ke cham cach nhau boi "/" dung y mau giay. */
+.fps-sheet .fps-sexdob {
   display: flex;
-  flex-direction: column;
-  gap: 1.2mm;
-  margin-top: 1.2mm;
-  padding-top: 1.2mm;
-  border-top: 1px solid #000;
-  margin-bottom: 1.5mm;
+  align-items: baseline;
+  gap: 1mm;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
 }
+.fps-sheet .fps-dobseg {
+  flex: 1 1 8mm;
+  min-width: 5mm;
+  min-height: 4.2mm;
+  border-bottom: 0.9px dotted #000;
+  font-weight: 600;
+  text-align: center;
+}
+.fps-sheet .fps-dobseg-year { flex-grow: 1.6; }
+.fps-sheet .fps-dobslash { flex: 0 0 auto; }
+
+/* Nhan KHONG co hai cham ("Tại", "ĐP", "TW", "Công thức vân tay" — mau giay
+   khong in ":" sau cac nhan nay). */
+.fps-sheet .fps-lab.no-colon::after { content: none; }
 
 /* ---- Dong ke chung: nhan + gia tri tren net ke ---- */
 /* flexGrow dat inline theo tung dong (ho ten rong hon o gioi tinh...). flex-basis
@@ -10808,9 +10849,6 @@ textarea.input {
    noi dung vu viec. Cung do cao/net ke voi .fps-val de xep thang hang. */
 .fps-sheet .fps-blank { min-height: 4.2mm; border-bottom: 0.9px dotted #000; }
 
-/* ---- Chu thich (1) duoi khung ---- */
-.fps-sheet .fps-foot { font-size: 9px; font-style: italic; }
-
 /* ---- Dai CAN BO + o ma vach (mau 205) ----
    Do theo mau giay: NAM TRONG khung vien, ngay duoi "Lap ve viec"/"C/T van tay"
    va TRUOC bang van lan. Ben trai la 4 dong can bo xep 2 cot x 2 hang, dung
@@ -10820,66 +10858,61 @@ textarea.input {
    lan hinh thuc. */
 .fps-sheet .fps-officer-band {
   display: grid;
-  /* Cot ma vach rong co dinh 34mm: o dan ma vach that, khong co gian theo chu. */
-  grid-template-columns: minmax(0, 1fr) 34mm;
-  gap: 3mm;
-  align-items: start;
-  margin-bottom: 1.5mm;
+  /* Cot ma vach rong co dinh 40mm: o dan ma vach that, khong co gian theo chu.
+     Khong gap: o ma vach ke vien TRAI chung net voi cot dong can bo. */
+  grid-template-columns: minmax(0, 1fr) 40mm;
+  /* Ty le theo mau giay — dai can bo ~10% chieu cao khung. */
+  flex: 26 1 0;
+  min-height: 19mm;
+  border-bottom: 1.1px solid #000;
 }
 .fps-sheet .fps-officer-lines {
   display: flex;
   flex-direction: column;
-  gap: 1.2mm;
+  justify-content: center;
+  gap: 1.4mm;
   min-width: 0;
+  padding: 1.2mm 3mm;
 }
-/* O dan ma vach: khung TRONG, chi 2 dong chu. Khong co du lieu — can bo dan ma
-   vach that vao day sau khi in, nen phai chua du cho. */
+/* O dan ma vach: chi ke vien TRAI (tren/duoi la net ngang cua hang), 4 dong chu
+   nghieng canh giua. Khong co du lieu — can bo dan ma vach that vao day sau khi
+   in, nen phai chua du cho. */
 .fps-sheet .fps-barcode {
-  border: 1.1px solid #000;
+  border-left: 1.1px solid #000;
   box-sizing: border-box;
-  min-height: 16mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   padding: 0.8mm 1.2mm;
   text-align: center;
+  font-size: 8.5px;
+  font-style: italic;
+  line-height: 1.35;
 }
-.fps-sheet .fps-barcode-no { font-size: 9px; font-weight: 700; }
-.fps-sheet .fps-barcode-cap { font-size: 8.5px; font-style: italic; margin-top: 0.6mm; }
-
-/* ---- Khoi ky ten cuoi to: 2 cot deu nhau ----
-   Chi la tieu de + ghi chu "(Ky, ghi ro ho ten)" roi CHUA MOT KHOANG TRONG de
-   ky tay sau khi in => .fps-sign-space chi chiem cho, khong co net ke. */
-.fps-sheet .fps-sign-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4mm;
-  margin-top: 2mm;
-}
-.fps-sheet .fps-sign { text-align: center; }
-.fps-sheet .fps-sign-role { font-weight: 700; font-size: 10px; }
-.fps-sheet .fps-sign-note { font-style: italic; font-size: 9px; }
-.fps-sheet .fps-sign-space { min-height: 16mm; }
+.fps-sheet .fps-barcode-cap { margin-top: 0.6mm; }
 
 /* ---- Van LAN theo mau giay: BANG KE LIEN, khong khe ho, khong to mau ----
-   5 cot deu nhau, hang TREN la tay PHAI. Nhan ngon nam TRONG o anh (goc
-   tren-trai); khong co cot "TAY TRAI/PHAI" doc, khong so thu tu 1..10 va KHONG co
-   dai he so phan loai duoi moi hang — dung y mau 205. */
-.fps-sheet .fps-roll-table {
-  /* border-collapse mo phong bang net lien: chi ke 1 duong giua 2 o. */
+   5 cot deu nhau, hang TREN la tay PHAI. Nhan ngon canh GIUA dau o; he so phan
+   loai in san (neu co) nam goc trai-tren. Xen giua 2 hang va duoi hang tay trai
+   la HAI DAI HE SO (16/8/4 va 2/1) in san — dung y mau 205. */
+.fps-sheet .fps-roll-row {
+  /* border-collapse mo phong bang net lien: chi ke 1 duong giua 2 o. Vien trai/
+     phai cua bang la vien khung (.fps-box), khong ke lai. */
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  border: 1.1px solid #000;
-  border-right: 0;
-  border-bottom: 0;
+  /* Ty le theo mau giay: hang van tay ~16-17% chieu cao khung. */
+  flex: 44.5 1 0;
+  min-height: 28mm;
 }
 .fps-sheet .fps-cell {
   min-width: 0;
   border-right: 1.1px solid #000;
-  border-bottom: 1.1px solid #000;
 }
+.fps-sheet .fps-cell:last-child { border-right: 0; }
 /* O anh van lan: nhan ngon + he so tu (numerator) chong len goc tren. */
 .fps-sheet .fps-cell-box {
   position: relative;
-  /* 100px tren anh mau (635px = 210mm) => 30.8mm */
-  height: 30.8mm;
+  height: 100%;
   background: #fff;
   overflow: hidden;
 }
@@ -10889,12 +10922,23 @@ textarea.input {
   object-fit: contain;
   display: block;
 }
+/* He so phan loai in san trong o ("16 Trỏ phải", "4 Cái trái"...) — goc trai. */
+.fps-sheet .fps-cell-num {
+  position: absolute;
+  top: 0.8mm;
+  left: 1.2mm;
+  font-size: 10.5px;
+  line-height: 1.15;
+  /* Chu de tren anh van van doc duoc ma khong che net van. */
+  text-shadow: 0 0 1.5px #fff, 0 0 1.5px #fff;
+}
 .fps-sheet .fps-cell-name {
   position: absolute;
-  top: 1.1mm;
+  top: 0.8mm;
   left: 1mm;
   right: 1mm;
-  font-size: 9px;
+  text-align: center;
+  font-size: 10.5px;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
@@ -10903,23 +10947,45 @@ textarea.input {
   text-shadow: 0 0 1.5px #fff, 0 0 1.5px #fff;
 }
 
+/* ---- DAI HE SO PHAN LOAI in san giua 2 hang (16/8/4) va duoi hang tay trai
+   (2/1) — dung y mau giay: dai ngang hep, so nam le trai tung o, net doc cua
+   bang chay lien qua dai. ---- */
+.fps-sheet .fps-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* Dai he so hep: ~2.5% chieu cao khung. */
+  flex: 6.4 1 0;
+  min-height: 5mm;
+  border-top: 1.1px solid #000;
+  border-bottom: 1.1px solid #000;
+}
+.fps-sheet .fps-strip-cell {
+  min-width: 0;
+  border-right: 1.1px solid #000;
+  padding: 0.4mm 0 0 1.2mm;
+  font-size: 10.5px;
+  line-height: 1.15;
+}
+.fps-sheet .fps-strip-cell:last-child { border-right: 0; }
+
 /* ---- Khoi duoi cung: 4 cot theo mau (x = 23/235/315/395/607) ----
    Rong | hep | hep | rong => 212/80/80/212 tren tong 584 = 36.3/13.7/13.7/36.3%.
    Hai cot giua la 2 o ngon CAI (co dai phan cach o y 599 va y 618 tren mau). */
 .fps-sheet .fps-plain-row {
   display: grid;
   grid-template-columns: 36.3% 13.7% 13.7% 36.3%;
-  border: 1.1px solid #000;
-  border-right: 0;
-  border-bottom: 0;
+  /* Ty le theo mau giay: khoi chum ~20% chieu cao khung. Vien duoi la vien
+     khung (.fps-box). */
+  flex: 54 1 0;
+  min-height: 34mm;
 }
 .fps-sheet .fps-plain {
   display: flex;
   flex-direction: column;
   min-width: 0;
   border-right: 1.1px solid #000;
-  border-bottom: 1.1px solid #000;
 }
+.fps-sheet .fps-plain:last-child { border-right: 0; }
 /* Chu can GIUA dai theo chieu doc (flex, khong phai padding-top) de khong dinh
    duong ke tren/duoi — nhan "4 ngón trái" / "Cái phải" truoc bi de len net ke. */
 .fps-sheet .fps-plain-cap {
@@ -10951,7 +11017,6 @@ textarea.input {
   flex-direction: column;
   min-width: 0;
   border-right: 1.1px solid #000;
-  border-bottom: 1.1px solid #000;
 }
 /* Hai o cai nam ngang duoi dai gop. Khong dung subgrid: bo xuat PDF
    (html2canvas) chua ho tro, ma hai dai duoi deu cao co dinh nen flex la du. */
@@ -10982,16 +11047,17 @@ textarea.input {
 .fps-sheet .fps-thumb-cell:first-child { border-right: 1.1px solid #000; }
 .fps-sheet .fps-thumb-cell .fps-plain-cap { min-height: 5.9mm; }
 .fps-sheet .fps-plain-box {
-  /* Ca khoi duoi cao 122px tren mau => 37.6mm: cot ngoai 4.6+33, cot cai 5.9+5.9+25.9. */
+  /* Chieu cao do flex cua .fps-plain-row quyet dinh (ty le theo mau giay),
+     min-height chi la san an toan khi in tren trang hep. */
   flex: 1 1 auto;
-  min-height: 33mm;
+  min-height: 26mm;
   background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.fps-sheet .fps-thumb-cell .fps-plain-box { min-height: 25.9mm; }
+.fps-sheet .fps-thumb-cell .fps-plain-box { min-height: 20mm; }
 .fps-sheet .fps-plain-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
 /* Khoi ky ten (.fps-sign-*) da bo: mau 205 khong co phan ky ten cuoi to. */
 
@@ -11014,7 +11080,15 @@ textarea.input {
 
 /* ---- Khung ngoai moi mau ---- */
 .nsb-sheet .nsb-box { border: 1.3px solid #000; padding: 2mm; }
-.nsb-sheet .nsb-box-2 { margin-top: 1mm; }
+/* Khoi 208 chiem phan trang con lai de to in DAY trang A4 nhu mau giay
+   (hang anh 3x4 duoc day xuong day khung). */
+.nsb-sheet .nsb-box-2 {
+  margin-top: 1mm;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 /* ---- Dong ke chung: nhan + gia tri tren net ke ---- */
 /* flex-basis 0 de ty le grow (dat inline) quyet dinh be rong, khong bi do dai
@@ -11029,6 +11103,28 @@ textarea.input {
 .nsb-sheet .nsb-lab { white-space: nowrap; }
 .nsb-sheet .nsb-lab::after { content: ":"; }
 .nsb-sheet .nsb-lab sup { font-size: 7.5px; }
+/* Nhan KHONG co hai cham ("ĐP", "TW" — mau giay khong in ":" sau cac nhan nay). */
+.nsb-sheet .nsb-lab.no-colon::after { content: none; }
+
+/* Hang ngay "…/…/…": 3 o ke cham ngan cach boi gach cheo — dung y mau giay
+   ("Lập ngày: …/…/…", "Sinh ngày: …/…/…", "Bắt ngày: …/…/…"). */
+.nsb-sheet .nsb-date {
+  display: flex;
+  align-items: baseline;
+  gap: 1mm;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.nsb-sheet .nsb-dobseg {
+  flex: 1 1 8mm;
+  min-width: 5mm;
+  min-height: 4.2mm;
+  border-bottom: 0.9px dotted #000;
+  font-weight: 600;
+  text-align: center;
+}
+.nsb-sheet .nsb-dobseg-year { flex-grow: 1.6; }
+.nsb-sheet .nsb-dobslash { flex: 0 0 auto; }
 .nsb-sheet .nsb-val {
   flex: 1 1 auto;
   min-width: 0;
@@ -11044,8 +11140,9 @@ textarea.input {
 /* Dong trong de viet tiep (noi dung vu viec, dac diem...). */
 .nsb-sheet .nsb-blank { min-height: 4.2mm; border-bottom: 0.9px dotted #000; }
 
-/* ---- Mau 204: hang tren = cot danh ban | cot nhan than ---- */
-.nsb-sheet .nsb-top { display: grid; grid-template-columns: 44mm 1fr; gap: 3mm; }
+/* ---- Mau 204: hang tren = cot danh ban | cot nhan than ----
+   Cot trai ~30% be rong theo mau giay. */
+.nsb-sheet .nsb-top { display: grid; grid-template-columns: 30% 1fr; gap: 3mm; }
 .nsb-sheet .nsb-top-l {
   display: flex;
   flex-direction: column;
@@ -11059,6 +11156,9 @@ textarea.input {
   font-weight: 700;
   letter-spacing: 3px;
   margin-bottom: 1mm;
+  /* Mau giay: chu "DANH BẢN" co GACH CHAN ben duoi. */
+  border-bottom: 1.1px solid #000;
+  padding-bottom: 0.8mm;
 }
 .nsb-sheet .nsb-top-r { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
 /* Nam/nu: mau giay in san ca hai de KHOANH TRON => ben duoc chon in dam, ben
@@ -11104,6 +11204,9 @@ textarea.input {
 .nsb-sheet .nsb-ct > span:first-child { white-space: nowrap; }
 .nsb-sheet .nsb-ct > span:first-child::after { content: ":"; }
 .nsb-sheet .nsb-ct-line { flex: 1 1 auto; min-height: 4.2mm; border-bottom: 0.9px dotted #000; }
+/* "C/T vân tay": mau giay in net ke DUT ro rang sau nhan — khac net cham cua
+   cac dong khac. */
+.nsb-sheet .nsb-ct-solid { border-bottom-style: solid; border-bottom-width: 1px; }
 /* 2 o van tro: chi danh ban moi co (chi ban thi in ca 10 ngon). */
 .nsb-sheet .nsb-fp2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
 .nsb-sheet .nsb-fp2-cell { display: flex; flex-direction: column; min-width: 0; }
@@ -11111,7 +11214,8 @@ textarea.input {
   padding: 0.4mm 1mm;
   border: 1px solid #000;
   border-bottom: 0;
-  background: #f1f5f9;
+  /* Mau giay: dai ten ngon nen TRANG, khong to. */
+  background: #fff;
   font-size: 9.5px;
   text-align: center;
 }
@@ -11135,19 +11239,18 @@ textarea.input {
 .nsb-sheet .nsb-barcode {
   border: 1px solid #000;
   padding: 1.5mm;
-  text-align: right;
+  /* Mau giay: 4 dong chu IN NGHIENG canh giua trong o dan ma vach. */
+  text-align: center;
   font-size: 9px;
-  line-height: 1.3;
+  line-height: 1.35;
 }
-.nsb-sheet .nsb-barcode > div:first-child { font-weight: 700; }
-/* Cho dan tem ma vach: de trong mot vung du cao cho tem thuc te. */
+/* Cho dan tem ma vach: chi la dong chu nghieng "(Nơi dán mã vạch)", khong co
+   khung dashed rieng nhu ban cu. */
 .nsb-sheet .nsb-barcode-note {
-  margin-top: 1.5mm;
-  padding: 4mm 1mm;
-  border: 0.9px dashed #000;
+  margin-top: 1mm;
   text-align: center;
   font-style: italic;
-  color: #475569;
+  color: #000;
 }
 
 /* ---- Mau 208: dac diem nhan dang ---- */
@@ -11162,29 +11265,50 @@ textarea.input {
 /* "1m" in san truoc cho dien so cm con lai. */
 .nsb-sheet .nsb-1m { font-weight: 700; white-space: nowrap; }
 
-/* ---- Mau 208: hang duoi = 3 anh 3x4 | di hinh + can bo lap ---- */
+/* ---- Mau 208: hang duoi = 3 anh 3x4 | di hinh + can bo lap ----
+   margin-top: auto de hang anh DAY XUONG DAY khung — khoi 208 chiem phan
+   trang con lai (flex: 1 cua .nsb-box-2) nen to in day trang nhu mau. */
 .nsb-sheet .nsb-208-bot {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 4mm;
-  margin-top: 1.2mm;
+  margin-top: auto;
   padding-top: 1.2mm;
   border-top: 1px solid #000;
 }
 .nsb-sheet .nsb-photos { display: flex; gap: 2mm; }
 .nsb-sheet .nsb-photo { display: flex; flex-direction: column; }
-/* Khung 3x4 dung ty le that: 24mm x 32mm. */
+/* Khung 3x4 dung ty le that: 30mm x 40mm. Nhan in san TRONG khung theo mau:
+   dong 1 "Ảnh 3x4" (thuong), dong 2 ten goc in nghieng; phan duoi de trong
+   cho anh (hoac chua anh that). */
 .nsb-sheet .nsb-photo-box {
-  width: 24mm;
-  height: 32mm;
+  width: 30mm;
+  height: 40mm;
   border: 1px solid #000;
-  background: #f8fafc;
+  background: #fff;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   overflow: hidden;
 }
-.nsb-sheet .nsb-photo-box img { width: 100%; height: 100%; object-fit: cover; }
-.nsb-sheet .nsb-photo-ph { font-size: 8.5px; color: #64748b; text-align: center; }
-.nsb-sheet .nsb-photo-cap { font-size: 8.5px; text-align: center; width: 24mm; }
+.nsb-sheet .nsb-photo-head {
+  padding: 0.8mm 1mm 0.2mm;
+  font-weight: 700;
+  font-size: 9.5px;
+  line-height: 1.2;
+  text-align: center;
+}
+.nsb-sheet .nsb-photo-name {
+  padding: 0 1mm 0.6mm;
+  font-style: italic;
+  font-size: 8.5px;
+  line-height: 1.2;
+  text-align: center;
+}
+.nsb-sheet .nsb-photo-box img {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  object-fit: cover;
+  display: block;
+}
 .nsb-sheet .nsb-208-right { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
