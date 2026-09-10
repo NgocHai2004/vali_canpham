@@ -448,13 +448,13 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
   border-collapse: separate; border-spacing: 0; font-size: 13.5px;
 }
 /* % chia sẵn: cột vụ án rộng nhất vì tên là thứ cán bộ đọc để nhận ra hồ sơ.
-   Tổng 97% chứ không 100% vì cột mũi tên cuối là 40px cố định. */
-.scp-t th:nth-child(1) { width: 29%; }
-.scp-t th:nth-child(2) { width: 17%; }
-.scp-t th:nth-child(3) { width: 15%; }
-.scp-t th:nth-child(4) { width: 15%; }
-.scp-t th:nth-child(5) { width: 9%; }
-.scp-t th:nth-child(6) { width: 12%; }
+   6 cột (bỏ cột Cán bộ — vụ án không thuộc riêng cán bộ nào). Tổng 91% vì cột
+   hành động cuối là 168px cố định (4 nút 34px + khoảng cách). */
+.scp-t th:nth-child(1) { width: 32%; }
+.scp-t th:nth-child(2) { width: 20%; }
+.scp-t th:nth-child(3) { width: 18%; }
+.scp-t th:nth-child(4) { width: 9%; }
+.scp-t th:nth-child(5) { width: 12%; }
 .scp-t thead th {
   position: sticky; top: 0; z-index: 1;
   /* Nền đặc: panel là gradient trong suốt nên header trong suốt sẽ để lọt
@@ -480,7 +480,8 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 .scp-name { color: #e8eef8; font-weight: 600; font-size: 14.5px; }
 .scp-sub2 { margin-top: 3px; color: #7f95b5; font-size: 12px; }
 .scp-num { text-align: center; }
-.scp-t thead th:nth-child(5) { text-align: center; }
+/* Cột 4 = số hồ sơ (bảng 6 cột, không còn cột Cán bộ). */
+.scp-t thead th:nth-child(4) { text-align: center; }
 /* Đã đóng dùng chip xám: xanh #2272e8 là màu hành động của design nên để dành
    cho vụ đang mở, không tô cho trạng thái đã nguội. */
 .scp-chip-grey {
@@ -533,6 +534,23 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
   clip-path: inset(50%); white-space: nowrap; margin: 0;
 }
 .scp-pg-gap { color: #6d86a8; padding: 0 2px; }
+
+/* Nút Tạo vụ án trên thanh công cụ: cao đúng 36px như ô tìm/segmented bên cạnh
+   để 3 thứ thẳng hàng, icon + chữ nằm giữa. */
+.scp-new {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px; white-space: nowrap;
+}
+/* Cột hành động: 4 nút 34px. Ghi đè .scp-t td:last-child (40px, dành cho bảng
+   1 nút chevron của bản cũ) — không ghi đè thì 4 nút bị bóp vào 40px. */
+.scp-t th:last-child, .scp-t td:last-child { width: 168px; padding-left: 0; }
+.scp-acts { display: flex; gap: 4px; justify-content: flex-end; }
+.scp-acts .smp-icon-btn { color: #9db3d1; }
+.scp-acts .smp-icon-btn:hover { color: #d3e2f7; border-color: var(--smp-blue); }
+.scp-acts .smp-icon-btn:disabled { opacity: .45; cursor: default; }
+/* Xoá là hành động không hoàn tác được nên tô đỏ khi trỏ tới, không tô sẵn:
+   tô sẵn thì mắt bị hút vào nút nguy hiểm nhất trên mỗi hàng. */
+.scp-danger:hover { color: #fca5a5 !important; border-color: #b4474f !important; }
 
 
 /* ================= Man chi tiet 1 dau vet (SceneTraceFull) =================

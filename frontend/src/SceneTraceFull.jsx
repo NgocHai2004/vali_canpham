@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useI18n } from "./i18n";
 import { demoFiles, demoMatch, minutiae } from "./sceneDemo";
-import { traceCode } from "./SceneTracesPage";
+import { traceCode } from "./sceneTraceUtils";
 import { IcChevDown, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatchIcons";
 
 // Trang chi tiet 1 dau vet — mo tu 1 dong bang KET QUA DOI SANH.
@@ -13,7 +13,7 @@ import { IcChevDown, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatc
 // So lieu doi sanh (diem minutiae, ngon tay, C09, chat luong, do tin cay) la
 // DEMO — he thong chua co engine trich minutiae. Xem sceneDemo.js.
 
-export default function SceneTraceFull({ item, row, session, onBack }) {
+export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
   const { t, formatDateTime } = useI18n();
   const [zoom, setZoom] = useState(null);
 
@@ -67,7 +67,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
       <div className="stf-crumbbar">
         <div className="stf-crumb-main">
           <div className="stf-crumb">
-            <span>{session?.case_name || t("scene.no_case")}</span>
+            <span>{caseDoc?.name || t("scene.no_case")}</span>
             <span className="stf-sep">/</span>
             <span>{t("scene.crumb.traces")}</span>
             <span className="stf-sep">/</span>
@@ -204,7 +204,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
             <div className="stf-doc-grid">
               <div className="stf-doc-cell">
                 <span className="stf-doc-lb">{t("scene.report.case")}</span>
-                <span>{session?.case_name || t("scene.no_case_name")}</span>
+                <span>{caseDoc?.name || t("scene.no_case_name")}</span>
               </div>
               <div className="stf-doc-cell">
                 <span className="stf-doc-lb">{t("scene.report.code")}</span>

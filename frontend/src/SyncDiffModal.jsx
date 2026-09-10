@@ -188,7 +188,7 @@ export function buildSyncDiff(localDetainees, remoteList) {
   return { toAdd, toUpdate, duplicates };
 }
 
-export default function SyncDiffModal({ session, diff, loading, onConfirm, onCancel }) {
+export default function SyncDiffModal({ caseDoc, diff, loading, onConfirm, onCancel }) {
   const [addSel, setAddSel] = useState(() => new Set());
   const [updSel, setUpdSel] = useState(() => new Set());
   const [expandedId, setExpandedId] = useState(null);
@@ -236,7 +236,7 @@ export default function SyncDiffModal({ session, diff, loading, onConfirm, onCan
         </div>
 
         <div className="sync-diff-sub">
-          Phiên <strong className="mono">{session?.code}</strong> • {session?.detainee_count || 0} hồ sơ trong phiên
+          Vụ án <strong className="mono">{caseDoc?.code}</strong> • {caseDoc?.detainee_count || 0} hồ sơ trong vụ án
         </div>
 
         {loading ? (

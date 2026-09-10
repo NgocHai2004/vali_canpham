@@ -51,7 +51,7 @@ export default function DuplicateWarnModal({ open, matches = [], onProceed, onOp
                     <div className="dup-warn-meta">
                       {d.cccd_number ? `CCCD: ${d.cccd_number}` : ""}
                       {d.dob ? ` · ${d.dob}` : ""}
-                      {d.cell_code ? ` · ${t("capture.dup_modal.cell", { code: d.cell_code })}` : ""}
+                      {/* Doan "· Buong X" da bo: app khong con quan ly giam giu. */}
                     </div>
                     {d.created_by ? (
                       <div className="dup-warn-by">

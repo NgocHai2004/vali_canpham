@@ -3,7 +3,7 @@
 // 2 hang x 5 cot (hang TREN = tay PHAI), khoi duoi 4 cot (chum trai | 2 o ngon cai
 // | chum phai), khoi ky ten.
 //
-// Tach RIENG khoi ProfilePreviewContent (DataCapturePage.jsx): ho so can pham la
+// Tach RIENG khoi ProfilePreviewContent (DataCapturePage.jsx): ho so nghi pham la
 // mot to A4 khac han — chi ban chi in van tay + nhan than toi thieu de doi chieu,
 // khong co dien giam giu / suc khoe / vu an.
 //
@@ -260,7 +260,7 @@ export function FpSheetPreviewModal({ form, photos = {}, onClose }) {
       const chosen = drives.length === 1 ? drives[0] : await pickDrive(drives);
       if (!chosen) return;
       const blob = await buildProfilePdfBlob(node);
-      // Tien to "chiban-" de khong ghi de file ho so cung mot can pham tren USB.
+      // Tien to "chiban-" de khong ghi de file ho so cung mot nghi pham tren USB.
       const filename = "chiban-" + makePdfFileName(
         form.fp_sheet_no || form.personal_id || form.cccd_number, form.full_name);
       const saved = await usbApi.saveExport(chosen.path, filename, blob);

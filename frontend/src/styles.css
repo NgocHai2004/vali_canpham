@@ -5971,6 +5971,18 @@ textarea.input {
   color: var(--text);
 }
 
+/* Ten vu an nam canh ma vu an: nho hon ma mot bac, mau dim de ma van la
+   diem neo mat. Dai thi cat bang ellipsis, khong day khoi chip trang thai. */
+.case-detail-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .session-detail-meta {
   display: flex;
   gap: 18px;
@@ -6119,7 +6131,7 @@ textarea.input {
   color: var(--muted);
 }
 
-.session-code-chip {
+.case-code-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -9163,7 +9175,7 @@ textarea.input {
 }
 
 /* ============================================================
-   Trang dang ky can pham — layout "to khai" (Stage 2)
+   Trang dang ky nghi pham — layout "to khai" (Stage 2)
    Vung khai NEN TRANG de doc/in; so muc + nut giu do man Cong an.
    ============================================================ */
 .cap-sheet {
@@ -9288,6 +9300,19 @@ textarea.input {
   font-weight: 600;
   color: var(--paper-muted, #5d6b80);
   letter-spacing: 0.01em;
+}
+/* Dau * truong bat buoc. Do dam de noi len khoi nhan xam, nhung KHONG chi dua
+   vao mau: ky tu "*" tu no da la dau hieu doc duoc khi mu mau / in trang den. */
+.req-star {
+  color: var(--danger, #d92d20);
+  font-weight: 700;
+}
+/* Goi y dinh dang ("dd/mm/yyyy") — mo hon nhan, chu nho hon, khong in dam de
+   khong tranh cho voi ten truong. */
+.field-hint {
+  font-weight: 400;
+  font-size: 0.92em;
+  opacity: 0.62;
 }
 .cap-sec-body .control,
 .cap-sec-body .cap-textarea {
@@ -10686,7 +10711,7 @@ textarea.input {
 /* ============================================================
    XEM TRUOC CHI BAN (FpSheetPreview) — mau chi ban giay
    ------------------------------------------------------------
-   Dung chung khung .preview-a4 / .preview-a4-portrait voi ho so can pham (210mm,
+   Dung chung khung .preview-a4 / .preview-a4-portrait voi ho so nghi pham (210mm,
    padding 10mm 15mm => long trang 180mm) nen xuat PDF qua buildProfilePdfBlob
    giong y. Rieng phan than dung tien to .fps- de KHONG dinh vao cac rule .pv-*
    cua to ho so.

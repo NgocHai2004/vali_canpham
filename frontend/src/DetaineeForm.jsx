@@ -299,21 +299,13 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                 </Field>
               </div>
 
-              <div className="row-2">
-                <Field label={t("detainee.field.cell")}>
-                  <select className="input" value={form.cell_code || ""} onChange={set("cell_code")}>
-                    <option value="">{t("detainee.form.select_cell")}</option>
-                    {cells.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {t("detainee.form.cell_option", { code: c.code, name: c.name, current: c.current, capacity: c.capacity })}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={t("detainee.form.date_in_label")}>
-                  <input className="input" value={form.date_in || ""} onChange={set("date_in")} placeholder={t("detainee.form.date_in_ph")} />
-                </Field>
-              </div>
+              {/* O chon BUONG GIAM da bo: khong con quan ly giam giu trong app nay
+                  (2 tab "Phien lam viec" va "Co so giam giu" da bo han). Con lai
+                  mot minh "Ngay vao" nen KHONG boc row-2 nua — row-2 chia 2 cot,
+                  de nguyen thi o nay chi rong nua hang, con nua kia trong tron. */}
+              <Field label={t("detainee.form.date_in_label")}>
+                <input className="input" value={form.date_in || ""} onChange={set("date_in")} placeholder={t("detainee.form.date_in_ph")} />
+              </Field>
 
               <Field label={t("detainee.field.note")}>
                 <textarea className="input" rows={2} value={form.note || ""} onChange={set("note")} />
@@ -340,12 +332,13 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
               <ul className="dup-list">
                 {dupCheck.duplicates.map((d) => (
                   <li key={d.id}>
+                    {/* Bo tham so `cell`: chuoi detainee.dup.row khong con doan
+                        "buong {cell}" nua (app khong quan ly giam giu). */}
                     {t("detainee.dup.row", {
                       code: d.code,
                       name: d.full_name,
                       gender: d.gender === "female" ? t("common.female") : t("common.male"),
                       dob: d.dob ? formatDate(d.dob) : "—",
-                      cell: d.cell_code || "—",
                     })}
                   </li>
                 ))}

@@ -12,12 +12,14 @@ export function SectionPersonal({ form, setField, disabled = false }) {
   const { t } = useI18n();
   return (
     <div className="cap-grid cap-grid--personal">
+      {/* Ho ten KHONG bat buoc: nghi pham nhieu khi chua khai duoc ten that ngay
+          luc thu nhan, chan lai thi can bo khong luu duoc van tay da lay xong. */}
       <InfoField label={t("detainee.field.full_name")} className="span-3col">
         <input className="control control-sm" value={form.full_name} disabled={disabled}
           maxLength={100} placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("full_name", e.target.value)} />
       </InfoField>
-      {/* "Ten goi khac" gom ca bi danh — can pham thuong khai nhieu ten, nen o
+      {/* "Ten goi khac" gom ca bi danh — nghi pham thuong khai nhieu ten, nen o
           nay trai ca hang.
           Ngoai ly do be ngang, span o day con GIU NHIP GHEP CAP cho ca muc: tru
           ho ten (trai hang) thi con 13 truong, so LE - de chay tu nhien thi mot
@@ -46,7 +48,11 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           </label>
         </div>
       </InfoField>
-      <InfoField label={t("capture.personal.dob")}>
+      {/* Format ngay ghi ngay tren NHAN, khong chi o placeholder: placeholder bien
+          mat ngay khi go ky tu dau, dung luc can bo can biet minh go dung dinh
+          dang chua. Backend _parse_dob nhan dd/mm/yyyy, dd-mm-yyyy va yyyy-mm-dd;
+          ghi dd/mm/yyyy vi day la dang tren giay to Viet Nam. */}
+      <InfoField label={t("capture.personal.dob")} hint={t("capture.form.date_ph")}>
         <input className="control control-sm" value={form.dob} disabled={disabled}
           placeholder={t("capture.form.date_ph")}
           onChange={(e) => setField("dob", e.target.value)} />
@@ -54,7 +60,7 @@ export function SectionPersonal({ form, setField, disabled = false }) {
       {/* Backend rang buoc cccd_number = dung 12 chu so (main.py: pattern
           ^\d{12}$) nen o nay loc phi so. So ho chieu KHONG nhap duoc vao day —
           neu can, phai noi rong pattern o backend truoc. */}
-      <InfoField label={t("capture.personal.id_doc")}>
+      <InfoField label={t("capture.personal.id_doc")} required>
         <input className="control control-sm" value={form.cccd_number} disabled={disabled}
           inputMode="numeric" maxLength={12} placeholder={t("capture.form.cccd_ph")}
           onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))} />

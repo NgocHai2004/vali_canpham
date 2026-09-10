@@ -13,8 +13,8 @@ function seqLabel(n) {
   return String(n ?? 0).padStart(3, "0");
 }
 
-function reportFileName(sessionCode) {
-  const code = String(sessionCode || "vuan")
+function reportFileName(caseCode) {
+  const code = String(caseCode || "vuan")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^A-Za-z0-9_-]+/g, "")
@@ -28,7 +28,7 @@ function reportFileName(sessionCode) {
 
 // ---------- Nội dung A4 (node được html2canvas chụp) ----------
 const SceneReportContent = forwardRef(function SceneReportContent(
-  { session, items, scope },
+  { caseDoc, items, scope },
   ref,
 ) {
   const { t, formatDateTime, formatDateLong } = useI18n();
@@ -50,9 +50,9 @@ const SceneReportContent = forwardRef(function SceneReportContent(
         <tbody>
           <tr>
             <th>{t("scene.report.case")}</th>
-            <td>{session?.case_name || blank}</td>
+            <td>{caseDoc?.name || blank}</td>
             <th>{t("scene.report.code")}</th>
-            <td>{session?.code || blank}</td>
+            <td>{caseDoc?.code || blank}</td>
           </tr>
           <tr>
             <th>{t("scene.report.scope")}</th>
@@ -141,7 +141,7 @@ const SceneReportContent = forwardRef(function SceneReportContent(
 });
 
 // ---------- Modal xem trước + lưu USB ----------
-export default function SceneMatchReportModal({ session, items, scope, onClose }) {
+export default function SceneMatchReportModal({ caseDoc, items, scope, onClose }) {
   const { t } = useI18n();
   const a4Ref = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -173,7 +173,7 @@ export default function SceneMatchReportModal({ session, items, scope, onClose }
       const chosen = drives.length === 1 ? drives[0] : await pickDrive(drives);
       if (!chosen) return;
       const blob = await buildProfilePdfBlob(node);
-      const saved = await usbApi.saveExport(chosen.path, reportFileName(session?.code), blob);
+      const saved = await usbApi.saveExport(chosen.path, reportFileName(caseDoc?.code), blob);
       setMsg(t("usb.export.success", { path: saved?.path || chosen.path }));
     } catch (ex) {
       setErr(ex?.message || t("scene.report.err_export"));
@@ -196,7 +196,7 @@ export default function SceneMatchReportModal({ session, items, scope, onClose }
       </div>
 
       <div className="preview-scroll">
-        <SceneReportContent ref={a4Ref} session={session} items={items} scope={scope} />
+        <SceneReportContent ref={a4Ref} caseDoc={caseDoc} items={items} scope={scope} />
       </div>
 
       {picker.open && (

@@ -216,7 +216,7 @@ export const api = {
     body: JSON.stringify({ fingers }),
   }),
 
-  // Luồng Search: quét 1 ngón bất kỳ, so với mọi ngón của can phạm. Ngưỡng rất cao (>95).
+  // Luồng Search: quét 1 ngón bất kỳ, so với mọi ngón của nghi phạm. Ngưỡng rất cao (>95).
   matchFingerprintSingle: (templateB64) => request("/api/detainees/match_fingerprint_single", {
     method: "POST",
     body: JSON.stringify({ template_b64: templateB64 }),
@@ -244,7 +244,7 @@ export const api = {
 
 
   importXlsx: async (formData) => request("/api/detainees/import/xlsx", { method: "POST", body: formData }),
-  downloadExport: () => downloadFile("/api/detainees/export/xlsx", "can_pham.xlsx"),
+  downloadExport: () => downloadFile("/api/detainees/export/xlsx", "nghi_pham.xlsx"),
   downloadTemplate: () => downloadFile("/api/detainees/template/xlsx", "mau_import.xlsx"),
 
   listLogs: (params = {}) => {
@@ -264,36 +264,46 @@ export const api = {
     return request(`/api/users/${id}/avatar`, { method: "POST", body: fd });
   },
 
-  listSessions: (params = {}) => {
+  // ===== Vụ án (collection `cases`, thay cho phiên làm việc cũ) =====
+  listCases: (params = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "") qs.set(k, v);
     });
     const s = qs.toString();
-    return request(`/api/sessions${s ? `?${s}` : ""}`);
+    return request(`/api/cases${s ? `?${s}` : ""}`);
   },
-  getCurrentSession: () => request("/api/sessions/current"),
-  createSession: (body) => request("/api/sessions", { method: "POST", body: JSON.stringify(body || {}) }),
-  getSession: (id) => request(`/api/sessions/${id}`),
-  closeSession: (id) => request(`/api/sessions/${id}/close`, { method: "POST" }),
-  deleteSession: (id) => request(`/api/sessions/${id}`, { method: "DELETE" }),
-  downloadSessionReport: (id, filename) => downloadFile(`/api/sessions/${id}/report`, filename || `session_report.xlsx`),
-  logSessionSync: (id, summary) => request(`/api/sessions/${id}/sync-log`, {
+  createCase: (body) => request("/api/cases", { method: "POST", body: JSON.stringify(body || {}) }),
+  // patch = { name?, location?, occurred_at?, note?, status? }. Field khong gui thi
+  // backend giu nguyen. Ket thuc vu an = updateCase(id, { status: "closed" }) —
+  // khong con endpoint /close rieng.
+  updateCase: (id, patch) => request(`/api/cases/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch || {}),
+  }),
+  getCase: (id) => request(`/api/cases/${id}`),
+  closeCase: (id) => request(`/api/cases/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "closed" }),
+  }),
+  deleteCase: (id) => request(`/api/cases/${id}`, { method: "DELETE" }),
+  downloadCaseReport: (id, filename) => downloadFile(`/api/cases/${id}/report`, filename || `case_report.xlsx`),
+  logCaseSync: (id, summary) => request(`/api/cases/${id}/sync-log`, {
     method: "POST",
     body: JSON.stringify(summary || {}),
   }),
 
-  // ===== Dấu vết hiện trường (ảnh vụ án theo phiên) =====
-  // Không truyền sessionId => backend lấy phiên đang mở của cán bộ.
-  listSceneTraces: (sessionId) => request(
-    `/api/scene/traces${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`
+  // ===== Dấu vết hiện trường (ảnh theo vụ án) =====
+  // Không truyền caseId => backend lấy vụ án đang điều tra gần nhất.
+  listSceneTraces: (caseId) => request(
+    `/api/scene/traces${caseId ? `?case_id=${encodeURIComponent(caseId)}` : ""}`
   ),
   // source: "camera" (chụp tại chỗ) | "upload" (chọn file). Ảnh do máy ngoài
   // bắn sang đi qua /api/scene/push nên không có ở đây.
-  createSceneTrace: async (file, { sessionId = "", note = "", source = "upload" } = {}) => {
+  createSceneTrace: async (file, { caseId = "", note = "", source = "upload" } = {}) => {
     const fd = new FormData();
     fd.append("file", file);
-    if (sessionId) fd.append("session_id", sessionId);
+    if (caseId) fd.append("case_id", caseId);
     if (note) fd.append("note", note);
     fd.append("source", source);
     return request("/api/scene/traces", { method: "POST", body: fd });
@@ -305,6 +315,21 @@ export const api = {
     body: JSON.stringify(typeof patch === "string" ? { note: patch } : patch),
   }),
   deleteSceneTrace: (id) => request(`/api/scene/traces/${id}`, { method: "DELETE" }),
+
+  // ===== Đối sánh dấu vết (engine HBIE) =====
+  // Bảng KẾT QUẢ ĐỐI SÁNH của vụ án. Tra ve { items, total, config } — config co
+  // threshold + score_max=1000 de UI ve thang diem dung, khong hardcode.
+  listSceneMatches: ({ caseId = "", traceId = "" } = {}) => {
+    const qs = new URLSearchParams();
+    if (caseId) qs.set("case_id", caseId);
+    if (traceId) qs.set("trace_id", traceId);
+    const s = qs.toString();
+    return request(`/api/scene/matches${s ? `?${s}` : ""}`);
+  },
+  // Doi sanh lai 1 dau vet: chay DONG BO (cho ket qua trả về) — khac luc upload
+  // (chay nen). Dung khi anh loi luc up, hoac vu an vua them doi tuong moi.
+  rematchSceneTrace: (id) => request(`/api/scene/traces/${id}/match`, { method: "POST" }),
+  hbieHealth: () => request("/api/scene/hbie/health"),
 };
 
 // ============ ZKFinger fingerprint sensor API (python service :8765) ============

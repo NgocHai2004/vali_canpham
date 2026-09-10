@@ -1,4 +1,4 @@
-# Thiết kế: Trang đăng ký can phạm
+# Thiết kế: Trang đăng ký nghi phạm
 
 Ngày: 2026-08-31
 Tham chiếu: `photo_2026-08-31_11-14-43.jpg`

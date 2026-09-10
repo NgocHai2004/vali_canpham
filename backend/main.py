@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, date
 
 import person_detect
 import face_recognition_service
+import hbie_service
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
@@ -181,8 +182,8 @@ def _s(doc: dict) -> dict:
     if not doc:
         return doc
     doc["id"] = str(doc.pop("_id"))
-    if "session_id" in doc and doc["session_id"] is not None:
-        doc["session_id"] = str(doc["session_id"])
+    if "case_id" in doc and doc["case_id"] is not None:
+        doc["case_id"] = str(doc["case_id"])
     for k in ("created_at", "updated_at", "dob"):
         if k in doc and isinstance(doc[k], datetime):
             doc[k] = doc[k].isoformat()
@@ -363,7 +364,7 @@ async def _ensure_indexes():
     await db.detainees.create_index([("full_name", 1), ("dob", 1)])
     await db.detainees.create_index("cccd_number", sparse=True)
     await db.cells.create_index("code", unique=True)
-    await db.scene_traces.create_index([("session_id", 1), ("seq", 1)])
+    await db.scene_traces.create_index([("case_id", 1), ("seq", 1)])
 
 
 class LoginResp(BaseModel):
@@ -440,7 +441,7 @@ class DetaineeIn(BaseModel):
     ethnicity: Optional[str] = None
     religion: Optional[str] = None
     # ---- Noi cu tru: the CCCD chi co ho khau (address); tam tru / cho o hien nay
-    # phai khai tay vi can pham thuong khong o dung dia chi tren the ----
+    # phai khai tay vi nghi pham thuong khong o dung dia chi tren the ----
     temp_address: Optional[str] = None               # noi tam tru
     current_address: Optional[str] = None            # noi o hien nay
     occupation: Optional[str] = None                 # nghe nghiep
@@ -490,27 +491,38 @@ class DetaineeIn(BaseModel):
     note: Optional[str] = None
     photo_url: Optional[str] = None
     photos: Optional[dict] = None
-    session_id: Optional[str] = None
+    case_id: Optional[str] = None
 
 
-class WorkSessionIn(BaseModel):
-    case_name: str = Field(default="", max_length=200)
+class CaseIn(BaseModel):
+    # Vu an KHONG giu dien/co so/phan trai/buong: ho so nghi pham tu mang 4
+    # truong do (xem DataCapturePage), nen giu o day chi lam can bo phai chon
+    # 2 lan. Truoc day 4 truong nay co trong WorkSessionIn nhung 0/14 phien
+    # dung that -> bo han khi doi sang cases.
+    name: str = Field(default="", max_length=200)
     location: str = Field(default="", max_length=200)
     note: str = Field(default="", max_length=500)
-    officer_full_name: Optional[str] = Field(default=None, max_length=100)
-    # ---- Noi giam giu cua CA PHIEN ----
-    # Mot phien thu nhan dien ra tai MOT cho cu the, nen chot dien + co so + buong
-    # ngay luc mo phien. Nho vay form ho so khong phai chon lai cho tung can pham:
-    # ca 3 gia tri nay duoc dien san tu phien dang mo.
-    custody_type: Optional[str] = Field(default=None, pattern=r"^(tam_giam|tam_giu)$")
-    facility_code: Optional[str] = None
-    sub_camp_code: Optional[str] = None
-    cell_code: Optional[str] = None
+    # Thoi diem vu an XAY RA — khac created_at (luc lap ho so trong may).
+    # Nhan "DD/MM/YYYY HH:MM", "YYYY-MM-DD" hoac ISO; rong = khong ro.
+    occurred_at: Optional[str] = Field(default=None, max_length=40)
 
 
-async def _next_session_code() -> str:
+class CasePatch(BaseModel):
+    """Sua vu an. Khong co `code`: ma sinh tu counter va la khoa tra cuu trong
+    _log + bao cao Excel, doi la mat dau vet lich su.
+
+    `status` nam o day luon: ket thuc vu an = PATCH status="closed", khong con
+    endpoint /close rieng."""
+    name: Optional[str] = Field(default=None, max_length=200)
+    location: Optional[str] = Field(default=None, max_length=200)
+    note: Optional[str] = Field(default=None, max_length=500)
+    occurred_at: Optional[str] = Field(default=None, max_length=40)
+    status: Optional[str] = Field(default=None, pattern=r"^(investigating|closed)$")
+
+
+async def _next_case_code() -> str:
     today = datetime.utcnow().strftime("%Y%m%d")
-    counter_id = f"session_code_{today}"
+    counter_id = f"case_code_{today}"
     doc = await db.counters.find_one_and_update(
         {"_id": counter_id},
         {"$inc": {"seq": 1}},
@@ -518,11 +530,19 @@ async def _next_session_code() -> str:
         return_document=True,
     )
     seq = doc["seq"] if doc else 1
-    return f"S{today}-{seq:04d}"
+    return f"VA{today}-{seq:04d}"
 
 
-async def _get_open_session_or_none(username: str) -> Optional[dict]:
-    return await db.work_sessions.find_one({"officer": username, "status": "open"})
+async def _latest_open_case_or_none() -> Optional[dict]:
+    """Vụ án để máy ngoài bắn ảnh vào khi nó không gửi case_id.
+
+    Vụ án không thuộc riêng cán bộ nào (khác phiên làm việc cũ) nên không lọc
+    theo officer nữa: lấy vụ đang điều tra, tạo gần nhất.
+    """
+    return await db.cases.find_one(
+        {"status": "investigating"},
+        sort=[("created_at", -1)],
+    )
 
 
 async def _next_cell_code() -> str:
@@ -550,23 +570,26 @@ async def _next_cell_code_by_level(level: str, parent: Optional[str]) -> str:
     return f"{prefix_map.get(level, 'X')}{seq:03d}"
 
 
-def _s_session(doc: dict) -> dict:
+def _s_case(doc: dict) -> dict:
     if not doc:
         return doc
     out = dict(doc)
     out["id"] = str(out.pop("_id"))
-    for k in ("opened_at", "closed_at"):
+    for k in ("occurred_at", "created_at", "closed_at", "updated_at"):
         v = out.get(k)
         if isinstance(v, datetime):
             out[k] = v.isoformat()
     return out
 
 
-def _ensure_session_editable(session_doc: dict, username: str, is_admin: bool) -> None:
-    if session_doc.get("status") != "open":
-        raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể chỉnh sửa.")
-    if session_doc.get("officer") != username and not is_admin:
-        raise HTTPException(403, "Bạn không có quyền thao tác trên phiên này.")
+def _ensure_case_editable(case_doc: dict) -> None:
+    """Vụ án đã kết thúc thì đóng băng: không thêm/sửa/xoá dấu vết và hồ sơ.
+
+    Khác phiên làm việc cũ: KHÔNG chặn theo officer nữa. Vụ án không thuộc riêng
+    cán bộ nào, ai cũng thao tác được trên vụ đang điều tra.
+    """
+    if case_doc.get("status") == "closed":
+        raise HTTPException(403, "Vụ án đã kết thúc, không thể chỉnh sửa.")
 
 
 def _make_token(username: str, role: str = "admin") -> str:
@@ -611,7 +634,7 @@ def _scope_filter(user: dict, base: dict = None) -> dict:
     return filt
 
 
-async def _log(request: Request, user: dict, action: str, resource: str, ref: str = "", data: dict = None, ref_id: str = "", session_id=None):
+async def _log(request: Request, user: dict, action: str, resource: str, ref: str = "", data: dict = None, ref_id: str = "", case_id=None):
     try:
         entry = {
             "at": datetime.utcnow(),
@@ -622,14 +645,14 @@ async def _log(request: Request, user: dict, action: str, resource: str, ref: st
             "ref_id": ref_id,
             "ip": (request.client.host if request and request.client else ""),
             "data": data or {},
-            "session_id": session_id,
+            "case_id": case_id,
         }
         await db.audit_logs.insert_one(entry)
     except Exception:
         pass
 
 
-app = FastAPI(title="Thiết bị thu thập & quản lý căn cước can phạm", lifespan=lifespan)
+app = FastAPI(title="Thiết bị thu thập & quản lý căn cước nghi phạm", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
@@ -804,10 +827,10 @@ async def delete_cell(cell_id: str, request: Request, user: dict = Depends(get_c
     n_child = await db.cells.count_documents({"parent": code})
     if n_child > 0:
         raise HTTPException(400, f"Node đang có {n_child} node con, không thể xoá. Xoá con trước.")
-    # Không xoá buồng nếu còn can phạm
+    # Không xoá buồng nếu còn nghi phạm
     n = await db.detainees.count_documents({"cell_code": code})
     if n > 0:
-        raise HTTPException(400, f"Buồng đang có {n} can phạm, không thể xoá")
+        raise HTTPException(400, f"Buồng đang có {n} nghi phạm, không thể xoá")
     await db.cells.delete_one({"_id": _oid(cell_id)})
     await _log(request, user, "delete", "cell", code)
     return {"ok": True}
@@ -830,24 +853,23 @@ def _parse_dob(s: Optional[str]) -> Optional[str]:
 
 
 def _require_capture_fields(body: "DetaineeIn") -> None:
-    """Enforce mandatory fields for the "Thu nhận dữ liệu" flow.
+    """Chan luu khi thieu truong BAT BUOC cua luong "Thu nhan du lieu".
 
-    Client is free to send partial data via the legacy short form (edit modal),
-    but a create request must carry the 4 fields marked * on the chỉ bản form.
+    Chi con 2 truong: MA HO SO (personal_id, kiem o create_detainee) va SO CCCD.
+    Ho ten / ngay sinh / gioi tinh KHONG con chan luu — nghi pham nhieu khi chua
+    khai duoc ten that hoac ngay sinh ngay luc thu nhan, chan lai thi can bo
+    khong luu duoc van tay da lay.
 
-    Anh CCCD mat truoc KHONG con bat buoc: mau chi bản moi bo han khoi anh the,
-    photos["cccd_front"] gio chi co khi doc duoc chip the — khong the lam dieu
-    kien chan luu.
+    PHAI khop dung 4 dieu kien o frontend (DataCapturePage: allRequiredValid) va
+    dau * tren nhan. Lech nhau thi nut bam duoc ma server tra 400, hoac nguoc lai
+    nut xam ma khong biet thieu gi.
+
+    Anh CCCD mat truoc KHONG bat buoc: mau chi ban moi bo han khoi anh the,
+    photos["cccd_front"] gio chi co khi doc duoc chip the.
     """
     missing = []
-    if not body.full_name or not body.full_name.strip():
-        missing.append("Họ và tên")
     if not body.cccd_number:
         missing.append("Số CCCD (12 chữ số)")
-    if not body.dob:
-        missing.append("Ngày sinh")
-    if body.gender not in ("male", "female"):
-        missing.append("Giới tính")
     if missing:
         raise HTTPException(400, "Thiếu thông tin bắt buộc: " + ", ".join(missing))
 
@@ -949,7 +971,7 @@ async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
     return _s(doc)
 
 
-# ---------- Fingerprint match (tra cứu can phạm bằng vân tay) ----------
+# ---------- Fingerprint match (tra cứu nghi phạm bằng vân tay) ----------
 FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
 FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "85"))  # luu cho cac luong khac (neu co)
 FP_MATCH_FINGER = os.getenv("FP_MATCH_FINGER", "left_thumb")     # ngon dung de ket luan
@@ -960,6 +982,33 @@ FP_FINGER_CODES = [
     "left_little", "left_ring", "left_middle", "left_index", "left_thumb",
     "right_thumb", "right_index", "right_middle", "right_ring", "right_little",
 ]
+
+# Mã ngón -> key ảnh vân LĂN trong detainee.photos. Phải khớp FP_CODE_TO_KEY ở
+# frontend/src/capture/constants.js (dữ liệu cũ đã lưu theo fp_l1..fp_r5).
+FP_KEY_BY_CODE = {
+    "left_thumb": "fp_l1", "left_index": "fp_l2", "left_middle": "fp_l3",
+    "left_ring": "fp_l4", "left_little": "fp_l5",
+    "right_thumb": "fp_r1", "right_index": "fp_r2", "right_middle": "fp_r3",
+    "right_ring": "fp_r4", "right_little": "fp_r5",
+}
+
+
+def _has_roll_photos(photos: Optional[dict]) -> bool:
+    """Hồ sơ có ít nhất 1 ảnh vân lăn hay chưa — không có thì đối sánh vô nghĩa."""
+    ph = photos or {}
+    return any(ph.get(k) for k in FP_KEY_BY_CODE.values())
+
+
+def _changed_roll_fingers(old: Optional[dict], new: Optional[dict]) -> list:
+    """Mã ngón có ảnh vân lăn ĐỔI (kể cả bị xoá) giữa 2 bộ photos.
+
+    Dùng để dọn cache đặc trưng: fp_features giữ đặc trưng trích từ ảnh CŨ, sửa
+    ảnh mà không xoá cache thì đối sánh vẫn chạy trên ảnh cũ — sai âm thầm, không
+    báo lỗi gì cả.
+    """
+    o, n = old or {}, new or {}
+    return [c for c, k in FP_KEY_BY_CODE.items() if (o.get(k) or "") != (n.get(k) or "")]
+
 
 # ---------- Face recognition (nhận diện khuôn mặt bằng InsightFace buffalo_sc) ----------
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.4"))
@@ -973,12 +1022,12 @@ class MatchFingerprintReq(BaseModel):
 
 @app.post("/api/detainees/match_fingerprint")
 async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_current_user)):
-    """Tra cứu can phạm bằng vân tay (logic moi).
+    """Tra cứu nghi phạm bằng vân tay (logic moi).
 
     Yeu cau FE gui du FP_REQUIRED_FINGER_COUNT ngon (mac dinh 10). Backend chi
     so sanh ngon FP_MATCH_FINGER (left_thumb) cua nguoi tra cuu voi left_thumb
-    cua tung can pham trong Mongo. Ket luan khop neu score > FP_LEFT_THUMB_THRESHOLD.
-    Tra top 10 can pham khop.
+    cua tung nghi pham trong Mongo. Ket luan khop neu score > FP_LEFT_THUMB_THRESHOLD.
+    Tra top 10 nghi pham khop.
     """
     fingers = body.fingers or {}
     # Dem so ngon co template khong trong
@@ -1009,7 +1058,7 @@ async def match_fingerprint(body: MatchFingerprintReq, user: dict = Depends(get_
             fp_templates = (det.get("photos") or {}).get("fp_templates") or {}
             stored_tmpl = fp_templates.get(FP_MATCH_FINGER)
             if not stored_tmpl:
-                continue  # can pham khong co left_thumb -> khong the so
+                continue  # nghi pham khong co left_thumb -> khong the so
             try:
                 resp = await client.post(
                     f"{FP_SERVICE_URL}/api/match_pair",
@@ -1047,10 +1096,10 @@ class MatchFingerprintSingleReq(BaseModel):
 
 @app.post("/api/detainees/match_fingerprint_single")
 async def match_fingerprint_single(body: MatchFingerprintSingleReq, user: dict = Depends(get_current_user)):
-    """Tra cứu can phạm bằng 1 template vân tay (luong Search, quet 1 ngon).
+    """Tra cứu nghi phạm bằng 1 template vân tay (luong Search, quet 1 ngon).
 
     Khac voi match_fingerprint (can 10 ngon + chi so left_thumb): endpoint nay
-    nhan 1 ngon bat ky, so voi TAT CA ngon cua moi can pham, lay best_score.
+    nhan 1 ngon bat ky, so voi TAT CA ngon cua moi nghi pham, lay best_score.
     Ket luan khop neu best_score > FP_SINGLE_THRESHOLD (mac dinh 95, rat chat)
     de giam doan nham khi chi co 1 ngon.
     """
@@ -1135,29 +1184,28 @@ async def _compute_face_embedding(portrait_url: str) -> list[float] | None:
 
 @app.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
-    # Quản trị hệ thống không đi thu nhận can phạm → không TẠO hồ sơ mới.
+    # Quản trị hệ thống không đi thu nhận nghi phạm → không TẠO hồ sơ mới.
     # Vẫn giữ quyền SỬA/XOÁ hồ sơ để chữa dữ liệu cán bộ nhập sai.
     if user.get("role") == "admin":
         raise HTTPException(403, "Tài khoản quản trị hệ thống không thu nhận hồ sơ. Việc này do cán bộ thu nhận thực hiện.")
-    if not body.session_id:
-        raise HTTPException(400, "Bạn phải mở 1 phiên làm việc trước khi tạo hồ sơ.")
-    session_doc = await db.work_sessions.find_one({"_id": _oid(body.session_id)})
-    if not session_doc:
-        raise HTTPException(400, "Phiên làm việc không tồn tại.")
-    is_admin = user.get("role") == "admin"
-    _ensure_session_editable(session_doc, user["username"], is_admin)
+    if not body.case_id:
+        raise HTTPException(400, "Bạn phải chọn vụ án trước khi tạo hồ sơ.")
+    case_doc = await db.cases.find_one({"_id": _oid(body.case_id)})
+    if not case_doc:
+        raise HTTPException(400, "Vụ án không tồn tại.")
+    _ensure_case_editable(case_doc)
     _require_capture_fields(body)
     dob = _parse_dob(body.dob)
     now = datetime.utcnow()
 
     personal_id = (body.personal_id or "").strip()
     if not personal_id:
-        raise HTTPException(400, "Thiếu mã can phạm (personal_id).")
+        raise HTTPException(400, "Thiếu mã nghi phạm (personal_id).")
     if await db.detainees.find_one({"personal_id": personal_id}):
-        raise HTTPException(400, f"Mã can phạm '{personal_id}' đã có trong hệ thống.")
+        raise HTTPException(400, f"Mã nghi phạm '{personal_id}' đã có trong hệ thống.")
 
     doc = body.model_dump()
-    doc.pop("session_id", None)
+    doc.pop("case_id", None)
     doc.update({
         "personal_id": personal_id,
         "cccd_number": body.cccd_number or "",
@@ -1168,7 +1216,7 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         "created_at": now,
         "updated_at": now,
         "created_by": user["username"],
-        "session_id": session_doc["_id"],
+        "case_id": case_doc["_id"],
     })
     try:
         res = await db.detainees.insert_one(doc)
@@ -1177,17 +1225,20 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
             raise HTTPException(400, f"Số định danh '{personal_id}' đã tồn tại (đồng thời), vui lòng thử lại.")
         raise
     doc["_id"] = res.inserted_id
-    await db.work_sessions.update_one(
-        {"_id": session_doc["_id"]},
-        {"$inc": {"detainee_count": 1}, "$set": {"updated_at": now}},
-    )
+    # Không đếm ngược `detainee_count` trên vụ án nữa: đếm động khi cần
+    # (GET /api/cases đã $lookup), tránh lệch số khi xoá hồ sơ ở nơi khác.
+    await db.cases.update_one({"_id": case_doc["_id"]}, {"$set": {"updated_at": now}})
     # Face embedding từ portrait_front (nếu có ảnh local + model ready)
     portrait_url = (doc.get("photos") or {}).get("portrait_front") or ""
     fe = await _compute_face_embedding(portrait_url)
     if fe:
         await db.detainees.update_one({"_id": doc["_id"]}, {"$set": {"photos.face_embedding": fe}})
         doc.setdefault("photos", {})["face_embedding"] = fe
-    await _log(request, user, "create", "detainee", personal_id, {"full_name": body.full_name, "session": session_doc.get("code")}, ref_id=str(res.inserted_id), session_id=session_doc["_id"])
+    await _log(request, user, "create", "detainee", personal_id, {"full_name": body.full_name, "case": case_doc.get("code")}, ref_id=str(res.inserted_id), case_id=case_doc["_id"])
+    # Vụ án vừa có đối tượng mới: các dấu vết CŨ chưa từng so với vân tay người này
+    # -> đối sánh lại cả vụ (chạy nền). Không có ảnh vân lăn nào thì khỏi chạy.
+    if _has_roll_photos(doc.get("photos")):
+        _spawn_case_rematch(case_doc)
     return _s(doc)
 
 
@@ -1197,13 +1248,13 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     if not existing:
         raise HTTPException(404, "Không tìm thấy hồ sơ")
     _ensure_can_touch(existing, user)
-    sid = existing.get("session_id")
-    if sid is not None:
-        session_doc = await db.work_sessions.find_one({"_id": sid})
-        if session_doc and session_doc.get("status") != "open":
-            raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể chỉnh sửa.")
+    cid = existing.get("case_id")
+    if cid is not None:
+        case_doc = await db.cases.find_one({"_id": cid})
+        if case_doc:
+            _ensure_case_editable(case_doc)
     upd = body.model_dump()
-    upd.pop("session_id", None)
+    upd.pop("case_id", None)
     upd["dob"] = _parse_dob(body.dob)
     upd["date_in"] = _parse_dob(body.date_in)
     upd["issued_date"] = _parse_dob(body.issued_date)
@@ -1212,11 +1263,22 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     if new_pid:
         conflict = await db.detainees.find_one({"personal_id": new_pid, "_id": {"$ne": _oid(det_id)}})
         if conflict:
-            raise HTTPException(400, f"Mã can phạm '{new_pid}' đã có trong hồ sơ khác.")
+            raise HTTPException(400, f"Mã nghi phạm '{new_pid}' đã có trong hồ sơ khác.")
         upd["personal_id"] = new_pid
         upd["cccd_number"] = body.cccd_number or upd.get("cccd_number", "")
     upd["updated_at"] = datetime.utcnow()
+    # Ảnh vân lăn nào ĐỔI thì đặc trưng đã cache của ngón đó không còn đúng ảnh
+    # nữa. Không dọn thì đối sánh vẫn chạy trên đặc trưng của ảnh CŨ — sai âm
+    # thầm, không báo lỗi gì cả.
+    changed_fp = _changed_roll_fingers(existing.get("photos"), upd.get("photos"))
     doc = await db.detainees.find_one_and_update({"_id": _oid(det_id)}, {"$set": upd}, return_document=True)
+    if changed_fp:
+        await db.detainees.update_one(
+            {"_id": _oid(det_id)},
+            {"$unset": {f"fp_features.{c}": "" for c in changed_fp}},
+        )
+        for c in changed_fp:
+            (doc.get("fp_features") or {}).pop(c, None)
     # Cập nhật face_embedding nếu portrait_front thay đổi
     portrait_url = (doc.get("photos") or {}).get("portrait_front") or ""
     fe = await _compute_face_embedding(portrait_url)
@@ -1226,7 +1288,13 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
     elif not portrait_url:
         # Portrait bị xoá → xoá embedding cũ
         await db.detainees.update_one({"_id": _oid(det_id)}, {"$unset": {"photos.face_embedding": ""}})
-    await _log(request, user, "update", "detainee", doc.get("personal_id", det_id), {"full_name": body.full_name}, ref_id=det_id, session_id=doc.get("session_id"))
+    await _log(request, user, "update", "detainee", doc.get("personal_id", det_id), {"full_name": body.full_name}, ref_id=det_id, case_id=doc.get("case_id"))
+    # Hồ sơ vừa được bổ sung/thay ảnh vân lăn (thu nhận vân tay thường là bước
+    # SAU khi tạo hồ sơ) -> đối sánh lại cả vụ để dấu vết cũ so với ảnh mới.
+    if changed_fp and _has_roll_photos(doc.get("photos")):
+        cd = await db.cases.find_one({"_id": doc.get("case_id")}) if doc.get("case_id") else None
+        if cd:
+            _spawn_case_rematch(cd)
     return _s(doc)
 
 
@@ -1236,18 +1304,18 @@ async def delete_detainee(det_id: str, request: Request, user: dict = Depends(ge
     if not doc:
         raise HTTPException(404, "Không tìm thấy hồ sơ")
     _ensure_can_touch(doc, user)
-    sid = doc.get("session_id")
-    if sid is not None:
-        session_doc = await db.work_sessions.find_one({"_id": sid})
-        if session_doc and session_doc.get("status") != "open":
-            raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể xoá.")
+    cid = doc.get("case_id")
+    if cid is not None:
+        case_doc = await db.cases.find_one({"_id": cid})
+        if case_doc:
+            _ensure_case_editable(case_doc)
     await db.detainees.delete_one({"_id": _oid(det_id)})
-    if sid is not None:
-        await db.work_sessions.update_one(
-            {"_id": sid},
-            {"$inc": {"detainee_count": -1}, "$set": {"updated_at": datetime.utcnow()}},
-        )
-    await _log(request, user, "delete", "detainee", doc.get("personal_id", det_id), ref_id=det_id, session_id=sid)
+    # Xoá luôn kết quả đối sánh của người này: bảng KẾT QUẢ ĐỐI SÁNH join tên từ
+    # scene_matches, không xoá thì vẫn hiện tên hồ sơ đã bị xoá.
+    await db.scene_matches.delete_many({"detainee_id": _oid(det_id)})
+    if cid is not None:
+        await db.cases.update_one({"_id": cid}, {"$set": {"updated_at": datetime.utcnow()}})
+    await _log(request, user, "delete", "detainee", doc.get("personal_id", det_id), ref_id=det_id, case_id=cid)
     return {"ok": True}
 
 
@@ -1275,7 +1343,7 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
         raise HTTPException(400, f"Buồng {new_code} không tồn tại")
     old_code = doc.get("cell_code") or ""
     if old_code == new_code:
-        raise HTTPException(400, "Can phạm đã ở buồng này")
+        raise HTTPException(400, "Nghi phạm đã ở buồng này")
     await db.detainees.update_one(
         {"_id": _oid(det_id)},
         {"$set": {"cell_code": new_code or None, "updated_at": datetime.utcnow()}},
@@ -1287,122 +1355,116 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
     return {"ok": True, "from": old_code, "to": new_code}
 
 
-async def _resolve_session_place(body: "WorkSessionIn") -> dict:
-    """Kiểm tra + chuẩn hoá nơi giam giữ của phiên (diện / cơ sở / phân trại / buồng).
+# ==================== CASES (VỤ ÁN) ====================
+# Thay cho work_sessions cũ. Vụ án KHÔNG thuộc riêng cán bộ nào: bỏ `officer`,
+# bỏ "phiên đang mở của tôi". Ai cũng thao tác được trên vụ đang điều tra; admin
+# giữ vai giám sát nên chỉ xem.
+async def _case_detainee_counts(case_ids: list) -> dict:
+    """Đếm hồ sơ theo vụ án bằng 1 lượt aggregate.
 
-    Cả 4 trường đều tuỳ chọn để phiên cũ (và client cũ) vẫn mở được. Nhưng khi đã
-    gửi thì phải khớp nhau, vì hồ sơ trong phiên sẽ lấy y nguyên các giá trị này:
-    một buồng gán sai cơ sở sẽ làm mọi hồ sơ của phiên nằm sai chỗ, và đó là loại
-    sai không ai phát hiện lúc nhập.
-
-    Quan hệ được kiểm theo đúng cây của collection cells (xem create_cell):
-    buồng -> cha là phân trại HOẶC cơ sở (Nhà tạm giữ không có phân trại).
+    Trước đây work_sessions giữ sẵn `detainee_count` và $inc mỗi lần thêm/xoá —
+    dễ lệch khi hồ sơ bị xoá ở chỗ khác. Giờ đếm động.
     """
-    custody = (body.custody_type or "").strip() or None
-    facility = (body.facility_code or "").strip() or None
-    sub_camp = (body.sub_camp_code or "").strip() or None
-    cell = (body.cell_code or "").strip() or None
-
-    # Buồng/phân trại không thể đứng một mình: không có cơ sở thì không biết chúng
-    # thuộc đâu, và hồ sơ sẽ thiếu facility_code.
-    if (cell or sub_camp) and not facility:
-        raise HTTPException(400, "Chọn cơ sở giam giữ trước khi chọn phân trại/buồng.")
-
-    fac_doc = None
-    if facility:
-        fac_doc = await db.cells.find_one({"code": facility, "level": "facility"})
-        if not fac_doc:
-            raise HTTPException(400, f"Cơ sở giam giữ '{facility}' không tồn tại.")
-        # Diện là thuộc tính của cơ sở => lấy theo cơ sở, không tin giá trị client
-        # gửi lên. Client gửi lệch thì báo lỗi thay vì âm thầm ghi sai.
-        if custody and fac_doc.get("custody_type") != custody:
-            raise HTTPException(
-                400,
-                f"Cơ sở '{fac_doc.get('name', facility)}' thuộc diện khác với diện đã chọn.",
-            )
-        custody = fac_doc.get("custody_type") or custody
-
-    if sub_camp:
-        sc_doc = await db.cells.find_one({"code": sub_camp, "level": "sub_camp"})
-        if not sc_doc:
-            raise HTTPException(400, f"Phân trại '{sub_camp}' không tồn tại.")
-        if sc_doc.get("parent") != facility:
-            raise HTTPException(400, "Phân trại không thuộc cơ sở giam giữ đã chọn.")
-
-    if cell:
-        cell_doc = await db.cells.find_one({"code": cell, "level": "cell"})
-        if not cell_doc:
-            raise HTTPException(400, f"Buồng '{cell}' không tồn tại.")
-        parent = cell_doc.get("parent")
-        # Cha hợp lệ: phân trại đã chọn, hoặc chính cơ sở (trường hợp Nhà tạm giữ).
-        expected = {p for p in (sub_camp, facility) if p}
-        if parent not in expected:
-            raise HTTPException(400, "Buồng không thuộc cơ sở/phân trại đã chọn.")
-
-    return {
-        "custody_type": custody,
-        "facility_code": facility,
-        "sub_camp_code": sub_camp,
-        "cell_code": cell,
-    }
+    if not case_ids:
+        return {}
+    out: dict = {}
+    cursor = db.detainees.aggregate([
+        {"$match": {"case_id": {"$in": case_ids}}},
+        {"$group": {"_id": "$case_id", "n": {"$sum": 1}}},
+    ])
+    async for row in cursor:
+        out[str(row["_id"])] = row["n"]
+    return out
 
 
-# ==================== WORK SESSIONS ====================
-@app.post("/api/sessions")
-async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
-    officer_username = user["username"]
-    # Quản trị hệ thống không đi thu nhận can phạm → không mở phiên làm việc.
-    # Admin vẫn xem/đóng/xoá phiên + tải báo cáo của cán bộ (vai giám sát).
+def _deny_admin_write(user: dict, verb: str) -> None:
     if user.get("role") == "admin":
-        raise HTTPException(403, "Tài khoản quản trị hệ thống không mở phiên thu nhận. Phiên làm việc do cán bộ thu nhận mở.")
-    existing = await _get_open_session_or_none(officer_username)
-    if existing:
-        raise HTTPException(409, f"Bạn đang có 1 phiên đang mở ({existing.get('code','?')}). Đóng phiên đó trước khi mở phiên mới.")
-    officer_doc = await db.users.find_one({"username": officer_username}) or {}
-    default_full_name = officer_doc.get("full_name", "") or officer_username
-    override = (body.officer_full_name or "").strip()
-    # Kiểm tra nơi giam giữ TRƯỚC khi sinh mã phiên: _next_session_code() tăng
-    # counter và không hoàn lại được, nên nếu để sau thì mỗi lần chọn buồng sai là
-    # đốt một số thứ tự, và dãy mã phiên trong ngày bị khuyết lỗ.
-    place = await _resolve_session_place(body)
+        raise HTTPException(403, f"Tài khoản quản trị hệ thống chỉ xem vụ án, không {verb}.")
+
+
+@app.post("/api/cases")
+async def create_case(body: CaseIn, request: Request, user: dict = Depends(get_current_user)):
+    _deny_admin_write(user, "tạo")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Tên vụ án không được để trống.")
     now = datetime.utcnow()
     doc = {
-        "code": await _next_session_code(),
-        "status": "open",
-        "case_name": body.case_name.strip(),
-        "officer": officer_username,
-        "officer_full_name": override or default_full_name,
-        "location": body.location.strip() or "Trung tâm thu thập dữ liệu",
+        "code": await _next_case_code(),
+        "status": "investigating",
+        "name": name,
+        "location": body.location.strip(),
+        "occurred_at": _parse_dt(body.occurred_at),
         "note": body.note.strip(),
-        "opened_at": now,
+        "created_at": now,
+        "created_by": user["username"],
         "closed_at": None,
-        "detainee_count": 0,
         "report_url": None,
         "report_filename": None,
-        **place,
     }
-    res = await db.work_sessions.insert_one(doc)
+    res = await db.cases.insert_one(doc)
     doc["_id"] = res.inserted_id
-    await _log(request, user, "create", "work_session", doc["code"], ref_id=str(res.inserted_id), session_id=res.inserted_id)
-    return _s_session(doc)
+    await _log(request, user, "create", "case", doc["code"], ref_id=str(res.inserted_id), case_id=res.inserted_id)
+    out = _s_case(doc)
+    out["detainee_count"] = 0
+    return out
 
 
-@app.get("/api/sessions/current")
-async def get_current_session(user: dict = Depends(get_current_user)):
-    # Admin không chạy phiên → luôn coi như không có phiên đang mở, kể cả khi
-    # dữ liệu cũ còn phiên do admin mở từ trước.
-    if user.get("role") == "admin":
-        raise HTTPException(404, "Tài khoản quản trị hệ thống không có phiên làm việc.")
-    doc = await _get_open_session_or_none(user["username"])
+@app.patch("/api/cases/{case_id}")
+async def update_case(
+    case_id: str,
+    body: CasePatch,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Sửa thông tin vụ án, và kết thúc vụ án (`status="closed"`).
+
+    Không còn endpoint /close riêng. Vụ đã kết thúc thì khoá: muốn sửa tiếp phải
+    mở lại bằng `status="investigating"`.
+    """
+    _deny_admin_write(user, "sửa")
+    doc = await db.cases.find_one({"_id": _oid(case_id)})
     if not doc:
-        raise HTTPException(404, "Bạn chưa có phiên làm việc nào đang mở.")
-    return _s_session(doc)
+        raise HTTPException(404, "Không tìm thấy vụ án.")
+
+    # Chỉ ghi trường client thật sự gửi: None = không đổi, "" = xoá nội dung.
+    patch: dict = {}
+    if body.status is not None and body.status != doc.get("status"):
+        patch["status"] = body.status
+        patch["closed_at"] = datetime.utcnow() if body.status == "closed" else None
+    # Sửa nội dung thì vụ phải đang điều tra. Riêng đổi status thì cho qua để
+    # còn mở lại được vụ đã kết thúc.
+    content_keys = (body.name, body.location, body.note, body.occurred_at)
+    if any(v is not None for v in content_keys) and "status" not in patch:
+        _ensure_case_editable(doc)
+    if body.name is not None:
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(400, "Tên vụ án không được để trống.")
+        patch["name"] = name
+    if body.location is not None:
+        patch["location"] = body.location.strip()
+    if body.note is not None:
+        patch["note"] = body.note.strip()
+    if body.occurred_at is not None:
+        patch["occurred_at"] = _parse_dt(body.occurred_at)
+    if not patch:
+        return _s_case(doc)
+
+    patch["updated_at"] = datetime.utcnow()
+    await db.cases.update_one({"_id": doc["_id"]}, {"$set": patch})
+    await _log(
+        request, user, "update", "case", doc.get("code", ""),
+        {k: (v.isoformat() if isinstance(v, datetime) else v)
+         for k, v in patch.items() if k != "updated_at"},
+        ref_id=case_id, case_id=doc["_id"],
+    )
+    return _s_case({**doc, **patch})
 
 
-@app.get("/api/sessions/full")
-async def list_sessions_full(
-    status: Optional[str] = Query(None, pattern=r"^(open|closed)$"),
-    mine_only: bool = Query(False),
+@app.get("/api/cases/full")
+async def list_cases_full(
+    status: Optional[str] = Query(None, pattern=r"^(investigating|closed)$"),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     include_detainees: bool = Query(True),
@@ -1410,13 +1472,15 @@ async def list_sessions_full(
     limit: int = Query(50, ge=1, le=200),
     user: dict = Depends(get_current_user),
 ):
-    """Trả về đầy đủ thông tin các phiên làm việc (cả đang mở lẫn đã đóng)
-    kèm danh sách hồ sơ can phạm bên trong mỗi phiên."""
+    """Vụ án kèm toàn bộ hồ sơ bên trong — dùng cho đồng bộ USB.
+
+    Giữ đúng hình dữ liệu của /api/sessions/full cũ (chỉ đổi tên khoá) để
+    SyncDiffModal không phải đổi logic so sánh. Bỏ `mine_only`/`officer_info`:
+    vụ án không thuộc riêng cán bộ nào.
+    """
     filt: dict = {}
     if status:
         filt["status"] = status
-    if mine_only or user.get("role") != "admin":
-        filt["officer"] = user["username"]
     dt_from = _parse_dt(date_from)
     dt_to = _parse_dt(date_to)
     if dt_from or dt_to:
@@ -1425,33 +1489,18 @@ async def list_sessions_full(
             rng["$gte"] = dt_from
         if dt_to:
             rng["$lte"] = dt_to
-        filt["opened_at"] = rng
+        filt["created_at"] = rng
 
-    total = await db.work_sessions.count_documents(filt)
-    open_count = await db.work_sessions.count_documents({**filt, "status": "open"})
-    closed_count = await db.work_sessions.count_documents({**filt, "status": "closed"})
+    total = await db.cases.count_documents(filt)
+    investigating_count = await db.cases.count_documents({**filt, "status": "investigating"})
+    closed_count = await db.cases.count_documents({**filt, "status": "closed"})
 
     items: list[dict] = []
-    async for s in db.work_sessions.find(filt).sort("opened_at", -1).skip(skip).limit(limit):
-        row = _s_session(s)
-        officer_doc = await db.users.find_one({"username": s.get("officer")}) or {}
-        row["officer_info"] = {
-            "username": s.get("officer", ""),
-            "full_name": officer_doc.get("full_name") or s.get("officer_full_name") or s.get("officer", ""),
-            "avatar_url": officer_doc.get("avatar_url", "") or "",
-            "role": officer_doc.get("role", ""),
-        }
-        opened = s.get("opened_at")
-        closed = s.get("closed_at")
-        duration_seconds = None
-        if isinstance(opened, datetime):
-            end = closed if isinstance(closed, datetime) else datetime.utcnow()
-            duration_seconds = int((end - opened).total_seconds())
-        row["duration_seconds"] = duration_seconds
-
+    async for s in db.cases.find(filt).sort("created_at", -1).skip(skip).limit(limit):
+        row = _s_case(s)
         if include_detainees:
             detainees = []
-            async for d in db.detainees.find({"session_id": s["_id"]}).sort("created_at", 1):
+            async for d in db.detainees.find({"case_id": s["_id"]}).sort("created_at", 1):
                 detainees.append({
                     "id": str(d["_id"]),
                     "personal_id": d.get("personal_id", "") or d.get("cccd_number", "") or "",
@@ -1497,21 +1546,26 @@ async def list_sessions_full(
     }
 
 
-@app.get("/api/sessions")
-async def list_sessions(
-    status: Optional[str] = Query(None, pattern=r"^(open|closed)$"),
-    mine_only: bool = Query(False),
+@app.get("/api/cases")
+async def list_cases(
+    status: Optional[str] = Query(None, pattern=r"^(investigating|closed)$"),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, max_length=200),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     user: dict = Depends(get_current_user),
 ):
+    """Danh sach vu an cho tab Dau vet hien truong.
+
+    `q`: tim trong ma vu an / ten vu an / dia diem (khong phan biet hoa thuong).
+    `date_from`/`date_to`: loc theo THOI DIEM XAY RA vu an (occurred_at), khong
+    phai luc lap ho so — do la moc can bo tim theo.
+    Bo `mine_only`/`officer`: vu an khong thuoc rieng can bo nao, ai cung xem duoc.
+    """
     filt: dict = {}
     if status:
         filt["status"] = status
-    if mine_only or user.get("role") != "admin":
-        filt["officer"] = user["username"]
     dt_from = _parse_dt(date_from)
     dt_to = _parse_dt(date_to)
     if dt_from or dt_to:
@@ -1520,47 +1574,50 @@ async def list_sessions(
             rng["$gte"] = dt_from
         if dt_to:
             rng["$lte"] = dt_to
-        filt["opened_at"] = rng
-    total = await db.work_sessions.count_documents(filt)
-    items = [
-        _s_session(d)
-        async for d in db.work_sessions.find(filt).sort("opened_at", -1).skip(skip).limit(limit)
+        filt["occurred_at"] = rng
+    if q and q.strip():
+        needle = re.escape(q.strip())
+        filt["$or"] = [
+            {"code": {"$regex": needle, "$options": "i"}},
+            {"name": {"$regex": needle, "$options": "i"}},
+            {"location": {"$regex": needle, "$options": "i"}},
+        ]
+    total = await db.cases.count_documents(filt)
+    docs = [
+        d async for d in db.cases.find(filt).sort("created_at", -1).skip(skip).limit(limit)
     ]
-    # So dau vet hien truong moi phien -> cot "So dau vet" tren bang chon vu an.
-    # ponytail: 1 aggregate cho ca trang; doi cach neu limit len hang nghin.
-    if items:
-        oids = [_oid(i["id"]) for i in items]
-        counts = {}
-        async for r in db.scene_traces.aggregate([
-            {"$match": {"session_id": {"$in": oids}}},
-            {"$group": {"_id": "$session_id", "n": {"$sum": 1}}},
-        ]):
-            counts[str(r["_id"])] = r["n"]
-        for i in items:
-            i["scene_count"] = counts.get(i["id"], 0)
+    counts = await _case_detainee_counts([d["_id"] for d in docs])
+    items = []
+    for d in docs:
+        row = _s_case(d)
+        row["detainee_count"] = counts.get(row["id"], 0)
+        items.append(row)
     return {"total": total, "items": items, "skip": skip, "limit": limit}
 
 
-async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
+async def _build_case_report_xlsx(case_doc: dict) -> tuple[str, str]:
     wb = Workbook()
     ws1 = wb.active
-    ws1.title = "Thông tin phiên"
-    opened = session_doc.get("opened_at")
-    closed = session_doc.get("closed_at")
+    ws1.title = "Thông tin vụ án"
 
     def _fmt_dt(dt):
         return dt.strftime("%d/%m/%Y %H:%M") if isinstance(dt, datetime) else ""
 
+    n_detainees = await db.detainees.count_documents({"case_id": case_doc["_id"]})
+    n_traces = await db.scene_traces.count_documents({"case_id": case_doc["_id"]})
     rows = [
-        ["PHIẾU BÁO CÁO PHIÊN LÀM VIỆC"],
+        ["PHIẾU BÁO CÁO VỤ ÁN"],
         [],
-        ["Mã phiên:", session_doc.get("code", "")],
-        ["Cán bộ:", session_doc.get("officer_full_name", "") or session_doc.get("officer", "")],
-        ["Địa điểm:", session_doc.get("location", "") or ""],
-        ["Ghi chú:", session_doc.get("note", "") or ""],
-        ["Mở lúc:", _fmt_dt(opened)],
-        ["Đóng lúc:", _fmt_dt(closed)],
-        ["Tổng hồ sơ:", session_doc.get("detainee_count", 0)],
+        ["Mã vụ án:", case_doc.get("code", "")],
+        ["Tên vụ án:", case_doc.get("name", "") or ""],
+        ["Địa điểm:", case_doc.get("location", "") or ""],
+        ["Thời gian xảy ra:", _fmt_dt(case_doc.get("occurred_at"))],
+        ["Trạng thái:", "Đã kết thúc" if case_doc.get("status") == "closed" else "Đang điều tra"],
+        ["Ghi chú:", case_doc.get("note", "") or ""],
+        ["Lập hồ sơ lúc:", _fmt_dt(case_doc.get("created_at"))],
+        ["Kết thúc lúc:", _fmt_dt(case_doc.get("closed_at"))],
+        ["Tổng hồ sơ:", n_detainees],
+        ["Tổng dấu vết:", n_traces],
     ]
     for r in rows:
         ws1.append(r)
@@ -1571,7 +1628,7 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
     headers = ["STT", "Số định danh", "Họ và tên", "Giới tính", "Ngày sinh", "Số CCCD", "Quê quán", "Buồng", "Ghi chú"]
     ws2.append(headers)
     i = 0
-    async for d in db.detainees.find({"session_id": session_doc["_id"]}).sort("created_at", 1):
+    async for d in db.detainees.find({"case_id": case_doc["_id"]}).sort("created_at", 1):
         i += 1
         dob_str = d.get("dob") or ""
         gender = "Nam" if d.get("gender") == "male" else "Nữ"
@@ -1591,21 +1648,41 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
         ws2.column_dimensions[letter].width = 18
 
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    filename = f"session_{session_doc.get('code','')}_{ts}.xlsx"
+    filename = f"case_{case_doc.get('code','')}_{ts}.xlsx"
     filepath = os.path.join(REPORTS_DIR, filename)
     wb.save(filepath)
     return filepath, filename
 
 
-@app.get("/api/sessions/{session_id}")
-async def get_session_detail(session_id: str, user: dict = Depends(get_current_user)):
-    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+# Ảnh cần cho panel "HỒ SƠ ĐỐI TƯỢNG" của màn Phân tích đối sánh: chân dung +
+# 10 ảnh vân lăn. CỐ Ý không lấy photos.fp_templates (base64 nặng) và các ảnh
+# khác — panel không dùng, kéo về chỉ phình payload.
+_CASE_DETAINEE_PROJECTION = {
+    "code": 1, "personal_id": 1, "full_name": 1, "cccd_number": 1, "gender": 1,
+    "dob": 1, "cell_code": 1, "created_at": 1,
+    "photo_url": 1, "photos.portrait_front": 1, "photos.cccd_front": 1,
+    **{f"photos.{k}": 1 for k in FP_KEY_BY_CODE.values()},
+}
+
+
+@app.get("/api/cases/{case_id}")
+async def get_case_detail(case_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.cases.find_one({"_id": _oid(case_id)})
     if not doc:
-        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
-    if doc.get("officer") != user["username"] and user.get("role") != "admin":
-        raise HTTPException(403, "Bạn không có quyền xem phiên này.")
+        raise HTTPException(404, "Không tìm thấy vụ án.")
     detainees = []
-    async for d in db.detainees.find({"session_id": doc["_id"]}).sort("created_at", 1):
+    async for d in (
+        db.detainees
+        .find({"case_id": doc["_id"]}, _CASE_DETAINEE_PROJECTION)
+        .sort("created_at", 1)
+    ):
+        photos = d.get("photos") or {}
+        # fingerprints: mã ngón -> URL ảnh vân lăn (thiếu ngón nào thì "" để FE
+        # biết mà hiện ô rỗng, không phải ảnh hỏng).
+        fingerprints = {
+            code: (photos.get(key) or "")
+            for code, key in FP_KEY_BY_CODE.items()
+        }
         detainees.append({
             "id": str(d["_id"]),
             "code": d.get("code", ""),
@@ -1616,24 +1693,27 @@ async def get_session_detail(session_id: str, user: dict = Depends(get_current_u
             "dob": (d["dob"].isoformat() if isinstance(d.get("dob"), datetime) else d.get("dob")) or None,
             "cell_code": d.get("cell_code", "") or "",
             "created_at": d["created_at"].isoformat() if isinstance(d.get("created_at"), datetime) else None,
+            "portrait": photos.get("portrait_front") or photos.get("cccd_front") or d.get("photo_url") or "",
+            "fingerprints": fingerprints,
+            "fp_count": sum(1 for v in fingerprints.values() if v),
         })
-    out = _s_session(doc)
+    out = _s_case(doc)
     out["detainees"] = detainees
+    out["detainee_count"] = len(detainees)
+    out["trace_count"] = await db.scene_traces.count_documents({"case_id": doc["_id"]})
     return out
 
 
-@app.post("/api/sessions/{session_id}/sync-log")
-async def log_session_sync(
-    session_id: str,
+@app.post("/api/cases/{case_id}/sync-log")
+async def log_case_sync(
+    case_id: str,
     body: SyncLogBody,
     request: Request,
     user: dict = Depends(get_current_user),
 ):
-    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    doc = await db.cases.find_one({"_id": _oid(case_id)})
     if not doc:
-        raise HTTPException(404, "Không tìm thấy phiên làm việc")
-    if doc.get("officer") != user["username"] and user.get("role") != "admin":
-        raise HTTPException(403, "Bạn không có quyền ghi log cho phiên này.")
+        raise HTTPException(404, "Không tìm thấy vụ án.")
 
     def _pack(items):
         return [
@@ -1662,48 +1742,24 @@ async def log_session_sync(
         request,
         user,
         "sync",
-        "work_session",
+        "case",
         doc.get("code", ""),
         data,
-        ref_id=session_id,
-        session_id=doc["_id"],
+        ref_id=case_id,
+        case_id=doc["_id"],
     )
     return {"ok": True}
 
 
-@app.post("/api/sessions/{session_id}/close")
-async def close_session(session_id: str, request: Request, user: dict = Depends(get_current_user)):
-    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
-    if not doc:
-        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
-    if doc.get("officer") != user["username"] and user.get("role") != "admin":
-        raise HTTPException(403, "Bạn không có quyền đóng phiên này.")
-    if doc.get("status") != "open":
-        raise HTTPException(409, "Phiên này đã đóng.")
-    now = datetime.utcnow()
-    await db.work_sessions.update_one(
-        {"_id": doc["_id"]},
-        {"$set": {
-            "status": "closed",
-            "closed_at": now,
-        }},
-    )
-    await _log(
-        request, user, "update", "work_session", doc.get("code", ""),
-        {"action": "close", "detainee_count": doc.get("detainee_count", 0)},
-        ref_id=session_id, session_id=doc["_id"],
-    )
-    return {"ok": True, "closed_at": now.isoformat()}
+# Kết thúc vụ án: PATCH /api/cases/{id} với status="closed". Không còn /close riêng.
 
 
-@app.get("/api/sessions/{session_id}/report")
-async def download_session_report(session_id: str, user: dict = Depends(get_current_user)):
-    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+@app.get("/api/cases/{case_id}/report")
+async def download_case_report(case_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.cases.find_one({"_id": _oid(case_id)})
     if not doc:
-        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
-    if doc.get("officer") != user["username"] and user.get("role") != "admin":
-        raise HTTPException(403, "Bạn không có quyền tải báo cáo phiên này.")
-    _, filename = await _build_session_report_xlsx(doc)
+        raise HTTPException(404, "Không tìm thấy vụ án.")
+    _, filename = await _build_case_report_xlsx(doc)
     filepath = os.path.join(REPORTS_DIR, filename)
     if not os.path.exists(filepath):
         raise HTTPException(500, "Tạo báo cáo thất bại.")
@@ -1716,25 +1772,34 @@ async def download_session_report(session_id: str, user: dict = Depends(get_curr
     )
 
 
-@app.delete("/api/sessions/{session_id}")
-async def delete_session(session_id: str, request: Request, user: dict = Depends(get_current_user)):
-    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+@app.delete("/api/cases/{case_id}")
+async def delete_case(case_id: str, request: Request, user: dict = Depends(get_current_user)):
+    """Xoá vụ án kèm toàn bộ hồ sơ và dấu vết bên trong. Chỉ vụ đang điều tra."""
+    _deny_admin_write(user, "xoá")
+    doc = await db.cases.find_one({"_id": _oid(case_id)})
     if not doc:
-        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
-    if doc.get("officer") != user["username"] and user.get("role") != "admin":
-        raise HTTPException(403, "Bạn không có quyền xoá phiên này.")
-    if doc.get("status") != "open" and user.get("role") != "admin":
-        raise HTTPException(400, "Chỉ có thể xoá phiên đang mở, chưa đóng.")
-    # Xoá toàn bộ hồ sơ can phạm thuộc phiên này
-    cursor = db.detainees.find({"session_id": doc["_id"]}, {"personal_id": 1})
+        raise HTTPException(404, "Không tìm thấy vụ án.")
+    if doc.get("status") != "investigating":
+        raise HTTPException(400, "Chỉ có thể xoá vụ án đang điều tra. Vụ đã kết thúc là hồ sơ lưu.")
+    cursor = db.detainees.find({"case_id": doc["_id"]}, {"personal_id": 1})
     deleted_count = 0
     async for d in cursor:
         await db.detainees.delete_one({"_id": d["_id"]})
         deleted_count += 1
-        await _log(request, user, "delete", "detainee", d.get("personal_id", str(d["_id"])), ref_id=str(d["_id"]), session_id=doc["_id"])
-    await db.work_sessions.delete_one({"_id": doc["_id"]})
-    await _log(request, user, "delete", "work_session", doc.get("code", ""), ref_id=session_id, session_id=doc["_id"], data={"deleted_detainees": deleted_count})
-    return {"ok": True, "deleted_detainees": deleted_count}
+        await _log(request, user, "delete", "detainee", d.get("personal_id", str(d["_id"])), ref_id=str(d["_id"]), case_id=doc["_id"])
+    # Dấu vết hiện trường: xoá cả file ảnh, không để rác trong uploads/scene.
+    deleted_traces = 0
+    async for t in db.scene_traces.find({"case_id": doc["_id"]}, {"url": 1}):
+        _delete_scene_file(t.get("url"))
+        deleted_traces += 1
+    await db.scene_traces.delete_many({"case_id": doc["_id"]})
+    await db.cases.delete_one({"_id": doc["_id"]})
+    await _log(
+        request, user, "delete", "case", doc.get("code", ""),
+        ref_id=case_id, case_id=doc["_id"],
+        data={"deleted_detainees": deleted_count, "deleted_traces": deleted_traces},
+    )
+    return {"ok": True, "deleted_detainees": deleted_count, "deleted_traces": deleted_traces}
 
 
 # ==================== PHOTO UPLOAD ====================
@@ -2170,8 +2235,8 @@ async def cccd_upload_image(request: Request, file: UploadFile = File(...)):
 
 
 # ==================== DẤU VẾT HIỆN TRƯỜNG (ảnh vụ án) ====================
-# Vụ án = work_session (không tách collection riêng). Mỗi ảnh là 1 doc trong
-# scene_traces, seq tự tăng trong phiên => hiển thị "Ảnh 001", "Ảnh 002"...
+# Mỗi ảnh là 1 doc trong scene_traces, thuộc 1 vụ án (collection `cases`).
+# seq tự tăng trong vụ án => hiển thị "Ảnh 001", "Ảnh 002"...
 # Nguồn ảnh: máy ngoài bắn sang (/api/scene/push, xác thực bằng header) hoặc
 # cán bộ tự chụp/chọn file trên UI (/api/scene/traces, xác thực bằng JWT).
 SCENE_API_KEY = os.getenv("SCENE_API_KEY", "")
@@ -2180,6 +2245,20 @@ os.makedirs(SCENE_UPLOAD_DIR, exist_ok=True)
 
 SCENE_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 SCENE_MAX_BYTES = 10 * 1024 * 1024          # ảnh hiện trường thường to hơn ảnh chân dung
+
+
+def _delete_scene_file(url: Optional[str]) -> None:
+    """Xoá file ảnh hiện trường trên đĩa. Lỗi xoá file không được làm hỏng API.
+
+    Chỉ nhận url trong /uploads/scene/ và lấy basename để không đi ra ngoài thư mục.
+    """
+    url = url or ""
+    if not url.startswith("/uploads/scene/"):
+        return
+    try:
+        os.remove(os.path.join(SCENE_UPLOAD_DIR, os.path.basename(url)))
+    except OSError:
+        pass
 
 
 def _require_scene_key(request: Request) -> None:
@@ -2192,7 +2271,7 @@ def _s_scene(doc: dict) -> dict:
         return doc
     out = dict(doc)
     out["id"] = str(out.pop("_id"))
-    out["session_id"] = str(out.get("session_id") or "")
+    out["case_id"] = str(out.get("case_id") or "")
     for k in ("created_at", "captured_at"):
         v = out.get(k)
         if isinstance(v, datetime):
@@ -2202,11 +2281,11 @@ def _s_scene(doc: dict) -> dict:
     return out
 
 
-async def _next_scene_seq(session_oid) -> int:
-    """Số thứ tự ảnh trong phiên. Dùng counters như _next_session_code để 2 máy
+async def _next_scene_seq(case_oid) -> int:
+    """Số thứ tự ảnh trong vụ án. Dùng counters như _next_case_code để 2 máy
     bắn ảnh cùng lúc không nhận trùng seq."""
     doc = await db.counters.find_one_and_update(
-        {"_id": f"scene_seq_{session_oid}"},
+        {"_id": f"scene_seq_{case_oid}"},
         {"$inc": {"seq": 1}},
         upsert=True,
         return_document=True,
@@ -2230,7 +2309,7 @@ async def _save_scene_image(data: bytes, ext: str) -> tuple[str, str]:
 
 
 async def _insert_scene_trace(
-    session_doc: dict,
+    case_doc: dict,
     url: str,
     size: int,
     ext: str,
@@ -2245,8 +2324,8 @@ async def _insert_scene_trace(
 ) -> dict:
     now = datetime.utcnow()
     doc = {
-        "session_id": session_doc["_id"],
-        "seq": await _next_scene_seq(session_doc["_id"]),
+        "case_id": case_doc["_id"],
+        "seq": await _next_scene_seq(case_doc["_id"]),
         "url": url,
         "size": size,
         "mime": f"image/{'jpeg' if ext in ('.jpg', '.jpeg') else ext.lstrip('.')}",
@@ -2267,33 +2346,31 @@ async def _insert_scene_trace(
     return doc
 
 
-async def _scene_session_or_400(session_id: Optional[str], username: str) -> dict:
-    """Ảnh hiện trường BẮT BUỘC thuộc 1 phiên. Có session_id thì dùng, không có
-    thì lấy phiên đang mở; không có phiên nào mở thì báo cần khởi tạo phiên."""
-    if session_id:
-        doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+async def _scene_case_or_400(case_id: Optional[str]) -> dict:
+    """Ảnh hiện trường BẮT BUỘC thuộc 1 vụ án. Có case_id thì dùng, không có thì
+    lấy vụ đang điều tra gần nhất (máy ngoài không biết id vụ án)."""
+    if case_id:
+        doc = await db.cases.find_one({"_id": _oid(case_id)})
         if not doc:
-            raise HTTPException(400, "Phiên làm việc không tồn tại.")
+            raise HTTPException(400, "Vụ án không tồn tại.")
         return doc
-    doc = await _get_open_session_or_none(username) if username else None
+    doc = await _latest_open_case_or_none()
     if not doc:
-        doc = await db.work_sessions.find_one({"status": "open"})
-    if not doc:
-        raise HTTPException(409, "Chưa có phiên làm việc nào đang mở. Cần khởi tạo phiên trước khi thêm dấu vết hiện trường.")
+        raise HTTPException(409, "Chưa có vụ án nào đang điều tra. Cần tạo vụ án trước khi thêm dấu vết hiện trường.")
     return doc
 
 
 @app.get("/api/scene/health")
 async def scene_health(request: Request):
-    """Máy ngoài tự kiểm tra kết nối + xem có phiên nào đang mở để bắn ảnh vào."""
+    """Máy ngoài tự kiểm tra kết nối + xem có vụ án nào đang điều tra để bắn ảnh vào."""
     _require_scene_key(request)
-    sess = await db.work_sessions.find_one({"status": "open"})
+    case = await _latest_open_case_or_none()
     return {
         "ok": True,
-        "has_open_session": bool(sess),
-        "session_id": str(sess["_id"]) if sess else None,
-        "session_code": (sess or {}).get("code"),
-        "case_name": (sess or {}).get("case_name", ""),
+        "has_open_case": bool(case),
+        "case_id": str(case["_id"]) if case else None,
+        "case_code": (case or {}).get("code"),
+        "case_name": (case or {}).get("name", ""),
         "max_bytes": SCENE_MAX_BYTES,
         "allowed_ext": sorted(SCENE_ALLOWED_EXT),
     }
@@ -2303,7 +2380,7 @@ async def scene_health(request: Request):
 async def scene_push(
     request: Request,
     file: Optional[UploadFile] = File(default=None),
-    session_id: Optional[str] = Form(default=None),
+    case_id: Optional[str] = Form(default=None),
     note: str = Form(default=""),
     device_id: str = Form(default=""),
 ):
@@ -2314,7 +2391,7 @@ async def scene_push(
     if file is not None:
         data = await file.read()
         ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
-        sid, note_in, dev = session_id, note, device_id
+        cid, note_in, dev = case_id, note, device_id
     else:
         try:
             body = await request.json()
@@ -2330,37 +2407,43 @@ async def scene_push(
         except Exception:
             raise HTTPException(400, "image_b64 không phải base64 hợp lệ")
         ext = os.path.splitext(body.get("filename") or "")[1].lower() or ".jpg"
-        sid = body.get("session_id") or session_id
+        cid = body.get("case_id") or case_id
         note_in = body.get("note") or ""
         dev = body.get("device_id") or ""
 
-    session_doc = await _scene_session_or_400(sid, "")
+    case_doc = await _scene_case_or_400(cid)
+    _ensure_case_editable(case_doc)
     url, _ = await _save_scene_image(data, ext)
     doc = await _insert_scene_trace(
-        session_doc, url, len(data), ext,
+        case_doc, url, len(data), ext,
         source="push", note=note_in, device_id=dev, created_by="",
     )
+    # Ảnh máy ngoài đẩy sang cũng đối sánh y như ảnh up qua UI. Thiếu dòng này
+    # thì /api/scene/push và /api/scene/traces lệch nhau: cùng là dấu vết trong
+    # cùng vụ án mà một đường có kết quả, một đường im lặng không có gì.
+    _spawn_match(doc, case_doc)
     return _s_scene(doc)
 
 
 @app.get("/api/scene/traces")
 async def list_scene_traces(
-    session_id: Optional[str] = Query(default=None),
+    case_id: Optional[str] = Query(default=None),
     user: dict = Depends(get_current_user),
 ):
-    session_doc = await _scene_session_or_400(session_id, user["username"])
+    case_doc = await _scene_case_or_400(case_id)
     items = [
         _s_scene(d)
-        async for d in db.scene_traces.find({"session_id": session_doc["_id"]}).sort([("seq", 1)])
+        async for d in db.scene_traces.find({"case_id": case_doc["_id"]}).sort([("seq", 1)])
     ]
     return {
-        "session": {
-            "id": str(session_doc["_id"]),
-            "code": session_doc.get("code", ""),
-            "case_name": session_doc.get("case_name", ""),
-            "status": session_doc.get("status", ""),
-            "opened_at": (session_doc.get("opened_at").isoformat()
-                          if isinstance(session_doc.get("opened_at"), datetime) else None),
+        "case": {
+            "id": str(case_doc["_id"]),
+            "code": case_doc.get("code", ""),
+            "name": case_doc.get("name", ""),
+            "location": case_doc.get("location", ""),
+            "status": case_doc.get("status", ""),
+            "occurred_at": (case_doc.get("occurred_at").isoformat()
+                            if isinstance(case_doc.get("occurred_at"), datetime) else None),
         },
         "items": items,
         "total": len(items),
@@ -2371,23 +2454,28 @@ async def list_scene_traces(
 async def create_scene_trace(
     request: Request,
     file: UploadFile = File(...),
-    session_id: Optional[str] = Form(default=None),
+    case_id: Optional[str] = Form(default=None),
     note: str = Form(default=""),
     source: str = Form(default="upload"),
     user: dict = Depends(get_current_user),
 ):
     """Cán bộ chụp camera hoặc chọn file trên UI."""
-    session_doc = await _scene_session_or_400(session_id, user["username"])
+    case_doc = await _scene_case_or_400(case_id)
+    _ensure_case_editable(case_doc)
     data = await file.read()
     ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
     url, _ = await _save_scene_image(data, ext)
     doc = await _insert_scene_trace(
-        session_doc, url, len(data), ext,
+        case_doc, url, len(data), ext,
         source="camera" if source == "camera" else "upload",
         note=note, created_by=user["username"],
     )
     await _log(request, user, "create", "scene_trace", f"#{doc['seq']}",
-               ref_id=str(doc["_id"]), session_id=session_doc["_id"])
+               ref_id=str(doc["_id"]), case_id=case_doc["_id"])
+    # Up ảnh lên là đối sánh ngay với mọi vân tay của mọi đối tượng trong vụ án.
+    # Chạy nền: HBIE extract + match cả vụ có thể mất vài chục giây, cán bộ không
+    # phải chờ upload xong mới thấy ảnh hiện lên.
+    _spawn_match(doc, case_doc)
     return _s_scene(doc)
 
 
@@ -2414,7 +2502,7 @@ async def update_scene_trace(
     )
     doc["note"] = body.note.strip()
     await _log(request, user, "update", "scene_trace", f"#{doc.get('seq')}",
-               ref_id=trace_id, session_id=doc.get("session_id"))
+               ref_id=trace_id, case_id=doc.get("case_id"))
     return _s_scene(doc)
 
 
@@ -2428,16 +2516,256 @@ async def delete_scene_trace(
     if not doc:
         raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
     await db.scene_traces.delete_one({"_id": doc["_id"]})
-    # Xoá luôn file trên đĩa; lỗi xoá file không được làm hỏng API.
-    url = doc.get("url") or ""
-    if url.startswith("/uploads/scene/"):
-        try:
-            os.remove(os.path.join(SCENE_UPLOAD_DIR, os.path.basename(url)))
-        except OSError:
-            pass
+    _delete_scene_file(doc.get("url"))
     await _log(request, user, "delete", "scene_trace", f"#{doc.get('seq')}",
-               ref_id=trace_id, session_id=doc.get("session_id"))
+               ref_id=trace_id, case_id=doc.get("case_id"))
     return {"ok": True}
+
+
+# ==================== ĐỐI SÁNH DẤU VẾT HIỆN TRƯỜNG (engine HBIE) ====================
+# Upload 1 dấu vết -> đối sánh với TẤT CẢ vân tay của MỌI đối tượng trong CÙNG vụ án.
+#
+# Đặc trưng (feature) được cache: mỗi ảnh chỉ gọi /api/extract 1 lần trong đời.
+#   - detainees.fp_features.<mã ngón> : đặc trưng 10 ảnh vân lăn của đối tượng
+#   - scene_traces.feature            : đặc trưng của ảnh dấu vết
+# Kết quả nằm ở collection scene_matches, mỗi bản ghi = 1 cặp (dấu vết × ngón).
+
+# Ảnh dấu vết dơ/mờ nên HBIE hay trả lỗi extract — chạy nền, không chặn upload.
+_match_tasks: set = set()
+
+
+def _spawn_match(trace_doc: dict, case_doc: dict) -> None:
+    """Chạy đối sánh ở background. Giữ ref để task không bị GC giữa đường."""
+    if not hbie_service.FEATURE_HBIE_MATCH:
+        return
+    task = asyncio.create_task(_match_trace_safe(trace_doc, case_doc))
+    _match_tasks.add(task)
+    task.add_done_callback(_match_tasks.discard)
+
+
+def _spawn_case_rematch(case_doc: dict) -> None:
+    """Đối sánh lại MỌI dấu vết của vụ án, chạy nền.
+
+    Gọi khi vụ án vừa THÊM đối tượng (hoặc hồ sơ vừa được bổ sung ảnh vân tay):
+    các dấu vết cũ chưa từng so với vân tay của người mới, không chạy lại thì cán
+    bộ phải tự bấm "Phân tích lại" mới thấy.
+    """
+    if not hbie_service.FEATURE_HBIE_MATCH:
+        return
+    task = asyncio.create_task(_rematch_case_safe(case_doc))
+    _match_tasks.add(task)
+    task.add_done_callback(_match_tasks.discard)
+
+
+async def _rematch_case_safe(case_doc: dict) -> None:
+    # Tuần tự từng dấu vết: mỗi lượt là một loạt request sang HBIE, bắn song song
+    # chỉ làm service ngoài chịu tải vô ích.
+    async for tr in db.scene_traces.find({"case_id": case_doc["_id"]}).sort("seq", 1):
+        await _match_trace_safe(tr, case_doc)
+
+
+async def _match_trace_safe(trace_doc: dict, case_doc: dict) -> None:
+    try:
+        await _match_trace(trace_doc, case_doc)
+    except Exception as e:
+        # Lỗi đối sánh KHÔNG được làm chết upload: ghi trạng thái để UI hiện lý do
+        # và cán bộ bấm "Đối sánh lại" được.
+        await db.scene_traces.update_one(
+            {"_id": trace_doc["_id"]},
+            {"$set": {"match_status": "error", "match_error": str(e)[:300],
+                      "matched_at": datetime.utcnow()}},
+        )
+
+
+async def _feature_of_image(url: str, *, finger_code: str = "", type_: int) -> Optional[dict]:
+    """Đọc file ảnh local rồi nhờ HBIE trích đặc trưng. Ảnh lỗi -> None (bỏ qua ngón đó)."""
+    path = _resolve_upload_path(url)
+    if not path:
+        return None
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return None
+    try:
+        return await hbie_service.extract(data, finger_code=finger_code, type_=type_)
+    except hbie_service.HbieError:
+        return None
+
+
+async def _trace_feature(trace_doc: dict) -> str:
+    """Đặc trưng của ảnh dấu vết, cache vào scene_traces.feature.
+
+    type = LATENT: dấu vết hiện trường chất lượng thấp, gán sai type là HBIE
+    lọc mất cặp đối sánh. pos để trống vì chưa biết dấu vết là ngón nào.
+    """
+    if trace_doc.get("feature"):
+        return trace_doc["feature"]
+    out = await _feature_of_image(trace_doc.get("url", ""), type_=hbie_service.TYPE_LATENT)
+    if not out:
+        raise hbie_service.HbieError("Không trích được đặc trưng từ ảnh dấu vết này.")
+    await db.scene_traces.update_one(
+        {"_id": trace_doc["_id"]},
+        {"$set": {"feature": out["feature"], "feature_quality": out.get("quality")}},
+    )
+    trace_doc["feature"] = out["feature"]
+    return out["feature"]
+
+
+async def _detainee_features(det: dict) -> dict:
+    """{mã ngón: feature} của 1 đối tượng. Extract ngón nào chưa có rồi cache lại."""
+    photos = det.get("photos") or {}
+    cached = dict(det.get("fp_features") or {})
+    fresh = {}
+    for code, key in FP_KEY_BY_CODE.items():
+        if cached.get(code):
+            continue
+        url = photos.get(key) or ""
+        if not url:
+            continue
+        out = await _feature_of_image(url, finger_code=code, type_=hbie_service.TYPE_ROLL)
+        if out:
+            fresh[code] = out["feature"]
+    if fresh:
+        await db.detainees.update_one(
+            {"_id": det["_id"]},
+            {"$set": {f"fp_features.{c}": v for c, v in fresh.items()}},
+        )
+        cached.update(fresh)
+    return {c: v for c, v in cached.items() if v}
+
+
+async def _match_trace(trace_doc: dict, case_doc: dict) -> dict:
+    """Đối sánh 1 dấu vết với mọi ngón của mọi đối tượng trong vụ án.
+
+    Ghi lại các cặp đạt HBIE_KEEP_SCORE trở lên (dưới mức đó là nhiễu). Chạy lại
+    thì xoá kết quả cũ của chính dấu vết này trước, tránh nhân đôi.
+    """
+    await db.scene_traces.update_one(
+        {"_id": trace_doc["_id"]}, {"$set": {"match_status": "running", "match_error": ""}}
+    )
+    feature = await _trace_feature(trace_doc)
+
+    pairs = []
+    async for det in db.detainees.find({"case_id": case_doc["_id"]}).sort("created_at", 1):
+        feats = await _detainee_features(det)
+        for code, feat in feats.items():
+            try:
+                score = await hbie_service.match(feature, feat)
+            except hbie_service.HbieError:
+                continue                      # 1 ngón lỗi không được làm hỏng cả vụ
+            if score < hbie_service.HBIE_KEEP_SCORE:
+                continue
+            pairs.append({
+                "case_id": case_doc["_id"],
+                "trace_id": trace_doc["_id"],
+                "trace_seq": trace_doc.get("seq"),
+                "detainee_id": det["_id"],
+                "detainee_name": det.get("full_name", ""),
+                "detainee_code": det.get("code", ""),
+                "finger_code": code,
+                "score": score,
+                "percent": round(score / 10.0, 1),      # thang 0..1000 -> %
+                "verdict": hbie_service.verdict_of(score),
+                "engine": "hbie",
+                "created_at": datetime.utcnow(),
+            })
+
+    pairs.sort(key=lambda p: p["score"], reverse=True)
+    await db.scene_matches.delete_many({"trace_id": trace_doc["_id"]})
+    if pairs:
+        await db.scene_matches.insert_many(pairs)
+    best = pairs[0] if pairs else None
+    await db.scene_traces.update_one(
+        {"_id": trace_doc["_id"]},
+        {"$set": {
+            "match_status": "done",
+            "match_error": "",
+            "matched_at": datetime.utcnow(),
+            "match_count": len(pairs),
+            "best_score": best["score"] if best else 0,
+            "best_verdict": best["verdict"] if best else "none",
+        }},
+    )
+    return {"count": len(pairs), "best": best["score"] if best else 0}
+
+
+def _s_match(doc: dict) -> dict:
+    out = dict(doc)
+    out["id"] = str(out.pop("_id"))
+    for k in ("case_id", "trace_id", "detainee_id"):
+        if out.get(k) is not None:
+            out[k] = str(out[k])
+    if isinstance(out.get("created_at"), datetime):
+        out["created_at"] = out["created_at"].isoformat()
+    return out
+
+
+@app.get("/api/scene/matches")
+async def list_scene_matches(
+    case_id: Optional[str] = Query(default=None),
+    trace_id: Optional[str] = Query(default=None),
+    user: dict = Depends(get_current_user),
+):
+    """Bảng KẾT QUẢ ĐỐI SÁNH của 1 vụ án (hoặc của 1 dấu vết), điểm cao trước."""
+    case_doc = await _scene_case_or_400(case_id)
+    q = {"case_id": case_doc["_id"]}
+    if trace_id:
+        q["trace_id"] = _oid(trace_id)
+    items = [
+        _s_match(d)
+        async for d in db.scene_matches.find(q).sort([("score", -1), ("trace_seq", 1)])
+    ]
+    # URL ảnh dấu vết để UI hiện thumbnail mà không phải gọi thêm request.
+    traces = {
+        d["_id"]: d
+        async for d in db.scene_traces.find({"case_id": case_doc["_id"]}, {"url": 1, "seq": 1})
+    }
+    for it in items:
+        tr = traces.get(_oid(it["trace_id"]))
+        it["trace_url"] = (tr or {}).get("url", "")
+    return {
+        "items": items,
+        "total": len(items),
+        "config": hbie_service.config(),
+    }
+
+
+@app.post("/api/scene/traces/{trace_id}/match")
+async def rematch_scene_trace(
+    trace_id: str,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Đối sánh lại 1 dấu vết (ảnh lỗi lúc upload, hoặc vụ án vừa thêm đối tượng mới).
+
+    Chạy đồng bộ để cán bộ thấy kết quả ngay khi bấm — khác lúc upload (chạy nền).
+    """
+    if not hbie_service.FEATURE_HBIE_MATCH:
+        raise HTTPException(503, "Tính năng đối sánh HBIE đang tắt (FEATURE_HBIE_MATCH=0).")
+    doc = await db.scene_traces.find_one({"_id": _oid(trace_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
+    case_doc = await db.cases.find_one({"_id": doc["case_id"]})
+    if not case_doc:
+        raise HTTPException(404, "Không tìm thấy vụ án của dấu vết này.")
+    try:
+        res = await _match_trace(doc, case_doc)
+    except hbie_service.HbieError as e:
+        await db.scene_traces.update_one(
+            {"_id": doc["_id"]},
+            {"$set": {"match_status": "error", "match_error": str(e)[:300]}},
+        )
+        raise HTTPException(502, str(e))
+    await _log(request, user, "match", "scene_trace", f"#{doc.get('seq')}",
+               ref_id=trace_id, case_id=doc.get("case_id"), data=res)
+    return res
+
+
+@app.get("/api/scene/hbie/health")
+async def scene_hbie_health(user: dict = Depends(get_current_user)):
+    """Chẩn đoán kết nối HBIE — dùng khi đối sánh báo lỗi mà chưa rõ do đâu."""
+    return {**await hbie_service.health(), "config": hbie_service.config()}
 
 
 # ==================== WEIGHT SCALE (push từ máy cân ngoài + WS broadcast) ====================
@@ -2518,7 +2846,7 @@ EXCEL_COLS = [
 async def export_xlsx(user: dict = Depends(get_current_user)):
     wb = Workbook()
     ws = wb.active
-    ws.title = "Can pham"
+    ws.title = "Nghi pham"
     ws.append([h for _, h in EXCEL_COLS])
     async for d in db.detainees.find({}).sort("personal_id", 1):
         row = []
@@ -2532,7 +2860,7 @@ async def export_xlsx(user: dict = Depends(get_current_user)):
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    fname = f"can_pham_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    fname = f"nghi_pham_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2593,7 +2921,7 @@ async def import_xlsx(file: UploadFile = File(...), request: Request = None, use
             date_in = _parse_dob(get("date_in"))
             personal_id = (get("personal_id") or "").strip()
             if not personal_id:
-                errors.append(f"Dòng {i}: thiếu mã can phạm (personal_id)")
+                errors.append(f"Dòng {i}: thiếu mã nghi phạm (personal_id)")
                 continue
             doc = {
                 "personal_id": personal_id,
@@ -2687,19 +3015,16 @@ async def stats(user: dict = Depends(get_current_user)):
             "count": row["count"],
         })
 
-    # Admin quản lý phiên chứ không chạy phiên → không có "phiên đang mở" của riêng mình.
-    open_session_doc = None
-    if user.get("role") != "admin":
-        open_session_doc = await _get_open_session_or_none(user["username"])
-    open_session = _s_session(open_session_doc) if open_session_doc else None
-
-    sess_filt: dict = {}
-    if user.get("role") != "admin":
-        sess_filt["officer"] = user["username"]
-    recent_sessions = [
-        _s_session(d)
-        async for d in db.work_sessions.find(sess_filt).sort("opened_at", -1).limit(5)
-    ]
+    # Vụ án không thuộc riêng cán bộ nào nên không lọc theo officer: mọi tài khoản
+    # (kể cả admin) thấy cùng một danh sách.
+    investigating_cases = await db.cases.count_documents({"status": "investigating"})
+    recent_case_docs = [d async for d in db.cases.find({}).sort("created_at", -1).limit(5)]
+    case_counts = await _case_detainee_counts([d["_id"] for d in recent_case_docs])
+    recent_cases = []
+    for d in recent_case_docs:
+        row = _s_case(d)
+        row["detainee_count"] = case_counts.get(row["id"], 0)
+        recent_cases.append(row)
 
     missing_data_count = await db.detainees.count_documents({"$or": [
         {"photos.portrait_front": {"$in": [None, ""]}},
@@ -2731,8 +3056,8 @@ async def stats(user: dict = Depends(get_current_user)):
         "activity_14d": activity_14d,
         "top_charges": top_charges,
         "today_by_officer": officer_stats,
-        "open_session": open_session,
-        "recent_sessions": recent_sessions,
+        "investigating_cases": investigating_cases,
+        "recent_cases": recent_cases,
         "missing_data_count": missing_data_count,
         "recent_activity": recent_activity,
         "recent": recent,
@@ -2763,7 +3088,7 @@ async def list_logs(
     date_to: Optional[str] = Query(None),
     action: Optional[str] = Query(None),
     resource: Optional[str] = Query(None),
-    session_code: Optional[str] = Query(None),
+    case_code: Optional[str] = Query(None),
     actor: Optional[str] = Query(None),
     user: dict = Depends(get_current_user),
 ):
@@ -2785,20 +3110,20 @@ async def list_logs(
         filt["actor"] = user["username"]
     elif actor:
         filt["actor"] = actor
-    if session_code:
-        sess = await db.work_sessions.find_one({"code": session_code})
-        if sess:
-            filt["session_id"] = sess["_id"]
+    if case_code:
+        case = await db.cases.find_one({"code": case_code})
+        if case:
+            filt["case_id"] = case["_id"]
         else:
-            filt["session_id"] = None
+            filt["case_id"] = None
             filt["_impossible"] = True
 
-    session_cache: dict = {}
+    case_cache: dict = {}
     user_cache: dict = {}
     detainee_cache: dict = {}
 
     async def _resolve_detainee(ref_id, ref):
-        # Trả về tên + số căn cước can phạm cho cột báo cáo.
+        # Trả về tên + số căn cước nghi phạm cho cột báo cáo.
         if not ref_id and not ref:
             return None
         key = ref_id or ("ref:" + ref)
@@ -2817,17 +3142,18 @@ async def list_logs(
             } if d else None
         return detainee_cache[key]
 
-    async def _resolve_session(sid):
-        if sid is None:
+    async def _resolve_case(cid):
+        if cid is None:
             return None
-        key = str(sid)
-        if key not in session_cache:
-            s = await db.work_sessions.find_one({"_id": sid})
-            session_cache[key] = {
-                "code": s.get("code", ""),
-                "status": s.get("status", ""),
-            } if s else None
-        return session_cache[key]
+        key = str(cid)
+        if key not in case_cache:
+            c = await db.cases.find_one({"_id": cid})
+            case_cache[key] = {
+                "code": c.get("code", ""),
+                "name": c.get("name", ""),
+                "status": c.get("status", ""),
+            } if c else None
+        return case_cache[key]
 
     async def _resolve_user(uname):
         if not uname:
@@ -2846,10 +3172,10 @@ async def list_logs(
         l["id"] = str(l.pop("_id"))
         if isinstance(l.get("at"), datetime):
             l["at"] = l["at"].isoformat()
-        sid = l.get("session_id")
-        l["session"] = await _resolve_session(sid) if sid is not None else None
-        if sid is not None:
-            l["session_id"] = str(sid)
+        cid = l.get("case_id")
+        l["case"] = await _resolve_case(cid) if cid is not None else None
+        if cid is not None:
+            l["case_id"] = str(cid)
         l["officer"] = await _resolve_user(l.get("actor"))
         l["detainee"] = await _resolve_detainee(l.get("ref_id"), l.get("ref"))
         items.append(l)
