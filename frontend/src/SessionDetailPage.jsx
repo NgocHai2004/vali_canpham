@@ -5,6 +5,10 @@ import { useI18n } from "./i18n";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { toast } from "./Toast";
 
+// Số hồ sơ hiển thị mỗi trang trong bảng "Hồ sơ trong phiên".
+// Vừa đủ 12 dòng để không phải cuộn trên màn hình kiosk.
+const PAGE_SIZE = 12;
+
 function fmtTime(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -35,6 +39,8 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
   const [confirmDeleteSess, setConfirmDeleteSess] = useState(false);
   const [confirmDelRow, setConfirmDelRow] = useState(null);
   const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
+  // Phân trang bảng hồ sơ trong phiên: 12 dòng/trang, không dùng scroll.
+  const [page, setPage] = useState(1);
 
   const load = async () => {
     setLoading(true);
@@ -58,6 +64,8 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
   };
 
   useEffect(() => { load(); }, [sessionId]);
+  // Đổi phiên thì quay về trang 1.
+  useEffect(() => { setPage(1); }, [sessionId]);
 
   const doClose = () => setConfirmClose(true);
   const runClose = async () => {
@@ -141,6 +149,13 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
 
   const isOpen = session.status === "open";
 
+  // Phân trang phía client: backend trả về toàn bộ detainees của phiên.
+  const allDetainees = session.detainees || [];
+  const totalPages = Math.max(1, Math.ceil(allDetainees.length / PAGE_SIZE));
+  // Kẹp về trang hợp lệ (vd vừa xoá dòng cuối cùng của trang cuối).
+  const curPage = Math.min(Math.max(1, page), totalPages);
+  const pageRows = allDetainees.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+
   return (
     <div className="session-detail-page">
       <button className="btn-link session-detail-back" onClick={onBack}>{t("common.back_to_list")}</button>
@@ -222,14 +237,14 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
             </tr>
           </thead>
           <tbody>
-            {(session.detainees || []).length === 0 && (
+            {allDetainees.length === 0 && (
               <tr>
                 <td colSpan={8} className="session-list-empty">
                   {isOpen ? t("session.detail.empty_open") : t("session.detail.empty_closed")}
                 </td>
               </tr>
             )}
-            {(session.detainees || []).map((d) => (
+            {pageRows.map((d) => (
               <tr key={d.id} className="session-list-row" onClick={() => openEditFull(d, session)}>
                 <td className="mono">{d.personal_id || d.code || "—"}</td>
                 <td>{d.full_name}</td>
@@ -247,6 +262,16 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
             ))}
           </tbody>
         </table>
+        {allDetainees.length > 0 && (
+          <div className="session-list-toolbar">
+            <div className="session-list-total">{t("common.total", { n: allDetainees.length })}</div>
+            <div className="pagination">
+              <button disabled={curPage <= 1} onClick={() => setPage(Math.max(1, curPage - 1))}>{t("common.prev")}</button>
+              <span>{t("common.page_of", { page: curPage, total: totalPages })}</span>
+              <button disabled={curPage >= totalPages} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>{t("common.next")}</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {confirmClose && (

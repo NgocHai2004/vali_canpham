@@ -26,6 +26,7 @@
   "capture.actions.save": "Lưu hồ sơ",
   "capture.actions.save_draft": "Lưu nháp",
   "capture.actions.print_namesheet": "In danh bản",
+  "capture.actions.print": "In",
   "capture.actions.update": "Cập nhật hồ sơ",
   "capture.alert.badge_cccd": "Trùng CCCD",
   "capture.alert.badge_fp": "Trùng vân tay",

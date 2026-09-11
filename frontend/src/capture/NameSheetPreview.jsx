@@ -96,23 +96,20 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
     <div ref={ref} className="preview-a4 preview-a4-portrait nsb-sheet">
       {/* ===== Mau so 204: goc tren phai — CA 3 DONG IN NGHIENG ===== */}
       <div className="nsb-formno">
-        <div className="nsb-formno-it">{t("namesheet.form_no_204")}</div>
-        <div className="nsb-formno-it">{t("namesheet.form_circular")}</div>
-        <div className="nsb-formno-it">{t("namesheet.form_date")}</div>
+        <div>{t("namesheet.form_no_204")}</div>
+        <div>{t("namesheet.form_circular")}</div>
+        <div>{t("namesheet.form_date")}</div>
       </div>
 
       {/* ===== KHOI 1 (Mau 204): khung vien ngoai ===== */}
-      <div className="nsb-box">
+      <div className="nsb-box nsb-box-1">
         {/* Hang tren: cot trai (danh ban + so hieu) | cot phai (nhan than) */}
         <div className="nsb-top">
           <div className="nsb-top-l">
             <div className="nsb-title">{t("namesheet.title")}</div>
             <L label={t("namesheet.field.no")} value={val(form.record_sheet_no)} />
-            {/* Mau giay: "Lập ngày:   …/…/…" — 3 o ke cham ngan cach boi "/". */}
             <DatedLine label={t("namesheet.field.made_on")} value={val(form.record_date)} />
             <L label={t("namesheet.field.at")} value={val(unitName)} />
-            {/* DP / TW: mau giay co HAI dong rieng, KHONG hai cham, tick vao
-                dong tuong ung. */}
             <L label={t("namesheet.field.dp")}
               value={form.record_scope === "local" ? "X" : ""} noColon />
             <L label={t("namesheet.field.tw")}
@@ -136,7 +133,6 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
             </div>
             <L label={t("namesheet.field.hometown")} value={val(form.hometown)} />
             <L label={t("namesheet.field.address")} value={val(form.address)} />
-            {/* Mau giay co 1 dong ke trong giua "Nơi thường trú" va "Nơi tạm trú". */}
             <div className="nsb-blank" />
             <L label={t("namesheet.field.temp_address")} value={val(form.temp_address)} />
           </div>
@@ -146,9 +142,9 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
         <div className="nsb-mid">
           <L label={t("namesheet.field.current_address")} value={val(form.current_address)} />
           <div className="nsb-row">
-            <L label={t("namesheet.field.nationality")} value={val(form.nationality)} />
-            <L label={t("namesheet.field.ethnicity")} value={val(form.ethnicity)} />
-            <L label={t("namesheet.field.occupation")} value={val(form.occupation)} />
+            <L label={t("namesheet.field.nationality")} value={val(form.nationality)} noColon />
+            <L label={t("namesheet.field.ethnicity")} value={val(form.ethnicity)} noColon />
+            <L label={t("namesheet.field.occupation")} value={val(form.occupation)} noColon />
           </div>
           <div className="nsb-row">
             <L label={t("namesheet.field.father")} value={val(form.father_name)} />
@@ -161,16 +157,12 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
           </div>
         </div>
 
-        {/* Hang duoi: "Lap ve viec" + "C/T van tay" ben trai, 2 o van tro ben phai.
-            Mau giay: 2 o "Trỏ trái | Trỏ phải" nen TRANG (khong to), dai ten
-            ngon o DINH moi o, phan duoi de trong cho anh van. */}
+        {/* Hang duoi: "Lap ve viec" + "C/T van tay" ben trai, 2 o van tro ben phai. */}
         <div className="nsb-bot">
           <div className="nsb-bot-l">
             <L label={t("namesheet.field.case_about")} value={val(form.case_about)} />
-            {/* Mau giay co 2 dong trong de viet tiep noi dung vu viec. */}
             <div className="nsb-blank" />
             <div className="nsb-blank" />
-            {/* C/T van tay: nhan + net ke DUT (mau giay in net dut ro rang). */}
             <div className="nsb-ct">
               <span>{t("namesheet.field.fp_formula")}</span>
               <span className="nsb-ct-line nsb-ct-solid">{val(form.fp_formula)}</span>
@@ -202,15 +194,10 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
         <div className="nsb-208-top">
           <div className="nsb-208-l">
             <L label={t("namesheet.field.ak_no")} value={val(form.ak_no)} />
-            {/* Vo/chong + cho o: da co o nhap rieng (spouse_name / spouse_residence)
-                nen in duoc du lieu that. */}
             <L label={t("namesheet.field.spouse")} value={val(form.spouse_name)} />
             <L label={t("namesheet.field.residence")} value={val(form.spouse_residence)} />
             <div className="nsb-blank" />
           </div>
-          {/* O dan ma vach: 4 dong chu IN NGHIENG canh giua — "Mẫu số: 208" /
-              "BH theo TT số …/20…/TT-BCA" / "ngày …/…/20…" / "(Nơi dán mã vạch)".
-              Khong co du lieu — can bo dan ma vach that vao day sau khi in. */}
           <div className="nsb-barcode">
             <div className="nsb-formno-it">{t("namesheet.form_no_208")}</div>
             <div className="nsb-formno-it">{t("namesheet.barcode.circular")}</div>
@@ -223,7 +210,6 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
         <div className="nsb-208-mid">
           <L label={t("namesheet.field.face")} value={val(form.face_shape)} />
           <div className="nsb-row">
-            {/* "Chieu cao: 1m__" — chu 1m in san tren mau. */}
             <div className="nsb-line" style={{ flexGrow: 1 }}>
               <span className="nsb-lab">{t("namesheet.field.height")}</span>
               <span className="nsb-1m">{t("namesheet.one_m")}</span>
@@ -238,31 +224,45 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
           <L label={t("namesheet.field.marks")} value={val(form.scars)} />
         </div>
 
-        {/* Hang duoi: 3 anh 3x4 | Di hinh + 1 dong trong + Can bo lap.
-            Nhan TRONG khung anh theo mau: dong 1 "Ảnh 3x4" (thuong), dong 2 ten
-            goc in NGHIENG ("Nghiêng phải 2/3", "Chính diện", "Nghiêng trái 2/3")
-            — thu tu anh lay tu PORTRAITS (dung thu tu tren mau). */}
+        {/* Hang duoi: 3 anh 3x4 | Di hinh + 1 dong trong + Can bo lap. */}
         <div className="nsb-208-bot">
           <div className="nsb-photos">
-            {PORTRAITS.map((p) => (
-              <div key={p.key} className="nsb-photo">
-                <div className="nsb-photo-box">
-                  {/* Nhan in san TRONG khung theo mau: dong 1 "Ảnh 3x4", dong 2
-                      ten goc in nghieng. Anh (neu co) nam phia duoi. */}
-                  <div className="nsb-photo-head">{t("namesheet.photo_3x4")}</div>
-                  <div className="nsb-photo-name">{t(p.labelKey)}</div>
-                  {photos[p.key]
-                    ? <img src={photos[p.key]} alt={t(p.labelKey)} />
-                    : null}
-                </div>
+            <div className="nsb-photo-box">
+              <div className="nsb-photo-placeholder">
+                <div className="nsb-photo-head">{t("namesheet.photo_3x4")}</div>
+                <div className="nsb-photo-name">Nghiêng phải ½</div>
               </div>
-            ))}
+              {photos["portrait_right"] ? (
+                <img src={photos["portrait_right"]} alt="Nghiêng phải ½" className="nsb-photo-overlay" />
+              ) : null}
+            </div>
+
+            <div className="nsb-photo-box">
+              <div className="nsb-photo-placeholder">
+                <div className="nsb-photo-head">{t("namesheet.photo_3x4")}</div>
+                <div className="nsb-photo-name">(Chính diện)</div>
+              </div>
+              {photos["portrait_front"] ? (
+                <img src={photos["portrait_front"]} alt="(Chính diện)" className="nsb-photo-overlay" />
+              ) : null}
+            </div>
+
+            <div className="nsb-photo-box">
+              <div className="nsb-photo-placeholder">
+                <div className="nsb-photo-head">{t("namesheet.photo_3x4")}</div>
+                <div className="nsb-photo-name">Nghiêng trái ⅔</div>
+              </div>
+              {photos["portrait_left"] ? (
+                <img src={photos["portrait_left"]} alt="Nghiêng trái ⅔" className="nsb-photo-overlay" />
+              ) : null}
+            </div>
           </div>
           <div className="nsb-208-right">
             <L label={t("namesheet.field.abnormal")} value={val(form.physical_abnormalities)} />
-            {/* Mau giay: 1 dong trong giua "Di hình" va "Cán bộ lập". */}
+            <div className="nsb-blank" />
             <div className="nsb-blank" />
             <L label={t("namesheet.field.officer")} value={val(form.officer_name)} />
+            <div className="nsb-blank" />
           </div>
         </div>
       </div>
@@ -314,6 +314,13 @@ export function NameSheetPreviewModal({ form, photos = {}, unitName = "", onClos
   return (
     <div className="preview-backdrop" onClick={onClose}>
       <div className="preview-toolbar no-print" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="preview-btn" onClick={() => window.print()} title={t("capture.actions.print")}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
+            <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <path d="M6 14h12v8H6z" />
+          </svg>
+          {t("capture.actions.print")}
+        </button>
         <button type="button" className="preview-btn" onClick={handleExport} disabled={exporting}>
           {exporting ? t("capture.pdf.exporting") : t("capture.pdf.export")}
         </button>

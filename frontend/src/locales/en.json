@@ -26,6 +26,7 @@
   "capture.actions.save": "Save record",
   "capture.actions.save_draft": "Save draft",
   "capture.actions.print_namesheet": "Print name record",
+  "capture.actions.print": "Print",
   "capture.actions.update": "Update record",
   "capture.alert.badge_cccd": "Duplicate CCCD",
   "capture.alert.badge_fp": "Duplicate fingerprint",

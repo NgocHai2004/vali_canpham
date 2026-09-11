@@ -319,6 +319,13 @@ export function FpSheetPreviewModal({ form, photos = {}, unitName = "", onClose 
   return (
     <div className="preview-backdrop" onClick={onClose}>
       <div className="preview-toolbar no-print" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="preview-btn" onClick={() => window.print()} title={t("capture.actions.print")}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15 }}>
+            <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <path d="M6 14h12v8H6z" />
+          </svg>
+          {t("capture.actions.print")}
+        </button>
         <button type="button" className="preview-btn" onClick={handleExport} disabled={exporting}>
           {exporting ? t("capture.pdf.exporting") : t("capture.pdf.export")}
         </button>
