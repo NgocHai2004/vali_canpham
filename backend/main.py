@@ -69,6 +69,9 @@ def _env_bool(name: str, default: bool = True) -> bool:
 FEATURE_CCCD_READER = _env_bool("FEATURE_CCCD_READER")
 FEATURE_WEIGHT_SCALE = _env_bool("FEATURE_WEIGHT_SCALE")
 FEATURE_HEIGHT_YOLO = _env_bool("FEATURE_HEIGHT_YOLO")
+# Scan Chi ban (295) / Danh ban (204): service OCR ben ngoai day ket qua vao
+# DUNG MOT form dang ky dang mo. Tat thi form khong mo session nhan scan.
+FEATURE_SCAN_OCR = _env_bool("FEATURE_SCAN_OCR")
 
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 # DB tach theo nhanh git: Hai_dev giu DB that `app_cccd`, nhanh khac dung DB
@@ -1632,6 +1635,30 @@ async def get_session_detail(session_id: str, user: dict = Depends(get_current_u
     return out
 
 
+@app.get("/api/sessions/{session_id}/sheets")
+async def get_session_sheets(session_id: str, user: dict = Depends(get_current_user)):
+    """Toan bo can pham (du lieu day du + photos) cua mot phien — de in toan bo
+    Chi ban / Danh ban khi phien da dong. Khac get_session_detail (chi tra field
+    gon cho bang), endpoint nay tra nguyen doc de render hai to mau giay.
+
+    Bo photos.face_embedding: vector nhan dang lon, khong can cho viec in, va
+    khong nen phoi ra ngoai khi chi de in giay.
+    """
+    doc = await db.work_sessions.find_one({"_id": _oid(session_id)})
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiên làm việc.")
+    if doc.get("officer") != user["username"] and user.get("role") != "admin":
+        raise HTTPException(403, "Bạn không có quyền xem phiên này.")
+    detainees = []
+    async for d in db.detainees.find({"session_id": doc["_id"]}).sort("created_at", 1):
+        row = _s(d)
+        photos = row.get("photos")
+        if isinstance(photos, dict):
+            photos.pop("face_embedding", None)
+        detainees.append(row)
+    return {"session": _s_session(doc), "detainees": detainees}
+
+
 @app.post("/api/sessions/{session_id}/sync-log")
 async def log_session_sync(
     session_id: str,
@@ -1913,6 +1940,7 @@ async def features_config(user: dict = Depends(get_current_user)):
         "cccd_reader": FEATURE_CCCD_READER,
         "weight_scale": FEATURE_WEIGHT_SCALE,
         "height_yolo": FEATURE_HEIGHT_YOLO,
+        "scan_ocr": FEATURE_SCAN_OCR,
     }
 
 
@@ -2158,6 +2186,70 @@ async def cccd_push(body: CCCDPushBody, request: Request):
         "delivered": delivered,
         "ts": now.isoformat(),
     }
+
+
+# ==================== SCAN OCR (Chỉ bản 295 / Danh bản 204) ====================
+# Service OCR ben ngoai quet xong 1 file -> POST /api/scan/push -> scan_inbox
+# quyet dinh co chen vao DUNG MOT form dang ky dang mo hay khong. Khac dau doc
+# CCCD (phat cho moi session), scan co the chua nhieu ho so nen chi chen khi
+# file tra ra DUNG MOT doi tuong va DUNG MOT form dang mo — xem scan_inbox.py.
+from scan_inbox import (
+    capture_start as _scan_capture_start,
+    capture_wait as _scan_capture_wait,
+    capture_end as _scan_capture_end,
+    capture_count as _scan_capture_count,
+    push as _scan_push,
+)
+
+SCAN_API_KEY = os.getenv("SCAN_API_KEY", "")
+
+
+def _require_scan_ocr() -> None:
+    """Chan cac route scan khi FEATURE_SCAN_OCR=0."""
+    if not FEATURE_SCAN_OCR:
+        raise HTTPException(503, "Tính năng scan Chỉ bản/Danh bản đang tắt.")
+
+
+def _require_scan_key(request: Request) -> None:
+    """Service OCR chay voi tai khoan may, khong co JWT — dung key chung."""
+    if SCAN_API_KEY and request.headers.get("X-Scan-Key", "") != SCAN_API_KEY:
+        raise HTTPException(401, "Sai X-Scan-Key")
+
+
+@app.post("/api/scan/capture/start")
+async def scan_capture_start(user: dict = Depends(get_current_user)):
+    """Mo session cap nhat-form — frontend goi luc form dang ky MOI hiện lên."""
+    _require_scan_ocr()
+    return {"session_id": _scan_capture_start()}
+
+
+@app.get("/api/scan/session/{sid}/wait")
+async def scan_session_wait(sid: str, timeout: int = Query(25, ge=1, le=60),
+                            user: dict = Depends(get_current_user)):
+    """Long-poll cua form: doi ket qua scan; 204 khi het gio, 404 khi session mat."""
+    _require_scan_ocr()
+    result = await _scan_capture_wait(sid, timeout)
+    if result is None:
+        raise HTTPException(404, "Phiên không tồn tại hoặc đã hết hạn.")
+    if result.get("status") == "timeout":
+        return Response(status_code=204)
+    return result
+
+
+@app.delete("/api/scan/session/{sid}")
+async def scan_session_delete(sid: str, user: dict = Depends(get_current_user)):
+    """Dong session: luu xong, huy, dieu huong khac, hoac chuyen sang sua."""
+    _scan_capture_end(sid)
+    return {"ok": True}
+
+
+@app.post("/api/scan/push")
+async def scan_push(body: dict, request: Request):
+    """Service OCR quet xong 1 file gui ket qua len. scan_inbox quyet dinh
+    chen hay tu choi; tu choi van tra 200 kem ly do de ben OCR log duoc."""
+    _require_scan_ocr()
+    _require_scan_key(request)
+    return _scan_push(body)
 
 
 @app.post("/api/cccd/upload_image")

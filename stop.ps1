@@ -1,7 +1,8 @@
-# stop.ps1 - Kill tien trinh theo port (27017, 8000, 8765, 8766) + Electron.
+# stop.ps1 - Kill tien trinh theo port (27017, 8000, 8765, 8766, 8787) + Electron.
+# 8787 la OCR service (ScanSnap_iX1400_Driver_AutoInstall).
 # Luu y: 27017 co the la mongod.exe (run-electron.ps1) HOAC Docker. Script kill
 # theo PID ownting-process cua port — bat ke nguon goc.
-$ports = 27017, 8000, 8765, 8766
+$ports = 27017, 8000, 8765, 8766, 8787
 foreach ($p in $ports) {
     $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
     foreach ($c in $conns) {

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 
-// Co bat/tat 3 thiet bi ngoai vi, doc tu GET /api/config/features (nguon: .env).
+// Co bat/tat 4 thiet bi ngoai vi, doc tu GET /api/config/features (nguon: .env).
 //
 // LUU Y QUAN TRONG: tat may CHI an phan dieu khien thiet bi. Moi truong nhap tay
 // van giu nguyen — so CCCD, ho ten, ngay sinh, que quan, dia chi, dan toc, ton
 // giao, height_cm, weight_kg deu nhap va luu binh thuong.
-const ALL_ON = { cccd_reader: true, weight_scale: true, height_yolo: true };
+const ALL_ON = { cccd_reader: true, weight_scale: true, height_yolo: true, scan_ocr: true };
 
 let cache = null;      // ket qua da fetch (dung chung cho moi component)
 let inflight = null;   // promise dang bay, tranh goi API nhieu lan song song
@@ -17,6 +17,7 @@ function normalize(raw) {
     cccd_reader: raw.cccd_reader !== false,
     weight_scale: raw.weight_scale !== false,
     height_yolo: raw.height_yolo !== false,
+    scan_ocr: raw.scan_ocr !== false,
   };
 }
 

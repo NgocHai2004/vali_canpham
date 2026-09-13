@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
-import { api, fpApi, cccdApi, b64PngToFile } from "./api";
+import { api, fpApi, cccdApi, scanApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
 import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FINGER_STEP_OF, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_ROLL_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_LAYERS_BY_STEP, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
@@ -1219,6 +1219,39 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     // trung chi con dua vao ho ten + ngay sinh + gioi tinh, luc bam Luu ho so.
   };
 
+  // Điền form từ kết quả scan Chỉ bản/Danh bản. Khác applyCccdData (chỉ có
+  // trường CCCD), scan còn lấp được cả phần vụ án, cán bộ, số hồ sơ — nhưng
+  // KHÔNG bao giờ ghi đè những gì cán bộ đã gõ tay trước đó (|| f.field).
+  const applyScanData = (d) => {
+    if (!d) return;
+    setForm((f) => ({
+      ...f,
+      full_name: d.full_name || f.full_name,
+      alias: d.alias || f.alias,
+      dob: d.dob || f.dob,
+      cccd_number: d.cccd_number || f.cccd_number,
+      nationality: d.nationality || f.nationality,
+      hometown: d.hometown || f.hometown,
+      address: d.address || d.hometown || f.address,
+      temp_address: d.temp_address || f.temp_address,
+      current_address: d.current_address || f.current_address,
+      ethnicity: d.ethnicity || f.ethnicity,
+      occupation: d.occupation || f.occupation,
+      father_name: d.father_name || f.father_name,
+      mother_name: d.mother_name || f.mother_name,
+      case_about: d.case_about || f.case_about,
+      fp_formula: d.fp_formula || f.fp_formula,
+      arrest_date: d.arrest_date || f.arrest_date,
+      arrest_agency: d.arrest_agency || f.arrest_agency,
+      record_sheet_no: d.record_sheet_no || f.record_sheet_no,
+      fp_sheet_no: d.fp_sheet_no || f.fp_sheet_no,
+      record_date: d.record_date || f.record_date,
+      officer_name: d.officer_name || f.officer_name,
+      officer_classifier: d.officer_classifier || f.officer_classifier,
+      officer_class_checker: d.officer_class_checker || f.officer_class_checker,
+    }));
+  };
+
   // Tự động lắng nghe đầu đọc CCCD ngay khi vào trang, chạy liên tục.
   // Mỗi lần backend trả thẻ mới, nó tự dời baseline nên vòng lặp chỉ nhận thẻ mới,
   // không lặp lại thẻ cũ. Thẻ mới vào thì chèn dữ liệu lên form.
@@ -1295,6 +1328,68 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     // features.cccd_reader ve muon (sau khi fetch /api/config/features) nen phai
     // co trong deps, khong thi vong lap da chay roi khong dung lai duoc.
   }, [sessionReadOnly, features.cccd_reader]);
+
+  // Lắng nghe scan Chỉ bản/Danh bản. CHỈ chạy trên form đăng ký MỚI (không
+  // phải form sửa), không phải phiên chỉ đọc. Backend chỉ chuyển kết quả vào
+  // ĐÚNG MỘT form đang mở khi file scan ra ĐÚNG MỘT đối tượng (scan_inbox.py);
+  // form này chỉ việc đợi và điền. Cán bộ vẫn kiểm tra rồi bấm Lưu.
+  const scanSidRef = useRef(null);
+  const scanAbortRef = useRef(null);
+  useEffect(() => {
+    // Form sửa hồ sơ có sẵn: không được chèn dữ liệu scan vào giữa lúc sửa.
+    if (sessionReadOnly || isEdit) return;
+    if (!features.scan_ocr) return;
+
+    let stopped = false;
+    const ac = new AbortController();
+    scanAbortRef.current = ac;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    (async () => {
+      let sid = null;
+      while (!stopped && !ac.signal.aborted) {
+        // Session bị backend dọn (TTL) hoặc chưa mở -> mở phiên mới.
+        if (!sid) {
+          try {
+            const s = await scanApi.startCapture();
+            if (stopped) break;
+            sid = s.session_id;
+            scanSidRef.current = sid;
+          } catch {
+            if (stopped || ac.signal.aborted) break;
+            await sleep(3000);
+            continue;
+          }
+        }
+
+        try {
+          const r = await scanApi.wait(sid, ac.signal, 25);
+          if (stopped || ac.signal.aborted) break;
+          if (r && r.status === "ok" && r.data) {
+            applyScanData(r.data);
+            setOk(t("capture.status.scan_read"));
+          }
+        } catch (e) {
+          if (stopped || ac.signal.aborted || e.name === "AbortError") break;
+          // 404 = phiên đã bị GC; lỗi khác cũng thử mở phiên lại.
+          sid = null;
+          scanSidRef.current = null;
+          await sleep(1000);
+        }
+      }
+    })();
+
+    return () => {
+      stopped = true;
+      try { ac.abort(); } catch { /* noop */ }
+      const sid = scanSidRef.current;
+      scanSidRef.current = null;
+      scanAbortRef.current = null;
+      if (sid) {
+        scanApi.cancel(sid).catch(() => { /* noop */ });
+      }
+    };
+  }, [sessionReadOnly, isEdit, features.scan_ocr]);
 
   // Tự động bật quét vân tay khi vào trang. Máy quét chưa sẵn sàng thì thử lại
   // âm thầm mỗi 3s (không hiện lỗi đỏ) — giống vòng CCCD, cắm máy vào là tự chạy.

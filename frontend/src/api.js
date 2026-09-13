@@ -275,6 +275,7 @@ export const api = {
   getCurrentSession: () => request("/api/sessions/current"),
   createSession: (body) => request("/api/sessions", { method: "POST", body: JSON.stringify(body || {}) }),
   getSession: (id) => request(`/api/sessions/${id}`),
+  getSessionSheets: (id) => request(`/api/sessions/${id}/sheets`),
   closeSession: (id) => request(`/api/sessions/${id}/close`, { method: "POST" }),
   deleteSession: (id) => request(`/api/sessions/${id}`, { method: "DELETE" }),
   downloadSessionReport: (id, filename) => downloadFile(`/api/sessions/${id}/report`, filename || `session_report.xlsx`),
@@ -357,10 +358,12 @@ async function cccdRequest(path, opts = {}, signal) {
   }
   if (res.status === 204) return { status: "timeout" };
   if (res.status === 401) {
-    // DELETE /api/cccd/session/{sid} = cleanup (cancel) — KHONG logout khi 401.
-    // 401 o day thuong la hau qua cua logout truoc do (token da clear), khong phai nguyen nhan.
-    if (opts.method === "DELETE" && path.startsWith("/api/cccd/session/")) {
-      throw new Error("cccd session cleanup failed (401)");
+    // DELETE /api/cccd/session/{sid} hoac /api/scan/session/{sid} = cleanup
+    // (cancel) — KHONG logout khi 401. 401 o day thuong la hau qua cua logout
+    // truoc do (token da clear), khong phai nguyen nhan.
+    if (opts.method === "DELETE" &&
+        (path.startsWith("/api/cccd/session/") || path.startsWith("/api/scan/session/"))) {
+      throw new Error("session cleanup failed (401)");
     }
     auth.clear();
     if (onAuthExpired) onAuthExpired();
@@ -384,6 +387,17 @@ export const cccdApi = {
     cccdRequest(`/api/cccd/session/${sid}/read_again`, { method: "POST" }),
   cancel: (sid) =>
     cccdRequest(`/api/cccd/session/${sid}`, { method: "DELETE" }),
+};
+
+// ============ Scan OCR API (Chỉ bản 295 / Danh bản 204 qua /api/scan/*) ============
+// Khac cccdApi (doc cho rieng tung nguoi): scan co the chua nhieu ho so, nen
+// backend chi chen vao DUNG MOT form dang ky dang mo — xem scan_inbox.py.
+export const scanApi = {
+  startCapture: () => cccdRequest("/api/scan/capture/start", { method: "POST" }),
+  wait: (sid, signal, timeout = 25) =>
+    cccdRequest(`/api/scan/session/${sid}/wait?timeout=${timeout}`, {}, signal),
+  cancel: (sid) =>
+    cccdRequest(`/api/scan/session/${sid}`, { method: "DELETE" }),
 };
 
 // ============ Weight scale WebSocket (máy cân bên ngoài POST /api/weight/push) ============

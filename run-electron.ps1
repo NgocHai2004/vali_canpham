@@ -6,8 +6,11 @@
 #   1. Mongo (mongod.exe truc tiep, KHONG Docker)  -> 127.0.0.1:27017
 #   2. Services usb + fp                          -> 8766 / 8765
 #   3. Backend uvicorn                            -> 127.0.0.1:8000
-#   4. Build frontend (bo qua neu dist co)
-#   5. Electron (npm start trong electron/)
+#   4. OCR service (ScanSnap_iX1400_Driver_AutoInstall) -> 127.0.0.1:8787
+#      - Hung file ScanSnap Home xuat ra scan_paper, OCR, day sang backend.
+#      - Dung system python (Python310) vi .venv khong co deps OCR.
+#   5. Build frontend (bo qua neu dist co)
+#   6. Electron (npm start trong electron/)
 param([switch]$ForceBuild)
 
 $ErrorActionPreference = 'Stop'
@@ -18,6 +21,10 @@ $frontend = Join-Path $root 'frontend'
 $dist     = Join-Path $frontend 'dist'
 $logs     = Join-Path $root 'logs'
 $envFile  = Join-Path (Split-Path -Parent $root) '.env'
+# Service OCR (repo rieng): python -m app.api_server, port 8787.
+# .venv cua App_CCCD KHONG co pytesseract/pypdfium2 -> dung system python.
+$ocrRoot  = 'C:\Users\vali-01\Documents\ScanSnap_iX1400_Driver_AutoInstall'
+$ocrPy    = 'C:\Users\vali-01\AppData\Local\Programs\Python\Python310\python.exe'
 
 # Mongo truc tiep (KHONG Docker).
 # Ban mongod 8.3 (C:\Program Files\MongoDB\Server\8.3) gap STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139)
@@ -100,8 +107,30 @@ for ($i=0; $i -lt 60; $i++) {
     Start-Sleep -Milliseconds 1000
 }
 
-# ---- 4. Build frontend (bo qua neu dist co va khong -ForceBuild) ----
-Write-Step "4/5 Frontend build..."
+# ---- 4. OCR service (repo ScanSnap_iX1400_Driver_AutoInstall, port 8787) ----
+# Hung file ScanSnap Home xuat ra scan_paper, OCR, day sang backend (8000).
+# Chay sau backend ready de push khong bi loi mang. Guard chong trung giong nhau.
+Write-Step "4/6 OCR service (8787)..."
+if (-not (Test-Path $ocrPy)) {
+    Write-Warning "  Khong tim thay $ocrPy - bo qua OCR service."
+} elseif (Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue) {
+    Write-Host "  OCR service da lang nghe 8787 - bo qua spawn."
+} else {
+    # api_server in tieng Viet ra stdout; khi redirect ra file, Python mac dinh
+    # dung cp1252 -> UnicodeEncodeError. Set PYTHONIOENCODING=utf-8 cho process OCR.
+    $env:PYTHONIOENCODING = 'utf-8'
+    Start-Process -FilePath $ocrPy `
+        -ArgumentList '-m','app.api_server','--folder',(Join-Path (Split-Path -Parent $root) 'scan_paper'),'--out','data','--port','8787' `
+        -WorkingDirectory $ocrRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput (Join-Path $logs 'ocr.out.log') `
+        -RedirectStandardError  (Join-Path $logs 'ocr.err.log')
+    Remove-Item Env:PYTHONIOENCODING -ErrorAction SilentlyContinue
+    Write-Host "  Da start OCR service (folder=scan_paper, port 8787)."
+}
+
+# ---- 5. Build frontend (bo qua neu dist co va khong -ForceBuild) ----
+Write-Step "5/6 Frontend build..."
 if ($ForceBuild -or -not (Test-Path (Join-Path $dist 'index.html'))) {
     Push-Location $frontend
     try { npm run build } finally { Pop-Location }
@@ -110,8 +139,8 @@ if ($ForceBuild -or -not (Test-Path (Join-Path $dist 'index.html'))) {
     Write-Host "  Da co dist/index.html (bo qua build). Dung -ForceBuild de rebuild."
 }
 
-# ---- 5. Electron ----
-Write-Step "5/5 Khoi dong Electron..."
+# ---- 6. Electron ----
+Write-Step "6/6 Khoi dong Electron..."
 Push-Location $electron
 try {
     $env:ELECTRON_BUILD = 'dev'

@@ -4,6 +4,7 @@ import { notify } from "./notifications";
 import { useI18n } from "./i18n";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { toast } from "./Toast";
+import SessionSheetsPrinter from "./SessionSheetsPrinter";
 
 // Số hồ sơ hiển thị mỗi trang trong bảng "Hồ sơ trong phiên".
 // Vừa đủ 12 dòng để không phải cuộn trên màn hình kiosk.
@@ -41,6 +42,9 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
   const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
   // Phân trang bảng hồ sơ trong phiên: 12 dòng/trang, không dùng scroll.
   const [page, setPage] = useState(1);
+  // In toàn bộ Chỉ bản/Danh bản khi phiên đã đóng.
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printDetainees, setPrintDetainees] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -121,6 +125,21 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
       }
     } catch (ex) {
       toast.error(ex.message || t("session.detail.err.report"));
+    }
+  };
+
+  // In hết Chỉ bản + Danh bản của danh sách can phạm (chỉ khi phiên đã đóng).
+  const doPrintSheets = async () => {
+    if (!session || printBusy) return;
+    setPrintBusy(true);
+    setErr("");
+    try {
+      const data = await api.getSessionSheets(sessionId);
+      setPrintDetainees(data.detainees || []);
+    } catch (ex) {
+      toast.error(ex.message || t("session.detail.err.sheets"));
+    } finally {
+      setPrintBusy(false);
     }
   };
 
@@ -217,6 +236,9 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
                 {closing ? t("session.detail.deleting") : t("session.detail.delete")}
               </button>
               <button className="btn-primary" onClick={doDownload}>{t("session.detail.download_report")}</button>
+              <button className="btn-primary" onClick={doPrintSheets} disabled={printBusy}>
+                {printBusy ? t("session.detail.printing") : t("session.detail.print_sheets")}
+              </button>
             </>
           )}
         </div>
@@ -334,6 +356,14 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
             setUsbPicker({ open: false, drives: [], resolve: null });
             r && r(null);
           }}
+        />
+      )}
+
+      {printDetainees && (
+        <SessionSheetsPrinter
+          detainees={printDetainees}
+          unitName={session.location || ""}
+          onDone={() => setPrintDetainees(null)}
         />
       )}
     </div>
