@@ -574,8 +574,8 @@ function useDeviceConnections() {
 
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     let host;
-    if (location.port === "5173") {
-      host = `${location.hostname}:8000`;
+    if (location.port === "5174") {
+      host = `${location.hostname}:8001`;
     } else if (window.appcccd && window.appcccd.getProxyPort && window.appcccd.getProxyPort()) {
       host = `${window.appcccd.proxyHost}:${window.appcccd.getProxyPort()}`;
     } else {
@@ -3018,38 +3018,39 @@ const FP_SETTINGS_DIGITS = ["thumb", "index", "middle", "ring", "little"];
 
 function SettingsPage() {
   const { t } = useI18n();
-  const features = useFeatures();
-  const [heightImage, setHeightImage] = useState("");
-  const [heightOffset, setHeightOffset] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // { left_thumb: "50", ... } - giu dang STRING de o input trong duoc trong khi
   // dang sua, khong bi Number("") = 0 bien thanh nguong 0.
   const [fpQ, setFpQ] = useState({});
   const [fpSaving, setFpSaving] = useState(false);
   const [fpError, setFpError] = useState("");
+  // Nguong doi sach dau vet hien truong. Giu STRING vi dung ly do tren, va giu
+  // ca config goc (hbie) de lay score_max + defaults lam nut "ve mac dinh".
+  const [hbie, setHbie] = useState(null);
+  const [matchThr, setMatchThr] = useState("");
+  const [keepScore, setKeepScore] = useState("");
+  const [hbieSaving, setHbieSaving] = useState(false);
+  const [hbieError, setHbieError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     // Hai config doc song song. Loi cua config nay KHONG duoc lam an config kia:
-    // neu service van tay tat thi phan chieu cao van phai dung duoc.
-    Promise.allSettled([api.measurementConfig(), api.fingerprintConfig()])
-      .then(([m, fp]) => {
+    // neu backend chua co route hbie thi phan nguong van tay van phai dung duoc.
+    Promise.allSettled([api.hbieConfig(), api.fingerprintConfig()])
+      .then(([hb, fp]) => {
         if (cancelled) return;
-        if (m.status === "fulfilled") {
-          const v = Number(m.value?.height_image);
-          setHeightImage(Number.isFinite(v) && v > 0 ? String(v) : "");
-          const o = Number(m.value?.height_offset);
-          setHeightOffset(Number.isFinite(o) && o > 0 ? String(o) : "");
+        if (hb.status === "fulfilled") {
+          setHbie(hb.value);
+          setMatchThr(String(hb.value?.match_threshold ?? ""));
+          setKeepScore(String(hb.value?.keep_score ?? ""));
         } else {
-          setError(m.reason?.message || String(m.reason));
+          setError(hb.reason?.message || String(hb.reason));
         }
-        // Doc that bai (service tat, backend chua co route) van phai dien
-        // FP_QUALITY_RECOMMENDED vao 10 o: o trong khong noi len dieu gi, con
-        // hien so mac dinh cho admin biet he thong dang chay o muc nao. Loi
-        // ghi ra console thay vi do len UI - admin khong lam gi duoc voi no,
-        // va bam Luu van hoat dong binh thuong.
+        // Doc that bai (backend chua co route) van phai dien FP_QUALITY_RECOMMENDED
+        // vao 10 o: o trong khong noi len dieu gi, con hien so mac dinh cho admin
+        // biet he thong dang chay o muc nao. Loi ghi ra console thay vi do len UI -
+        // admin khong lam gi duoc voi no, va bam Luu van hoat dong binh thuong.
         const by = fp.status === "fulfilled" ? (fp.value?.by_finger || {}) : {};
         const def = Number(fp.status === "fulfilled" ? fp.value?.default : NaN);
         const fallback = Number.isFinite(def) ? def : FP_QUALITY_RECOMMENDED;
@@ -3061,6 +3062,9 @@ function SettingsPage() {
         setFpQ(next);
         if (fp.status !== "fulfilled") {
           console.warn("[settings] doc nguong van tay loi:", fp.reason);
+        }
+        if (hb.status !== "fulfilled") {
+          console.warn("[settings] doc nguong doi sach dau vet loi:", hb.reason);
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -3107,32 +3111,62 @@ function SettingsPage() {
     }
   };
 
-  const submit = async (e) => {
+  // Thang diem HBIE co dinh 0..1000; doc tu backend de khong hardcode 2 lan.
+  const scoreMax = Number(hbie?.score_max) || 1000;
+  const mNum = Number(matchThr);
+  const kNum = Number(keepScore);
+  const mOk = matchThr.trim() !== "" && Number.isInteger(mNum) && mNum >= 1 && mNum <= scoreMax;
+  const kOk = keepScore.trim() !== "" && Number.isInteger(kNum) && kNum >= 0 && kNum <= scoreMax;
+  // kNum <= mNum la luat that su (BE cung chan): diem san cao hon nguong ket luan
+  // thi khong cap nao con o muc "can xem lai".
+  const pairOk = mOk && kOk && kNum <= mNum;
+  const defMatch = Number(hbie?.defaults?.match_threshold);
+  // Canh bao ngay khi dang go, khong doi bam Luu - admin phai thay truoc khi
+  // chot rang minh dang ha xuong duoi muc tai lieu HBIE khuyen nghi.
+  const thrLowered = mOk && Number.isFinite(defMatch) && mNum < defMatch;
+
+  const submitHbie = async (e) => {
     e.preventDefault();
-    const value = Number(heightImage);
-    const offset = Number(heightOffset);
-    if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(offset) || offset <= 0) {
-      setError(t("settings.err.invalid"));
+    if (!mOk) {
+      setHbieError(t("settings.hbie.err.match", { max: scoreMax }));
       return;
     }
-    setSaving(true);
-    setError("");
+    if (!kOk || kNum > mNum) {
+      setHbieError(t("settings.hbie.err.keep", { max: mNum }));
+      return;
+    }
+    setHbieSaving(true);
+    setHbieError("");
     try {
-      const res = await api.updateMeasurementConfig({ height_image: value, height_offset: offset });
-      setHeightImage(String(res.height_image));
-      setHeightOffset(String(res.height_offset));
-      toast.success(t("settings.saved"));
+      const res = await api.updateHbieConfig({ match_threshold: mNum, keep_score: kNum });
+      setMatchThr(String(res.match_threshold));
+      setKeepScore(String(res.keep_score));
+      const rc = res?.reclassified || {};
+      // Doi nguong ket luan thi BE gan lai nhan cho ket qua da luu - bao ro so
+      // dong vua doi de admin biet cai dat co an that, khong phai luu xong de do.
+      toast.success(rc.pairs || rc.traces
+        ? t("settings.hbie.saved_reclassified", { p: rc.pairs || 0, n: rc.traces || 0 })
+        : t("settings.saved"));
+      // Doi DIEM SAN khong tu sinh ra cac cap ma diem san cu da loc bo tu truoc:
+      // phai nhac admin bam "Phan tich lai", neu khong se tuong ket qua cu da quet lai.
+      // 8s thay vi 3.5s mac dinh: day la viec admin phai LAM (bam Phan tich lai),
+      // toast tat nhanh qua thi thong tin mat truoc khi kip doc.
+      if (res?.needs_rematch) toast.info(t("settings.hbie.saved_rematch"), 8000);
     } catch (e) {
-      setError(e.message);
+      setHbieError(e.message);
     } finally {
-      setSaving(false);
+      setHbieSaving(false);
     }
   };
 
-  const hi = Number(heightImage);
-  const ho = Number(heightOffset);
-  const hiValid = Number.isFinite(hi) && hi > 0;
-  const previewRows = [0.15, 0.2, 0.25, 0.3];
+  const resetHbie = () => {
+    const d = hbie?.defaults;
+    if (!d) return;
+    setMatchThr(String(d.match_threshold));
+    setKeepScore(String(d.keep_score));
+    setHbieError("");
+  };
+
   // Canh bao ngay khi dang nhap, khong doi bam Luu - admin phai thay truoc khi
   // chot rang minh dang ha duoi nguong nghiep vu. Liet ke DUNG ngon nao dang
   // thap, khong bao chung chung: co 10 o nen admin phai biet o nao.
@@ -3155,82 +3189,104 @@ function SettingsPage() {
         </div>
       ) : (
         <div className="settings-grid">
-          <section className="table-card settings-card">
-            <div className="settings-card-head">
-              <span className="settings-card-icon">{Icon.gear}</span>
-              <div>
-                <h2>{t("settings.measurement.title")}</h2>
-                <p>{t("settings.measurement.desc")}</p>
-              </div>
-            </div>
-            <form className="form" onSubmit={submit}>
-              <FieldRow label={t("settings.height_image.label")}>
-                <input
-                  className="control"
-                  type="number"
-                  min="1"
-                  step="any"
-                  value={heightImage}
-                  onChange={(e) => setHeightImage(e.target.value)}
-                  required
-                />
-              </FieldRow>
-              <p style={{ color: "var(--muted)", fontSize: 12, margin: "4px 0 16px" }}>
-                {t("settings.height_image.desc")}
-              </p>
-              <FieldRow label={t("settings.height_offset.label")}>
-                <input
-                  className="control"
-                  type="number"
-                  min="1"
-                  step="any"
-                  value={heightOffset}
-                  onChange={(e) => setHeightOffset(e.target.value)}
-                  required
-                />
-              </FieldRow>
-              <p style={{ color: "var(--muted)", fontSize: 12, margin: "4px 0 16px" }}>
-                {t("settings.height_offset.desc")}
-              </p>
-              <div className="modal-actions" style={{ marginTop: 0 }}>
-                <button type="submit" className="button primary" disabled={saving}>
-                  {saving ? t("common.saving") : t("common.save")}
+          <section className="table-card settings-card settings-card-hbie">
+            <form className="form" onSubmit={submitHbie}>
+              <div className="settings-card-head settings-card-head-row">
+                <span className="settings-card-icon">{Icon.search}</span>
+                <div>
+                  <h2>{t("settings.hbie.title")}</h2>
+                  <p>{t("settings.hbie.desc", { max: scoreMax })}</p>
+                </div>
+                <button type="submit" className="button primary" disabled={hbieSaving || !pairOk}>
+                  {hbieSaving ? t("common.saving") : t("common.save")}
                 </button>
               </div>
-            </form>
-          </section>
+              {hbieError && <StateBox type="error">{hbieError}</StateBox>}
 
-          {/* Card cong thuc chieu cao chi co nghia khi YOLO bat — an khi tat. */}
-          <section className="table-card settings-card" hidden={!features.height_yolo}>
-            <div className="settings-card-head">
-              <span className="settings-card-icon">{Icon.chart}</span>
+              <div className="settings-hbie-body">
               <div>
-                <h2>{t("settings.formula.title")}</h2>
-                <p>{t("settings.formula.desc")}</p>
+              <FieldRow label={t("settings.hbie.match_threshold.label")}>
+                <input
+                  className="control"
+                  type="number"
+                  min="1"
+                  max={scoreMax}
+                  step="1"
+                  value={matchThr}
+                  onChange={(e) => setMatchThr(e.target.value)}
+                  aria-invalid={!mOk ? "true" : undefined}
+                  required
+                />
+              </FieldRow>
+              <p className="settings-fp-note">{t("settings.hbie.match_threshold.desc")}</p>
+
+              <FieldRow label={t("settings.hbie.keep_score.label")}>
+                <input
+                  className="control"
+                  type="number"
+                  min="0"
+                  max={scoreMax}
+                  step="1"
+                  value={keepScore}
+                  onChange={(e) => setKeepScore(e.target.value)}
+                  aria-invalid={!kOk ? "true" : undefined}
+                  required
+                />
+              </FieldRow>
+              <p className="settings-fp-note">{t("settings.hbie.keep_score.desc")}</p>
+
+              <div className="modal-actions" style={{ marginTop: 0 }}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={resetHbie}
+                  disabled={hbieSaving || !hbie?.defaults}
+                >
+                  {t("settings.hbie.reset", {
+                    m: hbie?.defaults?.match_threshold ?? "—",
+                    k: hbie?.defaults?.keep_score ?? "—",
+                  })}
+                </button>
               </div>
-            </div>
-            <div className="settings-formula settings-formula-compact">height_cm = (1 − head_ratio) × height_image + height_offset</div>
-            <p className="settings-preview-caption">
-              {hiValid
-                ? t("settings.preview.caption", { v: hi })
-                : t("settings.preview.invalid")}
-            </p>
-            <table className="settings-preview-table">
-              <thead>
-                <tr>
-                  <th>head_ratio</th>
-                  <th>{t("settings.preview.col_height")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {previewRows.map((r) => (
-                  <tr key={r}>
-                    <td>{r.toFixed(2)}</td>
-                    <td>{hiValid && ho > 0 ? `${((1 - r) * hi + ho).toFixed(1)} cm` : "—"}</td>
+              </div>
+
+              {/* Bang 3 muc diem: doc la hieu ngay 2 o ben trai cat ket qua o dau,
+                  khong bat admin tu hinh dung. So cap nhat theo o dang go nen
+                  thay truc tiep hau qua truoc khi bam Luu. */}
+              <div>
+              <table className="settings-preview-table">
+                <thead>
+                  <tr>
+                    <th>{t("settings.hbie.bands.col_range")}</th>
+                    <th>{t("settings.hbie.bands.col_effect")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{mOk ? `≥ ${mNum}` : "—"}</td>
+                    <td>{t("smp.matched")}</td>
+                  </tr>
+                  <tr>
+                    <td>{pairOk ? `${kNum} – ${mNum - 1}` : "—"}</td>
+                    <td>{t("smp.review")}</td>
+                  </tr>
+                  <tr>
+                    <td>{kOk ? `< ${kNum}` : "—"}</td>
+                    <td>{t("settings.hbie.bands.dropped")}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {thrLowered ? (
+                <p className="settings-fp-note" style={{ color: "var(--danger, #e5484d)" }}>
+                  {t("settings.hbie.warn_low", { v: defMatch })}
+                </p>
+              ) : (
+                <p className="settings-fp-note">{t("settings.hbie.note")}</p>
+              )}
+              </div>
+              </div>
+            </form>
           </section>
 
           <section className="table-card settings-card settings-card-fp">
@@ -5386,11 +5442,11 @@ const styles = `
   }
 
   /* ===== Trang Cài đặt ===== */
-  /* Layout 2 hang TUONG MINH thay vi auto-fit: hang 1 la 2 card tham so (cot
-     trai rong hon vi co form nhap), hang 2 la card van tay chiem ca chieu ngang.
-     overflow:hidden + rows "auto 1fr" giu toan bo trang vua trong khung, khong
-     sinh thanh cuon; card van tay tu gian theo 1fr nen khong de lai khoang trong
-     o man hinh cao. */
+  /* Layout 2 hang TUONG MINH thay vi auto-fit: hang 1 la card nguong doi sach
+     dau vet, hang 2 la card van tay. Ca hai deu trai het chieu ngang (grid-column
+     1/-1) nen khong lo o trong o cot nao. overflow:hidden + rows "auto 1fr" giu
+     toan bo trang vua trong khung, khong sinh thanh cuon; card van tay tu gian
+     theo 1fr nen khong de lai khoang trong o man hinh cao. */
   .settings-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
@@ -5435,18 +5491,6 @@ const styles = `
   .settings-card-head-row { align-items: center; }
   .settings-card-head-row > div { flex: 1 1 auto; min-width: 0; }
   .settings-card-head-row > .button { flex: 0 0 auto; }
-  .settings-formula {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 13px;
-    background: #0f172a;
-    color: #e2e8f0;
-    padding: 12px 14px;
-    border-radius: 8px;
-    text-align: center;
-    letter-spacing: .3px;
-  }
-  .settings-formula-compact { font-size: 12px; padding: 9px 11px; }
-  .settings-preview-caption { font-size: 11.5px; color: var(--muted); margin: 10px 0 6px; }
   .settings-preview-table { width: 100%; border-collapse: collapse; }
   .settings-preview-table th {
     text-align: left;
@@ -5468,6 +5512,16 @@ const styles = `
      2 hang (2 ban tay) thay vi 2 cot x 5 hang: tiet kiem ~110px chieu cao, day
      la phan giup ca trang vua khung khong sinh thanh cuon. Ten ngon chi hien 1
      lan o tieu de cot thay vi lap lai 10 lan. */
+  .settings-card-hbie { grid-column: 1 / -1; }
+  /* Card HBIE rong het man hinh, nen ben trong tach 2 cot: cot trai la 2 o nhap
+     nguong, cot phai la bang 3 muc diem + ghi chu. De 1 cot thi .control (width
+     100%) keo o nhap dai hoan man hinh, vua xau vua kho nhin ra gioi han cua so. */
+  .settings-hbie-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
   .settings-card-fp { grid-column: 1 / -1; }
   .settings-fp-matrix {
     display: grid;

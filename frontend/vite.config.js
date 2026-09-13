@@ -8,25 +8,25 @@ export default defineConfig({
 
   server: {
     host: '0.0.0.0',
-    port: 5173,
+    port: 5174,
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         ws: true,
       },
       '/uploads': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
       '/fp': {
-        target: 'http://127.0.0.1:8765',
+        target: 'http://127.0.0.1:8767',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/fp/, ''),
       },
       '/usb': {
-        target: 'http://127.0.0.1:8766',
+        target: 'http://127.0.0.1:8768',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/usb/, ''),
       },

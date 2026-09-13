@@ -23,7 +23,7 @@ try:
 except Exception:
     pass
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27018")
 DB_NAME = os.getenv("DB_NAME", "app_cccd")
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

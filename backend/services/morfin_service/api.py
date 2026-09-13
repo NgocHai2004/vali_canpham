@@ -1,4 +1,4 @@
-"""FastAPI service cho Morfin slap scanner. Thay the zkfp service (port 8765).
+"""FastAPI service cho Morfin slap scanner. Thay the zkfp service (port 8767).
 
 Giu nguyen contract cua service cu de frontend doi it nhat:
     GET  /api/health
@@ -18,7 +18,7 @@ Enroll 10 ngon = 4 lan chup thay vi 10 lan bam.
 
 Chay:
     python -m uvicorn --app-dir backend/services/morfin_service api:app \
-        --host 127.0.0.1 --port 8765
+        --host 127.0.0.1 --port 8767
 """
 from __future__ import annotations
 
@@ -1011,7 +1011,7 @@ def get_quality_cfg() -> dict:
 
 @app.post("/api/config/quality")
 def set_quality_cfg(body: QualityCfgReq) -> dict:
-    """Nhan nguong TUNG NGON tu backend chinh (8000) sau khi admin doi Settings.
+    """Nhan nguong TUNG NGON tu backend chinh (8001) sau khi admin doi Settings.
 
     KHONG co auth o service nay - service chi bind 127.0.0.1 va khong duoc
     expose qua Vite proxy. Auth (require_admin) + audit log nam o backend

@@ -24,7 +24,7 @@ import httpx
 
 
 def _env(name: str, default: str = "") -> str:
-    """Đọc env var, chưa có thì đọc App_CCCD/.env (giống _env_str_from_dotenv ở main).
+    """Đọc env var, chưa có thì đọc Vali_hientruong/.env (giống _env_str_from_dotenv ở main).
 
     Copy nhỏ chứ không import từ main: main import module này, import ngược lại
     là circular.
@@ -52,13 +52,56 @@ HBIE_TOKEN = _env("HBIE_TOKEN", "")
 HBIE_TIMEOUT = float(_env("HBIE_TIMEOUT", "120") or 120)
 HBIE_DPI = int(_env("HBIE_DPI", "500") or 500)
 
+# Thang điểm HBIE cố định 0..1000 (engine trả về đúng thang này).
+HBIE_SCORE_MAX = 1000
+
+# HAI NGƯỠNG DƯỚI ĐÂY ADMIN CHỈNH ĐƯỢC trong Cài đặt, lưu ở db.settings
+# (_id="hbie"). Giá trị đọc từ env/.env chỉ là SEED cho lần chạy đầu tiên; sau
+# đó Mongo là nguồn thật — đúng kiểu height_image và ngưỡng chất lượng vân tay.
+# Muốn đổi giá trị seed thì sửa .env RỒI XOÁ doc settings đó, không thì Mongo thắng.
+#
 # Ngưỡng kết luận trùng khớp. Score HBIE thang 0..1000, tài liệu HBIE gợi ý
 # 600–700 cho vân tay; phải tinh chỉnh lại theo dữ liệu thật của đơn vị.
-HBIE_MATCH_THRESHOLD = int(_env("HBIE_MATCH_THRESHOLD", "600") or 600)
+HBIE_MATCH_THRESHOLD_DEFAULT = int(_env("HBIE_MATCH_THRESHOLD", "600") or 600)
 
 # Điểm sàn để LƯU 1 cặp vào kết quả. Thấp hơn ngưỡng kết luận để cán bộ còn thấy
 # các cặp "cần xem lại"; dưới mức này là nhiễu, lưu chỉ phình bảng.
-HBIE_KEEP_SCORE = int(_env("HBIE_KEEP_SCORE", "250") or 250)
+HBIE_KEEP_SCORE_DEFAULT = int(_env("HBIE_KEEP_SCORE", "250") or 250)
+
+# Chặn cho ô nhập của admin. keep_score <= match_threshold là BẮT BUỘC: đảo
+# ngược thì mọi cặp được lưu đều tự thành "trùng khớp", không còn cặp nào rơi
+# vào "cần xem lại" và cột kết luận mất tác dụng.
+HBIE_KEEP_SCORE_MIN = 0
+HBIE_MATCH_THRESHOLD_MIN = 1
+
+# Giá trị ĐANG CHẠY. verdict_of()/config() đọc qua hàm, không đọc thẳng hai biến
+# này, để admin bấm Lưu là có tác dụng ngay không cần restart backend.
+_match_threshold: int = HBIE_MATCH_THRESHOLD_DEFAULT
+_keep_score: int = HBIE_KEEP_SCORE_DEFAULT
+
+
+def match_threshold() -> int:
+    """Ngưỡng kết luận đang có hiệu lực (RAM, đồng bộ với db.settings)."""
+    return _match_threshold
+
+
+def keep_score() -> int:
+    """Điểm sàn lưu cặp đang có hiệu lực (RAM, đồng bộ với db.settings)."""
+    return _keep_score
+
+
+def set_thresholds(match: Optional[int] = None, keep: Optional[int] = None) -> dict:
+    """Đổi ngưỡng lúc chạy. CHỈ cập nhật RAM — Mongo do main.py giữ.
+
+    Tham số None = giữ nguyên giá trị hiện tại. Không tự validate: main.py đã
+    chặn khoảng hợp lệ trước khi gọi (giống _sanitize_fp_map bên ngưỡng vân tay).
+    """
+    global _match_threshold, _keep_score
+    if match is not None:
+        _match_threshold = int(match)
+    if keep is not None:
+        _keep_score = int(keep)
+    return {"threshold": _match_threshold, "keep_score": _keep_score}
 
 FEATURE_HBIE_MATCH = _env("FEATURE_HBIE_MATCH", "1").lower() not in ("0", "false", "no", "off")
 
@@ -188,17 +231,20 @@ async def match(feature1: str, feature2: str) -> int:
 
 def verdict_of(score: int) -> str:
     """Kết luận từ score: trùng khớp hay cần cán bộ xem lại."""
-    return "match" if score >= HBIE_MATCH_THRESHOLD else "review"
+    return "match" if score >= match_threshold() else "review"
 
 
 def config() -> dict:
-    """Cấu hình đang dùng — trả cho UI để hiện ngưỡng, không lộ token."""
+    """Cấu hình đang dùng — trả cho UI để hiện ngưỡng, không lộ token.
+
+    threshold/keep_score là giá trị SỐNG (admin sửa được), không phải seed .env.
+    """
     return {
         "base": HBIE_BASE,
         "enabled": FEATURE_HBIE_MATCH,
         "dpi": HBIE_DPI,
-        "threshold": HBIE_MATCH_THRESHOLD,
-        "keep_score": HBIE_KEEP_SCORE,
-        "score_max": 1000,
+        "threshold": match_threshold(),
+        "keep_score": keep_score(),
+        "score_max": HBIE_SCORE_MAX,
         "has_token": bool(HBIE_TOKEN),
     }

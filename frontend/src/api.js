@@ -185,10 +185,16 @@ export const api = {
   verifyDongle: () => request("/api/auth/dongle-verify", { skipAuthExpire: true }),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
   featureConfig: () => request("/api/config/features"),
+  // measurementConfig chi con DataCapturePage doc (tinh chieu cao tu dong khi
+  // FEATURE_HEIGHT_YOLO bat). O chinh sua trong Cai dat da bo: backend van giu
+  // PUT /api/config/measurement lam duong hieu chinh khi can bat lai YOLO.
   measurementConfig: () => request("/api/config/measurement"),
-  updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
   fingerprintConfig: () => request("/api/config/fingerprint"),
   updateFingerprintConfig: (body) => request("/api/config/fingerprint", { method: "PUT", body: JSON.stringify(body) }),
+  // Nguong doi sach dau vet hien truong (HBIE). GET moi user doc duoc de ve thang
+  // diem; PUT chi admin.
+  hbieConfig: () => request("/api/config/hbie"),
+  updateHbieConfig: (body) => request("/api/config/hbie", { method: "PUT", body: JSON.stringify(body) }),
 
   stats: () => request("/api/stats"),
 
@@ -332,7 +338,7 @@ export const api = {
   hbieHealth: () => request("/api/scene/hbie/health"),
 };
 
-// ============ ZKFinger fingerprint sensor API (python service :8765) ============
+// ============ ZKFinger fingerprint sensor API (python service :8767) ============
 async function fpRequest(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
@@ -440,12 +446,12 @@ export const weightApi = {
   // Trả về hàm close() để đóng kết nối khi component unmount.
   connect(onValue) {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    // Dev Vite (:5173): nối thẳng vào backend :8000, tránh phụ thuộc `ws: true` trong vite.config.js.
+    // Dev Vite (:5174): nối thẳng vào backend :8001, tránh phụ thuộc `ws: true` trong vite.config.js.
     // Prod / khi FE serve cùng host với BE: giữ nguyên location.host.
     // Electron kiosk: ws đi qua proxy nội bộ (127.0.0.1:<proxyPort>) — preload inject.
     let host;
-    if (location.port === "5173") {
-      host = `${location.hostname}:8000`;
+    if (location.port === "5174") {
+      host = `${location.hostname}:8001`;
     } else if (window.appcccd && window.appcccd.getProxyPort && window.appcccd.getProxyPort()) {
       host = `${window.appcccd.proxyHost}:${window.appcccd.getProxyPort()}`;
     } else {

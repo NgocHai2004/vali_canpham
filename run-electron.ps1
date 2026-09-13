@@ -3,11 +3,13 @@
 # Yeu cau: .env da co JWT_SECRET + DONGLE_SECRET.
 #
 # Thu tu:
-#   1. Mongo (mongod.exe truc tiep, KHONG Docker)  -> 127.0.0.1:27017
-#   2. Services usb + fp                          -> 8766 / 8765
-#   3. Backend uvicorn                            -> 127.0.0.1:8000
+#   1. Mongo (mongod.exe truc tiep, KHONG Docker)  -> 127.0.0.1:27018
+#   2. Services usb + fp                          -> 8768 / 8767
+#   3. Backend uvicorn                            -> 127.0.0.1:8001
 #   4. Build frontend (bo qua neu dist co)
 #   5. Electron (npm start trong electron/)
+# LUU Y: instance nay dung BO PORT RIENG (27018/8001/8767/8768) de chay song
+# song voi App_CCCD (27017/8000/8765/8766). Khong duoc quay ve port cu.
 param([switch]$ForceBuild)
 
 $ErrorActionPreference = 'Stop'
@@ -21,13 +23,13 @@ $envFile  = Join-Path (Split-Path -Parent $root) '.env'
 
 # Mongo truc tiep (KHONG Docker).
 # Ban mongod 8.3 (C:\Program Files\MongoDB\Server\8.3) gap STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139)
-# tren may nay -> dung ban portable 6.0.19 trong App_CCCD\mongo_portable.
+# tren may nay -> dung ban portable 6.0.19 trong Vali_hientruong\mongo_portable.
 $mongod   = Join-Path (Split-Path -Parent $root) 'mongo_portable\mongodb-win32-x86_64-windows-6.0.19\bin\mongod.exe'
 if (-not (Test-Path $mongod)) {
     # Fallback: ban 8.3 (neu may da fix UCRT).
     $mongod = 'C:\Program Files\MongoDB\Server\8.3\bin\mongod.exe'
 }
-$dbpath   = Join-Path (Split-Path -Parent $root) 'mongo_data'   # App_CCCD/mongo_data
+$dbpath   = Join-Path (Split-Path -Parent $root) 'mongo_data'   # Vali_hientruong/mongo_data
 
 function Write-Step($msg) { Write-Host "`n[run-electron] $msg" -ForegroundColor Cyan }
 
@@ -49,49 +51,54 @@ if (-not $env:JWT_SECRET)    { throw "JWT_SECRET chua duoc set." }
 if (-not (Test-Path $logs)) { New-Item -ItemType Directory -Path $logs -Force | Out-Null }
 
 # ---- 1. Mongo (mongod.exe truc tiep, bind 127.0.0.1) ----
-Write-Step "1/5 Mongo (mongod.exe, 127.0.0.1:27017)..."
+Write-Step "1/5 Mongo (mongod.exe, 127.0.0.1:27018)..."
 if (-not (Test-Path $mongod)) { throw "Khong tim thay mongod.exe tai $mongod. Cai MongoDB Server hoac chinh duong dan." }
-if (-not (Test-Path $dbpath)) { New-Item -ItemType Directory -Path $dbpath -Force | Out-Null }
+if (-not (Test-Path (Join-Path $dbpath 'WiredTiger.wt'))) {
+    # KHONG tu tao dbpath rong: mongod se khoi dong mot DB TRONG -> dang nhap that
+    # bai va trong giong nhu "mat du lieu". mongo_data o day la ban copy RIENG cua
+    # instance nay; thieu thi phai copy lai, khong de script tu sinh DB moi.
+    throw "Khong thay WiredTiger.wt trong $dbpath - mongo_data cua instance nay bi thieu. Khong tu tao DB rong; copy lai mongo_data roi chay tiep."
+}
 
-$mongoAlreadyUp = Get-NetTCPConnection -LocalPort 27017 -State Listen -ErrorAction SilentlyContinue
+$mongoAlreadyUp = Get-NetTCPConnection -LocalPort 27018 -State Listen -ErrorAction SilentlyContinue
 if (-not $mongoAlreadyUp) {
     # Dung --logpath thay vi RedirectStandardOutput: mongod.exe 8.3 gap STATUS_ENTRYPOINT_NOT_FOUND
     # (0xC0000139) khi stdout/stderr bi redirect boi Start-Process. --logpath ghi log vao file truc tiep.
     Start-Process -FilePath $mongod `
-        -ArgumentList '--dbpath', $dbpath, '--bind_ip', '127.0.0.1', '--port', '27017', `
+        -ArgumentList '--dbpath', $dbpath, '--bind_ip', '127.0.0.1', '--port', '27018', `
                       '--logpath', (Join-Path $logs 'mongod.log') `
         -WindowStyle Hidden
     Write-Host "  Da start mongod.exe (dbpath=$dbpath)."
 } else {
-    Write-Host "  Mongo da lang nghe 27017 (co the Docker chua tat hoac dang chay). Bo qua start."
+    Write-Host "  Mongo da lang nghe 27018 - instance nay da co mongod chay, bo qua start."
 }
-# Cho port 27017 san sang.
+# Cho port 27018 san sang.
 for ($i=0; $i -lt 30; $i++) {
-    if (Get-NetTCPConnection -LocalPort 27017 -State Listen -ErrorAction SilentlyContinue) { break }
+    if (Get-NetTCPConnection -LocalPort 27018 -State Listen -ErrorAction SilentlyContinue) { break }
     Start-Sleep -Milliseconds 500
 }
 
 # ---- 2. Services (usb + fingerprint) ----
-Write-Step "2/5 Services (usb 8766 + fingerprint 8765)..."
+Write-Step "2/5 Services (usb 8768 + fingerprint 8767)..."
 & (Join-Path $root 'start-services.ps1')
 
 # ---- 3. Backend uvicorn (bind 127.0.0.1, khong 0.0.0.0 nhu run.ps1 cu) ----
-Write-Step "3/5 Backend uvicorn (127.0.0.1:8000)..."
+Write-Step "3/5 Backend uvicorn (127.0.0.1:8001)..."
 # Guard chong trung giong start-services.ps1: chay lai script khi backend da song
 # thi instance thu hai chet voi "[Errno 10048] ... only one usage of each socket
 # address", va ghi de luon backend.err.log cua instance dang chay - mat log cu.
-if (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue) {
-    Write-Host "  Backend da lang nghe 8000 - bo qua spawn."
+if (Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue) {
+    Write-Host "  Backend da lang nghe 8001 - bo qua spawn."
 } else {
     Start-Process -FilePath $py `
-        -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','127.0.0.1','--port','8000' `
+        -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','127.0.0.1','--port','8001' `
         -WorkingDirectory $root `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $root 'logs\backend.out.log') `
         -RedirectStandardError  (Join-Path $root 'logs\backend.err.log')
 }
 # Cho backend ready (poll /api/health).
-$healthUrl = 'http://127.0.0.1:8000/api/health'
+$healthUrl = 'http://127.0.0.1:8001/api/health'
 for ($i=0; $i -lt 60; $i++) {
     try {
         $r = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2 -ErrorAction Stop
@@ -99,6 +106,22 @@ for ($i=0; $i -lt 60; $i++) {
     } catch {}
     Start-Sleep -Milliseconds 1000
 }
+# Guard dinh danh backend: 8001 phai la backend Hai_dev cua CAY NAY.
+# Bai hoc 12/09: port bi instance khac giu -> script bo qua spawn, electron noi
+# sang backend main-branch, /api/cases tra 404 "Not Found" tren UI, con script
+# van in "Backend ready" mau xanh nen khong ai biet. 401/403 = route co that
+# (can dang nhap); 404 = sai backend.
+$casesCode = 0
+try {
+    $probe = Invoke-WebRequest -Uri 'http://127.0.0.1:8001/api/cases' -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+    $casesCode = [int]$probe.StatusCode
+} catch {
+    if ($_.Exception.Response) { $casesCode = [int]$_.Exception.Response.StatusCode }
+}
+if ($casesCode -eq 404) {
+    throw "Backend o 8001 khong co route /api/cases -> KHONG phai backend Hai_dev cua cay nay. Co the mot instance khac dang giu port 8001. Tat no (.\stop.ps1) roi chay lai."
+}
+Write-Host "  /api/cases -> HTTP $casesCode  (401/403 = dung backend Hai_dev, route can dang nhap)."
 
 # ---- 4. Build frontend (bo qua neu dist co va khong -ForceBuild) ----
 Write-Step "4/5 Frontend build..."

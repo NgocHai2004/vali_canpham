@@ -6,7 +6,7 @@ $backendDir  = Join-Path $appRoot 'backend'
 $svc         = Join-Path $backendDir 'services'
 $py          = Join-Path $appRoot '.venv\Scripts\python.exe'
 $logs        = Join-Path $appRoot 'logs'
-$envFile     = Join-Path (Split-Path -Parent $appRoot) '.env'   # App_CCCD/.env
+$envFile     = Join-Path (Split-Path -Parent $appRoot) '.env'   # Vali_hientruong/.env
 
 if (-not (Test-Path $logs)) {
     New-Item -ItemType Directory -Path $logs -Force | Out-Null
@@ -41,8 +41,8 @@ function Test-PortInUse([int]$Port) {
     return [bool]$c
 }
 # Service van tay: morfin_service (Morfin slap scanner MORPHS, 4 ngon/lan chup)
-# thay cho fingerprint_service (ZKFinger 1 ngon/lan). Giu nguyen port 8765 va
-# contract API => frontend khong phai doi endpoint.
+# thay cho fingerprint_service (ZKFinger 1 ngon/lan). Giu nguyen contract API,
+# port doi sang 8767 (bo port rieng cua instance nay) => frontend khong doi endpoint.
 #
 # MORFIN_SDK_DIR tro toi thu muc chua Morfin_Enroll_Core.dll + cac DLL phu
 # (~273MB). Neu chua set trong .env, service se tim ./runtime canh api.py.
@@ -52,21 +52,21 @@ $fpSvcDir = Join-Path $svc 'morfin_service'
 if (-not $env:MORFIN_SDK_DIR) {
     Write-Warning "MORFIN_SDK_DIR chua set - morfin_service se tim runtime/ canh api.py."
 }
-if (Test-PortInUse 8765) {
-    Write-Warning "Port 8765 (fingerprint) da co service - bo qua spawn de tranh trung."
+if (Test-PortInUse 8767) {
+    Write-Warning "Port 8767 (fingerprint) da co service - bo qua spawn de tranh trung."
 } else {
     Start-Process -FilePath $py `
-        -ArgumentList '-m','uvicorn','--app-dir',$fpSvcDir,'api:app','--host','127.0.0.1','--port','8765' `
+        -ArgumentList '-m','uvicorn','--app-dir',$fpSvcDir,'api:app','--host','127.0.0.1','--port','8767' `
         -WorkingDirectory $appRoot `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logs 'fingerprint.out.log') `
         -RedirectStandardError  (Join-Path $logs 'fingerprint.err.log')
 }
-if (Test-PortInUse 8766) {
-    Write-Warning "Port 8766 (usb) da co service - bo qua spawn de tranh trung."
+if (Test-PortInUse 8768) {
+    Write-Warning "Port 8768 (usb) da co service - bo qua spawn de tranh trung."
 } else {
     Start-Process -FilePath $py `
-        -ArgumentList '-m','uvicorn','--app-dir',(Join-Path $svc 'usb_service'),'api:app','--host','127.0.0.1','--port','8766' `
+        -ArgumentList '-m','uvicorn','--app-dir',(Join-Path $svc 'usb_service'),'api:app','--host','127.0.0.1','--port','8768' `
         -WorkingDirectory $appRoot `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logs 'usb.out.log') `
@@ -77,7 +77,7 @@ if (Test-PortInUse 8766) {
 # Windows service, tranh SCM kill). Chay tu publish/ de doc appsettings.json + DLL.
 $cccdExe = Join-Path $svc 'cccd_scanner\publish\CccdService.exe'
 if ($env:FEATURE_CCCD_READER -eq '0') {
-    # Tat tam may doc CCCD (co trong App_CCCD/.env). Backend cung chan het route
+    # Tat tam may doc CCCD (co trong Vali_hientruong/.env). Backend cung chan het route
     # /api/cccd/* nen khong spawn exe nay la du. Cac truong CCCD van nhap tay.
     Write-Host "  -> CCCD Reader: TAT (FEATURE_CCCD_READER=0) - bo qua spawn."
 } elseif (Test-Path $cccdExe) {

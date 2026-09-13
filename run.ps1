@@ -29,12 +29,12 @@ if (-not $env:JWT_SECRET)    { throw "JWT_SECRET chua duoc set." }
 
 # 2. Backend
 Start-Process -FilePath $py `
-    -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','0.0.0.0','--port','8000' `
+    -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','0.0.0.0','--port','8001' `
     -WorkingDirectory $root -WindowStyle Normal
 
 # 3. Frontend
 Start-Process -FilePath 'npm' -ArgumentList 'run','dev' `
     -WorkingDirectory (Join-Path $root 'frontend') -WindowStyle Normal
 
-Write-Host "Da start. Frontend: http://localhost:5173 | Backend: http://localhost:8000/api/health"
+Write-Host "Da start. Frontend: http://localhost:5174 | Backend: http://localhost:8001/api/health"
 Write-Host "Dung: .\stop.ps1"

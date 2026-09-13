@@ -27,7 +27,7 @@ from bson import ObjectId
 from openpyxl import Workbook, load_workbook
 
 def _env_str_from_dotenv(name: str) -> str:
-    """Doc gia tri tu .env (App_CCCD/.env) khi env var chua set.
+    """Doc gia tri tu .env (Vali_hientruong/.env) khi env var chua set.
     Nguon su that duy nhat la .env — tranh lech secret giua cac cach start khac nhau
     (run-electron load .env vs start-all khong load .env) gay 2 backend lech secret
     -> token 401 -> logout hang loat khi quet CCCD.
@@ -51,7 +51,7 @@ def _env_str_from_dotenv(name: str) -> str:
 
 
 def _env_bool(name: str, default: bool = True) -> bool:
-    """Doc co bat/tat tinh nang tu env var, roi den .env (App_CCCD/.env).
+    """Doc co bat/tat tinh nang tu env var, roi den .env (Vali_hientruong/.env).
 
     Thieu co hoan toan -> default (True = bat), nen may nao chua cau hinh gi
     van chay y nhu truoc. Chi "0"/"false"/"no"/"off" moi tat.
@@ -62,14 +62,17 @@ def _env_bool(name: str, default: bool = True) -> bool:
     return raw not in ("0", "false", "no", "off")
 
 
-# Co tat tam 3 thiet bi ngoai vi. Dat trong App_CCCD/.env de bat/tat khong phai
+# Co tat tam 3 thiet bi ngoai vi. Dat trong Vali_hientruong/.env de bat/tat khong phai
 # sua code. LUU Y: tat may KHONG anh huong cac truong nhap tay — so CCCD,
 # height_cm, weight_kg van nhap binh thuong, chi mat phan tu dong dien.
 FEATURE_CCCD_READER = _env_bool("FEATURE_CCCD_READER")
 FEATURE_WEIGHT_SCALE = _env_bool("FEATURE_WEIGHT_SCALE")
 FEATURE_HEIGHT_YOLO = _env_bool("FEATURE_HEIGHT_YOLO")
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+# Doc qua _env_str_from_dotenv (khong phai os.getenv thuong): backend co the
+# duoc start tu shell KHONG load .env (vd `python run_backend.py`). Neu de
+# default cu thi instance nay am tham noi sang mongod 27017 cua App_CCCD.
+MONGO_URL = _env_str_from_dotenv("MONGO_URL") or "mongodb://localhost:27018"
 DB_NAME = os.getenv("DB_NAME", "app_cccd")
 JWT_SECRET = _env_str_from_dotenv("JWT_SECRET") or "change-me-in-production-please-abc123xyz"
 JWT_ALGO = "HS256"
@@ -119,7 +122,7 @@ def get_height_offset() -> float:
 
 # Ngưỡng chất lượng vân tay tối thiểu cho TỪNG ngón (0-100). Khác
 # height_image/height_offset ở một điểm quan trọng: giá trị này KHÔNG được
-# backend này dùng để tính toán, mà do service Morfin (port 8765) dùng để CHẶN
+# backend này dùng để tính toán, mà do service Morfin (port 8767) dùng để CHẶN
 # khi thu vân tay. Nên sau khi lưu vào db.settings phải đẩy sang service đó,
 # xem _push_fp_quality().
 #
@@ -202,9 +205,10 @@ async def lifespan(app: FastAPI):
         await _ensure_indexes()
         await _load_measurement_config()
         await _load_fp_config()
+        await _load_hbie_config()
     except Exception:
         pass
-    # Đẩy ngưỡng vân tay sang service Morfin (8765) ở background: service đó có
+    # Đẩy ngưỡng vân tay sang service Morfin (8767) ở background: service đó có
     # thể chưa kịp bật, và nó tự respawn nên phải đồng bộ lại mỗi lần backend
     # start. Không await để không block app ready.
     asyncio.create_task(_push_fp_quality_safe())
@@ -302,8 +306,84 @@ async def _load_fp_config():
         _fp_min_quality_cache.update(got)
 
 
+def _sanitize_hbie_int(raw, lo: int, hi: int) -> Optional[int]:
+    """Ép 1 ngưỡng đọc từ Mongo về int trong [lo, hi]; rác thì trả None.
+
+    Bỏ qua thay vì báo lỗi — giống _sanitize_fp_map: một giá trị hỏng trong doc
+    settings không được phép làm cả backend không khởi động nổi.
+    """
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return n if lo <= n <= hi else None
+
+
+async def _load_hbie_config():
+    """Nạp 2 ngưỡng đối sánh dấu vết hiện trường từ db.settings.
+
+    Mongo là nguồn thật, .env chỉ seed lần đầu: sửa .env sẽ KHÔNG đổi được hệ
+    thống đang chạy, admin phải sửa trong Cài đặt. Muốn seed lại thì xoá doc
+    settings _id="hbie" rồi restart backend.
+    """
+    doc = await db.settings.find_one({"_id": "hbie"})
+    if doc is None:
+        await db.settings.insert_one({
+            "_id": "hbie",
+            "match_threshold": hbie_service.HBIE_MATCH_THRESHOLD_DEFAULT,
+            "keep_score": hbie_service.HBIE_KEEP_SCORE_DEFAULT,
+        })
+        return
+    match = _sanitize_hbie_int(doc.get("match_threshold"),
+                               hbie_service.HBIE_MATCH_THRESHOLD_MIN,
+                               hbie_service.HBIE_SCORE_MAX)
+    if match is None:
+        match = hbie_service.HBIE_MATCH_THRESHOLD_DEFAULT
+    # Chặn trên của keep là match VỪA đọc được chứ không phải 1000: doc hỏng mà
+    # để keep > match thì mọi cặp lưu xuống đều tự thành "trùng khớp".
+    keep = _sanitize_hbie_int(doc.get("keep_score"), hbie_service.HBIE_KEEP_SCORE_MIN, match)
+    if keep is None:
+        keep = min(hbie_service.HBIE_KEEP_SCORE_DEFAULT, match)
+    hbie_service.set_thresholds(match=match, keep=keep)
+
+
+async def _reclassify_hbie_verdicts(threshold: int) -> dict:
+    """Gán lại nhãn match/review cho kết quả ĐÃ LƯU theo ngưỡng mới.
+
+    Chỉ đọc score có sẵn rồi so lại, KHÔNG gọi HBIE: đổi ngưỡng tốn vài lệnh
+    update chứ không phải đối sánh lại cả hệ thống. (Còn MUỐN có thêm cặp mới thì
+    phải bấm "Phân tích lại", vì điểm sàn cũ đã lọc mất chúng từ trước.)
+
+    best_verdict của dấu vết phải đổi theo: ngoài bảng kết quả thì hàng dấu vết
+    cũng hiện nhãn của cặp cao nhất.
+    """
+    match_cond = {"$cond": [{"$gte": ["$score", threshold]}, "match", "review"]}
+    best_cond = {"$cond": [{"$gte": ["$best_score", threshold]}, "match", "review"]}
+    # Đếm TRƯỚC khi ghi để con số trả về là đúng: update_many theo pipeline báo
+    # modified_count cho cả những dòng nhãn không hề đổi, đọc lên sẽ hiểu nhầm.
+    pairs_changed = (
+        await db.scene_matches.count_documents({"verdict": "match", "score": {"$lt": threshold}})
+        + await db.scene_matches.count_documents({"verdict": {"$ne": "match"},
+                                                  "score": {"$gte": threshold}})
+    )
+    traces_changed = (
+        await db.scene_traces.count_documents({"best_verdict": "match",
+                                               "best_score": {"$lt": threshold}})
+        + await db.scene_traces.count_documents({"best_verdict": {"$nin": ["match", "none"]},
+                                                 "best_score": {"$gte": threshold}})
+    )
+    # Loc theo kieu so: dong nao thieu "score" thi $gte [null, nguong] la FALSE theo
+    # quy tac BSON type bracketing -> se bi gan nhan "review" oan. Bo loc thi mot
+    # ban ghi hong (khong phai do doi nguong) cung bi sua mat.
+    await db.scene_matches.update_many({"score": {"$type": "number"}},
+                                       [{"$set": {"verdict": match_cond}}])
+    await db.scene_traces.update_many({"best_score": {"$gt": 0}},
+                                      [{"$set": {"best_verdict": best_cond}}])
+    return {"pairs": int(pairs_changed), "traces": int(traces_changed)}
+
+
 async def _push_fp_quality(by_finger: dict) -> bool:
-    """Đẩy ngưỡng từng ngón sang service Morfin (8765) - nơi thực sự chặn.
+    """Đẩy ngưỡng từng ngón sang service Morfin (8767) - nơi thực sự chặn.
 
     Mongo là nguồn thật; hàm này chỉ đồng bộ. Trả False nếu service không nhận
     (đang tắt / lỗi) để caller báo cho admin biết là chưa áp dụng ngay.
@@ -729,7 +809,7 @@ async def update_me(body: MePatch, request: Request, user: dict = Depends(get_cu
 
 
 # ==================== USB DONGLE ====================
-USB_SERVICE_URL = os.getenv("USB_SERVICE_URL", "http://127.0.0.1:8766")
+USB_SERVICE_URL = _env_str_from_dotenv("USB_SERVICE_URL") or "http://127.0.0.1:8768"
 
 
 @app.get("/api/auth/dongle-verify")
@@ -972,7 +1052,7 @@ async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
 
 
 # ---------- Fingerprint match (tra cứu nghi phạm bằng vân tay) ----------
-FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
+FP_SERVICE_URL = _env_str_from_dotenv("FP_SERVICE_URL") or "http://127.0.0.1:8767"
 FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "85"))  # luu cho cac luong khac (neu co)
 FP_MATCH_FINGER = os.getenv("FP_MATCH_FINGER", "left_thumb")     # ngon dung de ket luan
 FP_LEFT_THUMB_THRESHOLD = int(os.getenv("FP_LEFT_THUMB_THRESHOLD", "80"))  # score > N (dung >)
@@ -2052,6 +2132,89 @@ async def update_fingerprint_config(body: FingerprintConfigIn, request: Request,
     }
 
 
+@app.get("/api/config/hbie")
+async def hbie_config(user: dict = Depends(get_current_user)):
+    """2 ngưỡng đối sánh dấu vết hiện trường + thang điểm.
+
+    Mọi user đăng nhập đều đọc được (như /api/config/measurement): trang Dấu vết
+    hiện trường cần keep_score làm chặn dưới của thanh lọc điểm và score_max để
+    vẽ thang. Chỉ admin mới PUT.
+    """
+    return {
+        "match_threshold": hbie_service.match_threshold(),
+        "keep_score": hbie_service.keep_score(),
+        "score_max": hbie_service.HBIE_SCORE_MAX,
+        # Default để UI làm nút "về mặc định": admin lỡ kéo ngưỡng xuống thấp quá
+        # thì có đường quay lại mức tài liệu HBIE khuyến nghị.
+        "defaults": {
+            "match_threshold": hbie_service.HBIE_MATCH_THRESHOLD_DEFAULT,
+            "keep_score": hbie_service.HBIE_KEEP_SCORE_DEFAULT,
+        },
+        "enabled": hbie_service.FEATURE_HBIE_MATCH,
+    }
+
+
+class HbieConfigIn(BaseModel):
+    """Validate bằng tay trong handler thay vì Field(ge/le): luật thật sự là
+    keep_score <= match_threshold (2 field phụ nhau), và thông báo lỗi phải ra
+    tiếng Việt cho admin đọc hiểu chứ không phải message của Pydantic."""
+    match_threshold: int
+    keep_score: int
+
+
+@app.put("/api/config/hbie")
+async def update_hbie_config(body: HbieConfigIn, request: Request, admin: dict = Depends(require_admin)):
+    """Đổi ngưỡng đối sánh dấu vết hiện trường. Chỉ admin.
+
+    Ngưỡng kết luận quyết định cặp nào bị gắn nhãn "trùng khớp": hạ xuống thì
+    tăng nhận diện nhầm, nâng lên thì bỏ sót đối tượng. Vì vậy phải ghi audit log
+    kèm giá trị cũ — truy được ai đổi và đổi từ mức nào, giống hệt ngưỡng chất
+    lượng vân tay ngay bên trên.
+    """
+    match = int(body.match_threshold)
+    keep = int(body.keep_score)
+    lo_match = hbie_service.HBIE_MATCH_THRESHOLD_MIN
+    lo_keep = hbie_service.HBIE_KEEP_SCORE_MIN
+    hi = hbie_service.HBIE_SCORE_MAX
+    if not lo_match <= match <= hi:
+        raise HTTPException(400, f"Ngưỡng kết luận phải là số nguyên từ {lo_match} đến {hi}.")
+    if not lo_keep <= keep <= match:
+        raise HTTPException(
+            400,
+            f"Điểm sàn phải là số nguyên từ {lo_keep} đến bằng ngưỡng kết luận ({match}). "
+            "Điểm sàn mà cao hơn ngưỡng kết luận thì không cặp nào còn rơi vào mức cần xem lại.",
+        )
+
+    previous = {"match_threshold": hbie_service.match_threshold(),
+                "keep_score": hbie_service.keep_score()}
+    await db.settings.update_one(
+        {"_id": "hbie"},
+        {"$set": {"match_threshold": match, "keep_score": keep}},
+        upsert=True,
+    )
+    # RAM cập nhật SAU Mongo (nguồn thật) — đúng thứ tự của update_fingerprint_config.
+    hbie_service.set_thresholds(match=match, keep=keep)
+
+    # Nhãn verdict được tính và LƯU từ lúc đối sánh, nên chỉ đổi ngưỡng mà không
+    # gán lại thì bảng kết quả vẫn hiện nhãn cũ, admin sẽ tưởng cài đặt không ăn.
+    reclassified = {"pairs": 0, "traces": 0}
+    if previous["match_threshold"] != match:
+        reclassified = await _reclassify_hbie_verdicts(match)
+
+    await _log(request, admin, "update", "setting", "hbie",
+               {"match_threshold": match, "keep_score": keep, "previous": previous,
+                "reclassified": reclassified})
+    return {
+        "match_threshold": match,
+        "keep_score": keep,
+        "score_max": hi,
+        "reclassified": reclassified,
+        # Đổi ĐIỂM SÀN không tự sinh ra các cặp đã bị điểm sàn cũ lọc bỏ. UI đọc
+        # cờ này để nhắc admin bấm "Phân tích lại" thì ngưỡng mới mới đủ tác dụng.
+        "needs_rematch": previous["keep_score"] != keep,
+    }
+
+
 # ==================== CCCD READER (watch folder data_cccd) ====================
 from cccd_watcher import (
     cccd_health as _cccd_health,
@@ -2654,7 +2817,7 @@ async def _match_trace(trace_doc: dict, case_doc: dict) -> dict:
                 score = await hbie_service.match(feature, feat)
             except hbie_service.HbieError:
                 continue                      # 1 ngón lỗi không được làm hỏng cả vụ
-            if score < hbie_service.HBIE_KEEP_SCORE:
+            if score < hbie_service.keep_score():
                 continue
             pairs.append({
                 "case_id": case_doc["_id"],

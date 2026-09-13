@@ -28,9 +28,10 @@ const fileName = (u) => (u || "").split(/[?#]/)[0].split("/").pop() || "—";
 // khi chua nap duoc config.
 const SCORE_MIN = 0;
 const SCORE_MAX = 1000;
-const SCORE_MID = SCORE_MAX / 2;
-const clampScore = (v) =>
-  Math.max(SCORE_MIN, Math.min(SCORE_MAX, Number(v) || SCORE_MIN));
+// Nhan (lo, hi) vi ca hai dau deu song: score_max va diem san (keep_score) doc
+// tu config cua backend, admin doi duoc trong Cai dat.
+const clampScore = (v, lo, hi) =>
+  Math.max(lo, Math.min(hi, Number(v) || lo));
 
 // Thu tu 4 o "Sắp xếp theo" dung nhu design.
 // Design: 3 kieu sap xep cho panel dau vet.
@@ -69,7 +70,18 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
   // Thang diem THAT dang dung: uu tien config cua backend, chua nap duoc thi
   // dung hang du phong (HBIE luon 0..1000).
   const scoreMax = mcfg?.score_max || SCORE_MAX;
-  const scoreMid = Math.round(scoreMax / 2);
+  // Diem san: cap nao duoi muc nay bi loai NGAY khi doi sach, khong duoc luu vao
+  // scene_matches -> khong the co trong bang. Thanh loc vi the chi can keo trong
+  // [scoreFloor, scoreMax]; keo xuong duoi do la vung chet (khong an bot duoc dong
+  // nao ma van keo duoc). Chua nap duoc config thi dung 0 nhu cu: thanh loc rong
+  // hon mot chut van hon la an mat ket qua.
+  const scoreFloor = Number(mcfg?.keep_score) > 0 ? Number(mcfg.keep_score) : SCORE_MIN;
+  // Vach giua va % fill deu tinh trong khoang THAT su keo duoc [scoreFloor,
+  // scoreMax]. Lay scoreMax/2 nhu cu thi khi diem san > 500 ba vach lech thu tu
+  // (700, 500, 1000); con fill tinh tu 0 thi o vi tri nghi da san 25% mau du
+  // nguoi dung chua loc gi ca.
+  const scoreSpan = Math.max(1, scoreMax - scoreFloor);
+  const scoreMid = scoreFloor + Math.round(scoreSpan / 2);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [page, setPage] = useState(1);
@@ -119,6 +131,14 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
   }, [caseId, t]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Config ve muon hon lan render dau, nen phai nhac minScore len theo diem san:
+  // de 0 thi o nhap hien 0 trong khi thanh truot da bat dau o scoreFloor -> hai
+  // dieu khien cua cung mot gia tri lech nhau. Chi nang len, khong bao gio ha
+  // xuong, de khong de len lua chon cua nguoi dung khi ho da keo.
+  useEffect(() => {
+    setMinScore((v) => (v < scoreFloor ? scoreFloor : v));
+  }, [scoreFloor]);
 
   // ----- Ket qua doi sanh (THAT, engine HBIE) -----
   // Moi ban ghi scene_matches = 1 cap (dau vet x ngon cua 1 doi tuong), do backend
@@ -170,11 +190,11 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
   const FINGER_OPTS = useMemo(
     () => [...new Set(allRows.map((r) => r.finger))], [allRows]);
   // Badge dem so dieu kien dang thu hep ket qua (sort chi doi thu tu -> khong dem).
-  const filterCount = (fingerFilter ? 1 : 0) + (minScore > SCORE_MIN ? 1 : 0)
+  const filterCount = (fingerFilter ? 1 : 0) + (minScore > scoreFloor ? 1 : 0)
     + (subjectSel.size ? 1 : 0);
   const resetFilter = () => {
     setFingerFilter("");
-    setMinScore(SCORE_MIN);
+    setMinScore(scoreFloor);
     setSortBy("newest");
     setSubjectSel(new Set());
   };
@@ -505,10 +525,10 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
                         <input
                           className="smp-adv-num"
                           type="number"
-                          min={SCORE_MIN}
+                          min={scoreFloor}
                           max={scoreMax}
                           value={minScore}
-                          onChange={(e) => setMinScore(clampScore(e.target.value))}
+                          onChange={(e) => setMinScore(clampScore(e.target.value, scoreFloor, scoreMax))}
                         />
                         <span className="smp-adv-max">/ {scoreMax}</span>
                       </span>
@@ -516,16 +536,16 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
                     <input
                       className="smp-adv-range"
                       type="range"
-                      min={SCORE_MIN}
+                      min={scoreFloor}
                       max={scoreMax}
                       value={minScore}
-                      onChange={(e) => setMinScore(clampScore(e.target.value))}
+                      onChange={(e) => setMinScore(clampScore(e.target.value, scoreFloor, scoreMax))}
                       aria-label={t("smp.filter.min_score")}
                       // CSS khong doc duoc value cua input range -> gan % fill inline.
-                      style={{ "--smp-fill": `${(minScore / scoreMax) * 100}%` }}
+                      style={{ "--smp-fill": `${Math.round(((minScore - scoreFloor) / scoreSpan) * 100)}%` }}
                     />
                     <div className="smp-adv-ticks">
-                      <span>{SCORE_MIN}</span><span>{scoreMid}</span><span>{scoreMax}</span>
+                      <span>{scoreFloor}</span><span>{scoreMid}</span><span>{scoreMax}</span>
                     </div>
                   </div>
 

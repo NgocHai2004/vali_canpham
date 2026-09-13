@@ -2,7 +2,7 @@
 Seed dữ liệu mẫu cho dashboard.
 
 Chạy:
-    cd C:\\Users\\vali-01\\Documents\\App_CCCD\\app_cccd
+    cd C:\\Users\\vali-01\\Documents\\Vali_hientruong\\app_cccd
     .\\.venv\\Scripts\\Activate.ps1
     python -m backend.seed_dashboard          # thêm dữ liệu, giữ nguyên cái đang có
     python -m backend.seed_dashboard --reset  # xoá sạch detainees/sessions/logs trước khi seed
@@ -10,6 +10,7 @@ Chạy:
 
 import argparse
 import asyncio
+import os
 import random
 import sys
 from datetime import datetime, timedelta
@@ -23,7 +24,7 @@ except Exception:
 import bcrypt
 from motor.motor_asyncio import AsyncIOMotorClient
 
-MONGO_URL = "mongodb://localhost:27017"
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27018")
 DB_NAME = "app_cccd"
 
 

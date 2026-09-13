@@ -53,7 +53,7 @@ SCAN_TIMEOUT = 15.0
 #   https://myapp.com/api/weight
 #   https://api.example.com/v1/scales/ingest
 # Neu de trong ("") thi khong gui (chi luu file local).
-RECEIVER_URL = "http://127.0.0.1:8000/api/weight/push"
+RECEIVER_URL = os.getenv("WEIGHT_RECEIVER_URL", "http://127.0.0.1:8001/api/weight/push")
 
 # Bat/tat viec gui len web. False = chi luu file local, khong gui.
 SEND_TO_RECEIVER = True
