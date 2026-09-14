@@ -142,7 +142,12 @@ def _chi_so_cccd(tho: Optional[str]) -> Optional[str]:
 
 
 def _gop_fields(ho_so: dict) -> Optional[dict]:
-    """Gop fields cua hai to trong mot HoSo; None neu to nao khong phai 295/204."""
+    """Gop fields cua hai to trong mot HoSo; None neu to nao khong phai 295/204.
+
+    CCCD: chi bản và danh bản cùng chồng lên key `cccd_number`, tờ sau (danh)
+    ghi đè tờ trước. Nếu tờ sau OCR đọc không đủ 12 số thì đừng làm mất số đúng
+    của tờ trước — giữ giá trị hợp lệ đầu tiên dò được.
+    """
     gop: dict = {}
     for khoa_mau in ("chiBan", "danhBan"):
         to = ho_so.get(khoa_mau)
@@ -156,7 +161,16 @@ def _gop_fields(ho_so: dict) -> Optional[dict]:
             if gia_tri is None or (isinstance(gia_tri, str) and not gia_tri.strip()):
                 continue  # OCR khong doc duoc: de white space trong form yen
             if ten in _TRUONG_DANG_CAP:
-                gop[_TRUONG_DANG_CAP[ten]] = gia_tri.strip() if isinstance(gia_tri, str) else gia_tri
+                # Trường ghép chung hai tờ (cccd_number): giữ giá trị hợp lệ
+                # đầu tiên, không để tờ sau đọc dở ghi đè số đúng của tờ trước.
+                khoa = _TRUONG_DANG_CAP[ten]
+                gia_tri = gia_tri.strip() if isinstance(gia_tri, str) else gia_tri
+                if ten == "cmndCccd":
+                    if khoa in gop and _chi_so_cccd(gia_tri) is None:
+                        continue  # tờ này đọc thiếu số — không xoá số cũ đã hợp lệ
+                    gop[khoa] = gia_tri
+                else:
+                    gop[khoa] = gia_tri
             elif ten in ten_truong_rieng:
                 gop[ten_truong_rieng[ten]] = gia_tri
     if "cccd_number" in gop:

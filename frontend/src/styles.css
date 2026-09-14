@@ -9499,6 +9499,7 @@ textarea.input {
   --cf-ok: #0b7a3e;
   --cf-ok-bg: #e9f8ef;
   --cf-danger: #d92d20;
+  --cf-danger-bg: #fdeceb;
   /* .capture-page o tren co san `zoom: 1.25` (dong ~6536, khong phai cua khoi
      nay). Zoom phong CA trang nen chu cao 9-16px trong khi ban mau chi 7-10px,
      dong gian ra va trang cao gap doi. Ep ve 1 va dat thang chu/padding ben
@@ -10442,6 +10443,7 @@ textarea.input {
   --cf-ok-bg: rgba(36, 215, 119, 0.14);
   --cf-warn: #ffb020;
   --cf-danger: #ff6b6b;
+  --cf-danger-bg: rgba(255, 107, 107, 0.14);
   background:
     linear-gradient(180deg, rgba(10, 26, 54, 0.82) 0%, rgba(6, 20, 42, 0.78) 100%),
     var(--bg-deep, #020817);
@@ -10742,6 +10744,77 @@ textarea.input {
   color: #06142A;
 }
 .cap-flat .cap-chip.warn { background: rgba(255, 176, 32, 0.16); color: var(--cf-warn); }
+
+/* ---------------- BBOX TRANG THAI O NHAP (f-ok / f-bad) ----------------
+   Ba quy tac, chay cho CA thanh tom tat lan muc I / II / III:
+     o da dien du             -> vien xanh  (--cf-ok)
+     o bat buoc (*) con thieu -> vien do    (--cf-danger) + nen --cf-danger-bg
+     o tuy y con trong        -> KHONG doi gi, giu dung mau goc
+   Ai tinh trang thai: fieldState() trong capture/components/fields.jsx, gan len
+   .info-field / .rec-sum-item. Khoi nay chi ve.
+
+   Ve bang border-color + box-shadow 1px (KHONG doi border-width / padding) nen
+   o khong dich lay mot pixel — luoi san chung --cf-lab van thang cot.
+   Chon 5 lop dac hieu (.cap-flat .cap-sec-body .info-field.f-ok .control) de
+   chac chan de len :hover / :focus / :disabled cua khoi nen toi o tren (4 lop)
+   ma khong phai dua vao thu tu nguon.
+
+   Phien CHI DOC: ring van hien. Day la trang thai cua DU LIEU (du / chua du),
+   khong phai trang thai "co sua duoc khong", nen mo lai ho so cu van can thay
+   o nao da dien, o bat buoc nao con thieu. */
+.cap-flat .cap-sec-body .info-field.f-ok .control,
+.cap-flat .cap-sec-body .info-field.f-ok .cap-textarea {
+  border-color: var(--cf-ok);
+  box-shadow: 0 0 0 1px var(--cf-ok);
+}
+.cap-flat .cap-sec-body .info-field.f-bad .control,
+.cap-flat .cap-sec-body .info-field.f-bad .cap-textarea {
+  border-color: var(--cf-danger);
+  box-shadow: 0 0 0 1px var(--cf-danger);
+  background: var(--cf-danger-bg);
+}
+/* Focus GIU ring theo trang thai thay vi nho sang xanh duong: can bo dang go vao
+   o do ma vien doi mau thi mat dau hieu "o nay chua dat". Hao 3px cung ban kinh
+   voi :focus mac dinh, chi doi mau. */
+.cap-flat .cap-sec-body .info-field.f-ok .control:focus,
+.cap-flat .cap-sec-body .info-field.f-ok .cap-textarea:focus {
+  border-color: var(--cf-ok);
+  box-shadow: 0 0 0 3px var(--cf-ok-bg), 0 0 0 1px var(--cf-ok);
+}
+.cap-flat .cap-sec-body .info-field.f-bad .control:focus,
+.cap-flat .cap-sec-body .info-field.f-bad .cap-textarea:focus {
+  border-color: var(--cf-danger);
+  box-shadow: 0 0 0 3px var(--cf-danger-bg), 0 0 0 1px var(--cf-danger);
+}
+/* O * con thieu: nhuom luon nhan de dau * do noi len giua luoi day chu. */
+.cap-flat .info-field.f-bad .info-field-label { color: var(--cf-danger); }
+/* Gioi tinh la cum radio, khong co vien control de nhuom => dung outline (khong
+   chiem cho trong luoi, khong day cac o ben canh) om lay ca cum. */
+.cap-flat .info-field.f-ok .radio-group {
+  outline: 1px solid var(--cf-ok);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Thanh tom tat: o nhap von vien TRONG SUOT (chi hien khi hover/focus) va thanh
+   nay doc nhu mot dai thong tin, nen vien 1px mau o day khong du noi — o * con
+   thieu them ca nen do nhat. */
+.cap-flat .rec-sum-item.f-ok .rec-sum-input { border-color: var(--cf-ok); }
+.cap-flat .rec-sum-item.f-bad .rec-sum-input {
+  border-color: var(--cf-danger);
+  background: var(--cf-danger-bg);
+}
+.cap-flat .rec-sum-item.f-bad .rec-sum-input:hover:not(:disabled),
+.cap-flat .rec-sum-item.f-bad .rec-sum-input:focus { background: var(--cf-danger-bg); }
+.cap-flat .rec-sum-item.f-ok .rec-sum-input:focus {
+  border-color: var(--cf-ok);
+  outline-color: var(--cf-ok);
+}
+.cap-flat .rec-sum-item.f-bad .rec-sum-input:focus {
+  border-color: var(--cf-danger);
+  outline-color: var(--cf-danger);
+}
+.cap-flat .rec-sum-item.f-bad .rec-sum-label { color: var(--cf-danger); }
 
 /* ---------------- Man hep: nhan tro lai tren o nhap ----------------
    Duoi 900px cot con ~420px; nhan nowrap an het be ngang thi o nhap khong con
@@ -11066,14 +11139,19 @@ textarea.input {
 .fps-sheet .fps-thumb-cell:first-child { border-right: 1.1px solid #000; }
 .fps-sheet .fps-thumb-cell .fps-plain-cap { min-height: 4.8mm; }
 .fps-sheet .fps-plain-box {
-  min-height: 26mm;
+  /* Quan trong: phai cho box mot CHIEU CAO XAC DINH (flex:1 + min-height:0) de
+     `img { height:100% }` giai duoc. Neu de `min-height` thuan (khong co flex),
+     box lo vao noi dung hinh anh -> anh van chum (4 ngon / 2 ngon cai) co chieu
+     cao lon hon hang 36mm se DAY box tran xuong phan form phia duoi. */
+  flex: 1 1 0;
+  min-height: 0;
   background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.fps-sheet .fps-thumb-cell .fps-plain-box { min-height: 20mm; }
+.fps-sheet .fps-thumb-cell .fps-plain-box { min-height: 0; }
 .fps-sheet .fps-plain-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
 /* Khoi ky ten (.fps-sign-*) da bo: mau 205 khong co phan ky ten cuoi to. */
 

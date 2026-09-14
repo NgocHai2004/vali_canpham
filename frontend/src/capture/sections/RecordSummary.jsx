@@ -1,12 +1,18 @@
 import { useI18n } from "../../i18n";
+import { fieldState } from "../components/fields";
 
 // Thanh tom tat ho so — dai ngang, nhan nho + gia tri dam. KHONG phai the lon:
 // day la vung nhan dang ho so, khong phai dashboard, nen moi o chi cao 1 dong.
 // So ho so can pham / so chi ban / so AK do can bo dien tay (khong sinh tu dong)
 // vi chung lay tu so dang ky giay cua don vi.
-function SumText({ label, value, onChange, placeholder, disabled, wide = false }) {
+//
+// BBOX xanh/do: dung chung fieldState() voi cac muc I/II/III de mot quy tac chay
+// ca trang (o * con thieu -> do, o da dien -> xanh, o khong bat buoc con trong ->
+// giu nguyen). Chi "Ma ho so" mang `required`; 5 o text con lai deu tuy y.
+function SumText({ label, value, onChange, placeholder, disabled, wide = false, required = false, isValid }) {
+  const st = fieldState({ value, required, isValid });
   return (
-    <label className={"rec-sum-item" + (wide ? " rec-sum-item--wide" : "")}>
+    <label className={"rec-sum-item" + (wide ? " rec-sum-item--wide" : "") + (st ? " " + st : "")}>
       <span className="rec-sum-label">{label}</span>
       <input
         className="rec-sum-input"
@@ -33,13 +39,16 @@ export function RecordSummary({
   form, setField, dateStr, unitName, ready, disabled = false,
 }) {
   const { t } = useI18n();
+  // O "Pham vi" la <div> tho (co <select> ben trong) chu khong qua SumText, nen
+  // tinh bbox o day roi gan tay vao className. Tuy y — khong co dau *.
+  const scopeSt = fieldState({ value: form.record_scope });
   return (
     <div className="rec-sum" role="group" aria-label={t("capture.summary.record_id")}>
       {/* Dau * = bat buoc. Noi o day chu KHONG sua chuoi trong locales, vi khoa
           nay con dung lam aria-label cua ca nhom o tren — them * vao locale thi
           trinh doc man hinh doc ca dau sao cho nhom. Cung la quy uoc san co:
           DetaineeForm.jsx dung t(...) + " *". */}
-      <SumText label={t("capture.summary.record_id") + " *"} value={form.personal_id}
+      <SumText label={t("capture.summary.record_id") + " *"} value={form.personal_id} required
         onChange={(v) => setField("personal_id", v)}
         placeholder={t("capture.form.personal_id_ph")} disabled={disabled} />
       <SumText label={t("capture.summary.record_sheet_no")} value={form.record_sheet_no}
@@ -59,7 +68,7 @@ export function RecordSummary({
         onChange={(v) => setField("ak_no", v)} disabled={disabled} />
       <SumStatic label={t("capture.summary.datetime")} value={dateStr} />
       <SumStatic label={t("capture.summary.unit")} value={unitName} />
-      <div className="rec-sum-item">
+      <div className={"rec-sum-item" + (scopeSt ? " " + scopeSt : "")}>
         <span className="rec-sum-label">{t("capture.summary.scope")}</span>
         <select className="rec-sum-input" value={form.record_scope || ""} disabled={disabled}
           onChange={(e) => setField("record_scope", e.target.value)}>

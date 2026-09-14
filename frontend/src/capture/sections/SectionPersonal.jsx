@@ -23,15 +23,20 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           Backend rang buoc cccd_number = dung 12 chu so (main.py: pattern
           ^\d{12}$) nen o nay loc phi so. So ho chieu KHONG nhap duoc vao day —
           neu can, phai noi rong pattern o backend truoc.
-          Dau * = bat buoc (cung quy uoc voi "Ma ho so" o thanh tom tat). */}
-      <InfoField label={t("capture.personal.id_doc") + " *"}>
+          Dau * = bat buoc (cung quy uoc voi "Ma ho so" o thanh tom tat).
+          BBOX mau: o nao da dien du thi vien xanh, o * con thieu thi vien do,
+          o khong bat buoc ma con trong thi GIU NGUYEN mau goc — xem fieldState
+          trong components/fields.jsx. Rieng o nay `required` di kem `isValid`
+          12 chu so, nen go thieu so van do chu khong xanh. */}
+      <InfoField label={t("capture.personal.id_doc") + " *"} required
+        isValid={/^\d{12}$/.test(form.cccd_number || "")}>
         <input className="control control-sm" value={form.cccd_number} disabled={disabled}
           inputMode="numeric" maxLength={12} placeholder={t("capture.form.cccd_ph")}
           onChange={(e) => setField("cccd_number", e.target.value.replace(/\D/g, "").slice(0, 12))} />
       </InfoField>
       {/* Sinh ngay di cap voi so giay to: ca hai cung do dau doc the dien ra,
           nen can bo doi chieu mot luot ngay hang dau. */}
-      <InfoField label={t("capture.personal.dob")}>
+      <InfoField label={t("capture.personal.dob")} value={form.dob}>
         <input className="control control-sm" value={form.dob} disabled={disabled}
           placeholder={t("capture.form.date_ph")}
           onChange={(e) => setField("dob", e.target.value)} />
@@ -46,20 +51,20 @@ export function SectionPersonal({ form, setField, disabled = false }) {
             Gioi tinh | Quoc tich, Dan toc | Nghe nghiep,
             Que quan | Thuong tru, Tam tru | Hien nay,
             Cha | Me, Vo (chong) | Cho o. */}
-      <InfoField label={t("detainee.field.full_name")}>
+      <InfoField label={t("detainee.field.full_name")} value={form.full_name}>
         <input className="control control-sm" value={form.full_name} disabled={disabled}
           maxLength={100} placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("full_name", e.target.value)} />
       </InfoField>
       {/* "Ten goi khac" gom ca bi danh — can pham thuong khai nhieu ten. O hep di
           mot nua so voi truoc, noi dung go vao van cuon trong o. */}
-      <InfoField label={t("capture.personal.alias")}>
+      <InfoField label={t("capture.personal.alias")} value={form.alias}>
         <input className="control control-sm" value={form.alias} disabled={disabled}
           onChange={(e) => setField("alias", e.target.value)} />
       </InfoField>
 
       {/* ==== 3. GIOI TINH + NHAN KHAU ==== */}
-      <InfoField label={t("detainee.field.gender")}>
+      <InfoField label={t("detainee.field.gender")} value={form.gender}>
         <div className="radio-group radio-group-sm">
           <label className="radio-option">
             <input type="radio" name="capture-gender" value="male" disabled={disabled}
@@ -75,17 +80,17 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           </label>
         </div>
       </InfoField>
-      <InfoField label={t("detainee.field.nationality")}>
+      <InfoField label={t("detainee.field.nationality")} value={form.nationality}>
         <input className="control control-sm" value={form.nationality} disabled={disabled}
           placeholder={t("detainee.field.nationality_default")}
           onChange={(e) => setField("nationality", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.ethnicity")}>
+      <InfoField label={t("detainee.field.ethnicity")} value={form.ethnicity}>
         <input className="control control-sm" value={form.ethnicity} disabled={disabled}
           placeholder={t("capture.form.ethnicity_ph")}
           onChange={(e) => setField("ethnicity", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.occupation")}>
+      <InfoField label={t("detainee.field.occupation")} value={form.occupation}>
         <input className="control control-sm" value={form.occupation} disabled={disabled}
           placeholder={t("capture.field.occupation_ph")}
           onChange={(e) => setField("occupation", e.target.value)} />
@@ -99,22 +104,22 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           Danh doi: o hep di mot nua nen placeholder dai bi cat bot khi o trong
           ("So nha, duong, phuong/xa, quan/huyen, tinh/thanh"). Chi la goi y luc
           o rong; noi dung go vao van du cho va van cuon trong o. */}
-      <InfoField label={t("detainee.field.hometown")}>
+      <InfoField label={t("detainee.field.hometown")} value={form.hometown}>
         <input className="control control-sm" value={form.hometown} disabled={disabled}
           placeholder={t("capture.form.hometown_ph")}
           onChange={(e) => setField("hometown", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.address")}>
+      <InfoField label={t("detainee.field.address")} value={form.address}>
         <input className="control control-sm" value={form.address} disabled={disabled}
           placeholder={t("capture.field.address_ph")}
           onChange={(e) => setField("address", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.temp_address")}>
+      <InfoField label={t("detainee.field.temp_address")} value={form.temp_address}>
         <input className="control control-sm" value={form.temp_address} disabled={disabled}
           placeholder={t("capture.field.address_ph")}
           onChange={(e) => setField("temp_address", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.current_address")}>
+      <InfoField label={t("detainee.field.current_address")} value={form.current_address}>
         <input className="control control-sm" value={form.current_address} disabled={disabled}
           placeholder={t("capture.field.address_ph")}
           onChange={(e) => setField("current_address", e.target.value)} />
@@ -125,22 +130,22 @@ export function SectionPersonal({ form, setField, disabled = false }) {
           co 2 dong co dinh, TRUOC DAY dat o muc III (dac diem nhan dang) — sai
           nhom, gio dua ve day cho lien mach thong tin than nhan. Bang family[]
           (con, anh chi em) da bo khoi trang theo spec 5 muc. */}
-      <InfoField label={t("detainee.field.father_name")}>
+      <InfoField label={t("detainee.field.father_name")} value={form.father_name}>
         <input className="control control-sm" value={form.father_name} disabled={disabled}
           placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("father_name", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.mother_name")}>
+      <InfoField label={t("detainee.field.mother_name")} value={form.mother_name}>
         <input className="control control-sm" value={form.mother_name} disabled={disabled}
           placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("mother_name", e.target.value)} />
       </InfoField>
-      <InfoField label={t("namesheet.field.spouse")}>
+      <InfoField label={t("namesheet.field.spouse")} value={form.spouse_name}>
         <input className="control control-sm" value={form.spouse_name} disabled={disabled}
           placeholder={t("capture.form.full_name_ph")}
           onChange={(e) => setField("spouse_name", e.target.value)} />
       </InfoField>
-      <InfoField label={t("namesheet.field.residence")}>
+      <InfoField label={t("namesheet.field.residence")} value={form.spouse_residence}>
         <input className="control control-sm" value={form.spouse_residence} disabled={disabled}
           placeholder={t("capture.field.address_ph")}
           onChange={(e) => setField("spouse_residence", e.target.value)} />

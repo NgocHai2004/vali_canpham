@@ -31,21 +31,21 @@ export function SectionCase({ form, setField, disabled = false }) {
   const { t } = useI18n();
   return (
     <div className="cap-grid cap-grid--case">
-      <InfoField label={t("capture.case.arrest_date")}>
+      <InfoField label={t("capture.case.arrest_date")} value={form.arrest_date}>
         <input className="control control-sm" value={form.arrest_date} disabled={disabled}
           placeholder={t("capture.form.date_ph")}
           onChange={(e) => setField("arrest_date", e.target.value)} />
       </InfoField>
       {/* Don vi bat thuong dai ("Cong an phuong ... quan ...") nen o nua hang bi
           cat chu khi o trong — noi dung go vao van cuon trong o. */}
-      <InfoField label={t("capture.case.arrest_unit")}>
+      <InfoField label={t("capture.case.arrest_unit")} value={form.arrest_agency}>
         <input className="control control-sm" value={form.arrest_agency} disabled={disabled}
           placeholder={t("capture.arrest_agency_ph")}
           onChange={(e) => setField("arrest_agency", e.target.value)} />
       </InfoField>
       {/* "Lap ve viec" = noi dung vu viec / ly do lap ho so, ghi tren chi ban.
           Giu textarea 2 dong: noi dung dai nhat cua muc nay. */}
-      <InfoField label={t("capture.case.about")}>
+      <InfoField label={t("capture.case.about")} value={form.case_about}>
         <textarea className="control control-sm cap-textarea" rows={2}
           value={form.case_about} disabled={disabled}
           placeholder={t("capture.case_about_ph")}
@@ -55,7 +55,7 @@ export function SectionCase({ form, setField, disabled = false }) {
           ban) in dong nay TRONG vi khong co truong nao mang du lieu; gio can bo
           tra cuu duoc roi nhap vao day. Dat sau "Lap ve viec" vi tren mau giay
           no nam ngay duoi dong do. */}
-      <InfoField label={t("namesheet.field.fp_formula")}>
+      <InfoField label={t("namesheet.field.fp_formula")} value={form.fp_formula}>
         <input className="control control-sm" value={form.fp_formula} disabled={disabled}
           placeholder={t("capture.fp_formula_ph")}
           onChange={(e) => setField("fp_formula", e.target.value)} />
@@ -63,7 +63,7 @@ export function SectionCase({ form, setField, disabled = false }) {
 
       {/* ---- Khoi 4 o CAN BO cua mau 205 ---- */}
       {OFFICERS.map(({ key, labelKey }) => (
-        <InfoField key={key} label={t(labelKey)}>
+        <InfoField key={key} label={t(labelKey)} value={form[key]}>
           <input className="control control-sm" value={form[key]} disabled={disabled}
             placeholder={t("capture.form.full_name_ph")}
             onChange={(e) => setField(key, e.target.value)} />
@@ -73,7 +73,7 @@ export function SectionCase({ form, setField, disabled = false }) {
       {/* GHI CHU — hang cuoi, trai ca 2 cot. Truong `note` von da di qua form
           nhu du lieu an (khong co o nhap tu khi don muc I); gio co lai cho nhap.
           Khong in tren mau 204/205/208 — la ghi chu noi bo cua ho so. */}
-      <InfoField label={t("detainee.field.note")} className="span-3col">
+      <InfoField label={t("detainee.field.note")} className="span-3col" value={form.note}>
         <textarea className="control control-sm cap-textarea" rows={2}
           value={form.note} disabled={disabled}
           onChange={(e) => setField("note", e.target.value)} />

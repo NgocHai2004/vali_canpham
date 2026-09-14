@@ -1,3 +1,18 @@
+// Trang thai cua mot o tren to khai — dung chung cho thanh tom tat ho so va
+// ca ba muc I / II / III:
+//   "f-ok"  = da dien du  -> bbox xanh
+//   "f-bad" = bat buoc (*) ma con thieu -> bbox do
+//   ""      = con thieu va KHONG bat buoc -> giu nguyen mau goc
+//
+// `isValid` danh cho truong bat buoc ma "co chu" chua du: so CCCD phai dung 12
+// chu so (backend main.py rang buoc ^\d{12}$) nen go duoc 5 so van la thieu,
+// van do cho den khi dung. Khong truyen `isValid` thi chi can khac rong.
+export function fieldState({ value, required = false, isValid }) {
+  const ok = isValid === undefined ? String(value ?? "").trim() !== "" : !!isValid;
+  if (ok) return "f-ok";
+  return required ? "f-bad" : "";
+}
+
 // Các ô hiển thị/nhãn nhỏ dùng chung trong trang thu nhận dữ liệu.
 export function Field({ label, children }) {
   return (
@@ -8,9 +23,13 @@ export function Field({ label, children }) {
   );
 }
 
-export function InfoField({ label, children, className = "" }) {
+// `value` / `required` / `isValid` chi de tinh bbox; o nhap van la children do
+// goi truyen vao. Khong truyen `value` thi o khong doi mau — cac cho chua cap
+// nhat giu dung hien trang cu.
+export function InfoField({ label, children, className = "", value, required = false, isValid }) {
+  const st = fieldState({ value, required, isValid });
   return (
-    <label className={"info-field " + className}>
+    <label className={"info-field " + className + (st ? " " + st : "")}>
       <span className="info-field-label">{label}</span>
       {children}
     </label>

@@ -11,30 +11,30 @@ export function SectionIdentify({ form, setField, disabled = false }) {
   const { t } = useI18n();
   return (
     <div className="cap-grid cap-grid--identify">
-      <InfoField label={t("capture.identify.face")}>
+      <InfoField label={t("capture.identify.face")} value={form.face_shape}>
         <input className="control control-sm" value={form.face_shape} disabled={disabled}
           onChange={(e) => setField("face_shape", e.target.value)} />
       </InfoField>
-      <InfoField label={t("detainee.field.height_cm")}>
+      <InfoField label={t("detainee.field.height_cm")} value={form.height_cm}>
         <input className="control control-sm" type="number" min="50" max="250"
           value={form.height_cm} disabled={disabled} placeholder="---"
           onChange={(e) => setField("height_cm", e.target.value)} />
       </InfoField>
-      <InfoField label={t("capture.identify.nose")}>
+      <InfoField label={t("capture.identify.nose")} value={form.nose}>
         <input className="control control-sm" value={form.nose} disabled={disabled}
           onChange={(e) => setField("nose", e.target.value)} />
       </InfoField>
       {/* ear_features (cu: "Dac diem tai") duoc dung lai cho "Nep tai duoi" —
           khong doi ten truong DB de ho so cu khong mat du lieu. */}
-      <InfoField label={t("capture.identify.ear_fold")}>
+      <InfoField label={t("capture.identify.ear_fold")} value={form.ear_features}>
         <input className="control control-sm" value={form.ear_features} disabled={disabled}
           onChange={(e) => setField("ear_features", e.target.value)} />
       </InfoField>
-      <InfoField label={t("capture.identify.earlobe")}>
+      <InfoField label={t("capture.identify.earlobe")} value={form.earlobe}>
         <input className="control control-sm" value={form.earlobe} disabled={disabled}
           onChange={(e) => setField("earlobe", e.target.value)} />
       </InfoField>
-      <InfoField label={t("capture.identify.abnormal")}>
+      <InfoField label={t("capture.identify.abnormal")} value={form.physical_abnormalities}>
         <input className="control control-sm" value={form.physical_abnormalities} disabled={disabled}
           onChange={(e) => setField("physical_abnormalities", e.target.value)} />
       </InfoField>
@@ -44,7 +44,7 @@ export function SectionIdentify({ form, setField, disabled = false }) {
           "Chieu cao: 1m__". */}
       {/* Luoi muc III la 4 cot: hang 1 = khuon mat / chieu cao / song mui / nep
           tai duoi, hang 2 = dai tai / di hinh + o nay chiem 2 cot cuoi. */}
-      <InfoField label={t("capture.identify.marks")} className="span-2col">
+      <InfoField label={t("capture.identify.marks")} className="span-2col" value={form.scars}>
         <textarea className="control control-sm cap-textarea" rows={2}
           value={form.scars} disabled={disabled} placeholder={t("capture.scars_ph")}
           onChange={(e) => setField("scars", e.target.value)} />
