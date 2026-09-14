@@ -60,8 +60,16 @@ export default function SessionSheetsPrinter({ detainees, unitName = "", onDone 
       <div className="preview-scroll">
         {detainees.map((d, i) => (
           <div key={i}>
-            <NameSheetPreviewContent form={d} photos={d.photos || {}} unitName={unitName} />
-            <FpSheetPreviewContent form={d} photos={d.photos || {}} unitName={unitName} />
+            {/* Mỗi tờ một khung .sheet-page: khi in, khung này cao đúng bằng phần
+                nhìn thấy của tờ và có break-after:page, nên 1 tờ = 1 trang giấy
+                (xem @media print trong styles.css). Trên màn hình class này không
+                có luật nào áp dụng. */}
+            <div className="sheet-page">
+              <NameSheetPreviewContent form={d} photos={d.photos || {}} unitName={unitName} />
+            </div>
+            <div className="sheet-page">
+              <FpSheetPreviewContent form={d} photos={d.photos || {}} unitName={unitName} />
+            </div>
           </div>
         ))}
       </div>

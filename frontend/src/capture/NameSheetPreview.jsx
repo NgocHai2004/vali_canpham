@@ -330,7 +330,7 @@ export function NameSheetPreviewModal({ form, photos = {}, unitName = "", onClos
       </div>
 
       <div className="preview-scroll" onClick={onClose}>
-        <div onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-page" onClick={(e) => e.stopPropagation()}>
           <NameSheetPreviewContent ref={a4Ref} form={form} photos={photos} unitName={unitName} />
         </div>
       </div>
