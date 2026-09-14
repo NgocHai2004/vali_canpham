@@ -10849,14 +10849,17 @@ textarea.input {
    ============================================================ */
 .fps-sheet {
   gap: 2mm;
-  /* OCR: chu to hon (10.5 -> 12.5px), KHONG in dam o phan dien, va dãn chu
-     (letter-spacing) + dãn dong de may doc khong dinh net. Xem .fps-val. */
-  font-size: 12.5px;
+  /* OCR: chu to hon (10.5 -> 12.5 -> 14.5px), KHONG in dam o phan dien, va dãn
+     chu (letter-spacing) + dãn dong de may doc khong dinh net. Xem .fps-val.
+     Bu lai bang line-height gat hon + gap/padding nho hon de KHONG doi kich
+     thuoc to — giu nguyen kien truc layer cua mau in. */
+  font-size: 14.5px;
+  line-height: 1.15;
   letter-spacing: 0.25px;
 }
 
 /* ---- Goc tren phai: so hieu mau + thong tu — CA 3 DONG IN NGHIENG (mau giay) ---- */
-.fps-sheet .fps-formno { text-align: right; font-size: 11px; line-height: 1.35; }
+.fps-sheet .fps-formno { text-align: right; font-size: 12px; line-height: 1.2; }
 .fps-sheet .fps-formno-it { font-style: italic; }
 
 /* ---- Khung vien ngoai bao ca to ----
@@ -10883,8 +10886,8 @@ textarea.input {
 .fps-sheet .fps-top-l {
   display: flex;
   flex-direction: column;
-  gap: 3mm;
-  padding: 1.5mm 2.5mm 1.5mm 2mm;
+  gap: 2mm;
+  padding: 1mm 1.6mm 1mm 1.4mm;
   border-right: 1.1px solid #000;
 }
 .fps-sheet .fps-title {
@@ -10892,14 +10895,14 @@ textarea.input {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 2.5px;
-  margin-bottom: 0.8mm;
+  margin-bottom: 0.4mm;
 }
 .fps-sheet .fps-top-r {
   display: flex;
   flex-direction: column;
-  gap: 3mm;
+  gap: 2mm;
   min-width: 0;
-  padding: 1.5mm 2mm;
+  padding: 1mm 1.5mm;
 }
 /* Cac dong ke CHINH trong 2 cot doc: flexGrow inline cua .fps-line chi dung de
    chia ngang trong .fps-row; o day phai tat (important de thang inline style)
@@ -10913,7 +10916,7 @@ textarea.input {
 .fps-sheet .fps-sex {
   display: inline-flex;
   align-items: baseline;
-  gap: 1mm;
+  gap: 0.8mm;
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -10933,14 +10936,16 @@ textarea.input {
 .fps-sheet .fps-sexdob {
   display: flex;
   align-items: baseline;
-  gap: 1mm;
-  flex: 1 1 auto;
-  min-width: 0;
+  gap: 0.8mm;
+  /* KHONG cho cụm "Nam/nữ + sinh ngày" GIÃN chiếm chỗ (flex 1 1 auto cũ làm 3 o
+     ngay phình to va ép ô "Họ và tên" hẹp -> tên bi xuông dòng 2 khi chu to).
+     Moi khoang trong nhường cho ô tên; o ngày chi ôm nội dung (min-width). */
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 .fps-sheet .fps-dobseg {
-  flex: 1 1 8mm;
-  min-width: 5mm;
+  flex: 0 1 auto;
+  min-width: 4.5mm;
   min-height: 5mm;
   border-bottom: 0.9px dotted #000;
   font-weight: 400;
@@ -10953,17 +10958,17 @@ textarea.input {
 .fps-sheet .fps-lab.no-colon::after { content: none; }
 
 /* ---- Dong ke chung: nhan + gia tri tren net ke ---- */
-.fps-sheet .fps-row { display: flex; gap: 3mm; }
+.fps-sheet .fps-row { display: flex; gap: 2.2mm; }
 .fps-sheet .fps-line {
   display: flex;
   align-items: baseline;
-  gap: 1.2mm;
+  gap: 1mm;
   flex-basis: 0;
   min-width: 0;
 }
 .fps-sheet .fps-lab { white-space: nowrap; }
 .fps-sheet .fps-lab::after { content: ":"; }
-.fps-sheet .fps-lab sup { font-size: 8.5px; }
+.fps-sheet .fps-lab sup { font-size: 9.5px; }
 /* OCR: gia tri KHONG in dam (400) — chu dam bi nho net khi scan.
    Gia tri dai duoc XUONG DONG thay vi cat bang dau ba cham. */
 .fps-sheet .fps-val {
@@ -10991,9 +10996,9 @@ textarea.input {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1.1mm;
+  gap: 0.8mm;
   min-width: 0;
-  padding: 1mm 2.5mm;
+  padding: 0.7mm 1.8mm;
 }
 /* O dan ma vach */
 .fps-sheet .fps-barcode {
@@ -11002,11 +11007,11 @@ textarea.input {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0.6mm 1mm;
+  padding: 0.4mm 0.8mm;
   text-align: center;
-  font-size: 10px;
+  font-size: 10.5px;
   font-style: italic;
-  line-height: 1.35;
+  line-height: 1.2;
 }
 .fps-sheet .fps-barcode-cap { margin-top: 0.4mm; }
 
@@ -11038,7 +11043,7 @@ textarea.input {
   position: absolute;
   top: 0.5mm;
   left: 1mm;
-  font-size: 11.5px;
+  font-size: 12.5px;
   line-height: 1.1;
   text-shadow: 0 0 1.5px #fff, 0 0 1.5px #fff;
 }
@@ -11048,7 +11053,7 @@ textarea.input {
   left: 0.8mm;
   right: 0.8mm;
   text-align: center;
-  font-size: 11.5px;
+  font-size: 12.5px;
   line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
@@ -11068,9 +11073,9 @@ textarea.input {
 .fps-sheet .fps-strip-cell {
   min-width: 0;
   border-right: 1.1px solid #000;
-  padding: 0.3mm 0 0 1mm;
-  font-size: 11.5px;
-  line-height: 1.1;
+  padding: 0.2mm 0 0 0.8mm;
+  font-size: 12.5px;
+  line-height: 1.05;
 }
 .fps-sheet .fps-strip-cell:last-child { border-right: 0; }
 
@@ -11092,11 +11097,11 @@ textarea.input {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4mm 0.8mm;
+  padding: 0.3mm 0.6mm;
   min-height: 4.2mm;
   box-sizing: border-box;
   border-bottom: 1.1px solid #000;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.1;
   text-align: center;
 }
@@ -11122,11 +11127,11 @@ textarea.input {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4mm 0.8mm;
+  padding: 0.3mm 0.6mm;
   min-height: 4.8mm;
   box-sizing: border-box;
   border-bottom: 1.1px solid #000;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.1;
   text-align: center;
 }
@@ -11166,8 +11171,11 @@ textarea.input {
   font-family: "Times New Roman", Times, serif;
   color: #000;
   gap: 2mm;
-  /* OCR: chu to hon (10.5 -> 12.5px), KHONG in dam o phan dien, dãn chu + dãn dong. */
-  font-size: 12.5px;
+  /* OCR: chu to hon (10.5 -> 12.5 -> 14.5px), KHONG in dam o phan dien, dãn chu
+     + dãn dong. Bu lai bang line-height gat hon + gap/padding nho hon de KHONG
+     doi kich thuoc to — giu nguyen kien truc layer cua mau in. */
+  font-size: 14.5px;
+  line-height: 1.15;
   letter-spacing: 0.25px;
   background: #fff;
   box-sizing: border-box;
@@ -11176,17 +11184,17 @@ textarea.input {
 /* ---- Goc tren phai: so hieu mau + thong tu ---- */
 .nsb-sheet .nsb-formno {
   text-align: right;
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 12px;
+  line-height: 1.2;
   font-style: italic;
-  margin-bottom: 0.5mm;
+  margin-bottom: 0.2mm;
 }
 .nsb-sheet .nsb-formno-it { font-style: italic; }
 
 /* ---- Khung ngoai moi mau ---- */
-.nsb-sheet .nsb-box-1 { 
-  border: 1.2px solid #000; 
-  padding: 2.5mm 3mm 0 3mm; 
+.nsb-sheet .nsb-box-1 {
+  border: 1.2px solid #000;
+  padding: 1.5mm 2mm 0 2mm;
   box-sizing: border-box;
 }
 .nsb-sheet .nsb-box-2 {
@@ -11202,19 +11210,19 @@ textarea.input {
 .nsb-sheet .nsb-line {
   display: flex;
   align-items: baseline;
-  gap: 1.6mm;
+  gap: 1mm;
   flex-basis: 0;
   min-width: 0;
 }
-.nsb-sheet .nsb-lab { white-space: nowrap; font-size: 12.5px; }
+.nsb-sheet .nsb-lab { white-space: nowrap; font-size: 14.5px; }
 .nsb-sheet .nsb-lab::after { content: ":"; }
-.nsb-sheet .nsb-lab sup { font-size: 8.5px; }
+.nsb-sheet .nsb-lab sup { font-size: 9.5px; }
 .nsb-sheet .nsb-lab.no-colon::after { content: none; }
 
 .nsb-sheet .nsb-date {
   display: flex;
   align-items: baseline;
-  gap: 1mm;
+  gap: 0.8mm;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -11240,21 +11248,21 @@ textarea.input {
   white-space: normal;
   overflow-wrap: break-word;
 }
-.nsb-sheet .nsb-row { display: flex; gap: 3.5mm; }
+.nsb-sheet .nsb-row { display: flex; gap: 2.4mm; }
 .nsb-sheet .nsb-blank { min-height: 5.1mm; border-bottom: 0.9px dotted #000; }
 
 .nsb-sheet .nsb-divider {
   border-bottom: 1px solid #000;
-  margin: 1.5mm 0;
+  margin: 1mm 0;
 }
 
 /* ---- Mau 204: hang tren = cot danh ban | cot nhan than ---- */
-.nsb-sheet .nsb-top { display: grid; grid-template-columns: 31% 1fr; gap: 3mm; }
+.nsb-sheet .nsb-top { display: grid; grid-template-columns: 31% 1fr; gap: 2.2mm; }
 .nsb-sheet .nsb-top-l {
   display: flex;
   flex-direction: column;
-  gap: 1.8mm;
-  padding-right: 3mm;
+  gap: 1.2mm;
+  padding-right: 2mm;
   border-right: 1px solid #000;
 }
 .nsb-sheet .nsb-title {
@@ -11262,13 +11270,13 @@ textarea.input {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 1.6px;
-  margin-bottom: 1.5mm;
+  margin-bottom: 0.8mm;
 }
-.nsb-sheet .nsb-top-r { display: flex; flex-direction: column; gap: 1.8mm; min-width: 0; }
+.nsb-sheet .nsb-top-r { display: flex; flex-direction: column; gap: 1.2mm; min-width: 0; }
 .nsb-sheet .nsb-sex {
   display: inline-flex;
   align-items: baseline;
-  gap: 1mm;
+  gap: 0.8mm;
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -11285,26 +11293,28 @@ textarea.input {
 .nsb-sheet .nsb-mid {
   display: flex;
   flex-direction: column;
-  gap: 1.8mm;
-  margin-top: 1.6mm;
+  gap: 1.2mm;
+  margin-top: 1mm;
 }
 
 /* ---- Mau 204: hang duoi = lap ve viec | 2 o van tro ---- */
 .nsb-sheet .nsb-bot {
   display: grid;
   grid-template-columns: 1fr 56mm;
-  gap: 3mm;
-  margin-top: 1.6mm;
-  margin-right: -3mm;
+  gap: 2.2mm;
+  margin-top: 1mm;
+  /* Bu dung padding phai cua .nsb-box-1 (da giam 3mm -> 2mm) de 2 o van tro
+     van cham san vien phai nhu ban in goc. */
+  margin-right: -2mm;
   align-items: start;
 }
 .nsb-sheet .nsb-bot-l {
   display: flex;
   flex-direction: column;
-  gap: 1.8mm;
+  gap: 1.2mm;
   min-width: 0;
 }
-.nsb-sheet .nsb-ct { display: flex; align-items: baseline; gap: 1.6mm; }
+.nsb-sheet .nsb-ct { display: flex; align-items: baseline; gap: 1mm; }
 .nsb-sheet .nsb-ct > span:first-child { white-space: nowrap; }
 .nsb-sheet .nsb-ct > span:first-child::after { content: ""; }
 .nsb-sheet .nsb-ct-line { flex: 1 1 auto; min-height: 5.1mm; border-bottom: 1px solid #000; }
@@ -11322,10 +11332,10 @@ textarea.input {
 .nsb-sheet .nsb-fp2-cell { display: flex; flex-direction: column; min-width: 0; }
 .nsb-sheet .nsb-fp2-cell:first-child { border-right: 1px solid #000; }
 .nsb-sheet .nsb-fp2-cap {
-  padding: 0.8mm 1mm;
+  padding: 0.5mm 0.8mm;
   border-bottom: 1px solid #000;
   background: #fff;
-  font-size: 11px;
+  font-size: 12px;
   text-align: center;
 }
 .nsb-sheet .nsb-fp2-box {
@@ -11340,10 +11350,10 @@ textarea.input {
 
 /* ---- Chu thich (1)(2) ---- */
 .nsb-sheet .nsb-foot {
-  font-size: 10.5px;
+  font-size: 11px;
   font-style: italic;
-  line-height: 1.45;
-  margin: 1.5mm 0 8mm 6mm;
+  line-height: 1.3;
+  margin: 1mm 0 5mm 4mm;
 }
 
 /* ---- Mau 208: hang tren = AK/vo chong | o ma vach ---- */
@@ -11356,16 +11366,16 @@ textarea.input {
 .nsb-sheet .nsb-208-l {
   display: flex;
   flex-direction: column;
-  gap: 1.8mm;
+  gap: 1.2mm;
   min-width: 0;
-  padding: 2.5mm 3mm;
+  padding: 1.5mm 2mm;
 }
 .nsb-sheet .nsb-barcode {
   border-left: 1px solid #000;
-  padding: 2mm 1.5mm;
+  padding: 1.2mm 1mm;
   text-align: center;
-  font-size: 10.5px;
-  line-height: 1.35;
+  font-size: 11px;
+  line-height: 1.2;
   font-style: italic;
   display: flex;
   flex-direction: column;
@@ -11382,8 +11392,8 @@ textarea.input {
 .nsb-sheet .nsb-208-mid {
   display: flex;
   flex-direction: column;
-  gap: 1.8mm;
-  padding: 2.5mm 3mm;
+  gap: 1.2mm;
+  padding: 1.5mm 2mm;
 }
 /* OCR: "1m72" khong in dam nua — chu dam de bi nho net khi scan. */
 .nsb-sheet .nsb-1m { font-weight: 400; white-space: nowrap; margin-right: 0.5mm; }
@@ -11424,16 +11434,16 @@ textarea.input {
 }
 .nsb-sheet .nsb-photo-head {
   font-weight: 400;
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 11.5px;
+  line-height: 1.25;
   text-align: center;
 }
 .nsb-sheet .nsb-photo-name {
   font-style: italic;
-  font-size: 10px;
-  line-height: 1.3;
+  font-size: 10.5px;
+  line-height: 1.25;
   text-align: center;
-  margin-top: 0.5mm;
+  margin-top: 0.3mm;
 }
 .nsb-sheet .nsb-photo-overlay {
   position: absolute;
@@ -11449,7 +11459,7 @@ textarea.input {
 .nsb-sheet .nsb-208-right {
   display: flex;
   flex-direction: column;
-  gap: 1.8mm;
+  gap: 1.2mm;
   min-width: 0;
-  padding: 2.5mm 3mm;
+  padding: 1.5mm 2mm;
 }

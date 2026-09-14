@@ -1827,14 +1827,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
         </div>
 
-        {/* ---- Cot phai: chi anh nhan dang. Van tay (VI) da tach xuong hang
+        {/* ---- Cot phai: chi anh nhan dang. Van tay (V) da tach xuong hang
              rieng ben duoi vi luoi 10 o + 3 anh chum khong du cho trong nua o
              ngang; de canh muc III thi o van tay bi bop nho. ---- */}
         <div className="cap-col">
         {/* ================ IV. ANH NHAN DANG (3x4) ================ */}
         <section className="cap-sec" id="cap-sec-photo">
           <h2 className="cap-sec-title">
-            {t("capture.roman.5")}
+            {t("capture.roman.4")}
             <span className="fp-row-count">{portraitCount} / 3</span>
           </h2>
           <div className="cap-sec-body">
@@ -1852,9 +1852,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
         {/* ---- Hang giua, trai het be ngang: dac diem nhan dang ---- */}
         <div className="cap-col cap-col--full">
-        {/* ================ IV. DAC DIEM NHAN DANG ================ */}
+        {/* ================ III. DAC DIEM NHAN DANG ================ */}
         <section className="cap-sec" id="cap-sec-identify">
-          <h2 className="cap-sec-title">{t("capture.roman.4")}</h2>
+          <h2 className="cap-sec-title">{t("capture.roman.3")}</h2>
           <div className="cap-sec-body">
             <SectionIdentify form={form} setField={setField} disabled={sessionReadOnly} />
           </div>
@@ -1863,10 +1863,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
         {/* ---- Hang duoi, trai het be ngang: chi ban van tay ---- */}
         <div className="cap-col cap-col--full">
-        {/* ================ VI. CHI BAN VAN TAY ================ */}
+        {/* ================ V. CHI BAN VAN TAY ================ */}
         <section className="cap-sec" id="cap-sec-fp">
           <div className="cap-sec-head">
-            <h2 className="cap-sec-title">{t("capture.roman.6")}</h2>
+            <h2 className="cap-sec-title">{t("capture.roman.5")}</h2>
               <div className="fp-header-actions">
                 {fpConfirm && (
                   <>
