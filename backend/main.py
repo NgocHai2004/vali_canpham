@@ -2680,6 +2680,11 @@ async def delete_scene_trace(
         raise HTTPException(404, "Không tìm thấy dấu vết hiện trường.")
     await db.scene_traces.delete_one({"_id": doc["_id"]})
     _delete_scene_file(doc.get("url"))
+    # Xoá luôn kết quả đối sánh của dấu vết này: bảng KẾT QUẢ ĐỐI SÁNH hiện cặp
+    # theo trace_id, không xoá thì kết quả của dấu vết đã bị xoá vẫn nằm trong
+    # bảng, mà cán bộ bấm vào thì mở hồ sơ dấu vết không còn tồn tại. (Giống hồ
+    # sơ bị xoá -> xoá scene_matches theo detainee_id trong delete_detainee.)
+    await db.scene_matches.delete_many({"trace_id": doc["_id"]})
     await _log(request, user, "delete", "scene_trace", f"#{doc.get('seq')}",
                ref_id=trace_id, case_id=doc.get("case_id"))
     return {"ok": True}
