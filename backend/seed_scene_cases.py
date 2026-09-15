@@ -14,9 +14,32 @@ from datetime import datetime, timedelta
 
 from pymongo import MongoClient
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "app_cccd")
-OFFICER = os.getenv("SEED_OFFICER", "canbo01")
+def _get_env(key: str, default: str) -> str:
+    val = os.getenv(key, "").strip()
+    if val:
+        return val
+    candidate_envs = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
+    ]
+    for env_file in candidate_envs:
+        if os.path.exists(env_file):
+            try:
+                with open(env_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            if k.strip() == key:
+                                return v.strip().strip('"').strip("'")
+            except Exception:
+                pass
+    return default
+
+MONGO_URL = _get_env("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = _get_env("DB_NAME", "app_cccd")
+OFFICER = _get_env("SEED_OFFICER", "canbo01")
 
 IMG_DIR = os.path.join(os.path.dirname(__file__), "uploads", "latent_cut")
 PER_CASE = 10

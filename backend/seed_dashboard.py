@@ -20,11 +20,35 @@ try:
 except Exception:
     pass
 
+import os
 import bcrypt
 from motor.motor_asyncio import AsyncIOMotorClient
 
-MONGO_URL = "mongodb://localhost:27017"
-DB_NAME = "app_cccd"
+def _get_env(key: str, default: str) -> str:
+    val = os.getenv(key, "").strip()
+    if val:
+        return val
+    candidate_envs = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
+    ]
+    for env_file in candidate_envs:
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    if k.strip() == key:
+                        return v.strip().strip('"').strip("'")
+        except FileNotFoundError:
+            continue
+    return default
+
+MONGO_URL = _get_env("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = _get_env("DB_NAME", "app_cccd")
 
 
 def hash_password(pw: str) -> str:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import io
 import re
@@ -26,31 +28,32 @@ from bson import ObjectId
 from openpyxl import Workbook, load_workbook
 
 def _env_str_from_dotenv(name: str) -> str:
-    """Doc gia tri tu .env (App_CCCD/.env) khi env var chua set.
-    Nguon su that duy nhat la .env — tranh lech secret giua cac cach start khac nhau
-    (run-electron load .env vs start-all khong load .env) gay 2 backend lech secret
-    -> token 401 -> logout hang loat khi quet CCCD.
-    """
+    """Doc gia tri tu .env khi env var chua set."""
     val = os.getenv(name, "").strip()
     if val:
         return val
-    root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
-    try:
-        with open(root_env, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                if k.strip() == name:
-                    return v.strip().strip('"').strip("'")
-    except FileNotFoundError:
-        pass
+    candidate_envs = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
+    ]
+    for env_file in candidate_envs:
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    if k.strip() == name:
+                        return v.strip().strip('"').strip("'")
+        except FileNotFoundError:
+            continue
     return ""
 
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "app_cccd")
+MONGO_URL = _env_str_from_dotenv("MONGO_URL") or "mongodb://localhost:27017"
+DB_NAME = _env_str_from_dotenv("DB_NAME") or "app_cccd"
 JWT_SECRET = _env_str_from_dotenv("JWT_SECRET") or "change-me-in-production-please-abc123xyz"
 JWT_ALGO = "HS256"
 TOKEN_TTL_MINUTES = 60 * 8
