@@ -20,7 +20,7 @@ BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 # Ten file phai khop LATENT / ENROLLED trong frontend/src/sceneDemo.js.
 LATENT = [f"dauvantay_{i:02d}.png" for i in range(1, 11)] + \
          [f"vantay_{i:02d}.png" for i in range(2, 9)]
-ENROLLED = [f"vantay_synth_{i:02d}.png" for i in range(2, 51)]
+ENROLLED = [f"vantay_synth_{i:02d}.png" for i in range(1, 51)]
 
 PATTERNS = ("loop", "whorl", "arch")
 

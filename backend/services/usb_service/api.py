@@ -115,19 +115,24 @@ def _load_dotenv_secret(name: str) -> str:
     val = os.getenv(name, "").strip()
     if val:
         return val
-    # .env nam o goc project (App_CCCD/.env), 2 cap thu muc len tu usb_service/
-    env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".env"))
-    try:
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                if k.strip() == name:
-                    return v.strip().strip('"').strip("'")
-    except FileNotFoundError:
-        pass
+    candidate_paths = [
+        os.path.abspath(os.path.join(os.getcwd(), ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".env")),
+    ]
+    for env_path in candidate_paths:
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        if k.strip() == name:
+                            return v.strip().strip('"').strip("'")
+            except Exception:
+                pass
     return ""
 
 

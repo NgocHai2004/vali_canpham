@@ -743,6 +743,266 @@ label.smp-drop.on { border-color: var(--smp-blue); background: rgba(34,114,232,.
 .stf-btn-usb:hover:enabled { background: #ef4444; }
 .stf-c09-act > button:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 
+/* ---- Báo cáo C09 trên giấy A4 / PDF Modal & Export ---- */
+.scene-report {
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-family: "Times New Roman", "Cambria", serif !important;
+  box-sizing: border-box;
+}
+.scene-report * {
+  box-sizing: border-box;
+}
+.scene-report .sr-doc-nation {
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #111827 !important;
+  letter-spacing: 0.5px;
+}
+.scene-report .sr-doc-motto {
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #111827 !important;
+  margin-top: 3px;
+}
+.scene-report .sr-doc-underline {
+  width: 140px;
+  height: 1.5px;
+  background: #111827;
+  margin: 4px auto 12px;
+}
+.scene-report .sr-doc-title {
+  text-align: center;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #1e3a8a !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+.scene-report .sr-doc-sub {
+  text-align: center;
+  font-size: 11.5px;
+  font-style: italic;
+  color: #4b5563 !important;
+  margin-top: 3px;
+  margin-bottom: 12px;
+}
+/* Grid thông tin hành chính khớp 100% format preview .stf-doc-grid */
+.scene-report .sr-doc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #93a3bd;
+  border-width: 1px 0 0 1px;
+  font-size: 11.5px;
+  margin-top: 6px;
+  background: #ffffff;
+}
+.scene-report .sr-doc-cell {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #93a3bd;
+  border-width: 0 1px 1px 0;
+  min-width: 0;
+  background: #ffffff;
+}
+.scene-report .sr-doc-lb {
+  flex: 0 0 140px;
+  padding: 6px 10px;
+  border-right: 1px solid #93a3bd;
+  color: #b91c1c !important;
+  font-weight: 700;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+}
+.scene-report .sr-doc-val {
+  padding: 6px 10px;
+  color: #111827 !important;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+}
+.scene-report .sr-doc-blank {
+  background: #ffffff;
+}
+/* Khối đối sánh cặp khớp 100% format preview .stf-doc-pair */
+.scene-report .sr-doc-pair {
+  margin-top: 12px;
+  border: 1px solid #93a3bd;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+}
+.scene-report .sr-doc-pair-h {
+  text-align: center;
+  padding: 6px;
+  font-weight: 700;
+  font-size: 12.5px;
+  background: #eef2f7 !important;
+  color: #111827 !important;
+  border-bottom: 1px solid #93a3bd;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.scene-report .sr-doc-pair-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #ffffff;
+}
+.scene-report .sr-doc-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.scene-report .sr-doc-col:first-child {
+  border-right: 1px solid #93a3bd;
+}
+.scene-report .sr-doc-col-h {
+  text-align: center;
+  padding: 5px;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: #111827 !important;
+  border-bottom: 1px solid #93a3bd;
+  background: #ffffff;
+}
+.scene-report .sr-doc-img-wrap {
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  min-height: 140px;
+}
+.scene-report .sr-doc-img-wrap img {
+  display: block;
+  max-width: 140px;
+  max-height: 140px;
+  width: auto;
+  height: auto;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  object-fit: contain;
+}
+.scene-report .sr-doc-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8 !important;
+  font-style: italic;
+  font-size: 11.5px;
+  min-height: 120px;
+}
+.scene-report .sr-doc-cap {
+  text-align: center;
+  padding: 3px 6px 8px;
+  color: #374151 !important;
+  font-weight: 600;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+/* Bảng kết quả chi tiết kèm theo */
+.scene-report .sr-doc-result {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: 1px solid #93a3bd;
+  font-size: 11.5px;
+  background: #ffffff;
+}
+.scene-report .sr-doc-result th {
+  background: #ffffff !important;
+  color: #b91c1c !important;
+  font-weight: 700 !important;
+  text-align: left;
+  padding: 5px 8px;
+  border: 1px solid #93a3bd;
+  width: 135px;
+  font-size: 11px;
+}
+.scene-report .sr-doc-result td {
+  background: #ffffff !important;
+  color: #111827 !important;
+  padding: 5px 8px;
+  border: 1px solid #93a3bd;
+  font-weight: 500;
+  font-size: 11px;
+}
+.scene-report .sr-val-score {
+  font-weight: 700 !important;
+}
+.scene-report .sr-verdict-match {
+  color: #047857 !important;
+  font-weight: 700;
+  background: #ecfdf5;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.scene-report .sr-verdict-nomatch {
+  color: #b91c1c !important;
+  font-weight: 700;
+  background: #fef2f2;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.scene-report .sr-doc-notice {
+  font-size: 10.5px;
+  font-style: italic;
+  color: #4b5563 !important;
+  margin-top: 10px;
+  line-height: 1.35;
+}
+.scene-report .sr-doc-sign {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15mm;
+  margin-top: 16px;
+  text-align: center;
+  color: #111827 !important;
+}
+.scene-report .sr-doc-sign-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.scene-report .sr-doc-sign-role {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #111827 !important;
+}
+.scene-report .sr-doc-sign-sub {
+  font-size: 10px;
+  font-style: italic;
+  color: #4b5563 !important;
+  margin-top: 1px;
+}
+.scene-report .sr-doc-sign-date {
+  font-size: 11px;
+  font-style: italic;
+  color: #111827 !important;
+  margin-bottom: 2px;
+}
+.scene-report .sr-doc-sign-space {
+  height: 16mm;
+}
+.scene-report .sr-doc-sign-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #111827 !important;
+}
+
 /* ---- Dai verification ---- */
 .stf-verify { padding: 11px 14px; flex: 0 0 auto; }
 .stf-verify-row {

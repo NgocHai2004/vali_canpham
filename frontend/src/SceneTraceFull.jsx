@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useI18n } from "./i18n";
 import { demoFiles, demoMatch, minutiae } from "./sceneDemo";
 import { traceCode } from "./SceneTracesPage";
 import { IcChevDown, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatchIcons";
+import SceneMatchReportModal, { SceneReportContent, reportFileName } from "./SceneMatchReportModal";
+import { buildProfilePdfBlob } from "./lib/exportProfilePdf";
+import { usbApi } from "./api";
+import UsbDrivePickerModal from "./UsbDrivePickerModal";
 
 // Trang chi tiet 1 dau vet — mo tu 1 dong bang KET QUA DOI SANH.
 // Bo cuc 1:1 design D:\Downloads\Phan tich doi sanh:
@@ -16,6 +20,11 @@ import { IcChevDown, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatc
 export default function SceneTraceFull({ item, row, session, onBack }) {
   const { t, formatDateTime } = useI18n();
   const [zoom, setZoom] = useState(null);
+  const [showReport, setShowReport] = useState(false);
+  const [busyPdf, setBusyPdf] = useState(false);
+  const [busyUsb, setBusyUsb] = useState(false);
+  const [picker, setPicker] = useState({ open: false, drives: [], resolve: null });
+  const printRef = useRef(null);
 
   if (!item || !row) return null;
 
@@ -60,6 +69,65 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
     [t("scene.match.at"), m.analyzed_at],
     [t("scene.match.by"), m.analyst],
   ];
+
+  const singleMatchData = {
+    ...m,
+    name: row.name,
+    cccd: row.cccd,
+    birth_year: row.birth_year || row.dob || "1988",
+    latent_url: files[0]?.url,
+    candidate_url: files[1]?.url,
+    trace_code: code,
+  };
+
+  const pickDrive = (drives) => new Promise((resolve) => {
+    setPicker({ open: true, drives, resolve });
+  });
+
+  const handleDownloadPdf = async () => {
+    const node = printRef.current;
+    if (!node) return;
+    setBusyPdf(true);
+    try {
+      const blob = await buildProfilePdfBlob(node);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = reportFileName(m.report_code || code);
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err?.message || "Lỗi khi tải file PDF");
+    } finally {
+      setBusyPdf(false);
+    }
+  };
+
+  const handleSaveUsb = async () => {
+    const node = printRef.current;
+    if (!node) return;
+    setBusyUsb(true);
+    try {
+      const info = await usbApi.listWritable();
+      const drives = info.drives || [];
+      if (drives.length === 0) {
+        throw new Error(
+          (info.dongle_drives || []).length > 0
+            ? t("usb.export.err.only_dongle")
+            : t("usb.export.err.no_drive"),
+        );
+      }
+      const chosen = drives.length === 1 ? drives[0] : await pickDrive(drives);
+      if (!chosen) return;
+      const blob = await buildProfilePdfBlob(node);
+      const saved = await usbApi.saveExport(chosen.path, reportFileName(m.report_code || code), blob);
+      alert(t("usb.export.success", { path: saved?.path || chosen.path }));
+    } catch (err) {
+      alert(err?.message || t("scene.report.err_export"));
+    } finally {
+      setBusyUsb(false);
+    }
+  };
 
   return (
     <div className="stf">
@@ -243,50 +311,40 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
           </div>
 
           <div className="stf-c09-act">
-            <button type="button" className="smp-btn-ghost" disabled>
+            <button
+              type="button"
+              className="smp-btn-ghost"
+              onClick={() => setShowReport(true)}
+              title={t("scene.report.view")}
+            >
               <IcEye s={15} />
               {t("scene.report.view")}
             </button>
-            <button type="button" className="smp-btn-ghost" disabled>
+            <button
+              type="button"
+              className="smp-btn-ghost"
+              onClick={handleDownloadPdf}
+              disabled={busyPdf}
+              title={t("scene.report.pdf")}
+            >
               <IcDownload />
-              {t("scene.report.pdf")}
+              {busyPdf ? (t("scene.report.saving") || "Đang tải...") : (t("scene.report.pdf") || "Tải PDF")}
             </button>
-            <button type="button" className="stf-btn-usb" disabled>
+            <button
+              type="button"
+              className="stf-btn-usb"
+              onClick={handleSaveUsb}
+              disabled={busyUsb}
+              title={t("scene.report.usb")}
+            >
               <IcExport />
-              {t("scene.report.usb")}
+              {busyUsb ? (t("scene.report.saving") || "Đang lưu...") : (t("scene.report.usb") || "Lưu USB")}
             </button>
           </div>
         </section>
       </div>
 
       {/* Dai verification */}
-      <section className="stf-card stf-verify">
-        <h3 className="stf-h">{t("scene.verify.title")}</h3>
-        <div className="stf-verify-row">
-          <span className="stf-verify-finger">{t(m.finger)}</span>
-          <div className="stf-verify-imgs">
-            <img src={files[2]?.url} alt={t("scene.report.latent")} loading="lazy" />
-            <img src={files[3]?.url} alt={t("scene.report.candidate")} loading="lazy" />
-          </div>
-          <div className="stf-stat">
-            <span className="stf-k">{t("scene.verify.found")}</span>
-            <div className="stf-stat-big">
-              {m.found}{" "}
-              <span className="stf-stat-of">
-                {t("scene.verify.of", { total: m.total, pct: m.percent })}
-              </span>
-            </div>
-          </div>
-          <div className="stf-stat">
-            <span className="stf-k">{t("scene.verify.quality")}</span>
-            <div className="stf-stat-ok">● {m.quality}</div>
-          </div>
-          <div className="stf-stat">
-            <span className="stf-k">{t("scene.verify.confidence")}</span>
-            <div className="stf-stat-ok">● {m.confidence}</div>
-          </div>
-        </div>
-      </section>
 
       {zoom && (
         <div className="scene-zoom-backdrop" onMouseDown={() => setZoom(null)}>
@@ -295,6 +353,51 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
             {zoom.dots && <Dots />}
           </div>
         </div>
+      )}
+
+      {/* Khung nội dung A4 ẩn để xuất PDF / Lưu USB trực tiếp mà không cần mở popup */}
+      <div
+        style={{
+          position: "fixed",
+          left: "-9999px",
+          top: 0,
+          width: "210mm",
+          zIndex: -999,
+          pointerEvents: "none",
+        }}
+        aria-hidden="true"
+      >
+        <SceneReportContent
+          ref={printRef}
+          session={session}
+          items={[item]}
+          singleMatch={singleMatchData}
+        />
+      </div>
+
+      {showReport && (
+        <SceneMatchReportModal
+          session={session}
+          items={[item]}
+          singleMatch={singleMatchData}
+          onClose={() => setShowReport(false)}
+        />
+      )}
+
+      {picker.open && (
+        <UsbDrivePickerModal
+          drives={picker.drives}
+          onPick={(d) => {
+            const r = picker.resolve;
+            setPicker({ open: false, drives: [], resolve: null });
+            r && r(d);
+          }}
+          onCancel={() => {
+            const r = picker.resolve;
+            setPicker({ open: false, drives: [], resolve: null });
+            r && r(null);
+          }}
+        />
       )}
     </div>
   );

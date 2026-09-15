@@ -230,9 +230,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
 
 const DEVICE_CHIPS = [
   { key: "camera", labelKey: "header.device.camera" },
-  { key: "cccd", labelKey: "header.device.cccd" },
   { key: "fp", labelKey: "header.device.fp" },
-  { key: "scale", labelKey: "header.device.scale" },
 ];
 
 function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee }) {
@@ -568,11 +566,11 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
 
   useEffect(() => {
     api.stats().then(setStats).catch((e) => setError(e.message));
-    api.listCells().then(setCells).catch(() => {});
+    api.listCells().then(setCells).catch(() => { });
     const tmr = setInterval(() => setNow(new Date()), 30_000);
     const th = setInterval(() => setHw(makeHwSample()), 2500);
     const tc = setInterval(() => {
-      api.listCells().then(setCells).catch(() => {});
+      api.listCells().then(setCells).catch(() => { });
     }, 15_000);
     return () => { clearInterval(tmr); clearInterval(th); clearInterval(tc); };
   }, []);
@@ -1805,7 +1803,7 @@ function CellsPage() {
   const levelLabel = (lv) =>
     lv === "facility" ? t("cells.level.facility")
       : lv === "sub_camp" ? t("cells.level.sub_camp")
-      : t("cells.level.cell");
+        : t("cells.level.cell");
   const custodyLabel = (ct) =>
     ct === "tam_giam" ? t("detainee.custody_type.detention")
       : ct === "tam_giu" ? t("detainee.custody_type.temporary_hold") : "—";
@@ -2203,72 +2201,72 @@ export function CellForm({ initial, allCells = [], onClose, onSaved }) {
               bam doi cap thi mot khoi bien mat, khoi kia chen vao, moi thu ben duoi
               nhay len roi tut xuong. */}
           <div className="cells-context-slot">
-          {/* Diện — chỉ khi tạo cơ sở */}
-          {level === "facility" && (
-            <>
-              <div className="cells-field-label">{t("detainee.field.custody_type")}</div>
-              <div className="cells-segment">
-                <button
-                  type="button"
-                  className={"cells-segment-btn" + (custodyType === "tam_giam" ? " active" : "")}
-                  onClick={() => !initial && setCustodyType("tam_giam")}
-                  disabled={!!initial}
-                >
-                  {t("detainee.custody_type.detention")}
-                </button>
-                <button
-                  type="button"
-                  className={"cells-segment-btn" + (custodyType === "tam_giu" ? " active" : "")}
-                  onClick={() => !initial && setCustodyType("tam_giu")}
-                  disabled={!!initial}
-                >
-                  {t("detainee.custody_type.temporary_hold")}
-                </button>
-              </div>
-            </>
-          )}
+            {/* Diện — chỉ khi tạo cơ sở */}
+            {level === "facility" && (
+              <>
+                <div className="cells-field-label">{t("detainee.field.custody_type")}</div>
+                <div className="cells-segment">
+                  <button
+                    type="button"
+                    className={"cells-segment-btn" + (custodyType === "tam_giam" ? " active" : "")}
+                    onClick={() => !initial && setCustodyType("tam_giam")}
+                    disabled={!!initial}
+                  >
+                    {t("detainee.custody_type.detention")}
+                  </button>
+                  <button
+                    type="button"
+                    className={"cells-segment-btn" + (custodyType === "tam_giu" ? " active" : "")}
+                    onClick={() => !initial && setCustodyType("tam_giu")}
+                    disabled={!!initial}
+                  >
+                    {t("detainee.custody_type.temporary_hold")}
+                  </button>
+                </div>
+              </>
+            )}
 
-          {/* Chọn cha */}
-          {level !== "facility" && (
-            <div className="cells-row-2">
-              <div className="cells-field">
-                <label className="cells-field-label">{t("cells.form.facility_parent")}</label>
-                <select
-                  className="control"
-                  value={facilityParent}
-                  onChange={(e) => { setFacilityParent(e.target.value); setSubCampParent(""); }}
-                  required
-                  disabled={!!initial}
-                >
-                  <option value="">{t("cells.form.select_facility")}</option>
-                  {facilitiesByCustody.map((p) => (
-                    <option key={p.code} value={p.code}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              {/* O Phan trai LUON render khi cap = Buong, chi disable khi co so chua
-                  chon / khong co phan trai (Nha tam giu). Truoc day dieu kien la
-                  `subCampsOfFacility.length > 0`, nghia la o nay MOC RA giua luc dang
-                  dien: chon mot co so co phan trai la tu dung hien thêm mot o, day
-                  Ten / Suc chua / Ghi chu tut xuong. Giu cho san thi chieu cao khong doi. */}
-              {level === "cell" && (
+            {/* Chọn cha */}
+            {level !== "facility" && (
+              <div className="cells-row-2">
                 <div className="cells-field">
-                  <label className="cells-field-label">{t("cells.form.sub_camp_parent")}</label>
+                  <label className="cells-field-label">{t("cells.form.facility_parent")}</label>
                   <select
                     className="control"
-                    value={subCampParent}
-                    onChange={(e) => setSubCampParent(e.target.value)}
-                    disabled={!!initial || subCampsOfFacility.length === 0}
+                    value={facilityParent}
+                    onChange={(e) => { setFacilityParent(e.target.value); setSubCampParent(""); }}
+                    required
+                    disabled={!!initial}
                   >
-                    <option value="">{t("cells.form.no_sub_camp")}</option>
-                    {subCampsOfFacility.map((p) => (
+                    <option value="">{t("cells.form.select_facility")}</option>
+                    {facilitiesByCustody.map((p) => (
                       <option key={p.code} value={p.code}>{p.name}</option>
                     ))}
                   </select>
                 </div>
-              )}
-            </div>
-          )}
+                {/* O Phan trai LUON render khi cap = Buong, chi disable khi co so chua
+                  chon / khong co phan trai (Nha tam giu). Truoc day dieu kien la
+                  `subCampsOfFacility.length > 0`, nghia la o nay MOC RA giua luc dang
+                  dien: chon mot co so co phan trai la tu dung hien thêm mot o, day
+                  Ten / Suc chua / Ghi chu tut xuong. Giu cho san thi chieu cao khong doi. */}
+                {level === "cell" && (
+                  <div className="cells-field">
+                    <label className="cells-field-label">{t("cells.form.sub_camp_parent")}</label>
+                    <select
+                      className="control"
+                      value={subCampParent}
+                      onChange={(e) => setSubCampParent(e.target.value)}
+                      disabled={!!initial || subCampsOfFacility.length === 0}
+                    >
+                      <option value="">{t("cells.form.no_sub_camp")}</option>
+                      {subCampsOfFacility.map((p) => (
+                        <option key={p.code} value={p.code}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
           </div>{/* /.cells-context-slot */}
 
           {/* Tên + sức chứa */}
@@ -2569,151 +2567,151 @@ function LogsPage() {
   return (
     <div className="page report-page">
       <div className="report-fixed">
-      <PageHeader
-        title={t("logs.title_sync")}
-        subtitle={t("logs.subtitle_sync", { n: logs.length })}
-      >
-        <button className="button secondary" onClick={load} disabled={loading}>
-          {Icon.refresh}
-          {loading ? t("common.loading") : t("common.refresh")}
-        </button>
-      </PageHeader>
+        <PageHeader
+          title={t("logs.title_sync")}
+          subtitle={t("logs.subtitle_sync", { n: logs.length })}
+        >
+          <button className="button secondary" onClick={load} disabled={loading}>
+            {Icon.refresh}
+            {loading ? t("common.loading") : t("common.refresh")}
+          </button>
+        </PageHeader>
 
-      <div className="report-stat-grid">
-        <ReportStat tone="orange" icon={Icon.sync} label={t("logs.stat.sync_total")} value={counts.sync || 0} note={t("logs.stat.note.sync")} />
-      </div>
-
-      <form
-        className="report-filter"
-        onSubmit={(e) => { e.preventDefault(); load(); }}
-      >
-        <div className="report-filter-head">
-          <span className="report-filter-title">{t("logs.filter.title")}</span>
-          <span className="report-filter-hint">{t("logs.filter.desc")}</span>
+        <div className="report-stat-grid">
+          <ReportStat tone="orange" icon={Icon.sync} label={t("logs.stat.sync_total")} value={counts.sync || 0} note={t("logs.stat.note.sync")} />
         </div>
-        <div className="report-filter-grid">
-          <label className="report-field">
-            <span>{t("common.from")}</span>
-            <input
-              className="control"
-              type="datetime-local"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </label>
-          <label className="report-field">
-            <span>{t("common.to")}</span>
-            <input
-              className="control"
-              type="datetime-local"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </label>
-          <label className="report-field">
-            <span>{t("logs.field.session")}</span>
-            <input
-              className="control"
-              type="text"
-              placeholder={t("logs.field.session_ph")}
-              value={sessionFilter}
-              onChange={(e) => setSessionFilter(e.target.value)}
-            />
-          </label>
-          <label className="report-field">
-            <span>{t("logs.field.officer")}</span>
-            <select className="control" value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
-              <option value="">{t("logs.field.officer_all")}</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.username}>
-                  {u.full_name ? `${u.full_name} (@${u.username})` : u.username}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="report-filter-actions report-filter-actions-inline">
-            <button type="button" className="button secondary" onClick={clearFilters}>{t("common.clear_filter")}</button>
-            <button type="submit" className="button primary" disabled={loading}>
-              {loading ? t("common.applying") : t("common.apply")}
-            </button>
+
+        <form
+          className="report-filter"
+          onSubmit={(e) => { e.preventDefault(); load(); }}
+        >
+          <div className="report-filter-head">
+            <span className="report-filter-title">{t("logs.filter.title")}</span>
+            <span className="report-filter-hint">{t("logs.filter.desc")}</span>
           </div>
-        </div>
-      </form>
+          <div className="report-filter-grid">
+            <label className="report-field">
+              <span>{t("common.from")}</span>
+              <input
+                className="control"
+                type="datetime-local"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </label>
+            <label className="report-field">
+              <span>{t("common.to")}</span>
+              <input
+                className="control"
+                type="datetime-local"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </label>
+            <label className="report-field">
+              <span>{t("logs.field.session")}</span>
+              <input
+                className="control"
+                type="text"
+                placeholder={t("logs.field.session_ph")}
+                value={sessionFilter}
+                onChange={(e) => setSessionFilter(e.target.value)}
+              />
+            </label>
+            <label className="report-field">
+              <span>{t("logs.field.officer")}</span>
+              <select className="control" value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
+                <option value="">{t("logs.field.officer_all")}</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.username}>
+                    {u.full_name ? `${u.full_name} (@${u.username})` : u.username}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="report-filter-actions report-filter-actions-inline">
+              <button type="button" className="button secondary" onClick={clearFilters}>{t("common.clear_filter")}</button>
+              <button type="submit" className="button primary" disabled={loading}>
+                {loading ? t("common.applying") : t("common.apply")}
+              </button>
+            </div>
+          </div>
+        </form>
 
-      {error && <StateBox type="error">{error}</StateBox>}
-      {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
+        {error && <StateBox type="error">{error}</StateBox>}
+        {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
       </div>
 
       <div className="report-scroll">
-      <div className="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th style={{ width: "18%" }}>{t("logs.col.time")}</th>
-              <th style={{ width: "16%" }}>{t("logs.col.session")}</th>
-              <th style={{ width: "22%" }}>{t("logs.col.officer")}</th>
-              <th style={{ width: "32%" }}>{t("logs.sync.result")}</th>
-              <th style={{ width: "12%" }}>{t("logs.col.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => {
-              const busy = busyRef === log.id;
-              const officer = log.officer || {};
-              const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
-              const d = log.data || {};
-              return (
-                <tr key={log.id}>
-                  <td>{formatDateTime(log.at)}</td>
-                  <td>
-                    {log.session ? (
-                      <span className="session-code-chip">
-                        <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
-                          {log.session.status === "open" ? "●" : "✓"}
+        <div className="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: "18%" }}>{t("logs.col.time")}</th>
+                <th style={{ width: "16%" }}>{t("logs.col.session")}</th>
+                <th style={{ width: "22%" }}>{t("logs.col.officer")}</th>
+                <th style={{ width: "32%" }}>{t("logs.sync.result")}</th>
+                <th style={{ width: "12%" }}>{t("logs.col.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((log) => {
+                const busy = busyRef === log.id;
+                const officer = log.officer || {};
+                const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
+                const d = log.data || {};
+                return (
+                  <tr key={log.id}>
+                    <td>{formatDateTime(log.at)}</td>
+                    <td>
+                      {log.session ? (
+                        <span className="session-code-chip">
+                          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
+                            {log.session.status === "open" ? "●" : "✓"}
+                          </span>
+                          <span className="mono">{log.session.code}</span>
                         </span>
-                        <span className="mono">{log.session.code}</span>
-                      </span>
-                    ) : (
-                      <span className="mono">{log.ref || "—"}</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="officer-cell">
-                      {officer.avatar_url ? (
-                        <img className="officer-avatar" src={officer.avatar_url} alt="" />
                       ) : (
-                        <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                        <span className="mono">{log.ref || "—"}</span>
                       )}
-                      <div className="officer-name">
-                        <strong>{officer.full_name || log.actor}</strong>
-                        {officer.full_name ? <small>@{log.actor}</small> : null}
+                    </td>
+                    <td>
+                      <div className="officer-cell">
+                        {officer.avatar_url ? (
+                          <img className="officer-avatar" src={officer.avatar_url} alt="" />
+                        ) : (
+                          <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                        )}
+                        <div className="officer-name">
+                          <strong>{officer.full_name || log.actor}</strong>
+                          {officer.full_name ? <small>@{log.actor}</small> : null}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
-                      <span className="status-badge create">{t("logs.sync.added")}: {d.added || 0}</span>
-                      <span className="status-badge update">{t("logs.sync.updated")}: {d.updated || 0}</span>
-                      <span className="status-badge delete">{t("logs.sync.duplicated")}: {d.duplicated || 0}</span>
-                      {Number(d.failed || 0) > 0 && (
-                        <span className="status-badge delete">{t("logs.sync.failed")}: {d.failed}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {!logs.length && (
-              <tr><td colSpan={5}><div className="empty">{t("common.empty")}</div></td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
+                        <span className="status-badge create">{t("logs.sync.added")}: {d.added || 0}</span>
+                        <span className="status-badge update">{t("logs.sync.updated")}: {d.updated || 0}</span>
+                        <span className="status-badge delete">{t("logs.sync.duplicated")}: {d.duplicated || 0}</span>
+                        {Number(d.failed || 0) > 0 && (
+                          <span className="status-badge delete">{t("logs.sync.failed")}: {d.failed}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!logs.length && (
+                <tr><td colSpan={5}><div className="empty">{t("common.empty")}</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
@@ -3431,47 +3429,47 @@ function UsersPage({ currentUser }) {
               {users.map((u) => {
                 const initials = ((u.full_name || u.username || "?").trim()[0] || "?").toUpperCase();
                 return (
-                <tr key={u.id}>
-                  <td>
-                    <div className="users-avatar-cell">
-                      {u.avatar_url ? (
-                        <img className="officer-avatar" src={u.avatar_url} alt="" />
-                      ) : (
-                        <span className="officer-avatar officer-avatar-fallback">{initials}</span>
-                      )}
-                      <label className="avatar-upload-btn" title={t("users.avatar_title")}>
-                        {t("users.change")}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          onChange={(e) => onUploadAvatar(u, e.target.files?.[0])}
-                        />
-                      </label>
-                    </div>
-                  </td>
-                  <td><strong>{u.username}</strong></td>
-                  <td>{u.full_name || "-"}</td>
-                  <td>
-                    <span className={`status-badge ${u.role === "admin" ? "delete" : "create"}`}>
-                      {u.role === "admin" ? t("common.role.admin") : t("common.role.officer")}
-                    </span>
-                  </td>
-                  <td>{u.created_at ? formatDateTime(u.created_at) : "-"}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button onClick={() => { setEditing(u); setShowForm(true); }}>{t("common.edit")}</button>
-                      <button
-                        className="danger-text"
-                        disabled={u.username === "admin" || u.username === currentUser}
-                        onClick={() => onDelete(u)}
-                        title={u.username === "admin" ? t("users.cannot_delete_admin") : u.username === currentUser ? t("users.cannot_delete_self") : ""}
-                      >
-                        {t("common.delete")}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                  <tr key={u.id}>
+                    <td>
+                      <div className="users-avatar-cell">
+                        {u.avatar_url ? (
+                          <img className="officer-avatar" src={u.avatar_url} alt="" />
+                        ) : (
+                          <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                        )}
+                        <label className="avatar-upload-btn" title={t("users.avatar_title")}>
+                          {t("users.change")}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: "none" }}
+                            onChange={(e) => onUploadAvatar(u, e.target.files?.[0])}
+                          />
+                        </label>
+                      </div>
+                    </td>
+                    <td><strong>{u.username}</strong></td>
+                    <td>{u.full_name || "-"}</td>
+                    <td>
+                      <span className={`status-badge ${u.role === "admin" ? "delete" : "create"}`}>
+                        {u.role === "admin" ? t("common.role.admin") : t("common.role.officer")}
+                      </span>
+                    </td>
+                    <td>{u.created_at ? formatDateTime(u.created_at) : "-"}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button onClick={() => { setEditing(u); setShowForm(true); }}>{t("common.edit")}</button>
+                        <button
+                          className="danger-text"
+                          disabled={u.username === "admin" || u.username === currentUser}
+                          onClick={() => onDelete(u)}
+                          title={u.username === "admin" ? t("users.cannot_delete_admin") : u.username === currentUser ? t("users.cannot_delete_self") : ""}
+                        >
+                          {t("common.delete")}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
               {!users.length && (
