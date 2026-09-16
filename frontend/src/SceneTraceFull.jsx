@@ -1,18 +1,115 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useI18n } from "./i18n";
-import { demoFiles, demoMatch, minutiae } from "./sceneDemo";
+import { demoImage, demoMatch, minutiae } from "./sceneDemo";
 import { traceCode } from "./sceneTraceUtils";
 import { IcChevDown, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatchIcons";
 
-// Trang chi tiet 1 dau vet — mo tu 1 dong bang KET QUA DOI SANH.
-// Bo cuc 1:1 design D:\Downloads\Phan tich doi sanh:
-//   breadcrumb + chip -> grid 300px|1fr|1fr (anh latent | thong tin | ket qua)
-//   -> grid 1.05fr|1fr (4.1 folder 4 the | 4.2 bao cao C09) -> dai verification.
-//
-// Field co that lay tu scene_traces (ma, dia diem, thoi gian, can bo, anh, ghi chu).
-// So lieu doi sanh (diem minutiae, ngon tay, C09, chat luong, do tin cay) la
-// DEMO — he thong chua co engine trich minutiae. Xem sceneDemo.js.
+// Chuyển đổi toạ độ pixel điểm đặc trưng sang % hiển thị trên ảnh
+function toPercentageDots(points = [], width = 800, height = 750) {
+  if (!points || !points.length) return [];
+  const w = width > 0 ? width : 800;
+  const h = height > 0 ? height : 750;
+  return points.map((p, idx) => ({
+    x: Math.max(0, Math.min(100, +((p.x / w) * 100).toFixed(2))),
+    y: Math.max(0, Math.min(100, +((p.y / h) * 100).toFixed(2))),
+    d: p.d,
+    q: p.q,
+    t: p.t,
+    idx: idx + 1,
+  }));
+}
 
+function DotsOverlay({ dots }) {
+  if (!dots || !dots.length) return null;
+  return (
+    <span className="stf-dots" aria-hidden="true">
+      {dots.map((d, i) => (
+        <span
+          className="stf-dot-m"
+          key={i}
+          style={{ left: `${d.x}%`, top: `${d.y}%` }}
+          title={d.q != null ? `Điểm đặc trưng #${i + 1} (Chất lượng: ${d.q}%)` : `Điểm đặc trưng #${i + 1}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+// Tải ảnh về kèm các điểm đặc trưng được vẽ trực tiếp bằng Canvas (gọn gàng, không đè số)
+async function downloadImageWithDots(imgUrl, dots, filename) {
+  if (!dots || !dots.length) {
+    const a = document.createElement("a");
+    a.href = imgUrl;
+    a.download = filename;
+    a.target = "_blank";
+    a.click();
+    return;
+  }
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imgUrl;
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = rej;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || 800;
+    canvas.height = img.naturalHeight || 750;
+    const ctx = canvas.getContext("2d");
+
+    // Vẽ ảnh nền
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    // Vẽ các điểm đặc trưng nhỏ gọn, sắc nét
+    const scale = Math.max(1, canvas.width / 800);
+    dots.forEach((d) => {
+      const px = (d.x / 100) * canvas.width;
+      const py = (d.y / 100) * canvas.height;
+      const r = 3.5 * scale;
+
+      // Vòng ngoài bóng đen
+      ctx.beginPath();
+      ctx.arc(px, py, r + 1.5 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
+      ctx.fill();
+
+      // Vòng tròn điểm hồng/đỏ
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#ff2d87";
+      ctx.fill();
+      ctx.lineWidth = 1.2 * scale;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+
+      // Tâm điểm
+      ctx.beginPath();
+      ctx.arc(px, py, 1.2 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+    });
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }, "image/png");
+  } catch {
+    const a = document.createElement("a");
+    a.href = imgUrl;
+    a.download = filename;
+    a.target = "_blank";
+    a.click();
+  }
+}
+
+// Trang chi tiết 1 dấu vết — mở từ 1 dòng bảng KẾT QUẢ ĐỐI SÁNH.
 export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
   const { t, formatDateTime } = useI18n();
   const [zoom, setZoom] = useState(null);
@@ -20,50 +117,108 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
   if (!item || !row) return null;
 
   const m = demoMatch(item, row);
-  // Cham minutiae: CUNG bo toa do cho anh 03 va 04 => cham thu k tren 2 anh la
-  // 1 cap diem khop. So cham = so diem tim duoc (18/22) cho khop bang ket qua.
-  const dots = minutiae(item.seq ?? 1, m.found);
-  const Dots = () => (
-    <span className="stf-dots" aria-hidden="true">
-      {dots.map((d, i) => (
-        <span className="stf-dot-m" key={i} style={{ left: `${d.x}%`, top: `${d.y}%` }}>
-          <i>{i + 1}</i>
-        </span>
-      ))}
-    </span>
-  );
-  const files = demoFiles(item);
-  const matched = m.verdict === "match";
+  const seq = item.seq ?? 1;
+
+  // Lấy toạ độ điểm đặc trưng thật từ Database:
+  const latentPoints = row.latent_landmarks?.points || item.landmark?.points || [];
+  const latentW = row.latent_dim?.width || item.img_width || 800;
+  const latentH = row.latent_dim?.height || item.img_height || 750;
+  const latentDots = useMemo(() => {
+    if (latentPoints.length > 0) {
+      return toPercentageDots(latentPoints, latentW, latentH);
+    }
+    return minutiae(seq, m.found || 18);
+  }, [latentPoints, latentW, latentH, seq, m.found]);
+
+  const candidatePoints = row.candidate_landmarks?.points || [];
+  const candidateW = row.candidate_dim?.width || 800;
+  const candidateH = row.candidate_dim?.height || 750;
+  const candidateDots = useMemo(() => {
+    if (candidatePoints.length > 0) {
+      return toPercentageDots(candidatePoints, candidateW, candidateH);
+    }
+    return minutiae(seq, m.found || 18);
+  }, [candidatePoints, candidateW, candidateH, seq, m.found]);
+
+  const latentUrl = item.url || row.url || demoImage(seq, "raw", "latent");
+  const candidateUrl = row.candidate_url || demoImage(seq, "raw", "candidate");
+
+  const files = useMemo(() => [
+    {
+      n: 1,
+      key: "raw1",
+      name: "01_latent_original.png",
+      groupKey: "scene.file.g_raw",
+      kindKey: "scene.file.k_latent",
+      url: latentUrl,
+      size: 1.2,
+      dots: null,
+    },
+    {
+      n: 2,
+      key: "raw2",
+      name: "02_candidate_original.png",
+      groupKey: "scene.file.g_raw",
+      kindKey: "scene.file.k_candidate",
+      url: candidateUrl,
+      size: 1.1,
+      dots: null,
+    },
+    {
+      n: 3,
+      key: "dot1",
+      name: "03_latent_minutiae.png",
+      groupKey: "scene.file.g_dots",
+      kindKey: "scene.file.k_latent",
+      url: latentUrl,
+      size: 1.3,
+      dots: latentDots,
+    },
+    {
+      n: 4,
+      key: "dot2",
+      name: "04_candidate_minutiae.png",
+      groupKey: "scene.file.g_dots",
+      kindKey: "scene.file.k_candidate",
+      url: candidateUrl,
+      size: 1.3,
+      dots: candidateDots,
+    },
+  ], [latentUrl, candidateUrl, latentDots, candidateDots]);
+
+  const matched = (row.verdict || m.verdict) === "match";
   const code = traceCode(item);
   const fmt = (v) => (formatDateTime ? formatDateTime(v) : v);
 
-  // Thong tin dau vet: 6 field dau tu DB, Trang thai la chip nen render rieng.
+  const foundCount = latentDots.length || m.found;
+  const totalCount = candidateDots.length || m.total;
+  const percentStr = row.pct || `${m.percent}%`;
+  const fingerLabel = row.finger ? t(row.finger) : t(m.finger);
+  const subjectLabel = row.name ? `Nghi phạm: ${row.name}${row.cccd && row.cccd !== "—" ? ` (CCCD ${row.cccd})` : ""}` : m.subject;
+
+  // Thông tin dấu vết: 6 field đầu từ DB
   const info = [
     [t("scene.col.code"), code],
     [t("scene.col.type"), item.trace_type || "—"],
     [t("scene.col.source"), item.collection_source || "—"],
-    [t("scene.col.place"), m.place],
+    [t("scene.col.place"), caseDoc?.location || m.place],
     [t("scene.col.time"), fmt(item.captured_at)],
     [t("scene.detail.officer"), item.created_by || item.device_id || "—"],
   ];
 
-  // Ty le + dia diem lap lai so lieu da co o dai verification / panel thong tin
-  // dau vet — de o day de doc het ket luan trong 1 panel.
-  // Chat luong anh + do tin cay CO Y khong dua vao day: da co o dai verification
-  // duoi cung, dua len nua la hien 2 lan tren cung 1 trang.
   const result = [
-    [t("scene.match.points"), `${m.found}/${m.total}`],
-    [t("scene.match.percent"), `${m.percent}%`],
-    [t("scene.match.finger"), t(m.finger)],
-    [t("scene.match.subject"), m.subject],
-    [t("scene.match.place"), m.place],
-    [t("scene.match.at"), m.analyzed_at],
-    [t("scene.match.by"), m.analyst],
+    [t("scene.match.points"), `${foundCount}/${totalCount}`],
+    [t("scene.match.percent"), percentStr],
+    [t("scene.match.finger"), fingerLabel],
+    [t("scene.match.subject"), subjectLabel],
+    [t("scene.match.place"), caseDoc?.location || m.place],
+    [t("scene.match.at"), row.time || m.analyzed_at],
+    [t("scene.match.by"), item.created_by || m.analyst],
   ];
 
   return (
     <div className="stf">
-      {/* Breadcrumb + chip trang thai + nut quay lai */}
+      {/* Breadcrumb + chip trạng thái + nút quay lại */}
       <div className="stf-crumbbar">
         <div className="stf-crumb-main">
           <div className="stf-crumb">
@@ -87,7 +242,6 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
             <IcPagePrev />
             {t("scene.back")}
           </button>
-          {/* Menu Hanh dong chua co muc nao -> disabled, khong lam nut chet. */}
           <button type="button" className="smp-btn-ghost" disabled>
             {t("scene.detail.actions")}
             <IcChevDown />
@@ -95,9 +249,9 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
         </div>
       </div>
 
-      <p className="stf-notice">{t("scene.demo.notice")}</p>
+      {item.demo && <p className="stf-notice">{t("scene.demo.notice")}</p>}
 
-      {/* Anh latent | Thong tin dau vet | Ket qua doi sanh */}
+      {/* Ảnh latent | Thông tin dấu vết | Kết quả đối sánh */}
       <div className="stf-top">
         <div className="stf-latent">
           <button type="button" className="stf-latent-btn" onClick={() => setZoom({ url: item.url })}>
@@ -146,7 +300,7 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
         </section>
       </div>
 
-      {/* 4.1 Folder matching | 4.2 Bao cao C09 */}
+      {/* 4.1 Folder matching | 4.2 Báo cáo C09 */}
       <div className="stf-mid">
         <section className="stf-card stf-folder">
           <h3 className="stf-h">
@@ -169,7 +323,7 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
                   onClick={() => setZoom({ url: f.url, dots: f.dots })}
                 >
                   <img src={f.url} alt={f.name} loading="lazy" />
-                  {f.dots && <Dots />}
+                  {f.dots && <DotsOverlay dots={f.dots} />}
                 </button>
                 <div className="stf-file-name">{f.name}</div>
                 <div className="stf-file-meta">
@@ -184,9 +338,13 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
                   >
                     {t("scene.file.view")}
                   </button>
-                  <a className="smp-btn-line" href={f.url} download target="_blank" rel="noreferrer">
+                  <button
+                    type="button"
+                    className="smp-btn-line"
+                    onClick={() => downloadImageWithDots(f.url, f.dots, f.name)}
+                  >
                     {t("scene.file.dl")}
-                  </a>
+                  </button>
                 </div>
               </div>
             ))}
@@ -229,14 +387,20 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
               <div className="stf-doc-pair-h">{t("scene.report.pair", { n: "01" })}</div>
               <div className="stf-doc-pair-body">
                 <div className="stf-doc-col">
-                  <div className="stf-doc-col-h">{t("scene.report.latent")}</div>
-                  <img src={files[0]?.url} alt={t("scene.report.latent")} loading="lazy" />
+                  <div className="stf-doc-col-h">{t("scene.report.latent")} ({t("scene.file.g_dots")})</div>
+                  <div className="stf-doc-img-box">
+                    <img src={files[2]?.url} alt={t("scene.report.latent")} loading="lazy" />
+                    {files[2]?.dots && <DotsOverlay dots={files[2]?.dots} />}
+                  </div>
                   <div className="stf-doc-cap">{code}</div>
                 </div>
                 <div className="stf-doc-col">
-                  <div className="stf-doc-col-h">{t("scene.report.candidate")}</div>
-                  <img src={files[1]?.url} alt={t("scene.report.candidate")} loading="lazy" />
-                  <div className="stf-doc-cap">{t(m.finger)} — {m.subject}</div>
+                  <div className="stf-doc-col-h">{t("scene.report.candidate")} ({t("scene.file.g_dots")})</div>
+                  <div className="stf-doc-img-box">
+                    <img src={files[3]?.url} alt={t("scene.report.candidate")} loading="lazy" />
+                    {files[3]?.dots && <DotsOverlay dots={files[3]?.dots} />}
+                  </div>
+                  <div className="stf-doc-cap">{fingerLabel} — {row.name || m.subject}</div>
                 </div>
               </div>
             </div>
@@ -259,31 +423,37 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
         </section>
       </div>
 
-      {/* Dai verification */}
+      {/* Dải verification */}
       <section className="stf-card stf-verify">
         <h3 className="stf-h">{t("scene.verify.title")}</h3>
         <div className="stf-verify-row">
-          <span className="stf-verify-finger">{t(m.finger)}</span>
+          <span className="stf-verify-finger">{fingerLabel}</span>
           <div className="stf-verify-imgs">
-            <img src={files[2]?.url} alt={t("scene.report.latent")} loading="lazy" />
-            <img src={files[3]?.url} alt={t("scene.report.candidate")} loading="lazy" />
+            <div style={{ position: "relative", width: 68, height: 68 }}>
+              <img src={files[2]?.url} alt={t("scene.report.latent")} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {files[2]?.dots && <DotsOverlay dots={files[2]?.dots} />}
+            </div>
+            <div style={{ position: "relative", width: 68, height: 68 }}>
+              <img src={files[3]?.url} alt={t("scene.report.candidate")} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {files[3]?.dots && <DotsOverlay dots={files[3]?.dots} />}
+            </div>
           </div>
           <div className="stf-stat">
             <span className="stf-k">{t("scene.verify.found")}</span>
             <div className="stf-stat-big">
-              {m.found}{" "}
+              {foundCount}{" "}
               <span className="stf-stat-of">
-                {t("scene.verify.of", { total: m.total, pct: m.percent })}
+                {t("scene.verify.of", { total: totalCount, pct: percentStr })}
               </span>
             </div>
           </div>
           <div className="stf-stat">
             <span className="stf-k">{t("scene.verify.quality")}</span>
-            <div className="stf-stat-ok">● {m.quality}</div>
+            <div className="stf-stat-ok">● {item.feature_quality ? `${item.feature_quality}%` : m.quality}</div>
           </div>
           <div className="stf-stat">
             <span className="stf-k">{t("scene.verify.confidence")}</span>
-            <div className="stf-stat-ok">● {m.confidence}</div>
+            <div className="stf-stat-ok">● {matched ? "Rất cao" : m.confidence}</div>
           </div>
         </div>
       </section>
@@ -292,7 +462,7 @@ export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
         <div className="scene-zoom-backdrop" onMouseDown={() => setZoom(null)}>
           <div className="stf-zoom-wrap">
             <img src={zoom.url} alt={code} />
-            {zoom.dots && <Dots />}
+            {zoom.dots && <DotsOverlay dots={zoom.dots} />}
           </div>
         </div>
       )}

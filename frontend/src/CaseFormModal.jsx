@@ -1,12 +1,16 @@
 import { useState } from "react";
-import { api } from "./api";
+import { api, auth } from "./api";
 import { useI18n } from "./i18n";
 
 // Form tạo / sửa vụ án. Dùng chung 2 chế độ: có `initial` là sửa, không có là tạo.
-// Vụ án không còn 4 trường nơi giam giữ như form mở phiên cũ — chúng chưa dùng
-// thật lần nào và hồ sơ can phạm tự chọn buồng trong DataCapturePage.
 // Mã vụ án không cho sửa: sinh tự động qua counter, là khoá tra cứu trong _log
 // và báo cáo Excel.
+
+const COMMON_RANKS = [
+  "Đại tá", "Thượng tá", "Trung tá", "Thiếu tá",
+  "Đại uý", "Thượng uý", "Trung uý", "Thiếu uý",
+  "Thượng sĩ", "Trung sĩ", "Hạ sĩ",
+];
 
 // <input type="datetime-local"> cần "YYYY-MM-DDTHH:mm" — cắt đuôi giây/zone của
 // ISO backend trả về. Rỗng thì để trống, backend tự lấy giờ hiện tại.
@@ -21,7 +25,10 @@ function toLocalInput(iso) {
 export default function CaseFormModal({ initial = null, onSaved, onCancel }) {
   const { t } = useI18n();
   const editing = Boolean(initial?.id);
+  const currentOfficer = auth.getFullName() || auth.getUser() || "";
   const [name, setName] = useState(initial?.name || "");
+  const [officerName, setOfficerName] = useState(initial?.officer_name || (editing ? "" : currentOfficer));
+  const [officerRank, setOfficerRank] = useState(initial?.officer_rank || "");
   const [location, setLocation] = useState(initial?.location || "");
   const [occurredAt, setOccurredAt] = useState(toLocalInput(initial?.occurred_at));
   const [note, setNote] = useState(initial?.note || "");
@@ -37,6 +44,8 @@ export default function CaseFormModal({ initial = null, onSaved, onCancel }) {
     try {
       const body = {
         name: nm,
+        officer_name: officerName.trim(),
+        officer_rank: officerRank.trim(),
         location: location.trim(),
         note: note.trim(),
         occurred_at: occurredAt || null,
@@ -87,6 +96,36 @@ export default function CaseFormModal({ initial = null, onSaved, onCancel }) {
               required
               autoFocus
             />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 12 }}>
+            <div className="session-modal-row" style={{ marginBottom: 0 }}>
+              <label htmlFor="cf-officer-name">{t("case.form.officer_name")}</label>
+              <input
+                id="cf-officer-name"
+                className="control"
+                value={officerName}
+                onChange={(e) => setOfficerName(e.target.value)}
+                placeholder={t("case.form.officer_name_ph")}
+                maxLength={100}
+              />
+            </div>
+            <div className="session-modal-row" style={{ marginBottom: 0 }}>
+              <label htmlFor="cf-officer-rank">{t("case.form.officer_rank")}</label>
+              <input
+                id="cf-officer-rank"
+                className="control"
+                list="rank-suggestions"
+                value={officerRank}
+                onChange={(e) => setOfficerRank(e.target.value)}
+                placeholder={t("case.form.officer_rank_ph")}
+                maxLength={50}
+              />
+              <datalist id="rank-suggestions">
+                {COMMON_RANKS.map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
+            </div>
           </div>
           <div className="session-modal-row">
             <label htmlFor="cf-location">{t("case.form.location")}</label>

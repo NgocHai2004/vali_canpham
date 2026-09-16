@@ -699,8 +699,10 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
             không thấy nút tạo vụ án. */}
         <div className="dash-hero-session">
           <div className="dash-hero-session-info">
-            <span className="dash-hero-badge">{t("dashboard.case.investigating_badge")}</span>
-            <strong>{formatNumber(investigatingCases)}</strong>
+            <div className="dash-hero-session-head">
+              <span className="dash-hero-badge">{t("dashboard.case.investigating_badge")}</span>
+              <strong className="dash-hero-count">{formatNumber(investigatingCases)}</strong>
+            </div>
             <small>{t("dashboard.case.investigating_hint")}</small>
           </div>
           <button className="button primary" onClick={() => go("scene_traces")}>
@@ -838,6 +840,7 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
                     <div className="session-meta">
                       {t("dashboard.case.record_count", { n: c.detainee_count || 0 })}
                       {" • "}{formatDateTime(c.occurred_at)}
+                      {c.officer_name && ` • ${c.officer_rank ? `${c.officer_rank} ` : ""}${c.officer_name}`}
                     </div>
                   </div>
                   <span className={`session-status ${open ? "open" : "closed"}`}>

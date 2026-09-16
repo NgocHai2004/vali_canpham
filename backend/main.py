@@ -575,12 +575,10 @@ class DetaineeIn(BaseModel):
 
 
 class CaseIn(BaseModel):
-    # Vu an KHONG giu dien/co so/phan trai/buong: ho so nghi pham tu mang 4
-    # truong do (xem DataCapturePage), nen giu o day chi lam can bo phai chon
-    # 2 lan. Truoc day 4 truong nay co trong WorkSessionIn nhung 0/14 phien
-    # dung that -> bo han khi doi sang cases.
     name: str = Field(default="", max_length=200)
     location: str = Field(default="", max_length=200)
+    officer_name: Optional[str] = Field(default="", max_length=100)
+    officer_rank: Optional[str] = Field(default="", max_length=50)
     note: str = Field(default="", max_length=500)
     # Thoi diem vu an XAY RA — khac created_at (luc lap ho so trong may).
     # Nhan "DD/MM/YYYY HH:MM", "YYYY-MM-DD" hoac ISO; rong = khong ro.
@@ -595,6 +593,8 @@ class CasePatch(BaseModel):
     endpoint /close rieng."""
     name: Optional[str] = Field(default=None, max_length=200)
     location: Optional[str] = Field(default=None, max_length=200)
+    officer_name: Optional[str] = Field(default=None, max_length=100)
+    officer_rank: Optional[str] = Field(default=None, max_length=50)
     note: Optional[str] = Field(default=None, max_length=500)
     occurred_at: Optional[str] = Field(default=None, max_length=40)
     status: Optional[str] = Field(default=None, pattern=r"^(investigating|closed)$")
@@ -1469,11 +1469,15 @@ async def create_case(body: CaseIn, request: Request, user: dict = Depends(get_c
     if not name:
         raise HTTPException(400, "Tên vụ án không được để trống.")
     now = datetime.utcnow()
+    officer_name = (body.officer_name or "").strip() or user.get("full_name") or user.get("username", "")
+    officer_rank = (body.officer_rank or "").strip()
     doc = {
         "code": await _next_case_code(),
         "status": "investigating",
         "name": name,
         "location": body.location.strip(),
+        "officer_name": officer_name,
+        "officer_rank": officer_rank,
         "occurred_at": _parse_dt(body.occurred_at),
         "note": body.note.strip(),
         "created_at": now,
@@ -1514,7 +1518,7 @@ async def update_case(
         patch["closed_at"] = datetime.utcnow() if body.status == "closed" else None
     # Sửa nội dung thì vụ phải đang điều tra. Riêng đổi status thì cho qua để
     # còn mở lại được vụ đã kết thúc.
-    content_keys = (body.name, body.location, body.note, body.occurred_at)
+    content_keys = (body.name, body.location, body.officer_name, body.officer_rank, body.note, body.occurred_at)
     if any(v is not None for v in content_keys) and "status" not in patch:
         _ensure_case_editable(doc)
     if body.name is not None:
@@ -1524,6 +1528,10 @@ async def update_case(
         patch["name"] = name
     if body.location is not None:
         patch["location"] = body.location.strip()
+    if body.officer_name is not None:
+        patch["officer_name"] = body.officer_name.strip()
+    if body.officer_rank is not None:
+        patch["officer_rank"] = body.officer_rank.strip()
     if body.note is not None:
         patch["note"] = body.note.strip()
     if body.occurred_at is not None:
@@ -1661,6 +1669,8 @@ async def list_cases(
             {"code": {"$regex": needle, "$options": "i"}},
             {"name": {"$regex": needle, "$options": "i"}},
             {"location": {"$regex": needle, "$options": "i"}},
+            {"officer_name": {"$regex": needle, "$options": "i"}},
+            {"officer_rank": {"$regex": needle, "$options": "i"}},
         ]
     total = await db.cases.count_documents(filt)
     docs = [
@@ -1690,6 +1700,8 @@ async def _build_case_report_xlsx(case_doc: dict) -> tuple[str, str]:
         [],
         ["Mã vụ án:", case_doc.get("code", "")],
         ["Tên vụ án:", case_doc.get("name", "") or ""],
+        ["Cán bộ phụ trách:", case_doc.get("officer_name", "") or ""],
+        ["Quân hàm:", case_doc.get("officer_rank", "") or ""],
         ["Địa điểm:", case_doc.get("location", "") or ""],
         ["Thời gian xảy ra:", _fmt_dt(case_doc.get("occurred_at"))],
         ["Trạng thái:", "Đã kết thúc" if case_doc.get("status") == "closed" else "Đang điều tra"],
@@ -2746,7 +2758,7 @@ async def _match_trace_safe(trace_doc: dict, case_doc: dict) -> None:
 
 
 async def _feature_of_image(url: str, *, finger_code: str = "", type_: int) -> Optional[dict]:
-    """Đọc file ảnh local rồi nhờ HBIE trích đặc trưng. Ảnh lỗi -> None (bỏ qua ngón đó)."""
+    """Đọc file ảnh local rồi nhờ HBIE trích đặc trưng. Trả {feature, quality, landmark, img_width, img_height}."""
     path = _resolve_upload_path(url)
     if not path:
         return None
@@ -2755,38 +2767,64 @@ async def _feature_of_image(url: str, *, finger_code: str = "", type_: int) -> O
             data = f.read()
     except OSError:
         return None
+    img_width, img_height = 0, 0
     try:
-        return await hbie_service.extract(data, finger_code=finger_code, type_=type_)
+        from PIL import Image
+        with Image.open(path) as img:
+            img_width, img_height = img.size
+    except Exception:
+        pass
+    try:
+        out = await hbie_service.extract(data, finger_code=finger_code, type_=type_)
+        out["img_width"] = img_width
+        out["img_height"] = img_height
+        return out
     except hbie_service.HbieError:
         return None
 
 
 async def _trace_feature(trace_doc: dict) -> str:
-    """Đặc trưng của ảnh dấu vết, cache vào scene_traces.feature.
+    """Đặc trưng của ảnh dấu vết, cache vào scene_traces.feature và landmark.
 
     type = LATENT: dấu vết hiện trường chất lượng thấp, gán sai type là HBIE
     lọc mất cặp đối sánh. pos để trống vì chưa biết dấu vết là ngón nào.
     """
-    if trace_doc.get("feature"):
+    if trace_doc.get("feature") and trace_doc.get("landmark"):
         return trace_doc["feature"]
     out = await _feature_of_image(trace_doc.get("url", ""), type_=hbie_service.TYPE_LATENT)
     if not out:
+        if trace_doc.get("feature"):
+            return trace_doc["feature"]
         raise hbie_service.HbieError("Không trích được đặc trưng từ ảnh dấu vết này.")
+    set_fields = {
+        "feature": out["feature"],
+        "feature_quality": out.get("quality"),
+        "landmark": out.get("landmark") or {},
+    }
+    if out.get("img_width"):
+        set_fields["img_width"] = out["img_width"]
+        set_fields["img_height"] = out["img_height"]
     await db.scene_traces.update_one(
         {"_id": trace_doc["_id"]},
-        {"$set": {"feature": out["feature"], "feature_quality": out.get("quality")}},
+        {"$set": set_fields},
     )
     trace_doc["feature"] = out["feature"]
+    trace_doc["landmark"] = out.get("landmark") or {}
+    if out.get("img_width"):
+        trace_doc["img_width"] = out["img_width"]
+        trace_doc["img_height"] = out["img_height"]
     return out["feature"]
 
 
 async def _detainee_features(det: dict) -> dict:
-    """{mã ngón: feature} của 1 đối tượng. Extract ngón nào chưa có rồi cache lại."""
+    """{mã ngón: feature} của 1 đối tượng. Extract ngón nào chưa có rồi cache lại kèm landmark."""
     photos = det.get("photos") or {}
     cached = dict(det.get("fp_features") or {})
+    cached_lm = dict(det.get("fp_landmarks") or {})
     fresh = {}
+    fresh_lm = {}
     for code, key in FP_KEY_BY_CODE.items():
-        if cached.get(code):
+        if cached.get(code) and cached_lm.get(code):
             continue
         url = photos.get(key) or ""
         if not url:
@@ -2794,10 +2832,18 @@ async def _detainee_features(det: dict) -> dict:
         out = await _feature_of_image(url, finger_code=code, type_=hbie_service.TYPE_ROLL)
         if out:
             fresh[code] = out["feature"]
+            fresh_lm[code] = {
+                "landmark": out.get("landmark") or {},
+                "img_width": out.get("img_width", 0),
+                "img_height": out.get("img_height", 0),
+            }
     if fresh:
+        set_dict = {f"fp_features.{c}": v for c, v in fresh.items()}
+        for c, lm_data in fresh_lm.items():
+            set_dict[f"fp_landmarks.{c}"] = lm_data
         await db.detainees.update_one(
             {"_id": det["_id"]},
-            {"$set": {f"fp_features.{c}": v for c, v in fresh.items()}},
+            {"$set": set_dict},
         )
         cached.update(fresh)
     return {c: v for c, v in cached.items() if v}
@@ -2884,14 +2930,84 @@ async def list_scene_matches(
         _s_match(d)
         async for d in db.scene_matches.find(q).sort([("score", -1), ("trace_seq", 1)])
     ]
-    # URL ảnh dấu vết để UI hiện thumbnail mà không phải gọi thêm request.
+    # URL ảnh dấu vết và toạ độ đặc trưng để UI vẽ và hiển thị chi tiết đối sánh.
     traces = {
         d["_id"]: d
-        async for d in db.scene_traces.find({"case_id": case_doc["_id"]}, {"url": 1, "seq": 1})
+        async for d in db.scene_traces.find(
+            {"case_id": case_doc["_id"]},
+            {"url": 1, "seq": 1, "landmark": 1, "img_width": 1, "img_height": 1, "feature_quality": 1},
+        )
+    }
+    det_ids = list({_oid(it["detainee_id"]) for it in items if it.get("detainee_id")})
+    detainees = {
+        d["_id"]: d
+        async for d in db.detainees.find(
+            {"_id": {"$in": det_ids}},
+            {"photos": 1, "fp_landmarks": 1, "fp_features": 1},
+        )
     }
     for it in items:
-        tr = traces.get(_oid(it["trace_id"]))
+        tr = traces.get(_oid(it.get("trace_id")))
+        if tr and not (tr.get("landmark") or {}).get("points") and tr.get("url"):
+            try:
+                out = await _feature_of_image(tr["url"], type_=hbie_service.TYPE_LATENT)
+                if out and out.get("landmark"):
+                    tr["landmark"] = out["landmark"]
+                    tr["img_width"] = out.get("img_width", 0)
+                    tr["img_height"] = out.get("img_height", 0)
+                    await db.scene_traces.update_one(
+                        {"_id": tr["_id"]},
+                        {"$set": {
+                            "landmark": tr["landmark"],
+                            "img_width": tr["img_width"],
+                            "img_height": tr["img_height"],
+                        }}
+                    )
+            except Exception:
+                pass
         it["trace_url"] = (tr or {}).get("url", "")
+        it["latent_landmarks"] = (tr or {}).get("landmark") or {}
+        it["latent_dim"] = {
+            "width": (tr or {}).get("img_width", 0),
+            "height": (tr or {}).get("img_height", 0),
+        }
+        det = detainees.get(_oid(it.get("detainee_id")))
+        if det:
+            finger_code = it.get("finger_code", "")
+            finger_key = FP_KEY_BY_CODE.get(finger_code, "")
+            photos = det.get("photos") or {}
+            cand_url = photos.get(finger_key, "")
+            it["candidate_url"] = cand_url
+            fp_lms = det.get("fp_landmarks") or {}
+            lm_data = fp_lms.get(finger_code) or {}
+            if (not isinstance(lm_data, dict) or not (lm_data.get("landmark") or {}).get("points")) and cand_url:
+                try:
+                    out = await _feature_of_image(cand_url, finger_code=finger_code, type_=hbie_service.TYPE_ROLL)
+                    if out and out.get("landmark"):
+                        lm_data = {
+                            "landmark": out["landmark"],
+                            "img_width": out.get("img_width", 0),
+                            "img_height": out.get("img_height", 0),
+                        }
+                        await db.detainees.update_one(
+                            {"_id": det["_id"]},
+                            {"$set": {f"fp_landmarks.{finger_code}": lm_data}}
+                        )
+                except Exception:
+                    pass
+            if isinstance(lm_data, dict) and "landmark" in lm_data:
+                it["candidate_landmarks"] = lm_data.get("landmark") or {}
+                it["candidate_dim"] = {
+                    "width": lm_data.get("img_width", 0),
+                    "height": lm_data.get("img_height", 0),
+                }
+            else:
+                it["candidate_landmarks"] = lm_data if isinstance(lm_data, dict) else {}
+                it["candidate_dim"] = {"width": 0, "height": 0}
+        else:
+            it["candidate_url"] = ""
+            it["candidate_landmarks"] = {}
+            it["candidate_dim"] = {"width": 0, "height": 0}
     return {
         "items": items,
         "total": len(items),

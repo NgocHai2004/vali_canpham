@@ -153,6 +153,9 @@ export default function CaseDetailPage({ caseId, role, onBack, onAddDetainee, on
         <div className="session-detail-meta">
           <span>{t("case.col.occurred_at")}: <strong>{formatDateTime(caseDoc.occurred_at)}</strong></span>
           {caseDoc.location && <span>{t("case.col.location")}: <strong>{caseDoc.location}</strong></span>}
+          {caseDoc.officer_name && (
+            <span>{t("case.col.officer")}: <strong>{caseDoc.officer_rank ? `${caseDoc.officer_rank} ` : ""}{caseDoc.officer_name}</strong></span>
+          )}
           <span>{t("case.detail.traces")}: <strong>{caseDoc.trace_count || 0}</strong></span>
           {!isOpen && <span>{t("case.detail.closed")}: <strong>{formatDateTime(caseDoc.closed_at)}</strong></span>}
         </div>

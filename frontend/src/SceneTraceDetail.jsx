@@ -34,14 +34,31 @@ export default function SceneTraceDetail({ item, busy, onClose, onSaveNote, onOp
     setEditNote(false);
   };
 
-  // Dấu vết thật: ảnh duy nhất vào ô "gốc 01", 3 ô còn lại chưa có.
+  const latentPoints = item?.landmark?.points || [];
+  const latentW = item?.img_width || 800;
+  const latentH = item?.img_height || 750;
+  const latentDots = latentPoints.length > 0
+    ? latentPoints.map((p, idx) => ({
+        x: Math.max(0, Math.min(100, +((p.x / latentW) * 100).toFixed(2))),
+        y: Math.max(0, Math.min(100, +((p.y / latentH) * 100).toFixed(2))),
+        q: p.q,
+        idx: idx + 1,
+      }))
+    : [];
+
+  // Dấu vết thật: nếu có landmark thì hiển thị ảnh đã trích đặc trưng ở ô dot1.
   const shots = item.demo
     ? demoShots(item)
     : [
-        { key: "raw1", labelKey: "scene.shot.raw1", url: item.url },
-        { key: "raw2", labelKey: "scene.shot.raw2", url: "" },
-        { key: "dot1", labelKey: "scene.shot.dot1", url: "" },
-        { key: "dot2", labelKey: "scene.shot.dot2", url: "" },
+        { key: "raw1", labelKey: "scene.shot.raw1", url: item.url, dots: null },
+        { key: "raw2", labelKey: "scene.shot.raw2", url: "", dots: null },
+        {
+          key: "dot1",
+          labelKey: "scene.shot.dot1",
+          url: latentDots.length > 0 ? item.url : "",
+          dots: latentDots.length > 0 ? latentDots : null,
+        },
+        { key: "dot2", labelKey: "scene.shot.dot2", url: "", dots: null },
       ];
 
   const rows = [
@@ -71,10 +88,21 @@ export default function SceneTraceDetail({ item, busy, onClose, onSaveNote, onOp
           {shots.map((s) => (
             <figure className="scene-shot" key={s.key}>
               <figcaption>{t(s.labelKey)}</figcaption>
-              <div className="scene-shot-img">
+              <div className="scene-shot-img" style={{ position: "relative" }}>
                 {s.url ? (
                   <>
                     <img src={s.url} alt={t(s.labelKey)} loading="lazy" />
+                    {s.dots && (
+                      <span className="stf-dots" aria-hidden="true">
+                        {s.dots.map((d, i) => (
+                          <span
+                            className="stf-dot-m"
+                            key={i}
+                            style={{ left: `${d.x}%`, top: `${d.y}%` }}
+                          />
+                        ))}
+                      </span>
+                    )}
                     <button
                       className="scene-shot-zoom"
                       onClick={() => setZoomShot(s)}
@@ -149,7 +177,21 @@ export default function SceneTraceDetail({ item, busy, onClose, onSaveNote, onOp
 
       {zoomShot && (
         <div className="scene-zoom-backdrop" onMouseDown={() => setZoomShot(null)}>
-          <img src={zoomShot.url} alt={t(zoomShot.labelKey)} />
+          <div className="stf-zoom-wrap" style={{ position: "relative" }}>
+            <img src={zoomShot.url} alt={t(zoomShot.labelKey)} />
+            {zoomShot.dots && (
+              <span className="stf-dots" aria-hidden="true">
+                {zoomShot.dots.map((d, i) => (
+                  <span
+                    className="stf-dot-m"
+                    key={i}
+                    style={{ left: `${d.x}%`, top: `${d.y}%` }}
+                    title={d.q != null ? `Điểm #${i + 1} (q: ${d.q}%)` : `Điểm #${i + 1}`}
+                  />
+                ))}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </aside>

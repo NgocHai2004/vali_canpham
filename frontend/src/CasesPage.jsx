@@ -201,7 +201,10 @@ export default function CasesPage({ role = "user", onPick, onOpenCase }) {
                   <tr key={c.id} className={open ? "on" : ""} onClick={go}>
                     <td>
                       <div className="scp-name smp-ellip" title={name}>{name}</div>
-                      <div className="scp-sub2 mono smp-ellip">{c.code}</div>
+                      <div className="scp-sub2 smp-ellip">
+                        <span className="mono">{c.code}</span>
+                        {c.officer_name && <span> · {c.officer_rank ? `${c.officer_rank} ` : ""}{c.officer_name}</span>}
+                      </div>
                       {/* Màn hẹp bỏ 2 cột phụ nên gộp vào đây — ẩn hẳn dữ liệu
                           thì cán bộ không còn cách nào xem được. */}
                       <div className="scp-sub2 scp-narrow-only smp-ellip">

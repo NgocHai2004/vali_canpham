@@ -26,6 +26,41 @@ function reportFileName(caseCode) {
   return `doisanh_${code}_${stamp}.pdf`;
 }
 
+function toPct(points = [], width = 800, height = 750) {
+  if (!points || !points.length) return [];
+  const w = width > 0 ? width : 800;
+  const h = height > 0 ? height : 750;
+  return points.map((p) => ({
+    x: Math.max(0, Math.min(100, +((p.x / w) * 100).toFixed(2))),
+    y: Math.max(0, Math.min(100, +((p.y / h) * 100).toFixed(2))),
+  }));
+}
+
+function ReportDotsOverlay({ dots }) {
+  if (!dots || !dots.length) return null;
+  return (
+    <span style={{ position: "absolute", inset: 0, pointerEvents: "none" }} aria-hidden="true">
+      {dots.map((d, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            left: `${d.x}%`,
+            top: `${d.y}%`,
+            width: "5px",
+            height: "5px",
+            margin: "-2.5px 0 0 -2.5px",
+            borderRadius: "50%",
+            background: "#ff2d87",
+            border: "1px solid #ffffff",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.85)",
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 // ---------- Nội dung A4 (node được html2canvas chụp) ----------
 const SceneReportContent = forwardRef(function SceneReportContent(
   { caseDoc, items, scope },
@@ -71,30 +106,44 @@ const SceneReportContent = forwardRef(function SceneReportContent(
       {items.length === 0 ? (
         <div className="sr-none">{t("scene.report.no_trace")}</div>
       ) : (
-        items.map((it) => (
-          <div className="sr-block" key={it.id}>
-            <div className="sr-block-head">
-              {t("scene.report.pair", { n: seqLabel(it.seq) })}
-            </div>
-            <div className="sr-pair">
-              <figure className="sr-pane">
-                <div className="sr-pane-cap">{t("scene.report.latent")}</div>
-                <div className="sr-pane-img">
-                  <img src={it.url} alt={`${t("scene.image")} ${seqLabel(it.seq)}`} />
-                </div>
-                <figcaption>
-                  {t("scene.image")} {seqLabel(it.seq)}
-                  {it.note ? ` — ${it.note}` : ""}
-                </figcaption>
-              </figure>
-              <figure className="sr-pane">
-                <div className="sr-pane-cap">{t("scene.report.candidate")}</div>
-                <div className="sr-pane-img sr-pane-empty">
-                  {t("scene.report.candidate_empty")}
-                </div>
-                <figcaption>{blank}</figcaption>
-              </figure>
-            </div>
+        items.map((it) => {
+          const lPoints = it.landmark?.points || it.latent_landmarks?.points || [];
+          const lDots = toPct(lPoints, it.img_width || 800, it.img_height || 750);
+          const cPoints = it.candidate_landmarks?.points || [];
+          const cDots = toPct(cPoints, it.candidate_dim?.width || 800, it.candidate_dim?.height || 750);
+
+          return (
+            <div className="sr-block" key={it.id}>
+              <div className="sr-block-head">
+                {t("scene.report.pair", { n: seqLabel(it.seq) })}
+              </div>
+              <div className="sr-pair">
+                <figure className="sr-pane">
+                  <div className="sr-pane-cap">{t("scene.report.latent")} ({t("scene.file.g_dots")})</div>
+                  <div className="sr-pane-img" style={{ position: "relative" }}>
+                    <img src={it.url} alt={`${t("scene.image")} ${seqLabel(it.seq)}`} />
+                    {lDots.length > 0 && <ReportDotsOverlay dots={lDots} />}
+                  </div>
+                  <figcaption>
+                    {t("scene.image")} {seqLabel(it.seq)}
+                    {it.note ? ` — ${it.note}` : ""}
+                  </figcaption>
+                </figure>
+                <figure className="sr-pane">
+                  <div className="sr-pane-cap">{t("scene.report.candidate")} ({t("scene.file.g_dots")})</div>
+                  {it.candidate_url ? (
+                    <div className="sr-pane-img" style={{ position: "relative" }}>
+                      <img src={it.candidate_url} alt={t("scene.report.candidate")} />
+                      {cDots.length > 0 && <ReportDotsOverlay dots={cDots} />}
+                    </div>
+                  ) : (
+                    <div className="sr-pane-img sr-pane-empty">
+                      {t("scene.report.candidate_empty")}
+                    </div>
+                  )}
+                  <figcaption>{it.candidate_name || blank}</figcaption>
+                </figure>
+              </div>
             <table className="sr-result">
               <tbody>
                 <tr>

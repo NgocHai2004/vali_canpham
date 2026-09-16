@@ -160,10 +160,16 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
     cccd: cccdById[m.detainee_id] || "—",
     // finger la KEY i18n (t(r.finger) o cho render), khop fp.finger.*.long.
     finger: `fp.finger.${m.finger_code}.long`,
+    fingerCode: m.finger_code,
     score: m.score,
     pct: `${m.percent}%`,
     verdict: m.verdict,
     time: m.created_at ? formatDateTime(m.created_at) : "—",
+    latent_landmarks: m.latent_landmarks,
+    latent_dim: m.latent_dim,
+    candidate_url: m.candidate_url,
+    candidate_landmarks: m.candidate_landmarks,
+    candidate_dim: m.candidate_dim,
   })), [matches, cccdById, formatDateTime]);
 
   // Loc + sap xep. Backend da sort theo diem giam dan; day la loc phia client theo
