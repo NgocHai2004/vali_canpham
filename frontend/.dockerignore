@@ -1,0 +1,9 @@
+# Docker build context = app_cccd/frontend/
+node_modules/
+dist/
+.git
+*.log
+.env
+.env.*
+.vscode/
+.idea/

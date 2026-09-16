@@ -18,6 +18,44 @@ function fmtTime(iso) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function getMissingFields(d, t) {
+  const missing = [];
+  if (!d.personal_id?.trim() && !d.code?.trim()) {
+    missing.push(t("detainee.field.personal_id") || "Mã can phạm");
+  }
+  if (!d.full_name?.trim()) {
+    missing.push(t("session.col.name") || "Họ tên");
+  }
+  if (!d.gender) {
+    missing.push(t("detainee.field.gender") || "Giới tính");
+  }
+  if (!d.dob || d.dob === "—") {
+    missing.push(t("detainee.field.dob") || "Ngày sinh");
+  }
+  if (!d.cccd_number?.trim() || d.cccd_number === "—") {
+    missing.push(t("session.col.cccd") || "Số CCCD");
+  }
+  if (!d.hometown?.trim() || d.hometown === "—") {
+    missing.push(t("detainee.field.hometown") || "Quê quán");
+  }
+  if (!d.address?.trim() || d.address === "—") {
+    missing.push(t("detainee.field.address") || "Nơi thường trú");
+  }
+  if (!d.nationality?.trim() || d.nationality === "—") {
+    missing.push(t("detainee.field.nationality") || "Quốc tịch");
+  }
+  if (!d.ethnicity?.trim() || d.ethnicity === "—") {
+    missing.push(t("detainee.field.ethnicity") || "Dân tộc");
+  }
+  if (!d.has_portrait && !d.photo_url && !d.photos?.portrait_front) {
+    missing.push(t("detainee.field.portrait") || "Ảnh chân dung");
+  }
+  if (!d.has_fingerprints) {
+    missing.push(t("capture.verify.item.fingerprint") || "Vân tay");
+  }
+  return missing;
+}
+
 export default function SessionDetailPage({ sessionId, role, onBack, onAddDetainee, onEditDetainee, onSessionClosed }) {
   const { t, formatDate, formatDateTime } = useI18n();
   // Admin giám sát phiên của cán bộ: xem, đóng, xoá, tải báo cáo — nhưng không thu nhận hồ sơ.
@@ -255,33 +293,56 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
               <th>{t("session.col.cccd")}</th>
               <th>{t("session.col.cell")}</th>
               <th>{t("session.col.time")}</th>
+              <th className="col-missing-warn" aria-label="Cảnh báo thiếu thông tin"></th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {allDetainees.length === 0 && (
               <tr>
-                <td colSpan={8} className="session-list-empty">
+                <td colSpan={9} className="session-list-empty">
                   {isOpen ? t("session.detail.empty_open") : t("session.detail.empty_closed")}
                 </td>
               </tr>
             )}
-            {pageRows.map((d) => (
-              <tr key={d.id} className="session-list-row" onClick={() => openEditFull(d, session)}>
-                <td className="mono">{d.personal_id || d.code || "—"}</td>
-                <td>{d.full_name}</td>
-                <td>{d.gender === "female" ? t("common.female") : t("common.male")}</td>
-                <td>{d.dob ? formatDate(d.dob) : "—"}</td>
-                <td className="mono">{d.cccd_number || "—"}</td>
-                <td>{d.cell_code || "—"}</td>
-                <td>{fmtTime(d.created_at)}</td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  {isOpen && (
-                    <button type="button" className="btn-link btn-link-danger" onClick={() => removeDetainee(d)}>{t("common.delete")}</button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {pageRows.map((d) => {
+              const missingFields = getMissingFields(d, t);
+              const isMissing = missingFields.length > 0;
+              const missingTooltip = isMissing
+                ? (t("session.detail.missing_fields", { fields: missingFields.join(", ") }) || `Thiếu thông tin: ${missingFields.join(", ")}`)
+                : "";
+              return (
+                <tr key={d.id} className="session-list-row" onClick={() => openEditFull(d, session)}>
+                  <td className="mono">{d.personal_id || d.code || "—"}</td>
+                  <td>{d.full_name}</td>
+                  <td>{d.gender === "female" ? t("common.female") : t("common.male")}</td>
+                  <td>{d.dob ? formatDate(d.dob) : "—"}</td>
+                  <td className="mono">{d.cccd_number || "—"}</td>
+                  <td>{d.cell_code || "—"}</td>
+                  <td>{fmtTime(d.created_at)}</td>
+                  <td className="col-missing-warn">
+                    {isMissing && (
+                      <span
+                        className="missing-warning-circle"
+                        title={missingTooltip}
+                        aria-label={missingTooltip}
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" fill="#ef4444" />
+                          <path d="M12 7v6" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" />
+                          <circle cx="12" cy="16.5" r="1.3" fill="#ffffff" />
+                        </svg>
+                      </span>
+                    )}
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {isOpen && (
+                      <button type="button" className="btn-link btn-link-danger" onClick={() => removeDetainee(d)}>{t("common.delete")}</button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {allDetainees.length > 0 && (

@@ -1,5 +1,12 @@
 // main.js - orchestrator: spawn backend/mongo, cho healthy, vao kiosk, teardown sach.
 const { app, protocol, globalShortcut } = require('electron')
+
+// Tat hardware acceleration de tranh loi man hinh den do GPU cache lock / driver tren Windows
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('no-sandbox')
+
 const config = require('./config')
 const { waitForHealthy } = require('./health')
 const { createProxyServer } = require('./proxy')
@@ -14,7 +21,7 @@ const { createSplash, setSplashText } = require('./splash')
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'appcccd',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
   },
 ])
 

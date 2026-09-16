@@ -5811,6 +5811,35 @@ textarea.input {
   text-align: right;
 }
 
+.session-detail-table th.col-missing-warn,
+.session-detail-table td.col-missing-warn {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  text-align: center;
+  padding: 6px 2px;
+  vertical-align: middle;
+}
+
+.missing-warning-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  vertical-align: middle;
+}
+
+.missing-warning-circle:hover {
+  transform: scale(1.18);
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.7));
+}
+
+.missing-warning-circle svg {
+  display: block;
+}
+
 .session-list-table th {
   background: rgba(22, 139, 255, 0.1);
   padding: 9px 14px;

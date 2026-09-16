@@ -1,0 +1,5 @@
+ Container cccd-mongo Running 
+ Container cccd-backend Running 
+ Container cccd-frontend Running 
+ Container cccd-mongo Waiting 
+ Container cccd-mongo Healthy 

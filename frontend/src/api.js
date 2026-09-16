@@ -185,8 +185,6 @@ export const api = {
   verifyDongle: () => request("/api/auth/dongle-verify", { skipAuthExpire: true }),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
   featureConfig: () => request("/api/config/features"),
-  measurementConfig: () => request("/api/config/measurement"),
-  updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
   fingerprintConfig: () => request("/api/config/fingerprint"),
   updateFingerprintConfig: (body) => request("/api/config/fingerprint", { method: "PUT", body: JSON.stringify(body) }),
 
@@ -378,16 +376,7 @@ async function cccdRequest(path, opts = {}, signal) {
   return data;
 }
 
-export const cccdApi = {
-  health: () => cccdRequest("/api/cccd/health"),
-  startSession: () => cccdRequest("/api/cccd/session/start", { method: "POST" }),
-  wait: (sid, signal, timeout = 25) =>
-    cccdRequest(`/api/cccd/session/${sid}/wait?timeout=${timeout}`, {}, signal),
-  readAgain: (sid) =>
-    cccdRequest(`/api/cccd/session/${sid}/read_again`, { method: "POST" }),
-  cancel: (sid) =>
-    cccdRequest(`/api/cccd/session/${sid}`, { method: "DELETE" }),
-};
+
 
 // ============ Scan OCR API (Chỉ bản 295 / Danh bản 204 qua /api/scan/*) ============
 // Khac cccdApi (doc cho rieng tung nguoi): scan co the chua nhieu ho so, nen
@@ -400,64 +389,7 @@ export const scanApi = {
     cccdRequest(`/api/scan/session/${sid}`, { method: "DELETE" }),
 };
 
-// ============ Weight scale WebSocket (máy cân bên ngoài POST /api/weight/push) ============
-export const weightApi = {
-  // Mở WebSocket lắng nghe cân nặng. onValue({weight_kg, source, ts}) mỗi khi máy cân bắn về.
-  // Trả về hàm close() để đóng kết nối khi component unmount.
-  connect(onValue) {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    // Dev Vite (:5173): nối thẳng vào backend :8000, tránh phụ thuộc `ws: true` trong vite.config.js.
-    // Prod / khi FE serve cùng host với BE: giữ nguyên location.host.
-    // Electron kiosk: ws đi qua proxy nội bộ (127.0.0.1:<proxyPort>) — preload inject.
-    let host;
-    if (location.port === "5173") {
-      host = `${location.hostname}:8000`;
-    } else if (window.appcccd && window.appcccd.getProxyPort && window.appcccd.getProxyPort()) {
-      host = `${window.appcccd.proxyHost}:${window.appcccd.getProxyPort()}`;
-    } else {
-      host = location.host;
-    }
-    const url = `${proto}//${host}/api/weight/ws`;
-    let ws = null;
-    let closed = false;
-    let retry = 0;
-    let retryTimer = null;
 
-    const open = () => {
-      try {
-        ws = new WebSocket(url);
-      } catch {
-        scheduleReconnect();
-        return;
-      }
-      ws.onopen = () => { retry = 0; };
-      ws.onmessage = (e) => {
-        let payload;
-        try { payload = JSON.parse(e.data); } catch { return; }
-        if (payload && typeof payload.weight_kg === "number") onValue(payload);
-      };
-      ws.onerror = () => { /* để onclose xử lý reconnect */ };
-      ws.onclose = () => {
-        if (closed) return;
-        scheduleReconnect();
-      };
-    };
-
-    const scheduleReconnect = () => {
-      retry = Math.min(retry + 1, 4);
-      const delay = Math.min(1000 * 2 ** (retry - 1), 10000);
-      retryTimer = setTimeout(open, delay);
-    };
-
-    open();
-
-    return () => {
-      closed = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      try { ws && ws.close(); } catch { /* noop */ }
-    };
-  },
-};
 
 // base64 PNG (không kèm data:image/png;base64,) → File
 export async function b64PngToFile(b64, filename) {
@@ -467,3 +399,6 @@ export async function b64PngToFile(b64, filename) {
   const blob = new Blob([buf], { type: "image/png" });
   return new File([blob], filename, { type: "image/png" });
 }
+
+export default api;
+

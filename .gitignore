@@ -55,9 +55,10 @@ frontend/_vite.*.log
 frontend/vite.*.log
 frontend/frontend.log
 
-# ===== Fingerprint service runtime =====
-fingerprint_service/*.log
-fingerprint_service/__pycache__/
+# ===== Fingerprint service (morfin_service) runtime =====
+morfin_service/*.log
+morfin_service/__pycache__/
+morfin_service/*.pyd.bak
 
 # ===== IDE / Editor =====
 .vscode/
@@ -87,16 +88,7 @@ coverage/
 htmlcov/
 
 # ===== Services: runtime data / PII =====
-backend/services/fingerprint_service/users.json
-backend/services/fingerprint_service/fingerprints.json
-backend/services/weight/weight_log.jsonl
-backend/services/weight/pending_queue.jsonl
-backend/services/weight/logs/
-backend/services/cccd_scanner/bin/
-backend/services/cccd_scanner/Logs/
-# Model OCR PaddleOCR >100MB (vuot gioi han file GitHub, phai tai ve local)
-backend/services/cccd_scanner/publish/Sdcb.PaddleOCR.Models.LocalV3.dll
-backend/services/cccd_scanner/publish/Sdcb.PaddleOCR.Models.LocalV4.dll
+backend/services/morfin_service/*.json
 backend/data_cccd/
 backend/uploads/
 backend/fp/
@@ -126,4 +118,8 @@ image copy*.png
 desktop.ini
 $RECYCLE.BIN/
 
+# ===== Electron build artifacts =====
 electron/app.asar
+electron/app.asar.unpacked/
+electron/obf/
+electron/webdist/

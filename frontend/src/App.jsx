@@ -31,10 +31,17 @@ export default function App() {
       return;
     }
     let cancelled = false;
+    const safetyTimer = setTimeout(() => {
+      if (!cancelled) {
+        setChecking(false);
+      }
+    }, 3000);
+
     api
       .me()
       .then((data) => {
         if (cancelled) return;
+        clearTimeout(safetyTimer);
         setUser(data.username);
         setRole(data.role || "user");
         if (data.full_name !== undefined) {
@@ -45,12 +52,14 @@ export default function App() {
       })
       .catch(() => {
         if (cancelled) return;
+        clearTimeout(safetyTimer);
         auth.clear();
         setUser(null);
         setChecking(false);
       });
     return () => {
       cancelled = true;
+      clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -125,14 +134,24 @@ export default function App() {
       <div style={{
         minHeight: "100vh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         background: "linear-gradient(135deg, #06142A 0%, #020817 100%)",
         color: "#7E93B8",
         fontFamily: "Inter, system-ui, sans-serif",
         fontSize: 14,
+        gap: 12,
       }}>
-        {t("app.checking_session")}
+        <div style={{
+          width: 28,
+          height: 28,
+          border: "3px solid rgba(53,216,255,0.2)",
+          borderTopColor: "#35d8ff",
+          borderRadius: "50%",
+          animation: "spin 0.8s linear infinite"
+        }} />
+        <div>{t("app.checking_session")}</div>
       </div>
     );
   }

@@ -1001,6 +1001,7 @@
   "session.detail.err.sheets": "Không lấy được danh sách để in",
   "session.detail.empty_closed": "Phiên không có hồ sơ.",
   "session.detail.empty_open": "Chưa có hồ sơ nào. Bấm '+ Thu nhận hồ sơ mới' để bắt đầu.",
+  "session.detail.missing_fields": "Thiếu thông tin: {fields}",
   "session.detail.err.close": "Không đóng được phiên",
   "session.detail.err.delete_full": "Không xoá được phiên",
   "session.detail.err.delete_row": "Không xoá được hồ sơ",

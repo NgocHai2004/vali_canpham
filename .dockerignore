@@ -1,0 +1,38 @@
+# Docker build context = app_cccd/ (dùng cho backend image)
+# Loại các thứ không nên vào image backend.
+
+# VCS
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyd.bak
+*.bak
+.venv/
+venv/
+
+# Backend runtime data (không build vào image, mount qua compose)
+backend/data_cccd/
+backend/uploads/
+backend/fp/
+backend/logs/
+
+# Windows-native services — KHÔNG build vào backend container (chạy native trên host)
+backend/services/
+
+# Tests
+backend/tests/
+
+# Node (frontend không phải build context backend, nhưng loại cho chắc)
+frontend/node_modules/
+frontend/dist/
+
+# Misc
+*.log
+.env
+.env.*
+.secrets.dat

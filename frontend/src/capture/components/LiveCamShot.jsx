@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { useI18n, apiT } from "../../i18n";
-import { getMeasurementHeight } from "../../lib/heightMeasurement";
 import { pickPreferredCamera } from "../imageUtils";
 
-export function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, onMeasureHeight, onPortraitRecognize, heightImage = 100, heightOffset = 103, useYolo = false }) {
+export function LiveCamShot({ label, shortLabel, value, onCapture, onPortraitRecognize }) {
   const { t } = useI18n();
   const videoRef = useRef(null);
   const frameRef = useRef(null);
@@ -13,12 +12,6 @@ export function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, on
   const [err, setErr] = useState("");
   const [ready, setReady] = useState(false);
   const [preview, setPreview] = useState(false);
-  // Ảnh CÓ vạch đỏ (data URI) của lần chụp hiện tại — chỉ để xem tạm tại màn thu nhận.
-  // Giữ kèm url ảnh sạch tương ứng để không hiện nhầm vạch cho ảnh khác. Không lưu DB.
-  const [redLinePreview, setRedLinePreview] = useState({ url: "", src: "" });
-  // head_ratio = y1_đỉnh_đầu / chiều_cao_ảnh (0..1) do YOLO trả về khi upload.
-  // Chiều cao tự động = (1 - head_ratio) * height_image + 103. null = chưa detect được.
-  const [headRatio, setHeadRatio] = useState(null);
 
   useEffect(() => {
     if (value || preview) return;
@@ -85,15 +78,7 @@ export function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, on
         streamRef.current = null;
       }
       const file = new File([blob], `portrait_${Date.now()}.jpg`, { type: "image/jpeg" });
-      // Chỉ ảnh thẳng (useYolo) mới gọi type=portrait để YOLO vẽ vạch đỏ + đo chiều cao.
-      // Ảnh trái/phải chụp thường, không cần YOLO.
-      const res = await api.uploadPhoto(file, useYolo ? "portrait" : "");
-      setHeadRatio(useYolo && typeof res.head_ratio === "number" ? res.head_ratio : null);
-      // res.url = ảnh SẠCH (đã lưu đĩa, đi vào DB, dùng cho xem trước hồ sơ + in).
-      // res.preview_url = ảnh CÓ vạch đỏ (data URI, không lưu) — chỉ xem tạm ở màn này.
-      setRedLinePreview(
-        useYolo && res.preview_url ? { url: res.url, src: res.preview_url } : { url: "", src: "" },
-      );
+      const res = await api.uploadPhoto(file);
       onCapture(res.url);
       onPortraitRecognize?.(res.url);
       setPreview(true);
@@ -106,53 +91,17 @@ export function LiveCamShot({ label, shortLabel, value, onCapture, showRuler, on
 
   const retake = () => {
     setPreview(false);
-    setHeadRatio(null);
-    setRedLinePreview({ url: "", src: "" });
     onCapture("");
   };
 
-  const showLive = !value && !preview;
   const captured = Boolean(value);
-  // Chỉ dùng ảnh có vạch đỏ khi nó đúng là bản preview của ảnh đang hiển thị.
-  // Mọi nơi khác (xem trước hồ sơ, in, DB) luôn dùng `value` = ảnh sạch.
-  const displaySrc = redLinePreview.src && redLinePreview.url === value ? redLinePreview.src : value;
-  // Chiều cao TỰ ĐỘNG = (1 - head_ratio) * height_image + height_offset.
-  // head_ratio = vị trí vạch đỉnh đầu tính từ đỉnh ảnh (0..1) → khoảng tới đáy = 1 - head_ratio.
-  const measuredHeight = showRuler && headRatio != null
-    ? getMeasurementHeight({
-      linePixelHeight: (1 - headRatio) * 100,
-      imageHeight: 100,
-      heightImage,
-      heightOffset,
-    })
-    : null;
-
-  useEffect(() => {
-    if (!captured || !showRuler || !onMeasureHeight || headRatio == null) return;
-    onMeasureHeight({
-      linePixelHeight: (1 - headRatio) * 100,
-      imageHeight: 100,
-    });
-  }, [captured, showRuler, onMeasureHeight, headRatio]);
 
   return (
     <>
       <div className="body-shot-body">
-        <div ref={frameRef} className={"body-shot-frame" + (captured ? " body-shot-frame--done" : "") + (showRuler ? " body-shot-frame--measure" : "")}>
+        <div ref={frameRef} className={"body-shot-frame" + (captured ? " body-shot-frame--done" : "")}>
           {captured ? (
-            <>
-              <img src={displaySrc} alt={label} />
-              {showRuler && headRatio != null && (
-                <div className="height-measure-overlay" aria-label="Đo chiều cao">
-                  <div
-                    className="height-measure-line height-measure-line--auto"
-                    style={{ top: `${headRatio * 100}%`, height: `${(1 - headRatio) * 100}%` }}
-                  >
-                    {measuredHeight && <span className="height-measure-value">{measuredHeight} cm</span>}
-                  </div>
-                </div>
-              )}
-            </>
+            <img src={value} alt={label} />
           ) : err ? (
             <div className="body-shot-err">{err}</div>
           ) : (

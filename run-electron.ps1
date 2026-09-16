@@ -1,21 +1,24 @@
 # run-electron.ps1 - Start toan bo App_CCCD qua app Electron kiosk (thay Edge).
 # Cach dung: .\run-electron.ps1
-# Yeu cau: .env da co JWT_SECRET + DONGLE_SECRET.
+# Yeu cau: .env da co JWT_SECRET + DONGLE_SECRET; Docker Desktop da cai (Linux engine).
 #
 # Thu tu:
-#   1. Mongo (mongod.exe truc tiep, KHONG Docker)  -> 127.0.0.1:27017
-#   2. Services usb + fp                          -> 8766 / 8765
-#   3. Backend uvicorn                            -> 127.0.0.1:8000
-#   4. OCR service (ScanSnap_iX1400_Driver_AutoInstall) -> 127.0.0.1:8787
+#   1. Docker compose up (mongo + backend container)      -> 27017 / 8000
+#   2. Services usb + fp (native, phan cung)              -> 8766 / 8765
+#   3. Doi backend (docker) healthy tren 8000
+#   4. OCR service (ScanSnap_iX1400_Driver_AutoInstall)   -> 127.0.0.1:8787
 #      - Hung file ScanSnap Home xuat ra scan_paper, OCR, day sang backend.
 #      - Dung system python (Python310) vi .venv khong co deps OCR.
 #   5. Build frontend (bo qua neu dist co)
-#   6. Electron (npm start trong electron/)
+#   6. Electron (npm start trong electron/) — dev mode, khong spawn mongo/backend
+#      vi docker da chiem 27017/8000; load frontend tu dist/ + proxy 8000/8765/8766.
 param([switch]$ForceBuild)
 
 $ErrorActionPreference = 'Stop'
 $root     = $PSScriptRoot                       # app_cccd/
 $py       = Join-Path $root '.venv\Scripts\python.exe'
+$distPy   = 'C:\Users\vali-01\Documents\App_CCCD_dist\stage\runtime\python\python.exe'
+if (Test-Path $distPy) { $py = $distPy }
 $electron = Join-Path $root 'electron'
 $frontend = Join-Path $root 'frontend'
 $dist     = Join-Path $frontend 'dist'
@@ -25,16 +28,6 @@ $envFile  = Join-Path (Split-Path -Parent $root) '.env'
 # .venv cua App_CCCD KHONG co pytesseract/pypdfium2 -> dung system python.
 $ocrRoot  = 'C:\Users\vali-01\Documents\ScanSnap_iX1400_Driver_AutoInstall'
 $ocrPy    = 'C:\Users\vali-01\AppData\Local\Programs\Python\Python310\python.exe'
-
-# Mongo truc tiep (KHONG Docker).
-# Ban mongod 8.3 (C:\Program Files\MongoDB\Server\8.3) gap STATUS_ENTRYPOINT_NOT_FOUND (0xC0000139)
-# tren may nay -> dung ban portable 6.0.19 trong App_CCCD\mongo_portable.
-$mongod   = Join-Path (Split-Path -Parent $root) 'mongo_portable\mongodb-win32-x86_64-windows-6.0.19\bin\mongod.exe'
-if (-not (Test-Path $mongod)) {
-    # Fallback: ban 8.3 (neu may da fix UCRT).
-    $mongod = 'C:\Program Files\MongoDB\Server\8.3\bin\mongod.exe'
-}
-$dbpath   = Join-Path (Split-Path -Parent $root) 'mongo_data'   # App_CCCD/mongo_data
 
 function Write-Step($msg) { Write-Host "`n[run-electron] $msg" -ForegroundColor Cyan }
 
@@ -55,57 +48,84 @@ if (-not $env:JWT_SECRET)    { throw "JWT_SECRET chua duoc set." }
 
 if (-not (Test-Path $logs)) { New-Item -ItemType Directory -Path $logs -Force | Out-Null }
 
-# ---- 1. Mongo (mongod.exe truc tiep, bind 127.0.0.1) ----
-Write-Step "1/5 Mongo (mongod.exe, 127.0.0.1:27017)..."
-if (-not (Test-Path $mongod)) { throw "Khong tim thay mongod.exe tai $mongod. Cai MongoDB Server hoac chinh duong dan." }
-if (-not (Test-Path $dbpath)) { New-Item -ItemType Directory -Path $dbpath -Force | Out-Null }
+# ---- 1. Mongo + Backend (Docker hoac Native Portable Mongo + Uvicorn) ----
+Write-Step "1/6 Khoi dong Mongo + Backend..."
+$projectRoot = Split-Path -Parent $root                    # App_CCCD/
+$composeFile = Join-Path $projectRoot 'docker-compose.yml' # App_CCCD/docker-compose.yml
+$mongoExe    = Join-Path $projectRoot 'mongo_portable\mongodb-win32-x86_64-windows-6.0.19\bin\mongod.exe'
+$mongoData   = Join-Path $projectRoot 'mongo_data'
 
-$mongoAlreadyUp = Get-NetTCPConnection -LocalPort 27017 -State Listen -ErrorAction SilentlyContinue
-if (-not $mongoAlreadyUp) {
-    # Dung --logpath thay vi RedirectStandardOutput: mongod.exe 8.3 gap STATUS_ENTRYPOINT_NOT_FOUND
-    # (0xC0000139) khi stdout/stderr bi redirect boi Start-Process. --logpath ghi log vao file truc tiep.
-    Start-Process -FilePath $mongod `
-        -ArgumentList '--dbpath', $dbpath, '--bind_ip', '127.0.0.1', '--port', '27017', `
-                      '--logpath', (Join-Path $logs 'mongod.log') `
-        -WindowStyle Hidden
-    Write-Host "  Da start mongod.exe (dbpath=$dbpath)."
-} else {
-    Write-Host "  Mongo da lang nghe 27017 (co the Docker chua tat hoac dang chay). Bo qua start."
+function Test-PortInUse([int]$Port) {
+    $c = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
+    return [bool]$c
 }
-# Cho port 27017 san sang.
-for ($i=0; $i -lt 30; $i++) {
-    if (Get-NetTCPConnection -LocalPort 27017 -State Listen -ErrorAction SilentlyContinue) { break }
-    Start-Sleep -Milliseconds 500
+
+# Kiem tra Docker Desktop co san sang khong
+$useDocker = $false
+try {
+    $dockerCheck = docker info 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $useDocker = $true
+    }
+} catch {}
+
+if ($useDocker -and (Test-Path $composeFile)) {
+    Write-Host "  Phat hien Docker daemon -> Dung Docker compose..." -ForegroundColor Green
+    Push-Location $projectRoot
+    try { docker compose -f $composeFile up -d } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) { throw "docker compose up that bai (exit=$LASTEXITCODE)." }
+    Write-Host "  Docker compose stack da up."
+} else {
+    Write-Host "  Docker daemon khong chay -> Chuyen sang che do Native (mongo_portable + uvicorn)..." -ForegroundColor Yellow
+
+    # 1. MongoDB Native
+    if (Test-PortInUse 27017) {
+        Write-Host "  MongoDB da chay tren port 27017." -ForegroundColor Green
+    } else {
+        if (-not (Test-Path $mongoExe)) { throw "Khong tim thay mongod.exe tai $mongoExe" }
+        if (-not (Test-Path $mongoData)) { New-Item -ItemType Directory -Path $mongoData -Force | Out-Null }
+        $mongoLock = Join-Path $mongoData 'mongod.lock'
+        if (Test-Path $mongoLock) { Remove-Item $mongoLock -Force -ErrorAction SilentlyContinue }
+        $mongoLogDir = Join-Path $projectRoot 'mongo_log'
+        if (-not (Test-Path $mongoLogDir)) { New-Item -ItemType Directory -Path $mongoLogDir -Force | Out-Null }
+        Start-Process -FilePath $mongoExe `
+            -ArgumentList '--dbpath', $mongoData, '--bind_ip', '127.0.0.1', '--port', '27017', '--logpath', (Join-Path $mongoLogDir 'mongod.log') `
+            -WorkingDirectory $projectRoot `
+            -WindowStyle Hidden
+        Write-Host "  Da khoi dong MongoDB native (port 27017)." -ForegroundColor Green
+        Start-Sleep -Seconds 2
+    }
+
+    # 2. Backend Native
+    if (Test-PortInUse 8000) {
+        Write-Host "  Backend da chay tren port 8000." -ForegroundColor Green
+    } else {
+        Start-Process -FilePath $py `
+            -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','127.0.0.1','--port','8000' `
+            -WorkingDirectory $root `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $logs 'backend.out.log') `
+            -RedirectStandardError  (Join-Path $logs 'backend.err.log')
+        Write-Host "  Da khoi dong Backend native (port 8000)." -ForegroundColor Green
+    }
 }
 
 # ---- 2. Services (usb + fingerprint) ----
-Write-Step "2/5 Services (usb 8766 + fingerprint 8765)..."
+Write-Step "2/6 Services (usb 8766 + fingerprint 8765)..."
 & (Join-Path $root 'start-services.ps1')
 
-# ---- 3. Backend uvicorn (bind 127.0.0.1, khong 0.0.0.0 nhu run.ps1 cu) ----
-Write-Step "3/5 Backend uvicorn (127.0.0.1:8000)..."
-# Guard chong trung giong start-services.ps1: chay lai script khi backend da song
-# thi instance thu hai chet voi "[Errno 10048] ... only one usage of each socket
-# address", va ghi de luon backend.err.log cua instance dang chay - mat log cu.
-if (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue) {
-    Write-Host "  Backend da lang nghe 8000 - bo qua spawn."
-} else {
-    Start-Process -FilePath $py `
-        -ArgumentList '-m','uvicorn','--app-dir','backend','main:app','--host','127.0.0.1','--port','8000' `
-        -WorkingDirectory $root `
-        -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $root 'logs\backend.out.log') `
-        -RedirectStandardError  (Join-Path $root 'logs\backend.err.log')
-}
-# Cho backend ready (poll /api/health).
+# ---- 3. Backend (doi healthy tren 8000) ----
+Write-Step "3/6 Backend (doi healthy 8000)..."
 $healthUrl = 'http://127.0.0.1:8000/api/health'
-for ($i=0; $i -lt 60; $i++) {
+$backendOk = $false
+for ($i = 0; $i -lt 90; $i++) {
     try {
         $r = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2 -ErrorAction Stop
-        if ($r.ok) { Write-Host "  Backend ready (db=$($r.db))."; break }
+        if ($r.ok) { $backendOk = $true; Write-Host "  Backend ready (db=$($r.db))."; break }
     } catch {}
     Start-Sleep -Milliseconds 1000
 }
+if (-not $backendOk) { throw "Backend khong healthy sau 90s (kiem tra logs/backend.err.log hoac docker logs)." }
 
 # ---- 4. OCR service (repo ScanSnap_iX1400_Driver_AutoInstall, port 8787) ----
 # Hung file ScanSnap Home xuat ra scan_paper, OCR, day sang backend (8000).
@@ -129,14 +149,28 @@ if (-not (Test-Path $ocrPy)) {
     Write-Host "  Da start OCR service (folder=scan_paper, port 8787)."
 }
 
-# ---- 5. Build frontend (bo qua neu dist co va khong -ForceBuild) ----
-Write-Step "5/6 Frontend build..."
+# ---- 5. Build frontend va dong bo webdist ----
+Write-Step "5/6 Frontend build & sync..."
+$webdist = Join-Path $electron 'webdist'
 if ($ForceBuild -or -not (Test-Path (Join-Path $dist 'index.html'))) {
     Push-Location $frontend
     try { npm run build } finally { Pop-Location }
     Write-Host "  Da build frontend -> dist/"
 } else {
-    Write-Host "  Da co dist/index.html (bo qua build). Dung -ForceBuild de rebuild."
+    Write-Host "  Da co dist/index.html. Dung -ForceBuild de rebuild neu can."
+}
+if (Test-Path $dist) {
+    if (-not (Test-Path $webdist)) { New-Item -ItemType Directory -Path $webdist -Force | Out-Null }
+    Copy-Item -Path "$dist\*" -Destination $webdist -Recurse -Force
+    Write-Host "  Da dong bo dist sang electron/webdist."
+}
+
+# Don sach cac tien trinh electron cu va cache GPU loi neu co
+Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+$appDataShell = Join-Path $env:APPDATA 'app-cccd-shell'
+if (Test-Path $appDataShell) {
+    Remove-Item -Path (Join-Path $appDataShell 'GPUCache') -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path (Join-Path $appDataShell 'Singleton*') -Force -ErrorAction SilentlyContinue
 }
 
 # ---- 6. Electron ----
@@ -144,7 +178,7 @@ Write-Step "6/6 Khoi dong Electron..."
 Push-Location $electron
 try {
     $env:ELECTRON_BUILD = 'dev'
-    # Chay o前台 (khong Start-Process) de Ctrl+C dong hop tat ca + xem log.
+    # Chay o foreground de Ctrl+C dong hop tat ca + xem log truc tiep.
     npm start
 } finally {
     Pop-Location

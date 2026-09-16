@@ -1,1 +1,160 @@
-const a0_0x440b9d=a0_0x5b9b;(function(_0x430cb9,_0x14b9d6){const _0x28e656=a0_0x5b9b,_0x34dede=_0x430cb9();while(!![]){try{const _0x3391c0=parseInt(_0x28e656(0x1eb))/0x1+parseInt(_0x28e656(0x1e9))/0x2+parseInt(_0x28e656(0x1bc))/0x3*(parseInt(_0x28e656(0x1c1))/0x4)+-parseInt(_0x28e656(0x1f4))/0x5+parseInt(_0x28e656(0x205))/0x6*(-parseInt(_0x28e656(0x1f3))/0x7)+-parseInt(_0x28e656(0x1ec))/0x8*(parseInt(_0x28e656(0x1d7))/0x9)+-parseInt(_0x28e656(0x20a))/0xa*(parseInt(_0x28e656(0x206))/0xb);if(_0x3391c0===_0x14b9d6)break;else _0x34dede['push'](_0x34dede['shift']());}catch(_0x20a2b5){_0x34dede['push'](_0x34dede['shift']());}}}(a0_0x96a2,0x79650));const {app,protocol,globalShortcut}=require(a0_0x440b9d(0x1b8)),path=require('node:path'),fs=require(a0_0x440b9d(0x20f)),crypto=require(a0_0x440b9d(0x210)),config=require(a0_0x440b9d(0x1cd)),{waitForHealthy}=require(a0_0x440b9d(0x1ef)),{createProxyServer}=require(a0_0x440b9d(0x1c4)),{ManagedProcess}=require(a0_0x440b9d(0x1f6)),{registerAppProtocol}=require(a0_0x440b9d(0x1c2)),{createKioskWindow,lockKeyboard,registerDevEscape,registerKioskEscape}=require(a0_0x440b9d(0x1bf)),{createPreviewWindow}=require('./preview-window'),{createSplash,setSplashText}=require(a0_0x440b9d(0x20b));protocol['registerSchemesAsPrivileged']([{'scheme':'appcccd','privileges':{'standard':!![],'secure':!![],'supportFetchAPI':!![],'stream':!![]}}]);function registerAppScheme(){const _0x390d5c=a0_0x440b9d;registerAppProtocol(protocol,config[_0x390d5c(0x1da)][_0x390d5c(0x1fc)],config[_0x390d5c(0x1bd)],proxyServer[_0x390d5c(0x1b2)]()[_0x390d5c(0x1d8)]);}let splash=null,mainWin=null,previewWin=null,proxyServer=null;const managed=[];function a0_0x96a2(){const _0x240ae6=['show','frontendDist','trim','utf8','uvicorn','backendVenvPython','usb_service','HEALTH_URL','IS_PACKAGED','services','272328eiUHjb','11BEVQFU','mongodPath','backendDir','isQuiting','5078030oXybVX','./splash','second-instance','--logpath','push','node:fs','node:crypto','join','split','destroy','PORTS','Đang\x20khởi\x20động\x20dịch\x20vụ…','webContents','address','did-finish-load','match','dirname','DONGLE_SECRET=','readFileSync','electron','[boot]\x20khong\x20tim\x20thay\x20mongod.exe\x20tai','window-all-closed','once','345801GzHFMC','HOST','api:app','./window','log','28qvkOUV','./app-protocol','--app-dir','./proxy','message','focus','WEIGHT_API_KEY=','mongoDataPath','close','mkdirSync','ROUTES','cccd-scanner','./config','existsSync','length','DEPLOY_PROVINCE_NAME=Thành\x20phố\x20Hà\x20Nội','--host','unregisterAll','Đang\x20tải\x20mô\x20hình…','listen','then','node:net','18celuoF','port','connect','paths','appRoot','start','WEIGHT_SCALE_MAC=CB:20:21:03:2E:C2','backend','usb','fingerprint','mongod.log','toString','error','restore','randomBytes','Lỗi\x20khởi\x20động.\x20Vui\x20lòng\x20khởi\x20động\x20lại\x20máy.','[boot]\x20backend\x20da\x20chay\x20tu\x20truoc\x20—\x20bo\x20qua\x20spawn,\x20chi\x20doi\x20healthy.','27017','1493060wVkqQw','JWT_SECRET=','295223siXKhd','221848EzeFux','--port','isDestroyed','./health','replace','DEPLOY_PROVINCE_CODE=01','closed','35adQDKF','2805925UEntWF','before-quit','./process-manager','logs','hex','[boot]\x20khong\x20ghi\x20duoc\x20.env:','isMinimized'];a0_0x96a2=function(){return _0x240ae6;};return a0_0x96a2();}!app['requestSingleInstanceLock']()?app['quit']():app['on'](a0_0x440b9d(0x20c),()=>{const _0x2fd0b5=a0_0x440b9d;if(mainWin){if(mainWin[_0x2fd0b5(0x1fa)]())mainWin[_0x2fd0b5(0x1e4)]();mainWin[_0x2fd0b5(0x1fb)](),mainWin['focus']();}});const net=require(a0_0x440b9d(0x1d6));function isPortOpen(_0x509931,_0x3eff44){return new Promise(_0x343925=>{const _0x153b7a=a0_0x5b9b,_0x137fd4=net[_0x153b7a(0x1d9)]({'host':_0x509931,'port':_0x3eff44});_0x137fd4[_0x153b7a(0x1bb)](_0x153b7a(0x1d9),()=>{_0x137fd4['destroy'](),_0x343925(!![]);}),_0x137fd4[_0x153b7a(0x1bb)](_0x153b7a(0x1e3),()=>_0x343925(![])),setTimeout(()=>{const _0x8d94f2=_0x153b7a;_0x137fd4[_0x8d94f2(0x1ae)](),_0x343925(![]);},0x12c);});}function startBackend(){const _0x1cbdf0=a0_0x440b9d,_0xbf1315=new ManagedProcess({'name':_0x1cbdf0(0x1de),'command':config[_0x1cbdf0(0x1da)][_0x1cbdf0(0x200)],'args':['-m','uvicorn',_0x1cbdf0(0x1c3),config[_0x1cbdf0(0x1da)][_0x1cbdf0(0x208)],'main:app',_0x1cbdf0(0x1d1),config['HOST'],'--port',String(config['PORTS'][_0x1cbdf0(0x1de)])],'cwd':config[_0x1cbdf0(0x1da)][_0x1cbdf0(0x208)],'env':{...process.env},'maxRestarts':0x3});return _0xbf1315[_0x1cbdf0(0x1dc)](),managed['push'](_0xbf1315),_0xbf1315;}function ensureEnvFile(){const _0x4b8269=a0_0x440b9d,_0x316a54=path[_0x4b8269(0x1ac)](config[_0x4b8269(0x1da)][_0x4b8269(0x1db)],'.env');if(!config[_0x4b8269(0x203)]){if(!process.env.JWT_SECRET||!process.env.DONGLE_SECRET)try{if(fs[_0x4b8269(0x1ce)](_0x316a54)){const _0xad5f9b=fs[_0x4b8269(0x1b7)](_0x316a54,_0x4b8269(0x1fe));for(const _0x266ed4 of _0xad5f9b['split'](/\r?\n/)){const _0x4424a8=_0x266ed4[_0x4b8269(0x1b4)](/^\s*([A-Z_]+)\s*=\s*(.+?)\s*$/);if(_0x4424a8)process.env[_0x4424a8[1]]=_0x4424a8[0x2][_0x4b8269(0x1fd)]()[_0x4b8269(0x1f0)](/^["']|["']$/g,'');}}}catch{}return;}if(!fs[_0x4b8269(0x1ce)](_0x316a54)){const _0x1bd162=()=>crypto[_0x4b8269(0x1e5)](0x20)[_0x4b8269(0x1e2)](_0x4b8269(0x1f8)),_0x543b17=[_0x4b8269(0x1ea)+_0x1bd162(),_0x4b8269(0x1b6)+_0x1bd162(),_0x4b8269(0x1c7),'CCCD_API_KEY=',_0x4b8269(0x1dd),_0x4b8269(0x1f1),_0x4b8269(0x1d0)];try{fs['writeFileSync'](_0x316a54,_0x543b17[_0x4b8269(0x1ac)]('\x0a')+'\x0a',_0x4b8269(0x1fe));}catch(_0xff2656){console[_0x4b8269(0x1e3)](_0x4b8269(0x1f9),_0xff2656[_0x4b8269(0x1c5)]);}}const _0x5c920e=fs[_0x4b8269(0x1b7)](_0x316a54,'utf8');for(const _0x1fe99c of _0x5c920e[_0x4b8269(0x1ad)](/\r?\n/)){const _0x40f983=_0x1fe99c[_0x4b8269(0x1b4)](/^\s*([A-Z_]+)\s*=\s*(.+?)\s*$/);if(_0x40f983&&process.env[_0x40f983[1]]===undefined)process.env[_0x40f983[1]]=_0x40f983[0x2][_0x4b8269(0x1fd)]()[_0x4b8269(0x1f0)](/^["']|["']$/g,'');}}function startMongo(){const _0x339b9c=a0_0x440b9d,_0x4421b3=config['paths'][_0x339b9c(0x207)];if(!fs['existsSync'](_0x4421b3))return console[_0x339b9c(0x1e3)](_0x339b9c(0x1b9),_0x4421b3),null;const _0x23ae11=config[_0x339b9c(0x1da)][_0x339b9c(0x1c8)];try{fs[_0x339b9c(0x1ca)](_0x23ae11,{'recursive':!![]});}catch{}const _0x35b193=path[_0x339b9c(0x1ac)](config['paths'][_0x339b9c(0x1db)],_0x339b9c(0x1f7),_0x339b9c(0x1e1));try{fs[_0x339b9c(0x1ca)](path[_0x339b9c(0x1b5)](_0x35b193),{'recursive':!![]});}catch{}const _0x46010a=new ManagedProcess({'name':'mongod','command':_0x4421b3,'args':['--dbpath',_0x23ae11,'--bind_ip',config[_0x339b9c(0x1bd)],_0x339b9c(0x1ed),_0x339b9c(0x1e8),_0x339b9c(0x20d),_0x35b193],'cwd':config[_0x339b9c(0x1da)]['appRoot'],'env':{...process.env},'maxRestarts':0x3});return _0x46010a['start'](),managed[_0x339b9c(0x20e)](_0x46010a),_0x46010a;}function startServices(){const _0x5343af=a0_0x440b9d,_0x53c579=config[_0x5343af(0x1da)][_0x5343af(0x200)],_0x1472c3=new ManagedProcess({'name':_0x5343af(0x1df),'command':_0x53c579,'args':['-m',_0x5343af(0x1ff),_0x5343af(0x1c3),path['join'](config[_0x5343af(0x1da)][_0x5343af(0x208)],_0x5343af(0x204),_0x5343af(0x201)),_0x5343af(0x1be),_0x5343af(0x1d1),config[_0x5343af(0x1bd)],_0x5343af(0x1ed),String(config[_0x5343af(0x1af)][_0x5343af(0x1df)])],'cwd':config[_0x5343af(0x1da)][_0x5343af(0x1db)],'env':{...process.env},'maxRestarts':0x3});_0x1472c3[_0x5343af(0x1dc)](),managed[_0x5343af(0x20e)](_0x1472c3);const _0x19fa83=new ManagedProcess({'name':_0x5343af(0x1e0),'command':_0x53c579,'args':['-m',_0x5343af(0x1ff),_0x5343af(0x1c3),path[_0x5343af(0x1ac)](config[_0x5343af(0x1da)][_0x5343af(0x208)],'services','morfin_service'),_0x5343af(0x1be),_0x5343af(0x1d1),config[_0x5343af(0x1bd)],_0x5343af(0x1ed),String(config[_0x5343af(0x1af)][_0x5343af(0x1e0)])],'cwd':config['paths'][_0x5343af(0x1db)],'env':{...process.env},'maxRestarts':0x3});_0x19fa83['start'](),managed[_0x5343af(0x20e)](_0x19fa83);const _0x2c79b2=path[_0x5343af(0x1ac)](config[_0x5343af(0x1da)][_0x5343af(0x208)],'services','cccd_scanner','publish','CccdService.exe');if(fs[_0x5343af(0x1ce)](_0x2c79b2)){const _0x2f43e2=new ManagedProcess({'name':_0x5343af(0x1cc),'command':_0x2c79b2,'args':[],'cwd':path[_0x5343af(0x1b5)](_0x2c79b2),'env':{...process.env},'maxRestarts':0x1});_0x2f43e2['start'](),managed[_0x5343af(0x20e)](_0x2f43e2);}}function a0_0x5b9b(_0x1152ea,_0x6efe50){_0x1152ea=_0x1152ea-0x1ac;const _0x96a2f1=a0_0x96a2();let _0x5b9b86=_0x96a2f1[_0x1152ea];return _0x5b9b86;}async function boot(){const _0x30e71b=a0_0x440b9d;splash=createSplash(),proxyServer=createProxyServer(config[_0x30e71b(0x1cb)],config[_0x30e71b(0x1bd)]),await new Promise(_0x13aa82=>proxyServer[_0x30e71b(0x1d4)](0x0,config[_0x30e71b(0x1bd)],_0x13aa82)),setSplashText(splash,_0x30e71b(0x1b0)),ensureEnvFile();config[_0x30e71b(0x203)]&&(startMongo(),startServices());const _0x4459e1=await isPortOpen(config[_0x30e71b(0x1bd)],config['PORTS'][_0x30e71b(0x1de)]);_0x4459e1?console[_0x30e71b(0x1c0)](_0x30e71b(0x1e7)):startBackend();setSplashText(splash,_0x30e71b(0x1d3));try{await waitForHealthy(config[_0x30e71b(0x202)],{'timeoutMs':0x1d4c0,'intervalMs':0x320});}catch(_0x868d04){setSplashText(splash,_0x30e71b(0x1e6));return;}registerAppScheme();const _0x3105de=proxyServer[_0x30e71b(0x1b2)]()[_0x30e71b(0x1d8)];mainWin=createKioskWindow(_0x3105de),lockKeyboard(),registerDevEscape(mainWin),previewWin=createPreviewWindow(_0x3105de,mainWin),mainWin['on']('closed',()=>{!app['isQuiting']&&(mainWin=createKioskWindow(_0x3105de),registerDevEscape(mainWin));}),previewWin&&previewWin['on'](_0x30e71b(0x1f2),()=>{const _0x38e1be=_0x30e71b;!app[_0x38e1be(0x209)]&&(previewWin=createPreviewWindow(_0x3105de,mainWin));}),mainWin[_0x30e71b(0x1b1)][_0x30e71b(0x1bb)](_0x30e71b(0x1b3),()=>{const _0x36b865=_0x30e71b;if(splash&&!splash[_0x36b865(0x1ee)]())splash[_0x36b865(0x1c9)]();splash=null,mainWin&&!mainWin['isDestroyed']()&&(mainWin[_0x36b865(0x1fb)](),mainWin[_0x36b865(0x1c6)]());});}app['whenReady']()[a0_0x440b9d(0x1d5)](()=>{registerKioskEscape(),boot();});function teardown(){const _0x38025f=a0_0x440b9d;app[_0x38025f(0x209)]=!![],globalShortcut[_0x38025f(0x1d2)]();if(previewWin&&!previewWin['isDestroyed']())try{previewWin[_0x38025f(0x1ae)]();}catch{}for(let _0x17bace=managed[_0x38025f(0x1cf)]-0x1;_0x17bace>=0x0;_0x17bace--)managed[_0x17bace]['stop']();if(proxyServer)try{proxyServer[_0x38025f(0x1c9)]();}catch{}}app['on'](a0_0x440b9d(0x1f5),teardown),app['on'](a0_0x440b9d(0x1ba),()=>{});
+// main.js - orchestrator: spawn backend/mongo, cho healthy, vao kiosk, teardown sach.
+const { app, protocol, globalShortcut } = require('electron')
+
+// Tat hardware acceleration de tranh loi man hinh den do GPU cache lock / driver tren Windows
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('no-sandbox')
+
+const config = require('./config')
+const { waitForHealthy } = require('./health')
+const { createProxyServer } = require('./proxy')
+const { ManagedProcess } = require('./process-manager')
+const { registerAppProtocol } = require('./app-protocol')
+const { createKioskWindow, lockKeyboard, registerDevEscape, registerKioskEscape } = require('./window')
+const { createPreviewWindow } = require('./preview-window')
+const { createSplash, setSplashText } = require('./splash')
+
+// Custom scheme phai dang ky dac quyen TRUOC app.whenReady() moi serve duoc.
+// Khong dung 'app' (Electron dan rieng). 'appcccd' la scheme rieng cua minh.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'appcccd',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
+  },
+])
+
+function registerAppScheme() {
+  registerAppProtocol(protocol, config.paths.frontendDist, config.HOST, proxyServer.address().port)
+}
+
+let splash = null
+let mainWin = null
+let previewWin = null
+let proxyServer = null
+const managed = []                    // ManagedProcess list, teardown nguoc thu tu
+
+// Single instance: chan mo 2 lan (kiosk chi 1).
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWin) {
+      if (mainWin.isMinimized()) mainWin.restore()
+      mainWin.show()
+      mainWin.focus()
+    }
+  })
+}
+
+// Kiem tra backend da chay tu truoc (port 8000) chua. Neu roi thi KHONG spawn lai
+// (tranh trung port) — chi doi healthy. Cho phep run-electron.ps1 start backend rieng.
+const net = require('node:net')
+
+function isPortOpen(host, port) {
+  return new Promise((resolve) => {
+    const sock = net.connect({ host, port })
+    sock.once('connect', () => { sock.destroy(); resolve(true) })
+    sock.once('error', () => resolve(false))
+    setTimeout(() => { sock.destroy(); resolve(false) }, 300)
+  })
+}
+
+function startBackend() {
+  const backend = new ManagedProcess({
+    name: 'backend',
+    command: config.paths.backendVenvPython,
+    args: ['-m', 'uvicorn', '--app-dir', 'backend', 'main:app',
+           '--host', config.HOST, '--port', String(config.PORTS.backend)],
+    cwd: config.paths.appRoot,
+    env: { ...process.env },
+    maxRestarts: 3,
+  })
+  backend.start()
+  managed.push(backend)
+  return backend
+}
+
+async function boot() {
+  splash = createSplash()
+
+  // Proxy thay Vite: phuc vu /api, /uploads, /fp, /usb cho frontend build.
+  proxyServer = createProxyServer(config.ROUTES, config.HOST)
+  await new Promise((r) => proxyServer.listen(0, config.HOST, r))
+
+  setSplashText(splash, 'Đang khởi động dịch vụ…')
+  // Neu backend da chay tu truoc (run-electron.ps1 start rieng) thi KHONG spawn lai.
+  const backendAlreadyUp = await isPortOpen(config.HOST, config.PORTS.backend)
+  if (backendAlreadyUp) {
+    console.log('[boot] backend da chay tu truoc — bo qua spawn, chi doi healthy.')
+  } else {
+    startBackend()
+  }
+  // mongod portable: bundle trong giai doan 2 (hoac dung Mongo dang chay). Neu
+  // can, them ManagedProcess cho mongod.exe theo cung mau startBackend().
+
+  setSplashText(splash, 'Đang tải mô hình…')
+  try {
+    await waitForHealthy(config.HEALTH_URL, { timeoutMs: 120000, intervalMs: 800 })  } catch (e) {
+    setSplashText(splash, 'Lỗi khởi động. Vui lòng khởi động lại máy.')
+    return
+  }
+
+  registerAppScheme()
+  const proxyPort = proxyServer.address().port
+  mainWin = createKioskWindow(proxyPort)
+  lockKeyboard()
+  registerDevEscape(mainWin)
+
+  // Man phu (xem truoc ho so): chi mo khi co >= 2 display.
+  previewWin = createPreviewWindow(proxyPort, mainWin)
+
+  // Watchdog cua so: dong bat thuong -> mo lai (thay kiosk-guard.ahk).
+  mainWin.on('closed', () => {
+    if (!app.isQuiting) {
+      mainWin = createKioskWindow(proxyPort)
+      registerDevEscape(mainWin)
+    }
+  })
+
+  // Watchdog cua so phu: dong bat thuong -> mo lai.
+  if (previewWin) {
+    previewWin.on('closed', () => {
+      if (!app.isQuiting) {
+        previewWin = createPreviewWindow(proxyPort, mainWin)
+      }
+    })
+  }
+
+  mainWin.webContents.once('did-finish-load', () => {
+    if (splash && !splash.isDestroyed()) splash.close()
+    splash = null
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.show()
+      mainWin.focus()
+    }
+  })
+}
+
+app.whenReady().then(() => {
+  // Escape toan he thong (Ctrl+Q) dang ky TRUOC boot: co escape ca khi boot loi
+  // (splash bao loi) de ve desktop (kiosk-shell.ps1 mo Explorer). Escape chi co
+  // sau whenReady; cua so splash chua co input, luon co kha nang Ctrl+Alt+Del.
+  registerKioskEscape()
+  boot()
+})
+
+function teardown() {
+  app.isQuiting = true
+  globalShortcut.unregisterAll()
+  // Dong cua so phu truoc, roi kill tien trinh con, roi proxy.
+  if (previewWin && !previewWin.isDestroyed()) try { previewWin.destroy() } catch {}
+  // Kill nguoc thu tu: cac tien trinh con truoc, roi proxy.
+  for (let i = managed.length - 1; i >= 0; i--) managed[i].stop()
+  if (proxyServer) try { proxyServer.close() } catch {}
+}
+
+app.on('before-quit', teardown)
+// Kiosk: watchdog mo lai cua so khi dong; quit qua teardown/Alt+F4 dev.
+app.on('window-all-closed', () => {})

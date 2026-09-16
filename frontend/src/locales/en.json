@@ -1001,6 +1001,7 @@
   "session.detail.err.sheets": "Failed to load sheets for printing",
   "session.detail.empty_closed": "This session has no records.",
   "session.detail.empty_open": "No records yet. Click '+ Capture new record' to start.",
+  "session.detail.missing_fields": "Missing fields: {fields}",
   "session.detail.err.close": "Failed to close session",
   "session.detail.err.delete_full": "Failed to delete session",
   "session.detail.err.delete_row": "Failed to delete record",

@@ -5,6 +5,8 @@ $appRoot     = $PSScriptRoot                          # app_cccd/
 $backendDir  = Join-Path $appRoot 'backend'
 $svc         = Join-Path $backendDir 'services'
 $py          = Join-Path $appRoot '.venv\Scripts\python.exe'
+$distPy      = 'C:\Users\vali-01\Documents\App_CCCD_dist\stage\runtime\python\python.exe'
+if (Test-Path $distPy) { $py = $distPy }
 $logs        = Join-Path $appRoot 'logs'
 $envFile     = Join-Path (Split-Path -Parent $appRoot) '.env'   # App_CCCD/.env
 
@@ -73,38 +75,3 @@ if (Test-PortInUse 8766) {
         -RedirectStandardError  (Join-Path $logs 'usb.err.log')
 }
 
-# CCCD Reader Service (Hanel HN-212) — chay nhu background process (khong phai
-# Windows service, tranh SCM kill). Chay tu publish/ de doc appsettings.json + DLL.
-$cccdExe = Join-Path $svc 'cccd_scanner\publish\CccdService.exe'
-if ($env:FEATURE_CCCD_READER -eq '0') {
-    # Tat tam may doc CCCD (co trong App_CCCD/.env). Backend cung chan het route
-    # /api/cccd/* nen khong spawn exe nay la du. Cac truong CCCD van nhap tay.
-    Write-Host "  -> CCCD Reader: TAT (FEATURE_CCCD_READER=0) - bo qua spawn."
-} elseif (Test-Path $cccdExe) {
-    # Neu Windows service CccdReaderService dang chay -> dung de tranh trung port/device.
-    $cccdSvc = Get-Service -Name 'CccdReaderService' -ErrorAction SilentlyContinue
-    if ($cccdSvc -and $cccdSvc.Status -eq 'Running') {
-        try { Stop-Service -Name 'CccdReaderService' -Force -ErrorAction Stop } catch {}
-    }
-    # Guard chong trung o TANG PROCESS (khong phai port: service nay khong listen).
-    # Instance thu hai lam StartMonitor throw "Multiple reader initialization is not
-    # allowed" -> Program.cs Environment.Exit(1) sau 3 giay, nen moi lan chay
-    # run-electron lai spawn mot process chet yeu. Ca hai instance con redirect
-    # stdout vao cung cccd.out.log (truncate) => log bi cat nat, kho doc.
-    # LUU Y: loi "[DOC] SCANCARD -> FAILURE" KHONG phai do double-spawn. Da kiem
-    # chung 26/08: kill sach, chay dung 1 instance, StartMonitor OK + "Dau doc:
-    # ADDED" nhung van FAILURE. Do la loi rieng (nghi thieu nap SDK tu _runtime).
-    $cccdRunning = @(Get-Process -Name 'CccdService' -ErrorAction SilentlyContinue)
-    if ($cccdRunning.Count -gt 0) {
-        Write-Warning "CccdService.exe da chay (PID $($cccdRunning.Id -join ', ')) - bo qua spawn de tranh cuom reader."
-    } else {
-        Start-Process -FilePath $cccdExe `
-            -WorkingDirectory (Split-Path $cccdExe) `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput (Join-Path $logs 'cccd.out.log') `
-            -RedirectStandardError  (Join-Path $logs 'cccd.err.log')
-        Write-Host "  -> spawned: CCCD Reader Service (background)"
-    }
-} else {
-    Write-Warning "Khong tim thay CCCD service: $cccdExe"
-}

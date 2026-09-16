@@ -1,8 +1,7 @@
 """InsightFace (buffalo_sc) face recognition — extract embedding 512d + cosine match.
 
-Singleton pattern giống person_detect.py: load 1 lần ở startup trong threadpool,
+Singleton pattern: load 1 lần ở startup trong threadpool,
 is_ready()/get_status()/load_blocking(). Fail → caller fallback yên lặng.
-Fallback Haar Cascade khi InsightFace chưa ready hoặc không detect mặt.
 """
 import logging
 import os

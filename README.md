@@ -19,9 +19,7 @@ app_cccd/
 │   ├── tests/
 │   └── services/                # Các service phần cứng (xem services/README.md)
 │       ├── usb_service/         # USB dongle (:8766)
-│       ├── fingerprint_service/ # ZK fingerprint (:8765)
-│       ├── cccd_scanner/        # CccdService .NET (binary ngoài git)
-│       └── weight/              # Cân BLE → push backend
+│       └── morfin_service/      # Vân tay Morfin (:8765)
 ├── frontend/                    # React + Vite (:5173)
 ├── run.ps1 / stop.ps1           # Deploy 1 lệnh
 └── start-services.ps1           # Start usb + fingerprint

@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { api, cccdApi, weightApi } from "./api";
+import { useState } from "react";
+import { api } from "./api";
 import { notify } from "./notifications";
 import { useI18n } from "./i18n";
-import { useFeatures } from "./lib/features";
 
 const emptyForm = {
   full_name: "",
@@ -30,7 +29,6 @@ function isoToDMY(iso) {
 
 export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const { t, formatDate } = useI18n();
-  const features = useFeatures();
   const [form, setForm] = useState(() => {
     if (!initial) return { ...emptyForm };
     return {
@@ -45,77 +43,8 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const [err, setErr] = useState("");
   const [dupCheck, setDupCheck] = useState(null);
   const [confirmDup, setConfirmDup] = useState(false);
-  const [reading, setReading] = useState(false);
-  const [weightFlash, setWeightFlash] = useState(false);
-  const cccdSidRef = useRef(null);
-  const cccdAbortRef = useRef(null);
-  const weightFlashTimerRef = useRef(null);
-
-  // Can dien tu tat -> khong mo WS, khong tu dong dien weight_kg.
-  // Truong weight_kg van nhap tay binh thuong.
-  useEffect(() => {
-    if (!features.weight_scale) return undefined;
-    const close = weightApi.connect((payload) => {
-      const kg = Math.round(payload.weight_kg);
-      if (!kg || kg < 20 || kg > 200) return;
-      setForm((f) => ({ ...f, weight_kg: kg }));
-      setWeightFlash(true);
-      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
-      weightFlashTimerRef.current = setTimeout(() => setWeightFlash(false), 1200);
-    });
-    return () => {
-      close();
-      if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
-    };
-  }, [features.weight_scale]);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
-
-  const readCCCD = async () => {
-    if (reading) return;
-    setErr("");
-    setReading(true);
-    const ac = new AbortController();
-    cccdAbortRef.current = ac;
-    try {
-      const h = await cccdApi.health();
-      if (!h.ok) throw new Error(t("detainee.form.cccd_dir_not_ready", { dir: h.data_dir || "" }));
-      const s = await cccdApi.startSession();
-      cccdSidRef.current = s.session_id;
-      while (!ac.signal.aborted) {
-        const r = await cccdApi.wait(s.session_id, ac.signal, 25);
-        if (ac.signal.aborted) break;
-        if (r && r.status === "ok" && r.data) {
-          const d = r.data;
-          setForm((f) => ({
-            ...f,
-            full_name: d.full_name || f.full_name,
-            cccd_number: d.cccd_number || f.cccd_number,
-            dob: d.dob || f.dob,
-            gender: d.gender || f.gender,
-            hometown: d.hometown || f.hometown,
-            address: d.address || f.address,
-            ethnicity: d.ethnicity || f.ethnicity,
-            religion: d.religion || f.religion,
-          }));
-          if (d.facePhoto) {
-            setForm((f) => ({ ...f, photo_url: `data:image/jpeg;base64,${d.facePhoto}` }));
-          }
-          break;
-        }
-      }
-    } catch (e) {
-      if (e.name !== "AbortError") setErr(e.message);
-    } finally {
-      const sid = cccdSidRef.current;
-      cccdSidRef.current = null;
-      cccdAbortRef.current = null;
-      setReading(false);
-      if (sid) {
-        try { await cccdApi.cancel(sid); } catch { /* noop */ }
-      }
-    }
-  };
 
   const onPhotoChange = async (e) => {
     const file = e.target.files?.[0];
@@ -204,18 +133,6 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                   disabled={uploading}
                 />
               </label>
-              {/* May doc CCCD tat -> an nut. Cac truong CCCD ben duoi van nhap tay. */}
-              {!initial && features.cccd_reader && (
-                <button
-                  type="button"
-                  className="btn-cccd-reader"
-                  onClick={readCCCD}
-                  disabled={reading}
-                  title={t("detainee.form.read_cccd_title")}
-                >
-                  {reading ? t("detainee.form.reading_cccd") : t("detainee.form.read_cccd")}
-                </button>
-              )}
             </div>
 
             <div className="col-fields">
@@ -288,13 +205,12 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                 </Field>
                 <Field label={t("detainee.field.weight_kg")}>
                   <input
-                    className={"input" + (weightFlash ? " weight-flash" : "")}
+                    className="input"
                     type="number"
                     min={20}
                     max={200}
                     value={form.weight_kg ?? ""}
                     onChange={set("weight_kg")}
-                    title={t("detainee.form.weight_title")}
                   />
                 </Field>
               </div>

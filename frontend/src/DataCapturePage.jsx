@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
-import { api, fpApi, cccdApi, scanApi, b64PngToFile } from "./api";
+import { api, fpApi, scanApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
 import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FINGER_STEP_OF, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_ROLL_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_LAYERS_BY_STEP, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
@@ -13,7 +13,6 @@ import { EMPTY_FORM, normalizeInitial, toDobInput } from "./capture/formSchema";
 import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
 import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
 import { useI18n, apiT } from "./i18n";
-import { getMeasurementHeight } from "./lib/heightMeasurement";
 import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
@@ -27,9 +26,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
-  const [reading, setReading] = useState(false);
-  const cccdSidRef = useRef(null);
-  const cccdAbortRef = useRef(null);
   const fpRunningRef = useRef(false);                    // ref phản chiếu fpRunning cho auto-start effect
   const fpCountRef = useRef(0);                          // ref phản chiếu số ngón đã thu cho auto-start effect
   const [cells, setCells] = useState([]);
@@ -200,8 +196,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [fpSheetOpen, setFpSheetOpen] = useState(false);
   // Xem truoc DANH BAN — to thu ba, state rieng nhu hai to tren.
   const [nameSheetOpen, setNameSheetOpen] = useState(false);
-  const [heightImage, setHeightImage] = useState(100);
-  const [heightOffset, setHeightOffset] = useState(103);
 
   const [dupModal, setDupModal] = useState({ open: false, matches: [] });  // cảnh báo trùng lúc Lưu
   const [checkingDup, setCheckingDup] = useState(false);   // đang gộp check khi bấm Lưu
@@ -265,23 +259,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } catch { /* recognize fail → không hỏng flow chụp */ }
   }, [t]);
 
-  // YOLO tat -> khong can height_image/height_offset (khong do tu dong nua).
-  useEffect(() => {
-    if (!features.height_yolo) return undefined;
-    let cancelled = false;
-    api.measurementConfig()
-      .then((cfg) => {
-        const next = Number(cfg?.height_image);
-        if (!cancelled && Number.isFinite(next) && next > 0) setHeightImage(next);
-        const off = Number(cfg?.height_offset);
-        if (!cancelled && Number.isFinite(off) && off > 0) setHeightOffset(off);
-      })
-      .catch(() => {
-        if (!cancelled) { setHeightImage(100); setHeightOffset(103); }
-      });
-    return () => { cancelled = true; };
-  }, [features.height_yolo]);
-
   useEffect(() => {
     setForm(seed.form);
     setPhotos(seed.photos);
@@ -332,14 +309,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       else delete next[k];
       return next;
     });
-
-  // YOLO tat -> khong tu dong dien height_cm. Truong height_cm van nhap tay.
-  const applyMeasuredHeight = useCallback(({ linePixelHeight, imageHeight }) => {
-    if (!features.height_yolo) return;
-    const measured = getMeasurementHeight({ linePixelHeight, imageHeight, heightImage, heightOffset });
-    if (!measured || measured < 50 || measured > 250) return;
-    setForm((f) => ({ ...f, height_cm: String(measured) }));
-  }, [heightImage, heightOffset, features.height_yolo]);
 
   // Bam vao mot o VAN LAN => thu ngon do. Duong duy nhat, khong dieu kien.
   //
@@ -1174,53 +1143,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  const applyCccdData = async (d) => {
-    if (!d) return;
-    setForm((f) => ({
-      ...f,
-      full_name: d.full_name || f.full_name,
-      cccd_number: d.cccd_number || f.cccd_number,
-      personal_id: f.personal_id,
-      dob: d.dob || f.dob,
-      gender: d.gender || f.gender,
-      hometown: d.hometown || f.hometown,
-      address: d.address || d.hometown || f.address,
-      ethnicity: d.ethnicity || f.ethnicity,
-      religion: d.religion || f.religion,
-      nationality: d.nationality || f.nationality,
-      issued_date: d.issued_date || f.issued_date,
-      expiry_date: d.expiry_date || f.expiry_date,
-      issued_place: d.issued_place || f.issued_place,
-      cmnd_old: d.cmnd_old || f.cmnd_old,
-      distinguishing_features: d.distinguishing_features || d.personal_identification || f.distinguishing_features,
-      mrz: d.mrz || f.mrz,
-    }));
-    // Anh chan dung trong chip the: trang thu nhan khong con hien khoi anh the,
-    // nhung van luu vao photos.cccd_front de ban in ho so (ProfilePreview) dung.
-    if (d.facePhoto) {
-      const fp = d.facePhoto;
-      if (fp.startsWith("/uploads/") || fp.startsWith("http://") || fp.startsWith("https://") || fp.startsWith("data:")) {
-        setPhoto("cccd_front", fp);
-      } else {
-        try {
-          const file = await b64PngToFile(fp, `cccd_face_${d.cccd_number || Date.now()}.jpg`);
-          const jpgFile = new File([file], file.name, { type: "image/jpeg" });
-          const res = await api.uploadPhoto(jpgFile);
-          setPhoto("cccd_front", res.url);
-        } catch (uploadEx) {
-          console.error("[CCCD] portrait upload failed:", uploadEx);
-          setErr(t("capture.err.cccd_saved_photo", { message: uploadEx.message }));
-        }
-      }
-    }
-
-    // BO tra cuu theo so CCCD. Truoc day quet the xong la tu goi api.checkCccd() roi
-    // bat canh bao "doi tuong da co trong danh sach" neu so CCCD trung. Gio doi chieu
-    // trung chi con dua vao ho ten + ngay sinh + gioi tinh, luc bam Luu ho so.
-  };
-
-  // Điền form từ kết quả scan Chỉ bản/Danh bản. Khác applyCccdData (chỉ có
-  // trường CCCD), scan còn lấp được cả phần vụ án, cán bộ, số hồ sơ — nhưng
+  // Điền form từ kết quả scan Chỉ bản/Danh bản. Khác form nhập tay, scan còn lấp được cả phần vụ án, cán bộ, số hồ sơ — nhưng
   // KHÔNG bao giờ ghi đè những gì cán bộ đã gõ tay trước đó (|| f.field).
   const applyScanData = (d) => {
     if (!d) return;
@@ -1251,83 +1174,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       officer_class_checker: d.officer_class_checker || f.officer_class_checker,
     }));
   };
-
-  // Tự động lắng nghe đầu đọc CCCD ngay khi vào trang, chạy liên tục.
-  // Mỗi lần backend trả thẻ mới, nó tự dời baseline nên vòng lặp chỉ nhận thẻ mới,
-  // không lặp lại thẻ cũ. Thẻ mới vào thì chèn dữ liệu lên form.
-  useEffect(() => {
-    if (sessionReadOnly) return;
-    // May doc CCCD tat -> khong lang nghe dau doc, khong bao loi "chua san sang".
-    // Cac truong CCCD o muc I van nhap tay binh thuong.
-    if (!features.cccd_reader) return;
-
-    let stopped = false;
-    const ac = new AbortController();
-    cccdAbortRef.current = ac;
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-    (async () => {
-      try {
-        const h = await cccdApi.health();
-        if (stopped) return;
-        if (!h.ok) {
-          setErr(apiT("capture.err.cccd_dir", { dir: h.data_dir || "" }));
-          return;
-        }
-      } catch (e) {
-        if (!stopped) setErr(e.message);
-        return;
-      }
-
-      let sid = null;
-      while (!stopped && !ac.signal.aborted) {
-        // Session hết hạn (TTL backend) hoặc chưa có -> mở phiên mới rồi đọc tiếp
-        if (!sid) {
-          try {
-            const s = await cccdApi.startSession();
-            if (stopped) break;
-            sid = s.session_id;
-            cccdSidRef.current = sid;
-            setReading(true);
-          } catch {
-            if (stopped || ac.signal.aborted) break;
-            setReading(false);
-            await sleep(3000);
-            continue;
-          }
-        }
-
-        try {
-          const r = await cccdApi.wait(sid, ac.signal, 25);
-          if (stopped || ac.signal.aborted) break;
-          if (r && r.status === "ok" && r.data) {
-            applyCccdData(r.data);
-            setOk(t("capture.status.cccd_read"));
-          }
-        } catch (e) {
-          if (stopped || ac.signal.aborted || e.name === "AbortError") break;
-          // 404 = phiên đã bị GC; mọi lỗi khác cũng thử mở lại phiên
-          sid = null;
-          cccdSidRef.current = null;
-          await sleep(1000);
-        }
-      }
-      if (!stopped) setReading(false);
-    })();
-
-    return () => {
-      stopped = true;
-      try { ac.abort(); } catch { /* noop */ }
-      const sid = cccdSidRef.current;
-      cccdSidRef.current = null;
-      cccdAbortRef.current = null;
-      if (sid) {
-        cccdApi.cancel(sid).catch(() => { /* noop */ });
-      }
-    };
-    // features.cccd_reader ve muon (sau khi fetch /api/config/features) nen phai
-    // co trong deps, khong thi vong lap da chay roi khong dung lai duoc.
-  }, [sessionReadOnly, features.cccd_reader]);
 
   // Lắng nghe scan Chỉ bản/Danh bản. CHỈ chạy trên form đăng ký MỚI (không
   // phải form sửa), không phải phiên chỉ đọc. Backend chỉ chuyển kết quả vào
@@ -1841,10 +1687,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <SectionPortraits
               photos={photos}
               setPhoto={setPhoto}
-              applyMeasuredHeight={applyMeasuredHeight}
               onPortraitRecognize={raiseFaceAlerts}
-              heightImage={heightImage}
-              heightOffset={heightOffset}
             />
           </div>
         </section>
