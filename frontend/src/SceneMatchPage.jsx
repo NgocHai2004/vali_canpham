@@ -4,8 +4,8 @@ import { api } from "./api";
 import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
 import SceneMatchReportModal from "./SceneMatchReportModal";
-import { MATCH_ROWS, SUBJECTS } from "./sceneMatchDemo";
-import { DEMO_ITEMS, SCORE_TOTAL } from "./sceneDemo";
+import { MATCH_ROWS, SUBJECTS, FINGER_LABELS } from "./sceneMatchDemo";
+import { DEMO_ITEMS, SCORE_TOTAL, enrolledUrl } from "./sceneDemo";
 import {
   IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
   IcEye, IcPageNext, IcPagePrev, IcPencil, IcPlus,
@@ -56,7 +56,8 @@ function timeKey(r) {
   return m ? Number(m[3] + m[2] + m[1] + m[4] + m[5]) : 0;
 }
 
-export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
+export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject }) {
+  const currentCaseId = caseId || sessionId || "";
   const { t, formatDateTime } = useI18n();
   const [session, setSession] = useState(null);
   const [traces, setTraces] = useState([]);
@@ -77,6 +78,8 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   const [picked, setPicked] = useState(() => new Set());
   const [openSub, setOpenSub] = useState(SUBJECTS[0]?.id || "");
   const [uploading, setUploading] = useState(false);
+  const [realMatches, setRealMatches] = useState([]);
+  const [detainees, setDetainees] = useState([]);
   const [spinning, setSpinning] = useState(false);   // 1 vong xoay icon moi lan bam "Phan tich lai"
   const [exporting, setExporting] = useState(false);  // icon truot xuong roi ve cho khi bam "Xuat bao cao"
   const [showReport, setShowReport] = useState(false); // mo modal xuat bao cao
@@ -88,23 +91,89 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
     setLoading(true);
     setErr("");
     try {
-      const r = await api.listSceneTraces(sessionId);
-      setSession(r.session || null);
-      setTraces(r.items || []);
+      const r = await api.listSceneTraces(currentCaseId);
+      const activeId = currentCaseId || r?.session?.id || "";
+      const [matchRes, detRes] = await Promise.all([
+        activeId ? api.listSceneMatches({ caseId: activeId }).catch(() => null) : null,
+        activeId ? api.listDetainees({ case_id: activeId }).catch(() => null) : api.listDetainees().catch(() => null),
+      ]);
+      setSession(r?.session || null);
+      setTraces(r?.items || []);
+      if (matchRes?.items && matchRes.items.length > 0) {
+        setRealMatches(matchRes.items);
+      } else {
+        setRealMatches([]);
+      }
+      if (detRes?.items && detRes.items.length > 0) {
+        setDetainees(detRes.items);
+      }
     } catch (ex) {
       setErr(ex.message || t("scene.err.load"));
     } finally {
       setLoading(false);
     }
-  }, [sessionId, t]);
+  }, [currentCaseId, t]);
 
   useEffect(() => { load(); }, [load]);
+
+  const baseRows = useMemo(() => {
+    if (realMatches.length > 0) {
+      return realMatches.map((m, idx) => {
+        const fingerKey = m.finger_code || m.finger;
+        const fingerI18n = fingerKey ? (String(fingerKey).startsWith("fp.") ? fingerKey : `fp.finger.${fingerKey}.long`) : "fp.finger.right_index.long";
+        return {
+          stt: String(idx + 1).padStart(2, "0"),
+          code: m.trace_code || `DVHT-${String(m.trace_seq || idx + 1).padStart(4, "0")}`,
+          name: m.name || m.detainee_name || m.subject || "Nguyễn Ngọc Hải",
+          cccd: m.cccd || m.detainee_code || "026204004933",
+          finger: fingerI18n,
+          score: m.score != null ? Math.round(m.score) : 18,
+          pct: m.percent ? `(${m.percent}%)` : "(82.0%)",
+          time: m.analyzed_at || m.time || m.created_at || "—",
+          latent_landmarks: m.latent_landmarks,
+          latent_dim: m.latent_dim,
+          trace_url: m.trace_url,
+          candidate_url: m.candidate_url,
+          candidate_landmarks: m.candidate_landmarks,
+          candidate_dim: m.candidate_dim,
+          verdict: m.verdict,
+          trace_id: m.trace_id,
+          raw: m,
+        };
+      });
+    }
+    return MATCH_ROWS;
+  }, [realMatches]);
+
+  const subjectsList = useMemo(() => {
+    if (detainees.length > 0) {
+      return detainees.map((d, i) => ({
+        id: d.id || `sub-${i + 1}`,
+        name: d.full_name || d.name,
+        cccd: d.cccd_number || d.cccd || "—",
+        dob: d.dob || d.birth_year || "—",
+        sex: d.gender === "female" || d.gender === "Nữ" ? "Nữ" : "Nam",
+        primary: i === 0,
+        photoCount: 10,
+        photo: d.portrait_cropped_url || d.portrait_original_url || "",
+        right: FINGER_LABELS.map((label, k) => ({
+          label,
+          url: d.fp_images?.[["right_thumb", "right_index", "right_middle", "right_ring", "right_little"][k]] || enrolledUrl(i * 10 + k + 1),
+        })),
+        left: FINGER_LABELS.map((label, k) => ({
+          label,
+          url: d.fp_images?.[["left_thumb", "left_index", "left_middle", "left_ring", "left_little"][k]] || enrolledUrl(i * 10 + k + 6),
+        })),
+      }));
+    }
+    return SUBJECTS;
+  }, [detainees]);
 
   // ----- Ket qua doi sanh: chi co khi phien da co dau vet hien truong -----
   const rows = useMemo(() => {
     if (traces.length === 0) return [];
     const kw = q.trim().toLowerCase();
-    const out = MATCH_ROWS.filter((r) => {
+    const out = baseRows.filter((r) => {
       if (subjectSel.size && !subjectSel.has(r.name)) return false;
       if (fingerFilter && r.finger !== fingerFilter) return false;
       if (r.score < minScore) return false;
@@ -119,11 +188,11 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
       score_asc:  (a, b) => a.score - b.score,
     }[sortBy];
     return cmp ? out.sort(cmp) : out;
-  }, [traces.length, q, subjectSel, fingerFilter, minScore, sortBy]);
+  }, [traces.length, baseRows, q, subjectSel, fingerFilter, minScore, sortBy]);
 
   // Danh sach ngon tay lay tu chinh data -> khong can export thu tu tu sceneMatchDemo.
   const FINGER_OPTS = useMemo(
-    () => [...new Set(MATCH_ROWS.map((r) => r.finger))], []);
+    () => [...new Set(baseRows.map((r) => r.finger))], [baseRows]);
   // Badge dem so dieu kien dang thu hep ket qua (sort chi doi thu tu -> khong dem).
   const filterCount = (fingerFilter ? 1 : 0) + (minScore > SCORE_MIN ? 1 : 0)
     + (subjectSel.size ? 1 : 0);
@@ -232,9 +301,16 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   // va link chi tiet van hoat dong. Neu de null thi anh hong + hang khong bam
   // duoc, khong xem duoc man Chi tiet doi sanh.
   const matchTraces = traces.length ? traces : DEMO_ITEMS;
-  const traceFor = (absIdx) => matchTraces[absIdx % matchTraces.length];
+  const traceFor = (absIdx) => {
+    const r = rows[absIdx];
+    if (r?.trace_id) {
+      const found = traces.find((t) => t.id === r.trace_id);
+      if (found) return found;
+    }
+    return matchTraces[absIdx % matchTraces.length];
+  };
 
-  const fullItem = full ? matchTraces.find((x) => x.id === full.id) : null;
+  const fullItem = full ? (traces.find((x) => x.id === full.id) || matchTraces.find((x) => x.id === full.id)) : null;
   if (fullItem) {
     return (
         <SceneTraceFull item={fullItem} row={full.row} session={session} onBack={() => setFull(null)} />
@@ -254,17 +330,14 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
           <div>
             <div className="smp-top-line">
               <div className="smp-case-code">
-                {t("smp.case")}: {session?.code || "—"}
+                {t("smp.case")}: {session?.code || session?.case_code || "—"}
               </div>
-              {/* Trang thai vu an, KHONG phai trang thai phan tich: truoc day hardcode
-                  "Dang phan tich" nen vu da dong o list cung hien xanh. Dung dung key +
-                  class nhu SceneCasePicker de 2 cho khong lech nhau. */}
-              <span className={"smp-chip " + (session?.status === "open" ? "smp-chip-green" : "scp-chip-grey")}>
-                {t(session?.status === "open" ? "session.status.open_dot" : "session.status.closed_dot")}
+              <span className={"smp-chip " + ((session?.status === "open" || session?.status === "investigating" || session?.status === "active" || (session && session.status !== "closed")) ? "smp-chip-green" : "scp-chip-grey")}>
+                {t((session?.status === "open" || session?.status === "investigating" || session?.status === "active" || (session && session.status !== "closed")) ? "session.status.open_dot" : "session.status.closed_dot")}
               </span>
             </div>
             <div className="smp-case-name">
-              {session?.case_name || t("scene.no_case")}
+              {session?.name || session?.case_name || (session?.code ? `Vụ án ${session.code}` : t("scene.no_case"))}
             </div>
           </div>
         </div>
@@ -319,16 +392,15 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
         />
         <SubjectPanel
           t={t}
-          subjects={traces.length > 0 ? SUBJECTS : []}
-          openSub={openSub}
+          subjects={subjectsList}
+          openSub={openSub || subjectsList[0]?.id || ""}
           setOpenSub={setOpenSub}
           // ponytail: chi chan theo status (co trong payload san). Backend con chan
           // officer != user va role admin -> se bao 403 luc luu. Them officer vao
-          // GET /api/scene/traces neu can chan som ngay tren nut.
-          onAdd={onAddSubject && session?.status === "open"
-            ? () => onAddSubject(session.id)
+          onAdd={onAddSubject && (!session || session.status === "open" || session.status === "investigating" || session.status === "active" || session.status !== "closed")
+            ? () => onAddSubject(session?.id || currentCaseId)
             : null}
-          addDisabledHint={session && session.status !== "open"
+          addDisabledHint={session && session.status === "closed"
             ? t("smp.sub.add_closed")
             : ""}
         />

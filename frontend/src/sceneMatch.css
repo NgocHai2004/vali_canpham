@@ -1674,6 +1674,24 @@ label.smp-drop.on {
   object-fit: contain;
 }
 
+.stf-portrait-empty {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px dashed #2b4a72;
+  background: rgba(8, 18, 32, 0.6);
+  color: #7296c0;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  padding: 16px;
+  min-height: 180px;
+}
+
 /* Ca 2 panel hang 1 dung chung the: label co dinh + value trai. */
 .stf-kv {
   display: flex;
@@ -2259,7 +2277,7 @@ label.smp-drop.on {
 .sr-pv-side img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   display: block;
 }
 
@@ -2267,29 +2285,22 @@ label.smp-drop.on {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .sr-fig-dot {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
   border-radius: 50%;
-  background: #1d4ed8 !important;
-  border: 1.5px solid #ffffff !important;
-  box-shadow: 0 0 0 1px #000000 !important;
+  background: #ff2d87 !important;
+  border: 1px solid #ffffff !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85) !important;
 }
 
 .sr-fig-dot-num {
-  position: absolute;
-  left: 11px;
-  top: -5px;
-  font-size: 8.5px;
-  font-style: normal;
-  font-weight: 700;
-  color: #1e3a8a !important;
-  text-shadow: 0 0 2px #ffffff, 0 0 2px #ffffff !important;
-  line-height: 1;
+  display: none !important;
 }
 
 /* ---- Dai verification ---- */
@@ -3496,29 +3507,23 @@ textarea.smp-modal-in {
    tay xam. Khong dung glow: lam nhoe vi tri diem dac trung. */
 .stf-dot-m {
   position: absolute;
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
   border-radius: 50%;
-  background: #e935ff;
-  border: 2px solid #fff;
+  background: #ff2d87;
+  border: 1.5px solid #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .85);
+  pointer-events: none;
 }
 
 .stf-dot-m>i {
-  position: absolute;
-  left: 12px;
-  top: -4px;
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 700;
-  line-height: 1;
-  color: #fff;
-  text-shadow: 0 0 3px #000, 0 0 3px #000;
+  display: none !important;
 }
 
-/* Anh zoom to: cham + so to theo. */
+/* Anh zoom to: cham vua van ro net */
 .stf-zoom-wrap {
+  position: relative;
   display: inline-block;
   max-width: 100%;
   max-height: 100%;
@@ -3531,28 +3536,27 @@ textarea.smp-modal-in {
 }
 
 .stf-zoom-wrap .stf-dot-m {
-  width: 15px;
-  height: 15px;
-  margin: -7.5px 0 0 -7.5px;
-  border-width: 2px;
-  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .85);
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-width: 1.5px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .85);
 }
 
 .stf-zoom-wrap .stf-dot-m>i {
-  left: 17px;
-  top: -5px;
-  font-size: 13px;
+  display: none !important;
 }
 
-/* The nho trong 4.1: bo so thu tu (khong doc noi o 72px), cham van du day. */
+/* The nho trong 4.1: cham gon gang 5px */
 .stf-file-img .stf-dot-m {
-  width: 9px;
-  height: 9px;
-  margin: -4.5px 0 0 -4.5px;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-width: 1px;
 }
 
 .stf-file-img .stf-dot-m>i {
-  display: none;
+  display: none !important;
 }
 
 /* ---- Chua cho lift trong container scroll ----

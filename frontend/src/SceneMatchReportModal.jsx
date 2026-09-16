@@ -3,7 +3,7 @@ import { usbApi } from "./api";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { buildProfilePdfBlob } from "./lib/exportProfilePdf";
 import { useI18n } from "./i18n";
-import { minutiae, SCORE_TOTAL } from "./sceneDemo";
+import { enrolledUrl, minutiae, SCORE_TOTAL } from "./sceneDemo";
 import { MATCH_ROWS } from "./sceneMatchDemo";
 
 // Tên file xuất PDF chuẩn hóa
@@ -20,7 +20,27 @@ export function reportFileName(sessionCode) {
   return `Bao_cao_ket_qua_doi_sanh_van_tay_HTI_${code}_${stamp}.pdf`;
 }
 
-// Component vẽ các điểm Minutiae overlay trên ảnh báo cáo
+// Chuyển đổi toạ độ pixel hoặc toạ độ % điểm đặc trưng sang % hiển thị trên ảnh
+function toPercentageDots(points = [], width = 800, height = 750) {
+  if (!points || !points.length) return [];
+  const w = width > 0 ? width : 800;
+  const h = height > 0 ? height : 750;
+  const isPixel = points.some((p) => p.x > 100 || p.y > 100);
+  return points.map((p, idx) => {
+    const xPct = isPixel ? (p.x / w) * 100 : p.x;
+    const yPct = isPixel ? (p.y / h) * 100 : p.y;
+    return {
+      x: Math.max(0, Math.min(100, +xPct.toFixed(2))),
+      y: Math.max(0, Math.min(100, +yPct.toFixed(2))),
+      d: p.d,
+      q: p.q,
+      t: p.t,
+      idx: idx + 1,
+    };
+  });
+}
+
+// Component vẽ các điểm Minutiae overlay trên ảnh báo cáo (nhỏ gọn, không số, không tràn viền)
 function ReportMinutiaeDots({ dots = [] }) {
   if (!dots || dots.length === 0) return null;
   return (
@@ -30,10 +50,7 @@ function ReportMinutiaeDots({ dots = [] }) {
           key={i}
           className="sr-fig-dot"
           style={{ left: `${d.x}%`, top: `${d.y}%` }}
-        >
-          <span className="sr-fig-dot-core" />
-          <i className="sr-fig-dot-num">{i + 1}</i>
-        </span>
+        />
       ))}
     </div>
   );
@@ -50,7 +67,7 @@ function SecurityBanner() {
 
 // ---------- Toàn bộ nội dung báo cáo nhiều trang A4 (KHÔNG DÙNG BẢNG - GIỐNG HỆT BẢN GỐC) ----------
 export const SceneReportContent = forwardRef(function SceneReportContent(
-  { session, items = [], scope = "local", singleMatch = null },
+  { session, items = [], rows = [], scope = "local", singleMatch = null },
   ref,
 ) {
   const { t, formatDateLong } = useI18n();
@@ -61,8 +78,19 @@ export const SceneReportContent = forwardRef(function SceneReportContent(
     if (singleMatch) {
       const seq = 1;
       const foundCount = Number(singleMatch.found) || 18;
-      const traceCodeStr = singleMatch.trace_code || singleMatch.report_code || "2105150010301";
-      const refCodeStr = singleMatch.ref_code || `${singleMatch.finger ? t(singleMatch.finger) : "Ngón 01"} - ${singleMatch.subject || singleMatch.name || "56_1703"}`;
+      const traceCodeStr = singleMatch.trace_code || singleMatch.code || singleMatch.report_code || "DVHT-0001";
+      const subjName = singleMatch.name || singleMatch.subject || "Nguyễn Ngọc Hải";
+      const fingerName = singleMatch.finger ? (String(singleMatch.finger).startsWith("fp.") ? t(singleMatch.finger) : singleMatch.finger) : "Ngón trỏ phải";
+      const refCodeStr = singleMatch.ref_code || `${subjName}_${fingerName}`;
+      const lPts = singleMatch.latent_landmarks?.points || singleMatch.landmark?.points || [];
+      const lDots = lPts.length > 0
+        ? toPercentageDots(lPts, singleMatch.latent_dim?.width || 800, singleMatch.latent_dim?.height || 750)
+        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+      const cPts = singleMatch.candidate_landmarks?.points || [];
+      const cDots = cPts.length > 0
+        ? toPercentageDots(cPts, singleMatch.candidate_dim?.width || 800, singleMatch.candidate_dim?.height || 750)
+        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+      const candUrl = singleMatch.candidate_url || singleMatch.url || enrolledUrl(1);
       return [
         {
           id: "single",
@@ -70,13 +98,14 @@ export const SceneReportContent = forwardRef(function SceneReportContent(
           figureNum: 1,
           trace_code: traceCodeStr,
           ref_code: refCodeStr,
-          latent_url: singleMatch.latent_url || "",
-          candidate_url: singleMatch.candidate_url || "",
-          subject: singleMatch.subject || singleMatch.name || "56_1703",
+          latent_url: singleMatch.latent_url || singleMatch.url || "",
+          candidate_url: candUrl,
+          subject: subjName,
           found: foundCount,
           total: Number(singleMatch.total) || SCORE_TOTAL,
           percent: singleMatch.percent || 82,
-          dots: minutiae(seq, foundCount),
+          latent_dots: lDots,
+          candidate_dots: cDots,
         },
       ];
     }
@@ -85,27 +114,45 @@ export const SceneReportContent = forwardRef(function SceneReportContent(
     if (traceList.length === 0) return [];
 
     return traceList.map((tr, idx) => {
-      const mRow = MATCH_ROWS[idx % MATCH_ROWS.length] || MATCH_ROWS[0];
+      const mRow = (rows && rows[idx]) || MATCH_ROWS[idx % MATCH_ROWS.length] || MATCH_ROWS[0];
       const seq = tr.seq || idx + 1;
-      const foundCount = Math.round((mRow.percent / 100) * SCORE_TOTAL);
-      const cleanTraceCode = tr.code || `DVHT-${String(seq).padStart(4, "0")}`;
-      const refCodeStr = `${mRow.subject ? mRow.subject : "56_1703"}_${t(mRow.finger)}`;
+      const foundCount = mRow.score || Math.round(((mRow.percent || 90) / 100) * SCORE_TOTAL);
+      const cleanTraceCode = tr.code || mRow.code || `DVHT-${String(seq).padStart(4, "0")}`;
+      const subjName = mRow.name || tr.candidate_name || tr.name || mRow.subject || "Nguyễn Ngọc Hải";
+      const fingerRaw = mRow.finger || tr.finger || "fp.finger.right_index.long";
+      const fingerName = String(fingerRaw).startsWith("fp.") ? t(fingerRaw) : fingerRaw;
+      const refCodeStr = `${subjName}_${fingerName}`;
+      
+      // Ảnh 03: Vết hiện trường đã xử lý đặc trưng
+      const lPts = tr.landmark?.points || tr.latent_landmarks?.points || mRow.latent_landmarks?.points || [];
+      const lDots = lPts.length > 0
+        ? toPercentageDots(lPts, tr.img_width || mRow.latent_dim?.width || 800, tr.img_height || mRow.latent_dim?.height || 750)
+        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+      
+      // Ảnh 04: Ảnh đối sánh đã xử lý đặc trưng
+      const cPts = mRow.candidate_landmarks?.points || [];
+      const cDots = cPts.length > 0
+        ? toPercentageDots(cPts, mRow.candidate_dim?.width || 800, mRow.candidate_dim?.height || 750)
+        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+      const candUrl = mRow.candidate_url || tr.candidate_url || enrolledUrl(seq);
+
       return {
         id: tr.id || tr._id || `pair-${seq}`,
         seq,
         figureNum: idx + 1,
         trace_code: cleanTraceCode,
         ref_code: refCodeStr,
-        latent_url: tr.url || "",
-        candidate_url: mRow.candidate_url || "/uploads/vantay_synth/vantay_synth_01.png",
-        subject: mRow.subject,
+        latent_url: tr.url || mRow.trace_url || "",
+        candidate_url: candUrl,
+        subject: subjName,
         found: foundCount,
         total: SCORE_TOTAL,
-        percent: mRow.percent,
-        dots: minutiae(seq, foundCount),
+        percent: mRow.percent || (mRow.pct ? parseFloat(String(mRow.pct).replace(/[^\d.]/g, "")) : 92),
+        latent_dots: lDots,
+        candidate_dots: cDots,
       };
     });
-  }, [items, singleMatch, t]);
+  }, [items, rows, singleMatch, t]);
 
   const matchCount = matchPairs.length || 77;
   const totalLT = matchPairs.length || 117;
@@ -307,7 +354,7 @@ export const SceneReportContent = forwardRef(function SceneReportContent(
                       crossOrigin="anonymous"
                       alt={`Latent ${pair.trace_code}`}
                     />
-                    <ReportMinutiaeDots dots={pair.dots} />
+                    <ReportMinutiaeDots dots={pair.latent_dots} />
                   </div>
                   <div className="sr-pv-side sr-pv-right">
                     <img
@@ -315,7 +362,7 @@ export const SceneReportContent = forwardRef(function SceneReportContent(
                       crossOrigin="anonymous"
                       alt={`Reference ${pair.subject}`}
                     />
-                    <ReportMinutiaeDots dots={pair.dots} />
+                    <ReportMinutiaeDots dots={pair.candidate_dots} />
                   </div>
                 </div>
               </div>

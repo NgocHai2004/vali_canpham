@@ -203,6 +203,14 @@ export const api = {
   updateCell: (id, body) => request(`/api/cells/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteCell: (id) => request(`/api/cells/${id}`, { method: "DELETE" }),
 
+  listDetainees: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, v);
+    });
+    const s = qs.toString();
+    return request(`/api/detainees${s ? `?${s}` : ""}`);
+  },
   getDetainee: (id) => request(`/api/detainees/${id}`),
   getDetaineeByPersonalId: (personalId) => request(`/api/detainees/by-personal-id/${encodeURIComponent(personalId)}`),
   createDetainee: (body) => request("/api/detainees", { method: "POST", body: JSON.stringify(body) }),
