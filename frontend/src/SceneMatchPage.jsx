@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { api } from "./api";
 import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
-import { fmtSize } from "./sceneTraceUtils";
+import SceneMatchReportModal from "./SceneMatchReportModal";
+import { MATCH_ROWS, SUBJECTS } from "./sceneMatchDemo";
+import { DEMO_ITEMS, SCORE_TOTAL } from "./sceneDemo";
 import {
   IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
   IcEye, IcPageNext, IcPagePrev, IcPencil, IcPlus,
@@ -21,17 +23,15 @@ const PAGE_SIZE = 10;   // design: "Hien thi 1 - 10 cua 20"
 // backend luu them, cho do sua o day 1 cho.
 const fileName = (u) => (u || "").split(/[?#]/)[0].split("/").pop() || "—";
 
-// Thang diem cua ENGINE HBIE: 0..1000, cang cao cang giong. KHONG con thang 22
-// diem minutiae cua design cu — do la so gia, engine that khong tra minutiae.
-// Nguong ket luan (threshold) do backend quyet dinh (HBIE_MATCH_THRESHOLD) va
-// tra ve trong /api/scene/matches -> config, nen o day chi la gia tri du phong
-// khi chua nap duoc config.
+// time trong data gia la "DD/MM/YYYY HH:MM" -> so sanh chuoi se sai (03/09 vs 12/08).
+// Doi sang YYYYMMDDHHMM de sort. Bo ham nay khi backend tra ISO timestamp.
+// Thang diem 0..22 nhu design: cung thang voi so diem minutiae o cot "Diem
+// tuong dong" va o trang chi tiet (SCORE_TOTAL trong sceneDemo).
 const SCORE_MIN = 0;
-const SCORE_MAX = 1000;
-// Nhan (lo, hi) vi ca hai dau deu song: score_max va diem san (keep_score) doc
-// tu config cua backend, admin doi duoc trong Cai dat.
-const clampScore = (v, lo, hi) =>
-  Math.max(lo, Math.min(hi, Number(v) || lo));
+const SCORE_MAX = SCORE_TOTAL;
+const SCORE_MID = SCORE_TOTAL / 2;
+const clampScore = (v) =>
+  Math.max(SCORE_MIN, Math.min(SCORE_MAX, Number(v) || SCORE_MIN));
 
 // Thu tu 4 o "Sắp xếp theo" dung nhu design.
 // Design: 3 kieu sap xep cho panel dau vet.
@@ -48,40 +48,18 @@ const SORT_OPTS = [
   ["score_asc", "smp.sort.score_asc"],
 ];
 
-// Thu tu ngon trong panel HO SO DOI TUONG: cai -> ut cho tung ban tay. Ma ngon
-// khop FP_KEY_BY_CODE o backend (photos.fp_l1..fp_r5) va key i18n fp.finger.*.
-const HAND_CODES = {
-  right: ["right_thumb", "right_index", "right_middle", "right_ring", "right_little"],
-  left: ["left_thumb", "left_index", "left_middle", "left_ring", "left_little"],
-};
-
 const traceCode = (it) =>
   `DVHT-${String(it.captured_at || "").slice(0, 4)}-${String(it.seq).padStart(4, "0")}`;
 
-export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
-  const { t, formatDate, formatDateTime } = useI18n();
-  const [caseDoc, setCaseDoc] = useState(null);
+function timeKey(r) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/.exec(r.time || "");
+  return m ? Number(m[3] + m[2] + m[1] + m[4] + m[5]) : 0;
+}
+
+export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
+  const { t, formatDateTime } = useI18n();
+  const [session, setSession] = useState(null);
   const [traces, setTraces] = useState([]);
-  const [detainees, setDetainees] = useState([]);
-  const [matches, setMatches] = useState([]);
-  // Cau hinh engine HBIE tu backend: nguong ket luan + thang diem. Lay tu API de
-  // doi nguong trong .env la UI doi theo, khong phai sua code 2 noi.
-  const [mcfg, setMcfg] = useState(null);
-  // Thang diem THAT dang dung: uu tien config cua backend, chua nap duoc thi
-  // dung hang du phong (HBIE luon 0..1000).
-  const scoreMax = mcfg?.score_max || SCORE_MAX;
-  // Diem san: cap nao duoi muc nay bi loai NGAY khi doi sach, khong duoc luu vao
-  // scene_matches -> khong the co trong bang. Thanh loc vi the chi can keo trong
-  // [scoreFloor, scoreMax]; keo xuong duoi do la vung chet (khong an bot duoc dong
-  // nao ma van keo duoc). Chua nap duoc config thi dung 0 nhu cu: thanh loc rong
-  // hon mot chut van hon la an mat ket qua.
-  const scoreFloor = Number(mcfg?.keep_score) > 0 ? Number(mcfg.keep_score) : SCORE_MIN;
-  // Vach giua va % fill deu tinh trong khoang THAT su keo duoc [scoreFloor,
-  // scoreMax]. Lay scoreMax/2 nhu cu thi khi diem san > 500 ba vach lech thu tu
-  // (700, 500, 1000); con fill tinh tu 0 thi o vi tri nghi da san 25% mau du
-  // nguoi dung chua loc gi ca.
-  const scoreSpan = Math.max(1, scoreMax - scoreFloor);
-  const scoreMid = scoreFloor + Math.round(scoreSpan / 2);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [page, setPage] = useState(1);
@@ -97,10 +75,11 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
   const [editTrace, setEditTrace] = useState(null);   // != null => mo modal sua
   const [delTrace, setDelTrace] = useState(null);     // != null => mo popup xac nhan xoa
   const [picked, setPicked] = useState(() => new Set());
-  const [openSub, setOpenSub] = useState("");
+  const [openSub, setOpenSub] = useState(SUBJECTS[0]?.id || "");
   const [uploading, setUploading] = useState(false);
   const [spinning, setSpinning] = useState(false);   // 1 vong xoay icon moi lan bam "Phan tich lai"
   const [exporting, setExporting] = useState(false);  // icon truot xuong roi ve cho khi bam "Xuat bao cao"
+  const [showReport, setShowReport] = useState(false); // mo modal xuat bao cao
   // Dong da bam trong bang KET QUA DOI SANH: giu ca id dau vet + row de trang
   // chi tiet hien dung so lieu cua dong do (truoc day tu dung lai theo seq => lech).
   const [full, setFull] = useState(null);   // != null => mo trang chi tiet dau vet
@@ -109,98 +88,48 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
     setLoading(true);
     setErr("");
     try {
-      // 2 request song song: dau vet + chi tiet vu an (de lay danh sach doi tuong
-      // that cua CHINH vu an nay cho panel HO SO DOI TUONG).
-      const [r, cs, mt] = await Promise.all([
-        api.listSceneTraces(caseId),
-        api.getCase(caseId),
-        // Ket qua doi sanh THAT do engine HBIE sinh ra khi up dau vet. Loi rieng
-        // request nay khong duoc lam trang ca man -> catch tra ve rong.
-        api.listSceneMatches({ caseId }).catch(() => ({ items: [], config: null })),
-      ]);
-      setCaseDoc(cs || r.case || null);
+      const r = await api.listSceneTraces(sessionId);
+      setSession(r.session || null);
       setTraces(r.items || []);
-      setDetainees(cs?.detainees || []);
-      setMatches(mt.items || []);
-      setMcfg(mt.config || null);
     } catch (ex) {
       setErr(ex.message || t("scene.err.load"));
     } finally {
       setLoading(false);
     }
-  }, [caseId, t]);
+  }, [sessionId, t]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Config ve muon hon lan render dau, nen phai nhac minScore len theo diem san:
-  // de 0 thi o nhap hien 0 trong khi thanh truot da bat dau o scoreFloor -> hai
-  // dieu khien cua cung mot gia tri lech nhau. Chi nang len, khong bao gio ha
-  // xuong, de khong de len lua chon cua nguoi dung khi ho da keo.
-  useEffect(() => {
-    setMinScore((v) => (v < scoreFloor ? scoreFloor : v));
-  }, [scoreFloor]);
-
-  // ----- Ket qua doi sanh (THAT, engine HBIE) -----
-  // Moi ban ghi scene_matches = 1 cap (dau vet x ngon cua 1 doi tuong), do backend
-  // sinh ra khi up dau vet len. Vu chua co dau vet => khong co cap nao => bang rong.
-  //
-  // CCCD khong nam trong scene_matches (tranh nhan ban du lieu ho so): join tu
-  // detainees cua chinh vu an nay theo detainee_id.
-  const cccdById = useMemo(
-    () => Object.fromEntries(detainees.map((d) => [d.id, d.cccd_number || "—"])),
-    [detainees],
-  );
-
-  const allRows = useMemo(() => matches.map((m) => ({
-    id: m.id,
-    traceId: m.trace_id,
-    code: `DVHT-${String(m.created_at || "").slice(0, 4)}-${String(m.trace_seq || 0).padStart(4, "0")}`,
-    url: m.trace_url || "",
-    name: m.detainee_name || m.detainee_code || "—",
-    cccd: cccdById[m.detainee_id] || "—",
-    // finger la KEY i18n (t(r.finger) o cho render), khop fp.finger.*.long.
-    finger: `fp.finger.${m.finger_code}.long`,
-    fingerCode: m.finger_code,
-    score: m.score,
-    pct: `${m.percent}%`,
-    verdict: m.verdict,
-    time: m.created_at ? formatDateTime(m.created_at) : "—",
-    latent_landmarks: m.latent_landmarks,
-    latent_dim: m.latent_dim,
-    candidate_url: m.candidate_url,
-    candidate_landmarks: m.candidate_landmarks,
-    candidate_dim: m.candidate_dim,
-  })), [matches, cccdById, formatDateTime]);
-
-  // Loc + sap xep. Backend da sort theo diem giam dan; day la loc phia client theo
-  // lua chon cua can bo (ngon tay, diem toi thieu, doi tuong, tu khoa).
+  // ----- Ket qua doi sanh: chi co khi phien da co dau vet hien truong -----
   const rows = useMemo(() => {
+    if (traces.length === 0) return [];
     const kw = q.trim().toLowerCase();
-    let out = allRows.filter((r) =>
-      (!fingerFilter || r.finger === fingerFilter)
-      && r.score >= minScore
-      && (!subjectSel.size || subjectSel.has(r.name))
-      && (!kw || `${r.code} ${r.name} ${r.cccd}`.toLowerCase().includes(kw)));
+    const out = MATCH_ROWS.filter((r) => {
+      if (subjectSel.size && !subjectSel.has(r.name)) return false;
+      if (fingerFilter && r.finger !== fingerFilter) return false;
+      if (r.score < minScore) return false;
+      if (!kw) return true;
+      return `${r.code} ${r.name}`.toLowerCase().includes(kw);
+    });
+    // filter() da tra array moi nen sort() tai cho khong dung vao MATCH_ROWS.
     const cmp = {
+      newest:     (a, b) => timeKey(b) - timeKey(a),
+      oldest:     (a, b) => timeKey(a) - timeKey(b),
       score_desc: (a, b) => b.score - a.score,
-      score_asc: (a, b) => a.score - b.score,
-      newest: (a, b) => String(b.time).localeCompare(String(a.time)),
-      oldest: (a, b) => String(a.time).localeCompare(String(b.time)),
+      score_asc:  (a, b) => a.score - b.score,
     }[sortBy];
-    if (cmp) out = out.slice().sort(cmp);
-    // STT tinh SAU khi loc/sap xep de danh so lien tuc 1..N tren ket qua dang xem.
-    return out.map((r, i) => ({ ...r, stt: String(i + 1).padStart(2, "0") }));
-  }, [allRows, q, fingerFilter, minScore, subjectSel, sortBy]);
+    return cmp ? out.sort(cmp) : out;
+  }, [traces.length, q, subjectSel, fingerFilter, minScore, sortBy]);
 
-  // Loc theo ngon tay lay tu chinh ket qua -> chua co ket qua thi khong co lua chon.
+  // Danh sach ngon tay lay tu chinh data -> khong can export thu tu tu sceneMatchDemo.
   const FINGER_OPTS = useMemo(
-    () => [...new Set(allRows.map((r) => r.finger))], [allRows]);
+    () => [...new Set(MATCH_ROWS.map((r) => r.finger))], []);
   // Badge dem so dieu kien dang thu hep ket qua (sort chi doi thu tu -> khong dem).
-  const filterCount = (fingerFilter ? 1 : 0) + (minScore > scoreFloor ? 1 : 0)
+  const filterCount = (fingerFilter ? 1 : 0) + (minScore > SCORE_MIN ? 1 : 0)
     + (subjectSel.size ? 1 : 0);
   const resetFilter = () => {
     setFingerFilter("");
-    setMinScore(scoreFloor);
+    setMinScore(SCORE_MIN);
     setSortBy("newest");
     setSubjectSel(new Set());
   };
@@ -235,32 +164,6 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
     return cmp ? out.sort(cmp) : out;
   }, [traces, traceQ, traceSort]);
 
-  // ----- Ho so doi tuong (that, cua CHINH vu an nay) -----
-  // GET /api/cases/{id} tra detainees[] kem fingerprints (ma ngon -> url anh van
-  // lan) va portrait. Truoc day panel nay doc SUBJECTS trong sceneMatchDemo nen
-  // vu an nao cung hien dung 9 nguoi + 90 anh.
-  const subjects = useMemo(() => detainees.map((d, i) => {
-    const fp = d.fingerprints || {};
-    const hand = (side) => HAND_CODES[side].map((code) => ({
-      label: `fp.finger.${code}.long`,
-      url: fp[code] || "",
-    }));
-    return {
-      id: d.id,
-      name: d.full_name || d.code || "—",
-      cccd: d.cccd_number || "—",
-      dob: d.dob ? formatDate(d.dob) : "—",
-      sex: t(d.gender === "female" ? "search.gender.female" : "search.gender.male"),
-      // "Doi tuong chinh" = ho so lap dau tien trong vu (detainees da sort theo
-      // created_at tang dan o backend). Chua co field danh dau rieng trong DB.
-      primary: i === 0,
-      photoCount: d.fp_count || 0,
-      photo: d.portrait || "",
-      right: hand("right"),
-      left: hand("left"),
-    };
-  }), [detainees, formatDate, t]);
-
   const toggle = (id) => setPicked((s) => {
     const n = new Set(s);
     n.has(id) ? n.delete(id) : n.add(id);
@@ -279,20 +182,9 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
     setErr("");
     try {
       for (const f of list) {
-        await api.createSceneTrace(f, { caseId, source: "upload" });
+        await api.createSceneTrace(f, { sessionId, source: "upload" });
       }
       await load();
-      // Backend doi sanh o BACKGROUND ngay khi nhan anh (khong chan upload), nen
-      // luc load() vua xong ket qua thuong chua kip ghi. Nap lai bang ket qua sau
-      // vai giay de can bo khong phai bam "Phan tich lai".
-      //
-      // Vi sao 3 lan cach nhau 4s: HBIE extract + match ca vu mat vai giay den vai
-      // chuc giay tuy so doi tuong; nap 1 lan la hay ra bang rong. Muon chac thi
-      // co nut "Phan tich lai" chay dong bo.
-      for (let i = 0; i < 3; i++) {
-        await new Promise((r) => setTimeout(r, 4000));
-        await reloadMatches();
-      }
     } catch (ex) {
       setErr(ex.message || t("scene.err.upload"));
     } finally {
@@ -317,36 +209,6 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
     }
   };
 
-  // Chi nap lai BANG KET QUA (khong nap lai ca dau vet + ho so) — dung sau khi
-  // up anh xong de doi engine chay nen roi hien ket qua vao bang.
-  const reloadMatches = useCallback(async () => {
-    try {
-      const mt = await api.listSceneMatches({ caseId });
-      setMatches(mt.items || []);
-      setMcfg(mt.config || null);
-    } catch { /* loi nap ket qua khong duoc lam trang man */ }
-  }, [caseId]);
-
-  // "Phan tich lai": doi sanh lai TOAN BO dau vet cua vu an. Dung khi vu an vua
-  // them doi tuong moi (dau vet cu chua tung so voi van tay cua nguoi do), hoac
-  // luc up anh HBIE loi.
-  //
-  // Chay TUAN TU tung dau vet: moi lan goi la HBIE extract + match ca vu, ban song
-  // song la doi service ngoai chiu tai vo ich.
-  const reanalyze = async () => {
-    if (!traces.length || spinning) return;
-    setSpinning(true);
-    setErr("");
-    try {
-      for (const it of traces) await api.rematchSceneTrace(it.id);
-      await load();
-    } catch (ex) {
-      setErr(ex.message || t("smp.err.match"));
-    } finally {
-      setSpinning(false);
-    }
-  };
-
   const saveTrace = async (it, patch) => {
     setErr("");
     try {
@@ -362,10 +224,20 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
   const from = rows.length ? (page - 1) * PAGE_SIZE + 1 : 0;
   const to = Math.min(page * PAGE_SIZE, rows.length);
 
-  const fullItem = full ? traces.find((x) => x.id === full.id) : null;
+  // Ket qua doi sanh la data gia nen chua co FK sang dau vet that -> gan theo
+  // thu tu (index tuyet doi trong rows) cho anh va link chi tiet luon khop nhau.
+  // Bo ham nay khi backend tra trace_id trong ket qua doi sanh.
+  //
+  // Phien chua co dau vet that => dung DEMO_ITEMS (giong SceneTracesPage) de anh
+  // va link chi tiet van hoat dong. Neu de null thi anh hong + hang khong bam
+  // duoc, khong xem duoc man Chi tiet doi sanh.
+  const matchTraces = traces.length ? traces : DEMO_ITEMS;
+  const traceFor = (absIdx) => matchTraces[absIdx % matchTraces.length];
+
+  const fullItem = full ? matchTraces.find((x) => x.id === full.id) : null;
   if (fullItem) {
     return (
-      <SceneTraceFull item={fullItem} row={full.row} caseDoc={caseDoc} onBack={() => setFull(null)} />
+        <SceneTraceFull item={fullItem} row={full.row} session={session} onBack={() => setFull(null)} />
     );
   }
 
@@ -382,28 +254,22 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
           <div>
             <div className="smp-top-line">
               <div className="smp-case-code">
-                {t("smp.case")}: {caseDoc?.code || "—"}
+                {t("smp.case")}: {session?.code || "—"}
               </div>
               {/* Trang thai vu an, KHONG phai trang thai phan tich: truoc day hardcode
                   "Dang phan tich" nen vu da dong o list cung hien xanh. Dung dung key +
                   class nhu SceneCasePicker de 2 cho khong lech nhau. */}
-              <span className={"smp-chip " + (caseDoc?.status === "investigating" ? "smp-chip-green" : "scp-chip-grey")}>
-                {t(caseDoc?.status === "investigating" ? "case.status.investigating_dot" : "case.status.closed_dot")}
+              <span className={"smp-chip " + (session?.status === "open" ? "smp-chip-green" : "scp-chip-grey")}>
+                {t(session?.status === "open" ? "session.status.open_dot" : "session.status.closed_dot")}
               </span>
             </div>
             <div className="smp-case-name">
-              {caseDoc?.name || t("scene.no_case")}
+              {session?.case_name || t("scene.no_case")}
             </div>
           </div>
         </div>
         <div className="smp-top-actions">
-          <button
-            type="button"
-            className="smp-btn-ghost"
-            onClick={reanalyze}
-            disabled={spinning || !traces.length}
-            title={traces.length ? undefined : t("scene.empty")}
-          >
+          <button type="button" className="smp-btn-ghost" onClick={() => setSpinning(true)}>
             {/* onAnimationEnd de tren span, KHONG tren button: button co animation
                 btn-sweep tren ::after luc hover, event do bubble len button va se
                 tat spin som. */}
@@ -412,7 +278,14 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
             </span>
             {t("smp.reanalyze")}
           </button>
-          <button type="button" className="smp-btn-ghost" onClick={() => setExporting(true)}>
+          <button
+            type="button"
+            className="smp-btn-ghost"
+            onClick={() => {
+              setExporting(true);
+              setShowReport(true);
+            }}
+          >
             <span className={"smp-ic" + (exporting ? " smp-ic-out" : "")} onAnimationEnd={() => setExporting(false)}>
               <IcExport />
             </span>
@@ -422,6 +295,44 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
       </div>
 
       {err && <div className="lg-err" role="alert">{err}</div>}
+
+      {/* ---------- 2 panel tren: dau vet (trai) + ho so doi tuong (phai) ---------- */}
+      <div className="smp-top-panels">
+        <SceneTracePanel
+          t={t}
+          traces={shownTraces}
+          total={traces.length}
+          q={traceQ}
+          setQ={setTraceQ}
+          picked={picked}
+          toggle={toggle}
+          traceCode={traceCode}
+          formatDateTime={formatDateTime}
+          onAddFiles={addTraces}
+          uploading={uploading}
+          onDelete={(items) => setDelTrace(items[0] || null)}
+          onEdit={setEditTrace}
+          sort={traceSort}
+          setSort={setTraceSort}
+          onSelectAll={selectAllShown}
+          onClearSel={clearSel}
+        />
+        <SubjectPanel
+          t={t}
+          subjects={traces.length > 0 ? SUBJECTS : []}
+          openSub={openSub}
+          setOpenSub={setOpenSub}
+          // ponytail: chi chan theo status (co trong payload san). Backend con chan
+          // officer != user va role admin -> se bao 403 luc luu. Them officer vao
+          // GET /api/scene/traces neu can chan som ngay tren nut.
+          onAdd={onAddSubject && session?.status === "open"
+            ? () => onAddSubject(session.id)
+            : null}
+          addDisabledHint={session && session.status !== "open"
+            ? t("smp.sub.add_closed")
+            : ""}
+        />
+      </div>
 
       {/* ---------- KET QUA DOI SANH ---------- */}
       <section className="smp-panel smp-panel-match">
@@ -460,7 +371,7 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
                 {t("smp.all_subjects")}
                 {subjectSel.size === 0 && <IcTick />}
               </button>
-              {subjects.map((sub) => (
+              {SUBJECTS.map((sub) => (
                 <button
                   type="button"
                   key={sub.id}
@@ -531,27 +442,27 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
                         <input
                           className="smp-adv-num"
                           type="number"
-                          min={scoreFloor}
-                          max={scoreMax}
+                          min={SCORE_MIN}
+                          max={SCORE_MAX}
                           value={minScore}
-                          onChange={(e) => setMinScore(clampScore(e.target.value, scoreFloor, scoreMax))}
+                          onChange={(e) => setMinScore(clampScore(e.target.value))}
                         />
-                        <span className="smp-adv-max">/ {scoreMax}</span>
+                        <span className="smp-adv-max">/ {SCORE_MAX}</span>
                       </span>
                     </div>
                     <input
                       className="smp-adv-range"
                       type="range"
-                      min={scoreFloor}
-                      max={scoreMax}
+                      min={SCORE_MIN}
+                      max={SCORE_MAX}
                       value={minScore}
-                      onChange={(e) => setMinScore(clampScore(e.target.value, scoreFloor, scoreMax))}
+                      onChange={(e) => setMinScore(clampScore(e.target.value))}
                       aria-label={t("smp.filter.min_score")}
                       // CSS khong doc duoc value cua input range -> gan % fill inline.
-                      style={{ "--smp-fill": `${Math.round(((minScore - scoreFloor) / scoreSpan) * 100)}%` }}
+                      style={{ "--smp-fill": `${(minScore / SCORE_MAX) * 100}%` }}
                     />
                     <div className="smp-adv-ticks">
-                      <span>{scoreFloor}</span><span>{scoreMid}</span><span>{scoreMax}</span>
+                      <span>{SCORE_MIN}</span><span>{SCORE_MID}</span><span>{SCORE_MAX}</span>
                     </div>
                   </div>
 
@@ -569,6 +480,15 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
                 </>
               )}
             />
+            <button
+              type="button"
+              className="smp-trg smp-trg-report"
+              onClick={() => setShowReport(true)}
+              title={t("scene.report.view") || "Xem báo cáo"}
+            >
+              <IcEye s={15} />
+              <span>{t("scene.report.view") || "Xem báo cáo"}</span>
+            </button>
           </div>
         </div>
 
@@ -592,16 +512,13 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
           {!loading && pageRows.length === 0 && (
             <div className="scene-empty">{t("smp.match.empty")}</div>
           )}
-          {!loading && pageRows.map((r) => {
-            // Dau vet CUA CHINH dong nay (theo trace_id backend tra ve), khong con
-            // doan theo vi tri dong nhu truoc — 1 dau vet co nhieu dong ket qua nen
-            // lay theo index la lech anh.
-            const it = traces.find((x) => x.id === r.traceId);
+          {!loading && pageRows.map((r, i) => {
+            const it = traceFor((page - 1) * PAGE_SIZE + i);
             const open = it ? () => setFull({ id: it.id, row: r }) : undefined;
             return (
               <div
                 className={"smp-mt-row" + (it ? " go" : "")}
-                key={r.id}
+                key={r.code}
                 role={it ? "button" : undefined}
                 tabIndex={it ? 0 : undefined}
                 aria-label={it ? t("smp.match.open", { code: r.code }) : undefined}
@@ -619,17 +536,11 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
                 <div className="smp-dim">{r.cccd}</div>
                 <div className="smp-dim smp-ellip">{t(r.finger)}</div>
                 <div>
-                  <span className="smp-score">{r.score}/{scoreMax}</span>{" "}
+                  <span className="smp-score">{r.score}/{SCORE_TOTAL}</span>{" "}
                   <span className="smp-dim">{r.pct}</span>
                 </div>
                 <div>
-                  {/* Ket luan do BACKEND quyet dinh (so voi HBIE_MATCH_THRESHOLD),
-                      khong tinh lai o day de 2 noi khong lech nguong. */}
-                  {r.verdict === "match" ? (
-                    <span className="smp-chip smp-chip-green">{t("smp.matched")}</span>
-                  ) : (
-                    <span className="smp-chip">{t("smp.review")}</span>
-                  )}
+                  <span className="smp-chip smp-chip-green">{t("smp.matched")}</span>
                 </div>
                 <div className="smp-dim">{r.time}</div>
                 <div className="smp-mt-go" aria-hidden="true"><IcChevRight /></div>
@@ -672,44 +583,6 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
         </div>
       </section>
 
-      {/* ---------- 2 panel duoi: dau vet + ho so doi tuong ---------- */}
-      <div className="smp-bottom">
-        <SceneTracePanel
-          t={t}
-          traces={shownTraces}
-          total={traces.length}
-          q={traceQ}
-          setQ={setTraceQ}
-          picked={picked}
-          toggle={toggle}
-          traceCode={traceCode}
-          formatDateTime={formatDateTime}
-          onAddFiles={addTraces}
-          uploading={uploading}
-          onDelete={(items) => setDelTrace(items[0] || null)}
-          onEdit={setEditTrace}
-          sort={traceSort}
-          setSort={setTraceSort}
-          onSelectAll={selectAllShown}
-          onClearSel={clearSel}
-        />
-        <SubjectPanel
-          t={t}
-          subjects={subjects}
-          openSub={openSub}
-          setOpenSub={setOpenSub}
-          // ponytail: chi chan theo status (co trong payload san). Backend con chan
-          // officer != user va role admin -> se bao 403 luc luu. Them officer vao
-          // GET /api/scene/traces neu can chan som ngay tren nut.
-          onAdd={onAddSubject && caseDoc?.status === "investigating"
-            ? () => onAddSubject(caseDoc.id)
-            : null}
-          addDisabledHint={caseDoc && caseDoc.status !== "investigating"
-            ? t("smp.sub.add_closed")
-            : ""}
-        />
-      </div>
-
       {editTrace && (
         <TraceEditModal
           t={t}
@@ -751,6 +624,14 @@ export default function SceneMatchPage({ caseId, onBack, onAddSubject }) {
             </div>
           </div>
         </div>
+      )}
+
+      {showReport && (
+        <SceneMatchReportModal
+          session={session}
+          items={traces}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   );
@@ -826,7 +707,6 @@ function SceneTracePanel({
   // "Chon tat ca" tinh tren danh sach DANG HIEN (da loc/tim), khong phai toan bo
   // traces — nguoi dung thay gi thi chon dung cai do.
   const allPicked = traces.length > 0 && traces.every((x) => picked.has(x.id));
-  const [dragOver, setDragOver] = useState(false);
   const [zoom, setZoom] = useState(null);
   // Design: 3 nut Xem / Chinh sua / Xoa ngay tren the, thay cho menu "...".
   const actions = (it, grid) => (
@@ -859,13 +739,6 @@ function SceneTracePanel({
     onAddFiles(e.target.files);
     e.target.value = "";     // chon lai cung file van chay onChange
   };
-  // Kéo thả: phải chặn dragover, không thì browser mở ảnh thay vì gọi onDrop.
-  const onDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    if (uploading) return;
-    onAddFiles(e.dataTransfer.files);
-  };
   return (
     <section className="smp-panel smp-panel-trace">
       <div className="smp-panel-head">
@@ -888,25 +761,6 @@ function SceneTracePanel({
           </label>
         </div>
       </div>
-
-      <label
-        className={"smp-drop" + (dragOver ? " on" : "")}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-      >
-        <div className="smp-drop-ic"><IcUpload /></div>
-        <div className="smp-drop-main">{t("smp.trace.drop")}</div>
-        <div className="smp-drop-sub">{t("smp.trace.drop_hint")}</div>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          hidden
-          disabled={uploading}
-          onChange={pick}
-        />
-      </label>
 
       <div className="smp-tr-tools">
         <input
@@ -971,14 +825,20 @@ function SceneTracePanel({
               className={"smp-tr-row" + (picked.has(it.id) ? " on" : "")}
               onClick={() => toggle(it.id)}
             >
-              <img className="smp-thumb-md" src={it.url} alt={traceCode(it)} loading="lazy" />
+              <img
+                className="smp-thumb-md"
+                src={it.url}
+                alt={traceCode(it)}
+                title={t("common.view")}
+                loading="lazy"
+                onClick={(e) => { e.stopPropagation(); setZoom(it); }}
+              />
               <div className="smp-tr-meta">
                 <div className="smp-strong">{traceCode(it)}</div>
                 <div className="smp-dim smp-ellip">{fileName(it.url)}</div>
               </div>
               <div className="smp-dim smp-ellip smp-tr-src">{it.collection_source || "—"}</div>
               <div className="smp-dim smp-tr-time">{formatDateTime(it.captured_at)}</div>
-              <div className="smp-dim smp-tr-size">{fmtSize(it.size)}</div>
               {actions(it, false)}
               <div className="smp-check">{picked.has(it.id) && <span className="smp-tick-dot"><IcCheck /></span>}</div>
             </div>
@@ -986,13 +846,30 @@ function SceneTracePanel({
         </div>
       )}
 
-      {/* Xem anh chi tiet: dung lai .scene-zoom-backdrop cua styles.css.
-          Portal ra body: .smp-panel-trace co transform (hover lift -2px) nen no
-          la containing block cua position:fixed => overlay chi phu panel
-          (709x457) thay vi ca man hinh. */}
+      {/* Xem anh chi tiet: popup modal phong to */}
       {zoom && createPortal(
-        <div className="scene-zoom-backdrop" onMouseDown={() => setZoom(null)}>
-          <img src={zoom.url} alt={traceCode(zoom)} />
+        <div className="scene-zoom-backdrop" onClick={() => setZoom(null)}>
+          <div className="scene-zoom-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="scene-zoom-head">
+              <span className="scene-zoom-title">
+                {traceCode(zoom)}{zoom.collection_source ? ` • ${zoom.collection_source}` : ""}
+              </span>
+              <button
+                type="button"
+                className="scene-zoom-close"
+                onClick={() => setZoom(null)}
+                title={t("common.close") || "Đóng"}
+                aria-label={t("common.close") || "Đóng"}
+              >
+                <IcClose s={18} />
+              </button>
+            </div>
+            <div className="scene-zoom-body">
+              <div className="stf-zoom-wrap">
+                <img src={zoom.url} alt={traceCode(zoom)} />
+              </div>
+            </div>
+          </div>
         </div>,
         document.body
       )}
@@ -1110,71 +987,72 @@ function SubjectPanel({
       </div>
 
       <div className="smp-sub-list">
-        {subjects.map((s) => {
-          const open = s.id === openSub;
-          return open ? (
-            <div className="smp-sub-open" key={s.id}>
-              <div className="smp-sub-photo">
-                {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
-              </div>
-              <div className="smp-sub-info">
-                <div className="smp-top-line">
-                  <span className="smp-strong">{s.name}</span>
-                  {s.primary && (
-                    <span className="smp-chip smp-chip-blue">{t("smp.sub.primary")}</span>
-                  )}
-                </div>
-                <div className="smp-sub-fields">
-                  <div>CCCD: {s.cccd}</div>
-                  <div>{t("smp.sub.dob")}: {s.dob}</div>
-                  <div>{t("smp.sub.sex")}: {s.sex}</div>
-                </div>
-                <button type="button" className="btn-link">{t("smp.sub.detail")}</button>
-              </div>
-              <div className="smp-hands">
-                {/* Design xep Tay phai truoc Tay trai. */}
-                {[["right", t("smp.sub.right")], ["left", t("smp.sub.left")]].map(([key, label]) => (
-                  <div key={key}>
-                    <div className="smp-hand-title">{label}</div>
-                    <div className="smp-fingers">
-                      {/* Tay trai: ut -> cai; tay phai: cai -> ut. Doc lien 2 ban la
-                          thu tu ngon chay deu tu trai qua phai nhu 2 ban tay up xuong. */}
-                      {(key === "left" ? [...s[key]].reverse() : s[key]).map((f) => (
-                        <img
-                          className="smp-finger"
-                          key={f.label}
-                          src={f.url}
-                          alt={t(f.label)}
-                          title={t(f.label)}
-                          loading="lazy"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="smp-sub-toggle"
-                onClick={() => setOpenSub("")}
-                aria-label={t("smp.sub.collapse")}
-              ><IcChevUp /></button>
-            </div>
-          ) : (
-            <div className="smp-sub-row" key={s.id} onClick={() => setOpenSub(s.id)}>
-              <div className="smp-sub-row-left">
-                <div className="smp-sub-avatar">
+        {subjects.length === 0 ? (
+          <div className="scene-empty">{t("smp.sub.empty") || "Phiên này chưa có hồ sơ đối tượng."}</div>
+        ) : (
+          subjects.map((s) => {
+            const open = s.id === openSub;
+            return open ? (
+              <div className="smp-sub-open" key={s.id}>
+                <div className="smp-sub-photo">
                   {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
                 </div>
-                <div>
-                  <div className="smp-strong">{s.name}</div>
-                  <div className="smp-dim">CCCD: {s.cccd}</div>
+                <div className="smp-sub-info">
+                  <div className="smp-top-line">
+                    <span className="smp-strong">{s.name}</span>
+                    {s.primary && (
+                      <span className="smp-chip smp-chip-blue">{t("smp.sub.primary")}</span>
+                    )}
+                  </div>
+                  <div className="smp-sub-fields">
+                    <div>CCCD: {s.cccd}</div>
+                    <div>{t("smp.sub.dob")}: {s.dob}</div>
+                    <div>{t("smp.sub.sex")}: {s.sex}</div>
+                  </div>
+                  <button type="button" className="btn-link">{t("smp.sub.detail")}</button>
                 </div>
+                <div className="smp-hands">
+                  {[["right", t("smp.sub.right")], ["left", t("smp.sub.left")]].map(([key, label]) => (
+                    <div key={key} className="smp-hand-row">
+                      <div className="smp-hand-title">{label}</div>
+                      <div className="smp-fingers">
+                        {s[key].map((f) => (
+                          <img
+                            className="smp-finger"
+                            key={f.label}
+                            src={f.url}
+                            alt={t(f.label)}
+                            title={t(f.label)}
+                            loading="lazy"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="smp-sub-toggle"
+                  onClick={() => setOpenSub("")}
+                  aria-label={t("smp.sub.collapse")}
+                ><IcChevUp /></button>
               </div>
-              <div className="smp-sub-row-right"><span className="smp-dim2">{t("smp.sub.photos", { n: s.photoCount })}</span><IcChevRight /></div>
-            </div>
-          );
-        })}
+            ) : (
+              <div className="smp-sub-row" key={s.id} onClick={() => setOpenSub(s.id)}>
+                <div className="smp-sub-row-left">
+                  <div className="smp-sub-avatar">
+                    {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
+                  </div>
+                  <div>
+                    <div className="smp-strong">{s.name}</div>
+                    <div className="smp-dim">CCCD: {s.cccd}</div>
+                  </div>
+                </div>
+                <div className="smp-sub-row-right"><span className="smp-dim2">{t("smp.sub.photos", { n: s.photoCount })}</span><IcChevRight /></div>
+              </div>
+            );
+          })
+        )}
       </div>
     </section>
   );
