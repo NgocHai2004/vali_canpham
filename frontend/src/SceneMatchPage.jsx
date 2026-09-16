@@ -237,7 +237,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   const fullItem = full ? matchTraces.find((x) => x.id === full.id) : null;
   if (fullItem) {
     return (
-      <SceneTraceFull item={fullItem} row={full.row} session={session} onBack={() => setFull(null)} />
+        <SceneTraceFull item={fullItem} row={full.row} session={session} onBack={() => setFull(null)} />
     );
   }
 
@@ -480,6 +480,15 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
                 </>
               )}
             />
+            <button
+              type="button"
+              className="smp-trg smp-trg-report"
+              onClick={() => setShowReport(true)}
+              title={t("scene.report.view") || "Xem báo cáo"}
+            >
+              <IcEye s={15} />
+              <span>{t("scene.report.view") || "Xem báo cáo"}</span>
+            </button>
           </div>
         </div>
 

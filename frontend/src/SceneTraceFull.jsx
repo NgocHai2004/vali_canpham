@@ -1,18 +1,15 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "./i18n";
 import { demoFiles, demoMatch, minutiae } from "./sceneDemo";
+import { SUBJECTS } from "./sceneMatchDemo";
 import { traceCode } from "./SceneTracesPage";
-import { IcChevDown, IcClose, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatchIcons";
-import SceneMatchReportModal, { SceneReportContent, reportFileName } from "./SceneMatchReportModal";
-import { buildProfilePdfBlob } from "./lib/exportProfilePdf";
-import { usbApi } from "./api";
-import UsbDrivePickerModal from "./UsbDrivePickerModal";
+import { IcChevDown, IcClose, IcEye, IcPagePrev } from "./sceneMatchIcons";
 
 // Trang chi tiet 1 dau vet — mo tu 1 dong bang KET QUA DOI SANH.
 // Bo cuc 1:1 design D:\Downloads\Phan tich doi sanh:
 //   breadcrumb + chip -> grid 300px|1fr|1fr (anh latent | thong tin | ket qua)
-//   -> grid 1.05fr|1fr (4.1 folder 4 the | 4.2 bao cao C09) -> dai verification.
+//   -> 4.1 folder 4 the file | 4.2 thong tin nghi pham.
 //
 // Field co that lay tu scene_traces (ma, dia diem, thoi gian, can bo, anh, ghi chu).
 // So lieu doi sanh (diem minutiae, ngon tay, C09, chat luong, do tin cay) la
@@ -21,11 +18,6 @@ import UsbDrivePickerModal from "./UsbDrivePickerModal";
 export default function SceneTraceFull({ item, row, session, onBack }) {
   const { t, formatDateTime } = useI18n();
   const [zoom, setZoom] = useState(null);
-  const [showReport, setShowReport] = useState(false);
-  const [busyPdf, setBusyPdf] = useState(false);
-  const [busyUsb, setBusyUsb] = useState(false);
-  const [picker, setPicker] = useState({ open: false, drives: [], resolve: null });
-  const printRef = useRef(null);
 
   if (!item || !row) return null;
 
@@ -71,64 +63,25 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
     [t("scene.match.by"), m.analyst],
   ];
 
-  const singleMatchData = {
-    ...m,
-    name: row.name,
-    cccd: row.cccd,
-    birth_year: row.birth_year || row.dob || "1988",
-    latent_url: files[0]?.url,
-    candidate_url: files[1]?.url,
-    trace_code: code,
-  };
-
-  const pickDrive = (drives) => new Promise((resolve) => {
-    setPicker({ open: true, drives, resolve });
-  });
-
-  const handleDownloadPdf = async () => {
-    const node = printRef.current;
-    if (!node) return;
-    setBusyPdf(true);
-    try {
-      const blob = await buildProfilePdfBlob(node);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = reportFileName(m.report_code || code);
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert(err?.message || "Lỗi khi tải file PDF");
-    } finally {
-      setBusyPdf(false);
-    }
-  };
-
-  const handleSaveUsb = async () => {
-    const node = printRef.current;
-    if (!node) return;
-    setBusyUsb(true);
-    try {
-      const info = await usbApi.listWritable();
-      const drives = info.drives || [];
-      if (drives.length === 0) {
-        throw new Error(
-          (info.dongle_drives || []).length > 0
-            ? t("usb.export.err.only_dongle")
-            : t("usb.export.err.no_drive"),
-        );
-      }
-      const chosen = drives.length === 1 ? drives[0] : await pickDrive(drives);
-      if (!chosen) return;
-      const blob = await buildProfilePdfBlob(node);
-      const saved = await usbApi.saveExport(chosen.path, reportFileName(m.report_code || code), blob);
-      alert(t("usb.export.success", { path: saved?.path || chosen.path }));
-    } catch (err) {
-      alert(err?.message || t("scene.report.err_export"));
-    } finally {
-      setBusyUsb(false);
-    }
-  };
+  const subject = { ...SUBJECTS.find((s) => s.cccd === row.cccd), ...row };
+  const gender = subject.gender || subject.sex;
+  const subjectInfo = [
+    ["detainee.field.full_name", subject.full_name || subject.name],
+    ["capture.personal.alias", subject.alias],
+    ["detainee.field.gender", ["male", "Nam"].includes(gender) ? t("common.male") : ["female", "Nữ"].includes(gender) ? t("common.female") : gender],
+    ["capture.personal.dob", subject.dob || subject.birth_year],
+    ["capture.personal.id_doc", subject.cccd_number || subject.cccd],
+    ["detainee.field.nationality", subject.nationality],
+    ["detainee.field.ethnicity", subject.ethnicity],
+    ["detainee.field.occupation", subject.occupation],
+    ["detainee.field.hometown", subject.hometown],
+    ["detainee.field.address", subject.address],
+    ["detainee.field.temp_address", subject.temp_address],
+    ["detainee.field.current_address", subject.current_address],
+    ["detainee.field.father_name", subject.father_name],
+    ["detainee.field.mother_name", subject.mother_name],
+    ["detainee.field.note", subject.note],
+  ];
 
   return (
     <div className="stf">
@@ -215,7 +168,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
         </section>
       </div>
 
-      {/* 4.1 Folder matching | 4.2 Bao cao C09 */}
+      {/* 4.1 Folder matching | 4.2 Thong tin nghi pham */}
       <div className="stf-mid">
         <section className="stf-card stf-folder">
           <h3 className="stf-h">
@@ -261,85 +214,16 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
             ))}
           </div>
         </section>
-
-        <section className="stf-card stf-c09">
-          <h3 className="stf-h">{t("scene.c09.title")}</h3>
-
-          {/* Khung xem trước thu nhỏ chuẩn format báo cáo HTI (Full width, không bị lệch) */}
-          <div
-            className="stf-doc-card-preview"
-            onClick={() => setShowReport(true)}
-            title="Nhấn để xem toàn bộ báo cáo"
-          >
-            <div className="sr-sec-banner" style={{ fontSize: "7pt", marginBottom: "8px", paddingBottom: "4px" }}>
-              Thông báo bảo mật: Báo cáo này được lập nhằm phục vụ trao đổi kỹ thuật chuyên môn và đánh giá kết quả hệ thống. Nội dung được xây dựng trên cơ sở danh sách kết quả và các ảnh điện tử do HTI GROUP tiếp nhận từ đơn vị cung cấp. Việc nộp chứng cứ chính thức, xác nhận chuỗi bảo quản chứng cứ (chain of custody), thẩm định độc lập và xác lập giá trị pháp lý của chứng cứ phải được thực hiện theo quy trình nghiệp vụ của Bộ Công an.
-            </div>
-
-            <div className="sr-header-top" style={{ marginBottom: "8px" }}>
-              <div className="sr-org-title" style={{ fontSize: "10pt", margin: "0 0 2px 0" }}>HTI GROUP</div>
-              <div className="sr-header-line" style={{ height: "3px" }} />
-            </div>
-
-            <div className="sr-title-block" style={{ margin: "6px 0 8px 0" }}>
-              <div className="sr-main-title" style={{ fontSize: "12pt", margin: "0 0 2px 0" }}>BÁO CÁO KẾT QUẢ SO SÁNH KĨ THUẬT HÌNH SỰ</div>
-              <div className="sr-eng-title" style={{ fontSize: "8.5pt", margin: "0 0 4px 0" }}>HTI-HABIS&AFIS Latent Fingerprint Search & Identification</div>
-              <div className="sr-date-loc" style={{ fontSize: "8pt", margin: "0 0 6px 0" }}>Hà Nội, ngày 16 tháng 09 năm 2026</div>
-            </div>
-
-            <div className="sr-section" style={{ margin: "0 0 4px 0" }}>
-              <div className="sr-section-h" style={{ fontSize: "9.5pt", margin: "4px 0 2px 0" }}>1. OVERVIEW:</div>
-              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
-                <strong>Đơn vị:</strong> C09
+        <section className="stf-card stf-subject">
+          <h3 className="stf-h">{t("detainee.detail.subtitle")}</h3>
+          <dl className="stf-subject-info">
+            {subjectInfo.map(([key, value]) => (
+              <div className="stf-subject-row" key={key}>
+                <dt>{t(key)}</dt>
+                <dd>{value || "—"}</dd>
               </div>
-              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
-                <strong>Người lập báo cáo:</strong> HTI GROUP HABIS Professional Technical Team
-              </div>
-              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
-                <strong>Subject:</strong> Tổng hợp kết quả đối sánh dấu vân hiện trường với dữ liệu dấu vân tham chiếu kỹ thuật số
-              </div>
-              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
-                <strong>Result summary:</strong> 1 bản ghi đối sánh ({code} — {m.subject}, {m.percent || 82}%) đã được xác nhận trùng khớp
-              </div>
-            </div>
-
-            <div className="stf-doc-card-overlay">
-              <span className="stf-doc-card-hint">
-                <IcEye s={13} /> Nhấn để phóng to toàn bộ báo cáo
-              </span>
-            </div>
-          </div>
-
-          <div className="stf-c09-act">
-            <button
-              type="button"
-              className="smp-btn-ghost"
-              onClick={() => setShowReport(true)}
-              title={t("scene.report.view")}
-            >
-              <IcEye s={15} />
-              {t("scene.report.view")}
-            </button>
-            <button
-              type="button"
-              className="smp-btn-ghost"
-              onClick={handleDownloadPdf}
-              disabled={busyPdf}
-              title={t("scene.report.pdf")}
-            >
-              <IcDownload />
-              {busyPdf ? (t("scene.report.saving") || "Đang tải...") : (t("scene.report.pdf") || "Tải PDF")}
-            </button>
-            <button
-              type="button"
-              className="stf-btn-usb"
-              onClick={handleSaveUsb}
-              disabled={busyUsb}
-              title={t("scene.report.usb")}
-            >
-              <IcExport />
-              {busyUsb ? (t("scene.report.saving") || "Đang lưu...") : (t("scene.report.usb") || "Lưu USB")}
-            </button>
-          </div>
+            ))}
+          </dl>
         </section>
       </div>
 
@@ -369,51 +253,6 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
           </div>
         </div>,
         document.body
-      )}
-
-      {/* Khung nội dung A4 ẩn để xuất PDF / Lưu USB trực tiếp mà không cần mở popup */}
-      <div
-        style={{
-          position: "fixed",
-          left: "-9999px",
-          top: 0,
-          width: "210mm",
-          zIndex: -999,
-          pointerEvents: "none",
-        }}
-        aria-hidden="true"
-      >
-        <SceneReportContent
-          ref={printRef}
-          session={session}
-          items={[item]}
-          singleMatch={singleMatchData}
-        />
-      </div>
-
-      {showReport && (
-        <SceneMatchReportModal
-          session={session}
-          items={[item]}
-          singleMatch={singleMatchData}
-          onClose={() => setShowReport(false)}
-        />
-      )}
-
-      {picker.open && (
-        <UsbDrivePickerModal
-          drives={picker.drives}
-          onPick={(d) => {
-            const r = picker.resolve;
-            setPicker({ open: false, drives: [], resolve: null });
-            r && r(d);
-          }}
-          onCancel={() => {
-            const r = picker.resolve;
-            setPicker({ open: false, drives: [], resolve: null });
-            r && r(null);
-          }}
-        />
       )}
     </div>
   );

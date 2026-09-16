@@ -440,6 +440,7 @@ label.smp-drop.on {
 
 /* Man hep: 2 panel xep doc -> khong con vua 1 trang, tra scroll lai cho trang. */
 @media (max-width: 1240px) {
+
   .smp-top-panels,
   .smp-bottom {
     grid-template-columns: 1fr;
@@ -1673,10 +1674,6 @@ label.smp-drop.on {
   object-fit: contain;
 }
 
-.stf-latent-btn:hover {
-  border-color: #3a5f8c;
-}
-
 /* Ca 2 panel hang 1 dung chung the: label co dinh + value trai. */
 .stf-kv {
   display: flex;
@@ -1738,11 +1735,52 @@ label.smp-drop.on {
   min-width: 0;
 }
 
-.stf-c09 {
+.stf-subject {
   grid-column: 3;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  overflow: hidden;
+}
+
+.stf-subject-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr) minmax(0, 1fr));
+  column-gap: 12px;
+  align-content: start;
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 13px 0 0;
+  font-size: 12.5px;
+}
+
+.stf-subject-row {
+  display: grid;
+  grid-column: span 2;
+  grid-template-columns: subgrid;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid #1b3355;
+  line-height: 1.4;
+}
+
+.stf-subject-row:last-child {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+}
+
+.stf-subject-row:last-child dd {
+  grid-column: 2 / -1;
+}
+
+.stf-subject-row dt {
+  color: var(--stf-dim);
+  overflow-wrap: anywhere;
+}
+
+.stf-subject-row dd {
+  margin: 0;
+  color: #e6eefb;
+  overflow-wrap: anywhere;
 }
 
 .stf-files {
@@ -1813,10 +1851,6 @@ label.smp-drop.on {
   height: 94px;
   object-fit: cover;
   display: block;
-}
-
-.stf-file-img:hover {
-  border-color: #3a5f8c;
 }
 
 .stf-file-name {
@@ -2406,6 +2440,26 @@ label.smp-drop.on {
 
 .smp-trg-filter.on {
   color: #cfe2fb;
+}
+
+/* Nút "Xem báo cáo" panel Kết quả đối sánh */
+.smp-trg-report {
+  justify-content: center;
+  gap: 8px;
+  min-width: 128px;
+  flex: 0 0 auto;
+  padding: 9px 15px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  color: #cfe2fb;
+  background: #0f2547;
+  border-color: #244673;
+}
+
+.smp-trg-report:hover {
+  background: #193c72;
+  border-color: #3b6ba8;
+  color: #fff;
 }
 
 /* Nút "Bộ lọc" panel Dấu vết hiện trường — hẹp hơn, font nhỏ hơn. */
@@ -3292,19 +3346,13 @@ textarea.smp-modal-in {
 /* ---- The ben trong panel (dong dau vet, the doi tuong) ---- */
 .smp .smp-tr-row,
 .smp .smp-sub-row,
-.smp .smp-sub-open,
-.stf .stf-card,
-.stf .stf-latent,
-.stf .stf-file {
+.smp .smp-sub-open {
   transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
 }
 
 .smp .smp-tr-row:hover,
 .smp .smp-sub-row:hover,
-.smp .smp-sub-open:hover,
-.stf .stf-card:hover,
-.stf .stf-latent:hover,
-.stf .stf-file:hover {
+.smp .smp-sub-open:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-hover);
   border-color: rgba(53, 216, 255, 0.3);
@@ -3427,13 +3475,6 @@ textarea.smp-modal-in {
 .smp .smp-mt-row:hover,
 .scp .scp-t tbody tr:hover td {
   background: rgba(53, 216, 255, 0.08);
-}
-
-/* ---- Anh bam duoc: vien cyan ---- */
-.stf .stf-latent-btn:hover,
-.stf .stf-file-img:hover {
-  border-color: var(--primary-2);
-  box-shadow: var(--glow);
 }
 
 /* Chấm minutiae overlay cho ảnh 03/04 (bản sao 01/02 + điểm đặc trưng).
@@ -3618,7 +3659,8 @@ textarea.smp-modal-in {
   gap: 14px;
 }
 
-.stf-top .stf-card {
+.stf-top .stf-card,
+.stf-subject {
   padding: 18px 20px;
 }
 
@@ -4038,8 +4080,15 @@ textarea.smp-modal-in {
 }
 
 @keyframes smpZoomFadeIn {
-  from { opacity: 0; transform: scale(.97); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .scene-zoom-modal {
@@ -4207,4 +4256,21 @@ textarea.smp-modal-in {
 
 .smp-ic-out {
   animation: smp-ic-drop 0.55s ease-in-out;
+}
+
+@media (max-width: 1180px) {
+  .stf-mid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stf-folder,
+  .stf-subject {
+    grid-column: 1 / -1;
+  }
+
+  .stf-subject-info {
+    flex: auto;
+    height: auto;
+    max-height: 420px;
+  }
 }
