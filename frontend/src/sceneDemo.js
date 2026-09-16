@@ -144,11 +144,15 @@ export function demoImage(seq, kind, role = "latent") {
 // cách minh hoạ "hai ảnh giống nhau ở đâu".
 // Vị trí là số DỰNG: hệ thống chưa có engine trích minutiae.
 export function minutiae(seq, n = 9) {
+  // Chuẩn hóa n: nếu n nhận điểm HBIE (thang 0..1000) thì quy về 1..SCORE_TOTAL (1..22)
+  const count = typeof n === "number" && !isNaN(n)
+    ? (n > SCORE_TOTAL ? Math.max(1, Math.min(SCORE_TOTAL, Math.round((n / 1000) * SCORE_TOTAL))) : Math.max(1, Math.min(SCORE_TOTAL, Math.round(n))))
+    : 9;
   const out = [];
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < count; i++) {
     // Xoắn ốc theo góc vàng: điểm phủ đều vùng giữa ảnh thay vì dồn 1 vòng tròn.
     const a = i * 2.39996 + seq * 0.37;
-    const r = 8 + 26 * Math.sqrt((i + 0.5) / n);
+    const r = 8 + 26 * Math.sqrt((i + 0.5) / count);
     out.push({
       x: +(50 + r * Math.cos(a)).toFixed(1),
       // Ảnh 800x750 (~16:15) gần vuông => không cần giãn trục y như khổ 3:4 cũ.
@@ -262,14 +266,20 @@ export function demoFiles(item) {
 // dấu vết nên chi tiết nói khác bảng (dòng ghi Trùng khớp, chi tiết ghi Cần
 // thẩm định). Điểm minutiae vẫn là số dựng: quy từ % của row cho khớp bảng.
 export function demoMatch(item, row) {
+  const rawScore = Number(row?.score) || 18;
+  const found = rawScore > SCORE_TOTAL
+    ? Math.max(1, Math.min(SCORE_TOTAL, Math.round((rawScore / 1000) * SCORE_TOTAL)))
+    : Math.max(1, Math.min(SCORE_TOTAL, Math.round(rawScore)));
+  const pct = row?.percent ?? (row?.pct ? String(row.pct).replace(/[^\d.]/g, "") : String(Math.round((rawScore / 10) * 10) / 10));
+
   return {
-    verdict: "match",
-    found: row.score,
+    verdict: row?.verdict || (rawScore >= 600 ? "match" : "review"),
+    found,
     total: SCORE_TOTAL,
-    percent: String(row.pct).replace(/[^\d.]/g, ""),
-    finger: row.finger,
-    subject: `Nghi phạm: ${row.name} (CCCD ${row.cccd})`,
-    analyzed_at: row.time,
+    percent: pct,
+    finger: row?.finger || "fp.finger.right_index.long",
+    subject: row?.name ? `Nghi phạm: ${row.name} (CCCD ${row.cccd || "—"})` : (row?.subject || "Nghi phạm: 56_1703"),
+    analyzed_at: row?.time || "—",
     analyst: DEMO_OFFICER,
     quality: "Cao",
     confidence: "Rất cao",
