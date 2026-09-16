@@ -224,7 +224,7 @@ export default function SceneCasePicker({ onPick }) {
                 <th scope="col" className="scp-wide-only">{t("scene.case.col.time")}</th>
                 <th scope="col">{t("scene.case.col.traces")}</th>
                 <th scope="col">{t("session.status")}</th>
-                <th scope="col"><span className="scp-sr">{t("scene.case.col.go")}</span></th>
+                <th scope="col" className="scp-th-go"><span className="scp-sr">{t("scene.case.col.go")}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -279,7 +279,7 @@ export default function SceneCasePicker({ onPick }) {
                         {t(isOpen ? "session.status.open_dot" : "session.status.closed_dot")}
                       </span>
                     </td>
-                    <td>
+                    <td className="scp-td-go">
                       {/* Nút thật = lối vào bằng bàn phím cho từng hàng; cả
                           hàng vẫn bấm được bằng chuột. */}
                       <button

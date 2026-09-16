@@ -76,7 +76,7 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
   const [editTrace, setEditTrace] = useState(null);   // != null => mo modal sua
   const [delTrace, setDelTrace] = useState(null);     // != null => mo popup xac nhan xoa
   const [picked, setPicked] = useState(() => new Set());
-  const [openSub, setOpenSub] = useState(SUBJECTS[0]?.id || "");
+  const [openSub, setOpenSub] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [realMatches, setRealMatches] = useState([]);
   const [detainees, setDetainees] = useState([]);
@@ -92,12 +92,13 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
     setErr("");
     try {
       const r = await api.listSceneTraces(currentCaseId);
-      const activeId = currentCaseId || r?.session?.id || "";
+      const caseData = r?.case || r?.session || null;
+      const activeId = currentCaseId || caseData?.id || "";
       const [matchRes, detRes] = await Promise.all([
         activeId ? api.listSceneMatches({ caseId: activeId }).catch(() => null) : null,
         activeId ? api.listDetainees({ case_id: activeId }).catch(() => null) : api.listDetainees().catch(() => null),
       ]);
-      setSession(r?.session || null);
+      setSession(caseData);
       setTraces(r?.items || []);
       if (matchRes?.items && matchRes.items.length > 0) {
         setRealMatches(matchRes.items);
@@ -106,6 +107,10 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
       }
       if (detRes?.items && detRes.items.length > 0) {
         setDetainees(detRes.items);
+      } else if (caseData?.detainees && caseData.detainees.length > 0) {
+        setDetainees(caseData.detainees);
+      } else {
+        setDetainees([]);
       }
     } catch (ex) {
       setErr(ex.message || t("scene.err.load"));
@@ -127,8 +132,8 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
           name: m.name || m.detainee_name || m.subject || "Nguyễn Ngọc Hải",
           cccd: m.cccd || m.detainee_code || "026204004933",
           finger: fingerI18n,
-          score: m.score != null ? Math.round(m.score) : 18,
-          pct: m.percent ? `(${m.percent}%)` : "(82.0%)",
+          score: m.score != null ? (m.score <= 100 && m.score > 1 ? Math.round(m.score * 10) : Math.round(m.score)) : 820,
+          pct: m.percent ? `(${m.percent}%)` : (m.score != null ? `(${((m.score > 100 ? m.score / 1000 : m.score / 100) * 100).toFixed(1)}%)` : "(82.0%)"),
           time: m.analyzed_at || m.time || m.created_at || "—",
           latent_landmarks: m.latent_landmarks,
           latent_dim: m.latent_dim,
@@ -138,6 +143,8 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
           candidate_dim: m.candidate_dim,
           verdict: m.verdict,
           trace_id: m.trace_id,
+          detainee_id: m.detainee_id || m.suspect_id || "",
+          portrait_url: m.portrait || m.portrait_cropped_url || m.portrait_original_url || m.photos?.portrait_front || m.photos?.portrait_cropped || m.photo || "",
           raw: m,
         };
       });
@@ -147,27 +154,46 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
 
   const subjectsList = useMemo(() => {
     if (detainees.length > 0) {
-      return detainees.map((d, i) => ({
-        id: d.id || `sub-${i + 1}`,
-        name: d.full_name || d.name,
-        cccd: d.cccd_number || d.cccd || "—",
-        dob: d.dob || d.birth_year || "—",
-        sex: d.gender === "female" || d.gender === "Nữ" ? "Nữ" : "Nam",
-        primary: i === 0,
-        photoCount: 10,
-        photo: d.portrait_cropped_url || d.portrait_original_url || "",
-        right: FINGER_LABELS.map((label, k) => ({
-          label,
-          url: d.fp_images?.[["right_thumb", "right_index", "right_middle", "right_ring", "right_little"][k]] || enrolledUrl(i * 10 + k + 1),
-        })),
-        left: FINGER_LABELS.map((label, k) => ({
-          label,
-          url: d.fp_images?.[["left_thumb", "left_index", "left_middle", "left_ring", "left_little"][k]] || enrolledUrl(i * 10 + k + 6),
-        })),
-      }));
+      return detainees.map((d, i) => {
+        const photos = d.photos || {};
+        const fingerprints = d.fingerprints || {};
+        return {
+          id: d.id || `sub-${i + 1}`,
+          name: d.full_name || d.name,
+          cccd: d.cccd_number || d.cccd || "—",
+          dob: d.dob || d.birth_year || "—",
+          sex: d.gender === "female" || d.gender === "Nữ" ? "Nữ" : "Nam",
+          primary: i === 0,
+          photoCount: d.fp_count != null ? d.fp_count : (photos.fp_count || (d.fp_images ? Object.keys(d.fp_images).length : 10)),
+          photo: d.portrait || d.portrait_cropped_url || d.portrait_original_url || photos.portrait_front || "",
+          right: FINGER_LABELS.map((label, k) => {
+            const key = ["right_thumb", "right_index", "right_middle", "right_ring", "right_little"][k];
+            const pKey = ["fp_r1", "fp_r2", "fp_r3", "fp_r4", "fp_r5"][k];
+            return {
+              label,
+              url: fingerprints[key] || d.fp_images?.[key] || photos[pKey] || enrolledUrl(i * 10 + k + 1),
+            };
+          }),
+          left: FINGER_LABELS.map((label, k) => {
+            const key = ["left_thumb", "left_index", "left_middle", "left_ring", "left_little"][k];
+            const pKey = ["fp_l1", "fp_l2", "fp_l3", "fp_l4", "fp_l5"][k];
+            return {
+              label,
+              url: fingerprints[key] || d.fp_images?.[key] || photos[pKey] || enrolledUrl(i * 10 + k + 6),
+            };
+          }),
+        };
+      });
     }
-    return SUBJECTS;
+    return [];
   }, [detainees]);
+
+  // Tu dong mo doi tuong dau tien khi tai danh sach lan dau
+  useEffect(() => {
+    if (openSub === null && subjectsList.length > 0) {
+      setOpenSub(subjectsList[0].id);
+    }
+  }, [subjectsList, openSub]);
 
   // ----- Ket qua doi sanh: chi co khi phien da co dau vet hien truong -----
   const rows = useMemo(() => {
@@ -250,8 +276,13 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
     setUploading(true);
     setErr("");
     try {
+      const activeCaseId = currentCaseId || session?.id || session?._id || "";
       for (const f of list) {
-        await api.createSceneTrace(f, { sessionId, source: "upload" });
+        await api.createSceneTrace(f, {
+          caseId: activeCaseId,
+          sessionId: activeCaseId,
+          source: "upload",
+        });
       }
       await load();
     } catch (ex) {
@@ -289,6 +320,21 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
     }
   };
 
+  // Phan tich lai toan bo dau vet cua vu an
+  const handleReanalyze = async () => {
+    setSpinning(true);
+    setErr("");
+    try {
+      const activeCaseId = currentCaseId || session?.id || session?._id || "";
+      await api.rematchSceneCase(activeCaseId);
+      await load();
+    } catch (ex) {
+      setErr(ex.message || t("scene.err.rematch") || "Lỗi khi phân tích lại đối sánh");
+    } finally {
+      setTimeout(() => setSpinning(false), 800);
+    }
+  };
+
 
   const from = rows.length ? (page - 1) * PAGE_SIZE + 1 : 0;
   const to = Math.min(page * PAGE_SIZE, rows.length);
@@ -313,7 +359,14 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
   const fullItem = full ? (traces.find((x) => x.id === full.id) || matchTraces.find((x) => x.id === full.id)) : null;
   if (fullItem) {
     return (
-        <SceneTraceFull item={fullItem} row={full.row} session={session} onBack={() => setFull(null)} />
+        <SceneTraceFull
+          item={fullItem}
+          row={full.row}
+          session={session}
+          detainees={detainees}
+          subjects={subjectsList}
+          onBack={() => setFull(null)}
+        />
     );
   }
 
@@ -342,14 +395,20 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
           </div>
         </div>
         <div className="smp-top-actions">
-          <button type="button" className="smp-btn-ghost" onClick={() => setSpinning(true)}>
+          <button
+            type="button"
+            className="smp-btn-ghost"
+            disabled={spinning}
+            onClick={handleReanalyze}
+            title={t("smp.reanalyze")}
+          >
             {/* onAnimationEnd de tren span, KHONG tren button: button co animation
                 btn-sweep tren ::after luc hover, event do bubble len button va se
                 tat spin som. */}
             <span className={"smp-ic" + (spinning ? " smp-ic-spin" : "")} onAnimationEnd={() => setSpinning(false)}>
               <IcReanalyze />
             </span>
-            {t("smp.reanalyze")}
+            {spinning ? (t("scene.analyzing") || "Đang phân tích...") : t("smp.reanalyze")}
           </button>
           <button
             type="button"
@@ -393,7 +452,7 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
         <SubjectPanel
           t={t}
           subjects={subjectsList}
-          openSub={openSub || subjectsList[0]?.id || ""}
+          openSub={openSub || ""}
           setOpenSub={setOpenSub}
           // ponytail: chi chan theo status (co trong payload san). Backend con chan
           // officer != user va role admin -> se bao 403 luc luu. Them officer vao
@@ -702,6 +761,7 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
         <SceneMatchReportModal
           session={session}
           items={traces}
+          rows={baseRows}
           onClose={() => setShowReport(false)}
         />
       )}
@@ -824,7 +884,7 @@ function SceneTracePanel({
             {uploading ? t("scene.uploading") : t("smp.trace.import")}
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff"
               multiple
               hidden
               disabled={uploading}

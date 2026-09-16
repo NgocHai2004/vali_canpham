@@ -4023,6 +4023,7 @@ const styles = `
 
   .sidebar {
     position: relative;
+    z-index: 999;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -4059,7 +4060,7 @@ const styles = `
     left: calc(100% + 10px);
     top: 50%;
     transform: translateY(-50%) translateX(-4px);
-    z-index: 60;
+    z-index: 99999;
     max-width: 240px;
     width: max-content;
     padding: 7px 11px;
@@ -4087,7 +4088,7 @@ const styles = `
     left: calc(100% + 4px);
     top: 50%;
     transform: translateY(-50%) translateX(-4px);
-    z-index: 61;
+    z-index: 100000;
     width: 7px;
     height: 7px;
     rotate: 45deg;
@@ -8143,6 +8144,9 @@ const styles = `
 
   /* Sidebar dark glass */
   .sidebar {
+    position: relative !important;
+    z-index: 999 !important;
+    overflow: visible !important;
     background:
       radial-gradient(circle at 50% -30%, rgba(22, 139, 255, .14), transparent 55%),
       linear-gradient(180deg, rgba(10, 26, 54, 0.9) 0%, rgba(6, 20, 42, 0.9) 100%) !important;

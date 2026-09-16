@@ -1251,30 +1251,46 @@ label.smp-drop.on {
   font-size: 13.5px;
 }
 
-/* % chia sẵn: cột vụ án rộng nhất vì tên là thứ cán bộ đọc để nhận ra hồ sơ.
-   Tổng 97% chứ không 100% vì cột mũi tên cuối là 40px cố định. */
+/* % chia sẵn: 7 cột cân đối, cột số lượng 12% có font chữ màu trắng nổi bật. */
 .scp-t th:nth-child(1) {
-  width: 29%;
+  width: 20%;
 }
 
 .scp-t th:nth-child(2) {
-  width: 17%;
+  width: 18%;
 }
 
 .scp-t th:nth-child(3) {
-  width: 15%;
+  width: 14%;
 }
 
 .scp-t th:nth-child(4) {
-  width: 15%;
+  width: 14%;
 }
 
 .scp-t th:nth-child(5) {
-  width: 9%;
+  width: 12%;
+  text-align: center;
 }
 
 .scp-t th:nth-child(6) {
-  width: 12%;
+  width: 10%;
+  text-align: left;
+}
+
+.scp-t th.scp-th-acts,
+.scp-t td.scp-acts {
+  width: 140px;
+  min-width: 140px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.scp-t th.scp-th-go,
+.scp-t td.scp-td-go {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
 }
 
 .scp-t thead th {
@@ -1337,10 +1353,30 @@ label.smp-drop.on {
 
 .scp-num {
   text-align: center;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+.scp-num .smp-badge {
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 13px;
+  background: rgba(34, 114, 232, 0.45);
+  border: 1px solid rgba(110, 168, 254, 0.4);
+  padding: 3px 10px;
+  border-radius: 999px;
+  display: inline-block;
+  min-width: 28px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .scp-t thead th:nth-child(5) {
   text-align: center;
+}
+
+.scp-t thead th:nth-child(6) {
+  text-align: left;
 }
 
 /* Đã đóng dùng chip xám: xanh #2272e8 là màu hành động của design nên để dành
@@ -1351,15 +1387,44 @@ label.smp-drop.on {
   border: 1px solid rgba(126, 147, 184, .26);
 }
 
-/* Cột cuối vừa đúng nút chevron, không ăn chỗ của các cột chữ. */
-.scp-t th:last-child,
-.scp-t td:last-child {
-  width: 40px;
+.scp-acts {
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.scp-acts-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.scp-acts .smp-icon-btn {
+  color: #9ab4d6;
+}
+
+.scp-acts .smp-icon-btn:hover {
+  color: #ffffff;
+  background: rgba(34, 114, 232, 0.25);
+  border-color: rgba(110, 168, 254, 0.4);
+}
+
+.scp-acts .smp-icon-btn.scp-danger:hover {
+  color: #ff6b6b;
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.scp-td-go {
+  text-align: center;
   padding-left: 0;
+  padding-right: 0;
 }
 
 .scp-go {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 34px;
@@ -1489,10 +1554,11 @@ label.smp-drop.on {
   --stf-blue: #4f9dff;
   --stf-dim: #8ea4c4;
   --stf-ok: #34d399;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 280px 1fr 1fr;
+  grid-auto-rows: auto;
+  gap: 10px;
+  padding: 6px 14px 12px;
   border-radius: 14px;
   border: 1px solid var(--stf-line);
   background: linear-gradient(180deg, rgba(16, 33, 58, .92), rgba(9, 19, 35, .92));
@@ -1503,14 +1569,6 @@ label.smp-drop.on {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  display: grid;
-  grid-template-columns: 280px 1fr 1fr;
-  grid-auto-rows: auto;
-  gap: 10px;
-  padding: 8px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--stf-line);
-  background: linear-gradient(180deg, rgba(16, 33, 58, .92), rgba(9, 19, 35, .92));
 }
 
 /* ---- Breadcrumb ---- */
@@ -1520,7 +1578,7 @@ label.smp-drop.on {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 0 2px 8px;
+  padding: 0 2px 6px;
   border-bottom: 1px solid var(--stf-line);
   flex: 0 0 auto;
 }
@@ -1621,9 +1679,9 @@ label.smp-drop.on {
 
 .stf-h {
   margin: 0;
-  padding-bottom: 9px;
+  padding-bottom: 10px;
   border-bottom: 1px solid #1b3355;
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 600;
   color: #e8eef8;
 }
@@ -1674,6 +1732,11 @@ label.smp-drop.on {
   object-fit: contain;
 }
 
+.stf-portrait-box .stf-latent-btn img {
+  object-fit: cover;
+  object-position: center;
+}
+
 .stf-portrait-empty {
   flex: 1;
   min-width: 0;
@@ -1685,7 +1748,7 @@ label.smp-drop.on {
   border: 1px dashed #2b4a72;
   background: rgba(8, 18, 32, 0.6);
   color: #7296c0;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   text-align: center;
   padding: 16px;
@@ -1696,34 +1759,42 @@ label.smp-drop.on {
 .stf-kv {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  justify-content: space-between;
+  flex: 1;
+  gap: 8px;
   margin-top: 10px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .stf-kv-row {
   display: grid;
-  grid-template-columns: 138px 1fr;
+  grid-template-columns: 148px 1fr;
   column-gap: 12px;
   align-items: center;
+  padding: 2px 0;
 }
 
 .stf-kv-spread .stf-kv-row {
-  grid-template-columns: 186px 1fr;
+  grid-template-columns: 196px 1fr;
 }
 
 .stf-k {
-  color: var(--stf-dim);
+  color: #9bb3d3;
+  font-size: 13.5px;
+  font-weight: 500;
 }
 
 .stf-v {
-  color: #e6eefb;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 500;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .stf-verdict {
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 700;
   letter-spacing: .4px;
 }
 
@@ -1755,20 +1826,21 @@ label.smp-drop.on {
 
 .stf-subject {
   grid-column: 3;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .stf-subject-info {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr) minmax(0, 1fr));
-  column-gap: 12px;
-  align-content: start;
+  column-gap: 16px;
+  align-content: space-between;
   flex: 1;
-  height: 0;
   min-height: 0;
   overflow-y: auto;
-  margin: 13px 0 0;
-  font-size: 12.5px;
+  margin: 10px 0 0;
+  font-size: 13.5px;
 }
 
 .stf-subject-row {
@@ -1776,9 +1848,10 @@ label.smp-drop.on {
   grid-column: span 2;
   grid-template-columns: subgrid;
   gap: 12px;
-  padding: 5px 0;
+  padding: 7px 0;
   border-bottom: 1px solid #1b3355;
   line-height: 1.4;
+  align-items: center;
 }
 
 .stf-subject-row:last-child {
@@ -1791,13 +1864,17 @@ label.smp-drop.on {
 }
 
 .stf-subject-row dt {
-  color: var(--stf-dim);
+  color: #9bb3d3;
+  font-size: 13px;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
 .stf-subject-row dd {
   margin: 0;
-  color: #e6eefb;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
@@ -1866,7 +1943,7 @@ label.smp-drop.on {
 
 .stf-file-img img {
   width: 100%;
-  height: 94px;
+  height: 110px;
   object-fit: cover;
   display: block;
 }
@@ -3858,11 +3935,18 @@ textarea.smp-modal-in {
 /* Hang 1: ke ngan giua cac dong. Padding thay cho gap -> duong ke chay lien
    het chieu ngang panel (design ve border-bottom tren ca 2 o cua moi hang). */
 .stf-top .stf-kv {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
   gap: 0;
 }
 
 .stf-top .stf-kv-row {
-  padding: 5px 0;
+  flex: 1;
+  display: grid;
+  align-items: center;
+  padding: 6px 0;
   border-bottom: 1px solid #16304f;
 }
 

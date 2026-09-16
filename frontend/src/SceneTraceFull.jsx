@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { api } from "./api";
 import { useI18n } from "./i18n";
 import { demoImage, demoMatch, minutiae } from "./sceneDemo";
 import { SUBJECTS } from "./sceneMatchDemo";
@@ -11,10 +12,12 @@ function toPercentageDots(points = [], width = 800, height = 750) {
   if (!points || !points.length) return [];
   const w = width > 0 ? width : 800;
   const h = height > 0 ? height : 750;
-  const isPixel = points.some((p) => p.x > 100 || p.y > 100);
   return points.map((p, idx) => {
-    const xPct = isPixel ? (p.x / w) * 100 : p.x;
-    const yPct = isPixel ? (p.y / h) * 100 : p.y;
+    const rawX = p.x != null ? p.x : (p.x_pixel != null ? p.x_pixel : (Array.isArray(p) ? p[0] : 0));
+    const rawY = p.y != null ? p.y : (p.y_pixel != null ? p.y_pixel : (Array.isArray(p) ? p[1] : 0));
+    const isPixel = rawX > 100 || rawY > 100;
+    const xPct = isPixel ? (rawX / w) * 100 : rawX;
+    const yPct = isPixel ? (rawY / h) * 100 : rawY;
     return {
       x: Math.max(0, Math.min(100, +xPct.toFixed(2))),
       y: Math.max(0, Math.min(100, +yPct.toFixed(2))),
@@ -117,43 +120,45 @@ async function downloadImageWithDots(imgUrl, dots, filename) {
 }
 
 // Trang chi tiết 1 dấu vết — mở từ 1 dòng bảng KẾT QUẢ ĐỐI SÁNH.
-export default function SceneTraceFull({ item, row, session, onBack }) {
+export default function SceneTraceFull({ item, row = {}, session, detainees = [], subjects = [], onBack }) {
   const { t, formatDateTime } = useI18n();
   const [zoom, setZoom] = useState(null);
+  const [fetchedDetainee, setFetchedDetainee] = useState(null);
 
-  if (!item || !row) return null;
+  if (!item) return null;
+  const safeRow = row || {};
 
-  const m = demoMatch(item, row);
+  const m = demoMatch(item, safeRow);
   const seq = item.seq ?? 1;
   const code = traceCode(item);
 
   // 1. Ảnh vết hiện trường thật
-  const latentUrl = item.url || row.trace_url || row.url || demoImage(seq, "raw", "latent");
+  const latentUrl = item.url || safeRow.trace_url || safeRow.url || demoImage(seq, "raw", "latent");
   
   // 2. Ảnh đối sánh thật (từ row hoặc detainee)
-  const candidateUrl = row.candidate_url || row.fp_url || demoImage(seq, "raw", "candidate");
+  const candidateUrl = safeRow.candidate_url || safeRow.fp_url || demoImage(seq, "raw", "candidate");
 
-  // 3. Toạ độ điểm đặc trưng vết hiện trường (từ item.landmark hoặc row.latent_landmarks)
-  const latentPoints = row.latent_landmarks?.points || item.landmark?.points || [];
-  const latentW = row.latent_dim?.width || item.img_width || 800;
-  const latentH = row.latent_dim?.height || item.img_height || 750;
+  // 3. Toạ độ điểm đặc trưng vết hiện trường (từ item.landmark hoặc safeRow.latent_landmarks)
+  const latentPoints = safeRow.latent_landmarks?.points || item.landmark?.points || (Array.isArray(item.landmark) ? item.landmark : []) || [];
+  const latentW = safeRow.latent_dim?.width || item.img_width || 800;
+  const latentH = safeRow.latent_dim?.height || item.img_height || 750;
   const latentDots = useMemo(() => {
     if (latentPoints.length > 0) {
       return toPercentageDots(latentPoints, latentW, latentH);
     }
-    return toPercentageDots(minutiae(seq, m.found || 18), 800, 750);
-  }, [latentPoints, latentW, latentH, seq, m.found]);
+    return toPercentageDots(minutiae(seq, 68, false), 800, 750);
+  }, [latentPoints, latentW, latentH, seq]);
 
-  // 4. Toạ độ điểm đặc trưng ảnh đối sánh (từ row.candidate_landmarks)
-  const candidatePoints = row.candidate_landmarks?.points || [];
-  const candidateW = row.candidate_dim?.width || 800;
-  const candidateH = row.candidate_dim?.height || 750;
+  // 4. Toạ độ điểm đặc trưng ảnh đối sánh (từ safeRow.candidate_landmarks)
+  const candidatePoints = safeRow.candidate_landmarks?.points || (Array.isArray(safeRow.candidate_landmarks) ? safeRow.candidate_landmarks : []) || [];
+  const candidateW = safeRow.candidate_dim?.width || 800;
+  const candidateH = safeRow.candidate_dim?.height || 750;
   const candidateDots = useMemo(() => {
     if (candidatePoints.length > 0) {
       return toPercentageDots(candidatePoints, candidateW, candidateH);
     }
-    return toPercentageDots(minutiae(seq, m.found || 18), 800, 750);
-  }, [candidatePoints, candidateW, candidateH, seq, m.found]);
+    return toPercentageDots(minutiae(seq, 72, true), 800, 750);
+  }, [candidatePoints, candidateW, candidateH, seq]);
 
   const files = useMemo(() => [
     {
@@ -198,14 +203,14 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
     },
   ], [latentUrl, candidateUrl, latentDots, candidateDots]);
 
-  const matched = (row.verdict || m.verdict) === "match";
+  const matched = (safeRow.verdict || m.verdict) === "match";
   const fmt = (v) => (formatDateTime ? formatDateTime(v) : v);
 
   const foundCount = latentDots.length || m.found;
   const totalCount = candidateDots.length || m.total;
-  const percentStr = row.pct || `${m.percent}%`;
-  const fingerLabel = row.finger ? t(row.finger) : t(m.finger);
-  const subjectLabel = row.name ? `Nghi phạm: ${row.name}${row.cccd && row.cccd !== "—" ? ` (CCCD ${row.cccd})` : ""}` : m.subject;
+  const percentStr = safeRow.pct || `${m.percent}%`;
+  const fingerLabel = safeRow.finger ? t(safeRow.finger) : t(m.finger);
+  const subjectLabel = safeRow.name ? `Nghi phạm: ${safeRow.name}${safeRow.cccd && safeRow.cccd !== "—" ? ` (CCCD ${safeRow.cccd})` : ""}` : m.subject;
 
   // Thông tin dấu vết: 6 field đầu từ DB
   const info = [
@@ -223,12 +228,133 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
     [t("scene.match.finger"), fingerLabel],
     [t("scene.match.subject"), subjectLabel],
     [t("scene.match.place"), session?.location || m.place],
-    [t("scene.match.at"), row.time || m.analyzed_at],
+    [t("scene.match.at"), safeRow.time || m.analyzed_at],
     [t("scene.match.by"), item.created_by || m.analyst],
   ];
 
-  const subject = { ...SUBJECTS.find((s) => s.cccd === row.cccd || s.name === row.name), ...row };
-  const portraitUrl = subject.portrait_cropped_url || subject.portrait_original_url || subject.photos?.portrait_cropped || subject.photos?.portrait || subject.photos?.front || subject.avatar || subject.avatar_url || subject.photo || row.portrait_url || row.photo || "";
+  // Tìm đối tượng khớp trực tiếp từ props
+  const directDetainee = useMemo(() => {
+    const list = [
+      ...(Array.isArray(detainees) ? detainees : []),
+      ...(Array.isArray(session?.detainees) ? session.detainees : []),
+    ];
+    const rowName = (safeRow.name || "").trim().toLowerCase();
+    const rowCccd = (safeRow.cccd || "").trim();
+    const rowDetaineeId = safeRow.detainee_id || safeRow.raw?.detainee_id || safeRow.raw?.suspect_id || "";
+
+    if (rowDetaineeId) {
+      const byId = list.find((d) => (d.id && d.id === rowDetaineeId) || (d._id && d._id === rowDetaineeId));
+      if (byId) return byId;
+    }
+    if (rowCccd && rowCccd !== "—") {
+      const byCccd = list.find((d) => 
+        (d.cccd_number && d.cccd_number === rowCccd) ||
+        (d.cccd && d.cccd === rowCccd) ||
+        (d.personal_id && d.personal_id === rowCccd)
+      );
+      if (byCccd) return byCccd;
+    }
+    if (rowName) {
+      const byName = list.find((d) => 
+        (d.full_name && d.full_name.trim().toLowerCase() === rowName) ||
+        (d.name && d.name.trim().toLowerCase() === rowName)
+      );
+      if (byName) return byName;
+    }
+    return list[0] || null;
+  }, [detainees, session, safeRow]);
+
+  const matchedSub = useMemo(() => {
+    const list = Array.isArray(subjects) ? subjects : [];
+    const rowName = (safeRow.name || "").trim().toLowerCase();
+    const rowCccd = (safeRow.cccd || "").trim();
+    return list.find((s) => 
+      (s.cccd && rowCccd && s.cccd === rowCccd) ||
+      (s.name && rowName && s.name.trim().toLowerCase() === rowName)
+    ) || list[0] || null;
+  }, [subjects, safeRow]);
+
+  // Nếu chưa có detainee từ props thì fetch từ API
+  useEffect(() => {
+    if (directDetainee) return;
+    let cancel = false;
+    const fetchSuspect = async () => {
+      try {
+        if (safeRow.detainee_id) {
+          const d = await api.getDetainee(safeRow.detainee_id).catch(() => null);
+          if (d && !cancel) { setFetchedDetainee(d); return; }
+        }
+        if (safeRow.cccd && safeRow.cccd !== "—") {
+          const res = await api.checkCccd(safeRow.cccd).catch(() => null);
+          if (res?.detainee && !cancel) { setFetchedDetainee(res.detainee); return; }
+          const byPid = await api.getDetaineeByPersonalId(safeRow.cccd).catch(() => null);
+          if (byPid && !cancel) { setFetchedDetainee(byPid); return; }
+        }
+        const caseId = session?.id || session?.case_id || "";
+        if (caseId) {
+          const listRes = await api.listDetainees({ case_id: caseId }).catch(() => null);
+          if (listRes?.items?.length && !cancel) {
+            const rowName = (safeRow.name || "").trim().toLowerCase();
+            const rowCccd = (safeRow.cccd || "").trim();
+            const found = listRes.items.find((d) => 
+              (rowName && ((d.full_name && d.full_name.toLowerCase() === rowName) || (d.name && d.name.toLowerCase() === rowName))) ||
+              (rowCccd && (d.cccd_number === rowCccd || d.cccd === rowCccd || d.personal_id === rowCccd))
+            ) || listRes.items[0];
+            if (found) { setFetchedDetainee(found); return; }
+          }
+        }
+        const allRes = await api.listDetainees().catch(() => null);
+        if (allRes?.items?.length && !cancel) {
+          const rowName = (safeRow.name || "").trim().toLowerCase();
+          const rowCccd = (safeRow.cccd || "").trim();
+          const found = allRes.items.find((d) => 
+            (rowName && ((d.full_name && d.full_name.toLowerCase() === rowName) || (d.name && d.name.toLowerCase() === rowName))) ||
+            (rowCccd && (d.cccd_number === rowCccd || d.cccd === rowCccd || d.personal_id === rowCccd))
+          ) || allRes.items[0];
+          if (found) { setFetchedDetainee(found); return; }
+        }
+      } catch (e) {
+        console.warn("[SceneTraceFull] could not fetch suspect details", e);
+      }
+    };
+    fetchSuspect();
+    return () => { cancel = true; };
+  }, [directDetainee, safeRow, session]);
+
+  const activeDetainee = directDetainee || fetchedDetainee;
+  const demoSubject = SUBJECTS.find((s) => s.cccd === safeRow.cccd || s.name === safeRow.name) || SUBJECTS[0] || {};
+  const subject = {
+    ...demoSubject,
+    ...(matchedSub || {}),
+    ...(activeDetainee || {}),
+    ...(activeDetainee?.photos || {}),
+    ...safeRow,
+  };
+
+  const portraitUrl =
+    activeDetainee?.portrait ||
+    activeDetainee?.portrait_cropped_url ||
+    activeDetainee?.portrait_original_url ||
+    activeDetainee?.photos?.portrait_front ||
+    activeDetainee?.photos?.portrait_cropped ||
+    activeDetainee?.photos?.portrait ||
+    activeDetainee?.photos?.cccd_front ||
+    activeDetainee?.photo_url ||
+    activeDetainee?.photo ||
+    matchedSub?.photo ||
+    matchedSub?.portrait ||
+    matchedSub?.portrait_cropped_url ||
+    matchedSub?.portrait_original_url ||
+    safeRow.portrait_url ||
+    safeRow.portrait ||
+    safeRow.photo ||
+    safeRow.raw?.portrait ||
+    safeRow.raw?.portrait_cropped_url ||
+    safeRow.raw?.photos?.portrait_front ||
+    safeRow.raw?.photos?.cccd_front ||
+    subject?.portrait ||
+    subject?.photo ||
+    "";
   const gender = subject.gender || subject.sex;
   const subjectInfo = [
     ["detainee.field.full_name", subject.full_name || subject.name],
@@ -280,8 +406,6 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
           </button>
         </div>
       </div>
-
-      <p className="stf-notice">{t("scene.demo.notice")}</p>
 
       {/* Ảnh chính diện của đối tượng | Thông tin dấu vết | Kết quả đối sánh */}
       <div className="stf-top">

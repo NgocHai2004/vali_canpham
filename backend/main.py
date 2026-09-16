@@ -970,11 +970,18 @@ async def list_detainees(
     q: str = Query("", alias="q"),
     cell_code: str = Query(""),
     gender: str = Query(""),
+    case_id: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
     user: dict = Depends(get_current_user),
 ):
     filt = _scope_filter(user)
+    if case_id:
+        c_oid = _oid(case_id)
+        if c_oid:
+            filt["case_id"] = {"$in": [c_oid, case_id, str(c_oid)]}
+        else:
+            filt["case_id"] = case_id
     if q:
         rx = re.escape(q.strip())
         filt["$or"] = [
@@ -1440,16 +1447,23 @@ async def transfer_detainee(det_id: str, body: TransferBody, request: Request, u
 # bỏ "phiên đang mở của tôi". Ai cũng thao tác được trên vụ đang điều tra; admin
 # giữ vai giám sát nên chỉ xem.
 async def _case_detainee_counts(case_ids: list) -> dict:
-    """Đếm hồ sơ theo vụ án bằng 1 lượt aggregate.
-
-    Trước đây work_sessions giữ sẵn `detainee_count` và $inc mỗi lần thêm/xoá —
-    dễ lệch khi hồ sơ bị xoá ở chỗ khác. Giờ đếm động.
-    """
+    """Đếm hồ sơ theo vụ án bằng 1 lượt aggregate."""
     if not case_ids:
         return {}
+    all_ids = []
+    for cid in case_ids:
+        if cid:
+            if cid not in all_ids:
+                all_ids.append(cid)
+            scid = str(cid)
+            if scid not in all_ids:
+                all_ids.append(scid)
+            oid = _oid(cid)
+            if oid and oid not in all_ids:
+                all_ids.append(oid)
     out: dict = {}
     cursor = db.detainees.aggregate([
-        {"$match": {"case_id": {"$in": case_ids}}},
+        {"$match": {"case_id": {"$in": all_ids}}},
         {"$group": {"_id": "$case_id", "n": {"$sum": 1}}},
     ])
     async for row in cursor:
@@ -2610,16 +2624,20 @@ async def list_scene_traces(
         _s_scene(d)
         async for d in db.scene_traces.find({"case_id": case_doc["_id"]}).sort([("seq", 1)])
     ]
+    case_info = {
+        "id": str(case_doc["_id"]),
+        "code": case_doc.get("code", ""),
+        "name": case_doc.get("name", ""),
+        "case_name": case_doc.get("name", ""),
+        "location": case_doc.get("location", ""),
+        "status": case_doc.get("status", ""),
+        "officer_name": case_doc.get("officer_name", ""),
+        "occurred_at": (case_doc.get("occurred_at").isoformat()
+                        if isinstance(case_doc.get("occurred_at"), datetime) else None),
+    }
     return {
-        "case": {
-            "id": str(case_doc["_id"]),
-            "code": case_doc.get("code", ""),
-            "name": case_doc.get("name", ""),
-            "location": case_doc.get("location", ""),
-            "status": case_doc.get("status", ""),
-            "occurred_at": (case_doc.get("occurred_at").isoformat()
-                            if isinstance(case_doc.get("occurred_at"), datetime) else None),
-        },
+        "case": case_info,
+        "session": case_info,
         "items": items,
         "total": len(items),
     }
@@ -2974,15 +2992,21 @@ async def list_scene_matches(
         det = detainees.get(_oid(it.get("detainee_id")))
         if det:
             finger_code = it.get("finger_code", "")
-            finger_key = FP_KEY_BY_CODE.get(finger_code, "")
+            code_by_key = {v: k for k, v in FP_KEY_BY_CODE.items()}
+            if finger_code in code_by_key:
+                std_code = code_by_key[finger_code]
+                finger_key = finger_code
+            else:
+                std_code = finger_code
+                finger_key = FP_KEY_BY_CODE.get(finger_code, finger_code)
             photos = det.get("photos") or {}
-            cand_url = photos.get(finger_key, "")
+            cand_url = photos.get(finger_key) or photos.get(std_code) or ""
             it["candidate_url"] = cand_url
             fp_lms = det.get("fp_landmarks") or {}
-            lm_data = fp_lms.get(finger_code) or {}
+            lm_data = fp_lms.get(std_code) or fp_lms.get(finger_key) or {}
             if (not isinstance(lm_data, dict) or not (lm_data.get("landmark") or {}).get("points")) and cand_url:
                 try:
-                    out = await _feature_of_image(cand_url, finger_code=finger_code, type_=hbie_service.TYPE_ROLL)
+                    out = await _feature_of_image(cand_url, finger_code=std_code, type_=hbie_service.TYPE_ROLL)
                     if out and out.get("landmark"):
                         lm_data = {
                             "landmark": out["landmark"],
@@ -2991,12 +3015,21 @@ async def list_scene_matches(
                         }
                         await db.detainees.update_one(
                             {"_id": det["_id"]},
-                            {"$set": {f"fp_landmarks.{finger_code}": lm_data}}
+                            {"$set": {
+                                f"fp_landmarks.{std_code}": lm_data,
+                                f"fp_landmarks.{finger_key}": lm_data,
+                            }}
                         )
                 except Exception:
                     pass
             if isinstance(lm_data, dict) and "landmark" in lm_data:
                 it["candidate_landmarks"] = lm_data.get("landmark") or {}
+                it["candidate_dim"] = {
+                    "width": lm_data.get("img_width", 0),
+                    "height": lm_data.get("img_height", 0),
+                }
+            elif isinstance(lm_data, dict) and "points" in lm_data:
+                it["candidate_landmarks"] = lm_data
                 it["candidate_dim"] = {
                     "width": lm_data.get("img_width", 0),
                     "height": lm_data.get("img_height", 0),
@@ -3044,6 +3077,50 @@ async def rematch_scene_trace(
     await _log(request, user, "match", "scene_trace", f"#{doc.get('seq')}",
                ref_id=trace_id, case_id=doc.get("case_id"), data=res)
     return res
+
+
+@app.post("/api/scene/rematch")
+async def rematch_scene_case(
+    case_id: Optional[str] = Query(default=None),
+    request: Request = None,
+    user: dict = Depends(get_current_user),
+):
+    """Đối sánh lại TOÀN BỘ dấu vết trong vụ án với mọi đối tượng nghi phạm."""
+    if not hbie_service.FEATURE_HBIE_MATCH:
+        raise HTTPException(503, "Tính năng đối sánh HBIE đang tắt (FEATURE_HBIE_MATCH=0).")
+    case_doc = await _scene_case_or_400(case_id)
+    matched_count = 0
+    traces_count = 0
+    errors = []
+    async for tr in db.scene_traces.find({"case_id": case_doc["_id"]}).sort("seq", 1):
+        traces_count += 1
+        try:
+            res = await _match_trace(tr, case_doc)
+            matched_count += res.get("count", 0)
+        except Exception as e:
+            errors.append(f"Dấu vết #{tr.get('seq')}: {e}")
+            await db.scene_traces.update_one(
+                {"_id": tr["_id"]},
+                {"$set": {"match_status": "error", "match_error": str(e)[:300], "matched_at": datetime.utcnow()}},
+            )
+    await _log(request, user, "match", "scene_case", case_doc.get("code", ""),
+               ref_id=str(case_doc["_id"]), case_id=case_doc["_id"],
+               data={"traces_count": traces_count, "matched_count": matched_count, "errors": errors})
+    return {
+        "ok": True,
+        "traces_count": traces_count,
+        "matched_count": matched_count,
+        "errors": errors,
+    }
+
+
+@app.post("/api/scene/cases/{case_id}/match")
+async def rematch_scene_case_by_id(
+    case_id: str,
+    request: Request = None,
+    user: dict = Depends(get_current_user),
+):
+    return await rematch_scene_case(case_id=case_id, request=request, user=user)
 
 
 @app.get("/api/scene/hbie/health")

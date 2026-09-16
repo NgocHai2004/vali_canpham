@@ -175,18 +175,19 @@ export default function CasesPage({ role = "user", onPick, onOpenCase }) {
             <thead>
               <tr>
                 <th scope="col">{t("case.col.case")}</th>
+                <th scope="col">{t("case.col.officer")}</th>
                 <th scope="col" className="scp-wide-only">{t("case.col.location")}</th>
                 <th scope="col" className="scp-wide-only">{t("case.col.occurred_at")}</th>
                 <th scope="col">{t("case.col.detainees")}</th>
                 <th scope="col">{t("case.status")}</th>
-                <th scope="col"><span className="scp-sr">{t("case.col.actions")}</span></th>
+                <th scope="col" className="scp-th-acts">{t("case.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {/* Hàng giả giữ đúng chiều cao bảng nên lúc data về không giật. */}
               {loading && SK.map((i) => (
                 <tr className="scp-sk" key={i} aria-hidden="true">
-                  <td colSpan={6}><span /></td>
+                  <td colSpan={7}><span /></td>
                 </tr>
               ))}
 
@@ -201,14 +202,16 @@ export default function CasesPage({ role = "user", onPick, onOpenCase }) {
                   <tr key={c.id} className={open ? "on" : ""} onClick={go}>
                     <td>
                       <div className="scp-name smp-ellip" title={name}>{name}</div>
-                      <div className="scp-sub2 smp-ellip">
-                        <span className="mono">{c.code}</span>
-                        {c.officer_name && <span> · {c.officer_rank ? `${c.officer_rank} ` : ""}{c.officer_name}</span>}
-                      </div>
+                      <div className="scp-sub2 mono smp-ellip">{c.code}</div>
                       {/* Màn hẹp bỏ 2 cột phụ nên gộp vào đây — ẩn hẳn dữ liệu
                           thì cán bộ không còn cách nào xem được. */}
                       <div className="scp-sub2 scp-narrow-only smp-ellip">
                         {(c.location || "—") + " · " + formatDateTime(c.occurred_at)}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="smp-ellip" title={`${c.officer_rank ? `${c.officer_rank} ` : ""}${c.officer_name || ""}`}>
+                        {c.officer_rank ? `${c.officer_rank} ` : ""}{c.officer_name || "—"}
                       </div>
                     </td>
                     <td className="scp-wide-only">
@@ -234,49 +237,51 @@ export default function CasesPage({ role = "user", onPick, onOpenCase }) {
                     {/* stopPropagation ở cả ô: bấm nút hành động không được kéo
                         theo click-mở-vụ của cả hàng. */}
                     <td className="scp-acts" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="smp-icon-btn"
-                        onClick={() => onOpenCase && onOpenCase(c.id)}
-                        aria-label={t("case.act.detail", { name })}
-                        title={t("case.act.detail_short")}
-                      >
-                        <IcChevRight />
-                      </button>
-                      {!isAdmin && open && (
-                        <>
-                          <button
-                            type="button"
-                            className="smp-icon-btn"
-                            disabled={busy}
-                            onClick={() => setForm(c)}
-                            aria-label={t("case.act.edit", { name })}
-                            title={t("common.edit")}
-                          >
-                            <IcPencil />
-                          </button>
-                          <button
-                            type="button"
-                            className="smp-icon-btn"
-                            disabled={busy}
-                            onClick={() => closeCase(c)}
-                            aria-label={t("case.act.close", { name })}
-                            title={t("case.act.close_short")}
-                          >
-                            <IcTick />
-                          </button>
-                          <button
-                            type="button"
-                            className="smp-icon-btn scp-danger"
-                            disabled={busy}
-                            onClick={() => removeCase(c)}
-                            aria-label={t("case.act.delete", { name })}
-                            title={t("common.delete")}
-                          >
-                            <IcTrash />
-                          </button>
-                        </>
-                      )}
+                      <div className="scp-acts-wrap">
+                        <button
+                          type="button"
+                          className="smp-icon-btn"
+                          onClick={() => onOpenCase && onOpenCase(c.id)}
+                          aria-label={t("case.act.detail", { name })}
+                          title={t("case.act.detail_short")}
+                        >
+                          <IcChevRight />
+                        </button>
+                        {!isAdmin && open && (
+                          <>
+                            <button
+                              type="button"
+                              className="smp-icon-btn"
+                              disabled={busy}
+                              onClick={() => setForm(c)}
+                              aria-label={t("case.act.edit", { name })}
+                              title={t("common.edit")}
+                            >
+                              <IcPencil />
+                            </button>
+                            <button
+                              type="button"
+                              className="smp-icon-btn"
+                              disabled={busy}
+                              onClick={() => closeCase(c)}
+                              aria-label={t("case.act.close", { name })}
+                              title={t("case.act.close_short")}
+                            >
+                              <IcTick />
+                            </button>
+                            <button
+                              type="button"
+                              className="smp-icon-btn scp-danger"
+                              disabled={busy}
+                              onClick={() => removeCase(c)}
+                              aria-label={t("case.act.delete", { name })}
+                              title={t("common.delete")}
+                            >
+                              <IcTrash />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

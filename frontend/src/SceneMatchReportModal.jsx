@@ -25,10 +25,12 @@ function toPercentageDots(points = [], width = 800, height = 750) {
   if (!points || !points.length) return [];
   const w = width > 0 ? width : 800;
   const h = height > 0 ? height : 750;
-  const isPixel = points.some((p) => p.x > 100 || p.y > 100);
   return points.map((p, idx) => {
-    const xPct = isPixel ? (p.x / w) * 100 : p.x;
-    const yPct = isPixel ? (p.y / h) * 100 : p.y;
+    const rawX = p.x != null ? p.x : (p.x_pixel != null ? p.x_pixel : (Array.isArray(p) ? p[0] : 0));
+    const rawY = p.y != null ? p.y : (p.y_pixel != null ? p.y_pixel : (Array.isArray(p) ? p[1] : 0));
+    const isPixel = rawX > 100 || rawY > 100;
+    const xPct = isPixel ? (rawX / w) * 100 : rawX;
+    const yPct = isPixel ? (rawY / h) * 100 : rawY;
     return {
       x: Math.max(0, Math.min(100, +xPct.toFixed(2))),
       y: Math.max(0, Math.min(100, +yPct.toFixed(2))),
@@ -85,11 +87,11 @@ export const SceneReportContent = forwardRef(function SceneReportContent(
       const lPts = singleMatch.latent_landmarks?.points || singleMatch.landmark?.points || [];
       const lDots = lPts.length > 0
         ? toPercentageDots(lPts, singleMatch.latent_dim?.width || 800, singleMatch.latent_dim?.height || 750)
-        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+        : toPercentageDots(minutiae(seq, 18, false), 800, 750);
       const cPts = singleMatch.candidate_landmarks?.points || [];
       const cDots = cPts.length > 0
         ? toPercentageDots(cPts, singleMatch.candidate_dim?.width || 800, singleMatch.candidate_dim?.height || 750)
-        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+        : toPercentageDots(minutiae(seq, 18, true), 800, 750);
       const candUrl = singleMatch.candidate_url || singleMatch.url || enrolledUrl(1);
       return [
         {
@@ -124,16 +126,16 @@ export const SceneReportContent = forwardRef(function SceneReportContent(
       const refCodeStr = `${subjName}_${fingerName}`;
       
       // Ảnh 03: Vết hiện trường đã xử lý đặc trưng
-      const lPts = tr.landmark?.points || tr.latent_landmarks?.points || mRow.latent_landmarks?.points || [];
+      const lPts = tr.landmark?.points || tr.latent_landmarks?.points || mRow.latent_landmarks?.points || (Array.isArray(tr.landmark) ? tr.landmark : []) || [];
       const lDots = lPts.length > 0
         ? toPercentageDots(lPts, tr.img_width || mRow.latent_dim?.width || 800, tr.img_height || mRow.latent_dim?.height || 750)
-        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+        : toPercentageDots(minutiae(seq, 68, false), 800, 750);
       
       // Ảnh 04: Ảnh đối sánh đã xử lý đặc trưng
-      const cPts = mRow.candidate_landmarks?.points || [];
+      const cPts = mRow.candidate_landmarks?.points || (Array.isArray(mRow.candidate_landmarks) ? mRow.candidate_landmarks : []) || [];
       const cDots = cPts.length > 0
         ? toPercentageDots(cPts, mRow.candidate_dim?.width || 800, mRow.candidate_dim?.height || 750)
-        : toPercentageDots(minutiae(seq, foundCount), 800, 750);
+        : toPercentageDots(minutiae(seq, 72, true), 800, 750);
       const candUrl = mRow.candidate_url || tr.candidate_url || enrolledUrl(seq);
 
       return {

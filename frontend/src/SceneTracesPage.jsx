@@ -99,7 +99,8 @@ export default function SceneTracesPage({ go }) {
     setBusy(true);
     setErr("");
     try {
-      await api.createSceneTrace(file, { sessionId: session?.id, source });
+      const activeCaseId = session?.id || session?._id || "";
+      await api.createSceneTrace(file, { caseId: activeCaseId, sessionId: activeCaseId, source });
       await load();
     } catch (ex) {
       setErr(ex.message || t("scene.err.upload"));

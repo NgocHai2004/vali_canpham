@@ -3043,6 +3043,22 @@ textarea.input {
 }
 
 /* ---------- Sidebar ---------- */
+.sidebar {
+  position: relative !important;
+  z-index: 999 !important;
+  overflow: visible !important;
+}
+
+.nav-item[data-tip]::before,
+.security-card[data-tip]::before {
+  z-index: 99999 !important;
+}
+
+.nav-item[data-tip]::after,
+.security-card[data-tip]::after {
+  z-index: 100000 !important;
+}
+
 .side-nav {
   padding: 18px 14px 18px;
   gap: 3px;

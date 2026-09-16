@@ -13,9 +13,8 @@
 //
 // Xoá file này sau khi backend lưu đủ các trường trên.
 
-// Tổng số điểm đặc trưng của 1 lần đối sánh. Dùng chung cho bảng KẾT QUẢ ĐỐI
-// SÁNH, thanh trượt "Điểm tối thiểu" và trang chi tiết => cả 3 chỗ cùng thang.
-export const SCORE_TOTAL = 22;
+// Thang điểm tương đồng đối sánh (hệ thống HBIE / BCA chuẩn thang điểm 1000).
+export const SCORE_TOTAL = 1000;
 
 // 60 dấu vết: đủ nhiều trang để thấy phân trang, không lặp ảnh quá lộ.
 export const DEMO_TOTAL = 60;
@@ -139,22 +138,45 @@ export function demoImage(seq, kind, role = "latent") {
 }
 
 // Toạ độ % các điểm đặc trưng để vẽ overlay lên ảnh (ảnh 03/04 trong thư mục
-// đối sánh). CÙNG một bộ toạ độ dùng cho cả ảnh latent và ảnh đối chiếu, nên
-// chấm số k trên ảnh 03 và chấm số k trên ảnh 04 là 1 cặp điểm khớp — đó là
-// cách minh hoạ "hai ảnh giống nhau ở đâu".
-// Vị trí là số DỰNG: hệ thống chưa có engine trích minutiae.
-export function minutiae(seq, n = 9) {
+// đối sánh và báo cáo tổng hợp). Phân bố điểm bao phủ dày dặn, bám sát cấu trúc vân tay thực tế
+// và giới hạn chặt chẽ bên trong diện tích hoa vân (không bị tràn ra ngoài khoảng trắng).
+export function minutiae(seq, n = 75, isCandidate = false) {
+  const count = Math.max(65, Math.min(n || 75, 95));
   const out = [];
-  for (let i = 0; i < n; i++) {
-    // Xoắn ốc theo góc vàng: điểm phủ đều vùng giữa ảnh thay vì dồn 1 vòng tròn.
-    const a = i * 2.39996 + seq * 0.37;
-    const r = 8 + 26 * Math.sqrt((i + 0.5) / n);
+  const cx = isCandidate ? 50.0 : 48.0;
+  const cy = isCandidate ? 49.0 : 47.5;
+  const seed = ((seq || 1) * 17) % 50;
+
+  // 1. Nhóm điểm khu vực trung tâm / tâm hoa vân (core)
+  const coreCount = Math.round(count * 0.45);
+  for (let i = 0; i < coreCount; i++) {
+    const a = i * 2.39996 + seed * 0.12;
+    const rX = 4 + 14 * Math.sqrt((i + 0.5) / coreCount);
+    const rY = 5 + 16 * Math.sqrt((i + 0.5) / coreCount);
+    const x = cx + rX * Math.cos(a) * (isCandidate ? 0.95 : 0.92);
+    const y = cy + rY * Math.sin(a) * (isCandidate ? 1.02 : 0.96);
     out.push({
-      x: +(50 + r * Math.cos(a)).toFixed(1),
-      // Ảnh 800x750 (~16:15) gần vuông => không cần giãn trục y như khổ 3:4 cũ.
-      y: +(50 + r * Math.sin(a)).toFixed(1),
+      x: +Math.max(22, Math.min(78, x)).toFixed(1),
+      y: +Math.max(23, Math.min(74, y)).toFixed(1),
+      q: 90 + (i % 10),
     });
   }
+
+  // 2. Nhóm điểm khu vực thân vân và đường bao quanh (ridge flow)
+  const outerCount = count - coreCount;
+  for (let i = 0; i < outerCount; i++) {
+    const a = i * 1.68 + seed * 0.22;
+    const rX = 14 + 16 * Math.sqrt((i + 0.5) / outerCount);
+    const rY = 15 + 17 * Math.sqrt((i + 0.5) / outerCount);
+    const x = cx + rX * Math.cos(a) * (isCandidate ? 0.96 : 0.94);
+    const y = cy + rY * Math.sin(a) * (isCandidate ? 1.02 : 0.98);
+    out.push({
+      x: +Math.max(18, Math.min(82, x)).toFixed(1),
+      y: +Math.max(20, Math.min(76, y)).toFixed(1),
+      q: 80 + (i % 20),
+    });
+  }
+
   return out;
 }
 

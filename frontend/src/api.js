@@ -314,10 +314,11 @@ export const api = {
   ),
   // source: "camera" (chụp tại chỗ) | "upload" (chọn file). Ảnh do máy ngoài
   // bắn sang đi qua /api/scene/push nên không có ở đây.
-  createSceneTrace: async (file, { caseId = "", note = "", source = "upload" } = {}) => {
+  createSceneTrace: async (file, { caseId = "", case_id = "", sessionId = "", session_id = "", note = "", source = "upload" } = {}) => {
+    const cid = caseId || case_id || sessionId || session_id || "";
     const fd = new FormData();
     fd.append("file", file);
-    if (caseId) fd.append("case_id", caseId);
+    if (cid) fd.append("case_id", cid);
     if (note) fd.append("note", note);
     fd.append("source", source);
     return request("/api/scene/traces", { method: "POST", body: fd });
@@ -343,6 +344,8 @@ export const api = {
   // Doi sanh lai 1 dau vet: chay DONG BO (cho ket qua trả về) — khac luc upload
   // (chay nen). Dung khi anh loi luc up, hoac vu an vua them doi tuong moi.
   rematchSceneTrace: (id) => request(`/api/scene/traces/${id}/match`, { method: "POST" }),
+  // Doi sanh lai TOAN BO dau vet trong vu an
+  rematchSceneCase: (caseId) => request(`/api/scene/rematch${caseId ? `?case_id=${encodeURIComponent(caseId)}` : ""}`, { method: "POST" }),
   hbieHealth: () => request("/api/scene/hbie/health"),
 };
 

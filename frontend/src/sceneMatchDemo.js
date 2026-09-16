@@ -67,9 +67,9 @@ export const SUBJECTS = NAMES.map(([name, cccd, dob, sex], i) => ({
 export const MATCH_TOTAL = 8;
 
 export const MATCH_ROWS = Array.from({ length: MATCH_TOTAL }, (_, i) => {
-  const sub = SUBJECTS[0];
+  const sub = SUBJECTS[0] || { name: "Nguyễn Ngọc Hải", cccd: "026204004933" };
   const fKey = FINGER_KEYS[i % FINGER_KEYS.length];
-  const score = 21 - Math.floor((i * 9) / (MATCH_TOTAL - 1));
+  const score = 880 - Math.floor((i * 180) / (MATCH_TOTAL - 1));
   const pct = ((score / SCORE_TOTAL) * 100).toFixed(1);
   const h = 9 + Math.floor(i / 4);
   const m = (i * 17) % 60;
