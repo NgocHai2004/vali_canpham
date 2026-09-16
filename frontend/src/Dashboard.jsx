@@ -650,7 +650,7 @@ function makeHwSample() {
 }
 
 function DashboardHome({ go, isAdmin = false, fullName = "" }) {
-  const { t, greeting, dayNames, formatNumber } = useI18n();
+  const { t, greeting, dayNames, formatNumber, formatDateTime, formatDate } = useI18n();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
@@ -675,6 +675,7 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
   const topCharges = stats.top_charges || [];
   const officers = stats.today_by_officer || [];
   const recentCases = stats.recent_cases || [];
+  const recentDetainees = stats.recent || [];
   const recentActivity = stats.recent_activity || [];
   const investigatingCases = stats.investigating_cases || 0;
   const missing = stats.missing_data_count || 0;
@@ -759,8 +760,50 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
         </section>
 
         <section className="panel">
-          <PanelHeader title={t("dashboard.panel.hardware")} />
-          <HardwareStatus hw={hw} />
+          <PanelHeader
+            title={t("dashboard.panel.recent_detainees")}
+            action={t("dashboard.panel.view_all")}
+            onAction={() => go("detainees")}
+          />
+          <div className="dash-detainee-list">
+            {recentDetainees.map((d) => (
+              <div
+                className="dash-detainee-row"
+                key={d.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => go("detainees")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    go("detainees");
+                  }
+                }}
+              >
+                <div className="dash-detainee-avatar">
+                  {d.photo_url ? (
+                    <img src={d.photo_url} alt="" />
+                  ) : (
+                    <span>{(d.full_name || "?").slice(0, 1).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="dash-detainee-main">
+                  <div className="dash-detainee-line">
+                    <strong>{d.full_name || "—"}</strong>
+                    <small className="mono">{d.personal_id || d.code || "—"}</small>
+                  </div>
+                  <div className="dash-detainee-meta">
+                    {d.cccd_number ? `CCCD: ${d.cccd_number}` : (d.gender === "female" ? t("common.female") : t("common.male"))}
+                    {d.charge ? ` • ${d.charge}` : (d.dob ? ` • ${formatDate(d.dob)}` : "")}
+                  </div>
+                </div>
+                <span className="dash-detainee-badge">
+                  {d.gender === "female" ? t("common.female") : t("common.male")}
+                </span>
+              </div>
+            ))}
+            {!recentDetainees.length && <div className="empty">{t("dashboard.detainee.list.empty")}</div>}
+          </div>
         </section>
 
         <section className="panel">
@@ -828,6 +871,11 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
             ))}
             {!recentActivity.length && <div className="empty">{t("dashboard.activity.empty")}</div>}
           </div>
+        </section>
+
+        <section className="panel">
+          <PanelHeader title={t("dashboard.panel.hardware")} />
+          <HardwareStatus hw={hw} />
         </section>
       </div>
     </div>
@@ -2540,16 +2588,11 @@ function DetaineeHistoryPage({ onEdit }) {
 
 function SearchPage() {
   const { t, formatDate } = useI18n();
-  const [mode, setMode] = useState("text"); // "text" | "cccd" | "fingerprint"
+  const [mode, setMode] = useState("text"); // "text" | "cccd"
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
   const [cccdNumber, setCccdNumber] = useState("");
-  const [fpImageB64, setFpImageB64] = useState("");
-  const [fpTemplateB64, setFpTemplateB64] = useState("");
-  const [fpScanStatus, setFpScanStatus] = useState("");
-  const [fpScanning, setFpScanning] = useState(false);
-  const [fpMatchScore, setFpMatchScore] = useState(null);
   const [gender, setGender] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -2564,15 +2607,11 @@ function SearchPage() {
     setTotal(0);
     setSearched(false);
     setError("");
-    setFpMatchScore(null);
   };
 
   const switchMode = (m) => {
     setMode(m);
     resetResults();
-    setFpImageB64("");
-    setFpTemplateB64("");
-    setFpScanStatus("");
   };
 
   const doSearchText = async (e) => {
@@ -2620,73 +2659,8 @@ function SearchPage() {
     }
   };
 
-  const doFpScanAndMatch = async () => {
-    if (fpScanning) return;
-    setFpScanning(true);
-    setError("");
-    setFpScanStatus(t("search.status.check_fp"));
-    setFpImageB64("");
-    setFpTemplateB64("");
-    setItems([]);
-    setSearched(false);
-    setFpMatchScore(null);
-
-    let sid = null;
-    try {
-      const h = await fpApi.health();
-      if (!h.ok) {
-        throw new Error(h.error || t("search.status.check_fp"));
-      }
-      const startResp = await fpApi.startSession("__search_query__");
-      sid = startResp.session_id;
-
-      setFpScanStatus(t("search.status.place_any"));
-      const capRes = await fpApi.capture(sid);
-      const tmplB64 = capRes.finger?.template_b64;
-      const imgB64 = capRes.finger?.image_b64;
-      if (!tmplB64) throw new Error(t("search.err.no_template"));
-
-      setFpImageB64(imgB64 || "");
-      setFpTemplateB64(tmplB64);
-      setFpScanStatus(t("search.status.matching"));
-
-      // Cleanup session ngay sau khi có template
-      try { await fpApi.cancel(sid); } catch { /* noop */ }
-      sid = null;
-
-      setLoading(true);
-      const res = await api.matchFingerprintSingle(tmplB64);
-      let list = [];
-      if (Array.isArray(res.items)) list = res.items;
-      else if (res.detainee) list = [res.detainee];
-      else if (Array.isArray(res)) list = res;
-      setItems(list);
-      setTotal(list.length);
-      if (typeof res.score === "number") setFpMatchScore(res.score);
-      setSearched(true);
-      setFpScanStatus(list.length ? t("search.status.matched", { n: list.length }) : t("search.status.no_match"));
-    } catch (err) {
-      setError(err.message || t("search.err.match_fail"));
-      setFpScanStatus("");
-    } finally {
-      if (sid) {
-        try { await fpApi.cancel(sid); } catch { /* noop */ }
-      }
-      setFpScanning(false);
-      setLoading(false);
-    }
-  };
-
-  const clearFp = () => {
-    setFpImageB64("");
-    setFpTemplateB64("");
-    setFpScanStatus("");
-    setFpMatchScore(null);
-    resetResults();
-  };
-
   const subtitle = searched
-    ? t("search.subtitle.results", { n: total, pct: fpMatchScore != null ? (fpMatchScore * 100).toFixed(1) : "-" })
+    ? t("search.subtitle.results", { n: total })
     : t("search.subtitle.desc");
 
   return (
@@ -2711,15 +2685,6 @@ function SearchPage() {
           onClick={() => switchMode("cccd")}
         >
           {t("search.tab.cccd")}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "fingerprint"}
-          className={"search-tab " + (mode === "fingerprint" ? "active" : "")}
-          onClick={() => switchMode("fingerprint")}
-        >
-          {t("search.tab.fp")}
         </button>
       </div>
 
@@ -2759,48 +2724,6 @@ function SearchPage() {
             {loading ? t("search.searching") : t("search.by_cccd")}
           </button>
         </form>
-      )}
-
-      {mode === "fingerprint" && (
-        <div className="filter-bar filter-bar-fp">
-          <div className="fp-search-slot">
-            {fpImageB64 ? (
-              <div className="fp-search-preview">
-                <img src={`data:image/png;base64,${fpImageB64}`} alt={t("search.fp.alt")} />
-                <button
-                  type="button"
-                  className="fp-search-clear"
-                  onClick={clearFp}
-                  disabled={fpScanning}
-                  aria-label={t("search.fp.aria_delete")}
-                >×</button>
-              </div>
-            ) : (
-              <div className="fp-search-drop fp-search-drop--live" role="status" aria-live="polite">
-                <span className="fp-search-drop-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 11c0-4 3-7 7-7" />
-                    <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
-                    <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
-                    <path d="M12 15v1a3 3 0 0 0 3 3" />
-                  </svg>
-                </span>
-                <span>{fpScanStatus || t("search.fp.hint_click")}</span>
-                <span className="fp-search-drop-hint">
-                  {fpScanning ? t("search.fp.waiting") : t("search.fp.hint_place")}
-                </span>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            className="button primary"
-            onClick={doFpScanAndMatch}
-            disabled={fpScanning || loading}
-          >
-            {fpScanning ? t("search.scanning") : (fpTemplateB64 ? t("search.rescan") : t("search.start_scan"))}
-          </button>
-        </div>
       )}
 
       {error && <StateBox type="error">{error}</StateBox>}
@@ -4915,6 +4838,79 @@ const styles = `
   .session-status.open { background: rgba(36, 215, 119, 0.12); color: var(--success); }
   .session-status.closed { background: rgba(53, 216, 255, 0.08); color: var(--muted); }
 
+  /* Detainee list on dashboard */
+  .dash-detainee-list {
+    padding: 6px 6px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .dash-detainee-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .dash-detainee-row:hover { background: rgba(53, 216, 255, 0.06); }
+  .dash-detainee-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: rgba(53, 216, 255, 0.10);
+    color: var(--primary-hi);
+    font-weight: 700;
+    font-size: 13px;
+    border: 1px solid rgba(53, 216, 255, 0.18);
+    flex-shrink: 0;
+  }
+  .dash-detainee-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dash-detainee-main { min-width: 0; }
+  .dash-detainee-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .dash-detainee-line strong {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dash-detainee-line small {
+    color: var(--muted);
+    font-size: 11.5px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    flex-shrink: 0;
+  }
+  .dash-detainee-meta {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 11.5px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .dash-detainee-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(53, 216, 255, 0.10);
+    color: var(--primary-hi);
+    flex-shrink: 0;
+  }
+
   /* Activity feed */
   .activity-feed {
     padding: 6px 20px 16px;
@@ -5341,85 +5337,6 @@ const styles = `
     box-shadow: 0 1px 2px rgba(22, 139, 255, .18);
   }
 
-  /* Fingerprint search mode: 2 cols (slot + submit) */
-  .filter-bar-fp {
-    grid-template-columns: minmax(280px, 1fr) auto;
-  }
-  .fp-search-slot { display: flex; align-items: center; justify-content: flex-start; }
-  .fp-search-drop {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 200px;
-    height: 140px;
-    border: 2px dashed var(--border);
-    border-radius: 10px;
-    background: var(--bg-panel);
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: border-color .15s, background .15s, color .15s;
-    padding: 12px;
-    text-align: center;
-  }
-  .fp-search-drop:hover {
-    border-color: var(--primary-2);
-    background: rgba(22, 139, 255, 0.08);
-    color: var(--primary-2);
-  }
-  .fp-search-drop-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px; height: 42px;
-    border-radius: 50%;
-    background: rgba(22, 139, 255, 0.12);
-    color: var(--primary-2);
-  }
-  .fp-search-drop-icon svg { width: 24px; height: 24px; }
-  .fp-search-drop-hint {
-    font-size: 11px;
-    color: var(--muted);
-    font-weight: 400;
-  }
-  .fp-search-preview {
-    position: relative;
-    width: 140px;
-    height: 140px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    background: var(--bg-panel);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .fp-search-preview img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    display: block;
-  }
-  .fp-search-clear {
-    position: absolute;
-    top: 4px; right: 4px;
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    border: 0;
-    background: rgba(0, 0, 0, 0.55);
-    color: #fff;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-  .fp-search-clear:hover { background: var(--danger); }
   .control {
     width: 100%;
     height: 42px;
@@ -7211,6 +7128,7 @@ const styles = `
   .dashboard-page .donut-legend-row strong { font-size: 13.5px; }
 
   .dashboard-page .session-list,
+  .dashboard-page .dash-detainee-list,
   .dashboard-page .activity-feed,
   .dashboard-page .hw-status,
   .dashboard-page .dev-list {
@@ -7218,7 +7136,8 @@ const styles = `
     min-height: 0;
     overflow-y: auto;
   }
-  .dashboard-page .session-row { padding: 6px 12px; }
+  .dashboard-page .session-row,
+  .dashboard-page .dash-detainee-row { padding: 6px 12px; }
   .dashboard-page .activity-row { padding: 6px 0; }
   .dashboard-page .hw-status { padding: 8px 14px 10px; gap: 8px; }
   .dashboard-page .hw-rings { gap: 6px; }

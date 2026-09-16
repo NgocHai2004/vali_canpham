@@ -1554,3 +1554,32 @@ textarea.smp-modal-in { resize: none; }
   100% { transform: translateY(0);     opacity: 1; }
 }
 .smp-ic-out { animation: smp-ic-drop 0.55s ease-in-out; }
+
+/* Trạng thái trống (empty state) căn giữa hoàn toàn theo chiều ngang & dọc */
+.scene-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  min-height: 140px;
+  padding: 32px 16px;
+  box-sizing: border-box;
+  color: var(--smp-dim, #7f95b5);
+  font-size: 13.5px;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+
+.smp-mt-body:has(.scene-empty) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.smp-mt-body .scene-empty {
+  border-top: 1px solid #16304f;
+  flex: 1;
+}
