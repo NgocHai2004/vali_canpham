@@ -6,7 +6,10 @@ param([switch]$SkipMongo)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot                       # app_cccd/
 $py   = Join-Path $root '.venv\Scripts\python.exe'
-$envFile = Join-Path (Split-Path -Parent $root) '.env'
+$envFile = Join-Path $root '.env'
+if (-not (Test-Path $envFile)) {
+    $envFile = Join-Path (Split-Path -Parent $root) '.env'
+}
 
 # Load .env
 if (Test-Path $envFile) {
@@ -33,7 +36,7 @@ Start-Process -FilePath $py `
     -WorkingDirectory $root -WindowStyle Normal
 
 # 3. Frontend
-Start-Process -FilePath 'npm' -ArgumentList 'run','dev' `
+Start-Process -FilePath 'npm.cmd' -ArgumentList 'run','dev' `
     -WorkingDirectory (Join-Path $root 'frontend') -WindowStyle Normal
 
 Write-Host "Da start. Frontend: http://localhost:5173 | Backend: http://localhost:8000/api/health"

@@ -6,7 +6,10 @@ $backendDir  = Join-Path $appRoot 'backend'
 $svc         = Join-Path $backendDir 'services'
 $py          = Join-Path $appRoot '.venv\Scripts\python.exe'
 $logs        = Join-Path $appRoot 'logs'
-$envFile     = Join-Path (Split-Path -Parent $appRoot) '.env'   # App_CCCD/.env
+$envFile = Join-Path $appRoot '.env'
+if (-not (Test-Path $envFile)) {
+    $envFile = Join-Path (Split-Path -Parent $appRoot) '.env'
+}
 
 if (-not (Test-Path $logs)) {
     New-Item -ItemType Directory -Path $logs -Force | Out-Null
