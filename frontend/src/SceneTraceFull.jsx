@@ -264,50 +264,48 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
 
         <section className="stf-card stf-c09">
           <h3 className="stf-h">{t("scene.c09.title")}</h3>
-          <div className="stf-doc">
-            <div className="stf-doc-nation">{t("scene.c09.nation")}</div>
-            <div className="stf-doc-motto">{t("scene.c09.motto")}</div>
-            <div className="stf-doc-title">{t("scene.report.title")}</div>
-            <div className="stf-doc-sub">{t("scene.report.subtitle")}</div>
 
-            <div className="stf-doc-grid">
-              <div className="stf-doc-cell">
-                <span className="stf-doc-lb">{t("scene.report.case")}</span>
-                <span>{session?.case_name || t("scene.no_case_name")}</span>
-              </div>
-              <div className="stf-doc-cell">
-                <span className="stf-doc-lb">{t("scene.report.code")}</span>
-                <span>{m.report_code}</span>
-              </div>
-              <div className="stf-doc-cell">
-                <span className="stf-doc-lb">{t("scene.report.scope")}</span>
-                <span>{item.trace_type || "—"}</span>
-              </div>
-              <div className="stf-doc-cell">
-                <span className="stf-doc-lb">{t("scene.report.trace_count")}</span>
-                <span>{code}</span>
-              </div>
-              <div className="stf-doc-cell">
-                <span className="stf-doc-lb">{t("scene.report.created_at")}</span>
-                <span>{m.report_at}</span>
-              </div>
-              <div className="stf-doc-cell stf-doc-blank" />
+          {/* Khung xem trước thu nhỏ chuẩn format báo cáo HTI (Full width, không bị lệch) */}
+          <div
+            className="stf-doc-card-preview"
+            onClick={() => setShowReport(true)}
+            title="Nhấn để xem toàn bộ báo cáo"
+          >
+            <div className="sr-sec-banner" style={{ fontSize: "7pt", marginBottom: "8px", paddingBottom: "4px" }}>
+              Thông báo bảo mật: Báo cáo này được lập nhằm phục vụ trao đổi kỹ thuật chuyên môn và đánh giá kết quả hệ thống. Nội dung được xây dựng trên cơ sở danh sách kết quả và các ảnh điện tử do HTI GROUP tiếp nhận từ đơn vị cung cấp. Việc nộp chứng cứ chính thức, xác nhận chuỗi bảo quản chứng cứ (chain of custody), thẩm định độc lập và xác lập giá trị pháp lý của chứng cứ phải được thực hiện theo quy trình nghiệp vụ của Bộ Công an.
             </div>
 
-            <div className="stf-doc-pair">
-              <div className="stf-doc-pair-h">{t("scene.report.pair", { n: "01" })}</div>
-              <div className="stf-doc-pair-body">
-                <div className="stf-doc-col">
-                  <div className="stf-doc-col-h">{t("scene.report.latent")}</div>
-                  <img src={files[0]?.url} alt={t("scene.report.latent")} loading="lazy" />
-                  <div className="stf-doc-cap">{code}</div>
-                </div>
-                <div className="stf-doc-col">
-                  <div className="stf-doc-col-h">{t("scene.report.candidate")}</div>
-                  <img src={files[1]?.url} alt={t("scene.report.candidate")} loading="lazy" />
-                  <div className="stf-doc-cap">{t(m.finger)} — {m.subject}</div>
-                </div>
+            <div className="sr-header-top" style={{ marginBottom: "8px" }}>
+              <div className="sr-org-title" style={{ fontSize: "10pt", margin: "0 0 2px 0" }}>HTI GROUP</div>
+              <div className="sr-header-line" style={{ height: "3px" }} />
+            </div>
+
+            <div className="sr-title-block" style={{ margin: "6px 0 8px 0" }}>
+              <div className="sr-main-title" style={{ fontSize: "12pt", margin: "0 0 2px 0" }}>BÁO CÁO KẾT QUẢ SO SÁNH KĨ THUẬT HÌNH SỰ</div>
+              <div className="sr-eng-title" style={{ fontSize: "8.5pt", margin: "0 0 4px 0" }}>HTI-HABIS&AFIS Latent Fingerprint Search & Identification</div>
+              <div className="sr-date-loc" style={{ fontSize: "8pt", margin: "0 0 6px 0" }}>Hà Nội, ngày 16 tháng 09 năm 2026</div>
+            </div>
+
+            <div className="sr-section" style={{ margin: "0 0 4px 0" }}>
+              <div className="sr-section-h" style={{ fontSize: "9.5pt", margin: "4px 0 2px 0" }}>1. OVERVIEW:</div>
+              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
+                <strong>Đơn vị:</strong> C09
               </div>
+              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
+                <strong>Người lập báo cáo:</strong> HTI GROUP HABIS Professional Technical Team
+              </div>
+              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
+                <strong>Subject:</strong> Tổng hợp kết quả đối sánh dấu vân hiện trường với dữ liệu dấu vân tham chiếu kỹ thuật số
+              </div>
+              <div className="sr-field-line" style={{ fontSize: "8.5pt", lineHeight: "1.4", margin: "0 0 2px 0" }}>
+                <strong>Result summary:</strong> 1 bản ghi đối sánh ({code} — {m.subject}, {m.percent || 82}%) đã được xác nhận trùng khớp
+              </div>
+            </div>
+
+            <div className="stf-doc-card-overlay">
+              <span className="stf-doc-card-hint">
+                <IcEye s={13} /> Nhấn để phóng to toàn bộ báo cáo
+              </span>
             </div>
           </div>
 

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { api } from "./api";
 import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
+import SceneMatchReportModal from "./SceneMatchReportModal";
 import { MATCH_ROWS, SUBJECTS } from "./sceneMatchDemo";
 import { DEMO_ITEMS, SCORE_TOTAL } from "./sceneDemo";
 import {
@@ -78,6 +79,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
   const [uploading, setUploading] = useState(false);
   const [spinning, setSpinning] = useState(false);   // 1 vong xoay icon moi lan bam "Phan tich lai"
   const [exporting, setExporting] = useState(false);  // icon truot xuong roi ve cho khi bam "Xuat bao cao"
+  const [showReport, setShowReport] = useState(false); // mo modal xuat bao cao
   // Dong da bam trong bang KET QUA DOI SANH: giu ca id dau vet + row de trang
   // chi tiet hien dung so lieu cua dong do (truoc day tu dung lai theo seq => lech).
   const [full, setFull] = useState(null);   // != null => mo trang chi tiet dau vet
@@ -276,7 +278,14 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
             </span>
             {t("smp.reanalyze")}
           </button>
-          <button type="button" className="smp-btn-ghost" onClick={() => setExporting(true)}>
+          <button
+            type="button"
+            className="smp-btn-ghost"
+            onClick={() => {
+              setExporting(true);
+              setShowReport(true);
+            }}
+          >
             <span className={"smp-ic" + (exporting ? " smp-ic-out" : "")} onAnimationEnd={() => setExporting(false)}>
               <IcExport />
             </span>
@@ -606,6 +615,14 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
             </div>
           </div>
         </div>
+      )}
+
+      {showReport && (
+        <SceneMatchReportModal
+          session={session}
+          items={traces}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   );
