@@ -8,10 +8,20 @@ export function Field({ label, children }) {
   );
 }
 
-export function InfoField({ label, children, className = "" }) {
+// required: danh dau * o nhan. Dat o COMPONENT chu khong sua chuoi locale, vi
+// cac key nhan nay (detainee.field.full_name...) con dung lam tieu de bang o
+// CaseDetailPage/Dashboard — them "*" vao chuoi la * moc len ca tieu de bang.
+// hint: goi y dinh dang ghi MO ngay canh nhan (vd "dd/mm/yyyy"). Khac
+// placeholder: placeholder bien mat ngay khi go ky tu dau, dung luc can bo can
+// doi chieu xem minh go dung dinh dang chua.
+export function InfoField({ label, children, className = "", required = false, hint = "" }) {
   return (
     <label className={"info-field " + className}>
-      <span className="info-field-label">{label}</span>
+      <span className="info-field-label">
+        {label}
+        {required && <span className="req-star" title="Bắt buộc">&nbsp;*</span>}
+        {hint && <span className="field-hint">&nbsp;({hint})</span>}
+      </span>
       {children}
     </label>
   );

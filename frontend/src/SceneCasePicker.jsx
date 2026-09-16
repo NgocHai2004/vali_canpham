@@ -22,7 +22,7 @@ function pageWindow(page, totalPages) {
 // 3 lựa chọn thì segmented bấm 1 nhịp là xong, nhanh hơn <select> 2 nhịp.
 const STATUSES = [
   ["", "common.all"],
-  ["open", "session.status.open"],
+  ["investigating", "session.status.open"],
   ["closed", "session.status.closed"],
 ];
 
@@ -50,7 +50,7 @@ export default function SceneCasePicker({ onPick }) {
     setLoading(true);
     setErr("");
     try {
-      const r = await api.listSessions({
+      const r = await api.listCases({
         status: statusFilter,
         q: qSent,
         date_from: dateFrom,
@@ -238,8 +238,8 @@ export default function SceneCasePicker({ onPick }) {
               {/* class "on" = vạch xanh lá bên trái: quét dọc một cột là thấy
                   phiên nào còn mở; chữ trong chip vẫn là kênh chính. */}
               {!loading && rows.map((s) => {
-                const name = s.case_name || t("scene.no_case");
-                const isOpen = s.status === "open";
+                const name = s.name || t("scene.no_case");
+                const isOpen = s.status === "investigating";
                 const go = () => onPick && onPick(s.id);
                 return (
                   <tr key={s.id} className={isOpen ? "on" : ""} onClick={go}>
@@ -249,20 +249,20 @@ export default function SceneCasePicker({ onPick }) {
                       {/* Màn hẹp bỏ 2 cột phụ nên gộp vào đây — ẩn hẳn dữ liệu
                           thì cán bộ không còn cách nào xem được. */}
                       <div className="scp-sub2 scp-narrow-only smp-ellip">
-                        {(s.location || "—") + " · " + formatDateTime(s.opened_at)}
+                        {(s.location || "—") + " · " + formatDateTime((s.occurred_at || s.created_at))}
                       </div>
                     </td>
                     <td>
-                      <div className="smp-ellip">{s.officer_full_name || s.officer}</div>
-                      {s.officer_full_name && s.officer && (
-                        <div className="scp-sub2 smp-ellip">@{s.officer}</div>
+                      <div className="smp-ellip">{s.created_by || s.created_by}</div>
+                      {s.created_by && s.created_by && (
+                        <div className="scp-sub2 smp-ellip">@{s.created_by}</div>
                       )}
                     </td>
                     <td className="scp-wide-only">
                       <div className="smp-ellip" title={s.location || ""}>{s.location || "—"}</div>
                     </td>
                     <td className="scp-wide-only">
-                      <div className="smp-ellip">{formatDateTime(s.opened_at)}</div>
+                      <div className="smp-ellip">{formatDateTime((s.occurred_at || s.created_at))}</div>
                       <div className="scp-sub2 smp-ellip">
                         {s.closed_at ? formatDateTime(s.closed_at) : t("scene.case.still_open")}
                       </div>
@@ -377,7 +377,7 @@ function NewCaseModal({ initial, onClose, onSaved }) {
     setSaving(true);
     setErr("");
     try {
-      onSaved(await api.createSceneCase(form));
+      onSaved(await api.createCase({ name: form.case_name, location: form.location, occurred_at: form.occurred_at, note: form.note }));
     } catch (ex) {
       setErr(ex.message || t("scene.case.new_err"));
       setSaving(false);

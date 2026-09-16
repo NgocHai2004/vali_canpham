@@ -1477,6 +1477,23 @@ label.smp-drop.on {
   padding: 0 2px;
 }
 
+/* Nút Tạo vụ án trên thanh công cụ: cao đúng 36px như ô tìm/segmented bên cạnh
+   để 3 thứ thẳng hàng, icon + chữ nằm giữa. */
+.scp-new {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 14px; white-space: nowrap;
+}
+/* Cột hành động: 4 nút 34px. Ghi đè .scp-t td:last-child (40px, dành cho bảng
+   1 nút chevron của bản cũ) — không ghi đè thì 4 nút bị bóp vào 40px. */
+.scp-t th:last-child, .scp-t td:last-child { width: 168px; padding-left: 0; }
+.scp-acts { display: flex; gap: 4px; justify-content: flex-end; }
+.scp-acts .smp-icon-btn { color: #9db3d1; }
+.scp-acts .smp-icon-btn:hover { color: #d3e2f7; border-color: var(--smp-blue); }
+.scp-acts .smp-icon-btn:disabled { opacity: .45; cursor: default; }
+/* Xoá là hành động không hoàn tác được nên tô đỏ khi trỏ tới, không tô sẵn:
+   tô sẵn thì mắt bị hút vào nút nguy hiểm nhất trên mỗi hàng. */
+.scp-danger:hover { color: #fca5a5 !important; border-color: #b4474f !important; }
+
 
 /* ================= Man chi tiet 1 dau vet (SceneTraceFull) =================
    1:1 design "Phan tich doi sanh". Token mau/vien dung chung voi .smp o tren.

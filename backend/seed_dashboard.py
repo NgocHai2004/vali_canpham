@@ -2,7 +2,7 @@
 Seed dữ liệu mẫu cho dashboard.
 
 Chạy:
-    cd C:\\Users\\vali-01\\Documents\\App_CCCD\\app_cccd
+    cd C:\\Users\\vali-01\\Documents\\Vali_hientruong\\app_cccd
     .\\.venv\\Scripts\\Activate.ps1
     python -m backend.seed_dashboard          # thêm dữ liệu, giữ nguyên cái đang có
     python -m backend.seed_dashboard --reset  # xoá sạch detainees/sessions/logs trước khi seed
@@ -10,6 +10,7 @@ Chạy:
 
 import argparse
 import asyncio
+import os
 import random
 import sys
 from datetime import datetime, timedelta
@@ -24,31 +25,8 @@ import os
 import bcrypt
 from motor.motor_asyncio import AsyncIOMotorClient
 
-def _get_env(key: str, default: str) -> str:
-    val = os.getenv(key, "").strip()
-    if val:
-        return val
-    candidate_envs = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), ".env")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
-    ]
-    for env_file in candidate_envs:
-        try:
-            with open(env_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    k, v = line.split("=", 1)
-                    if k.strip() == key:
-                        return v.strip().strip('"').strip("'")
-        except FileNotFoundError:
-            continue
-    return default
-
-MONGO_URL = _get_env("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = _get_env("DB_NAME", "app_cccd")
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27018")
+DB_NAME = "app_cccd"
 
 
 def hash_password(pw: str) -> str:
@@ -78,6 +56,23 @@ CHARGES = [
 ]
 HOMETOWNS = ["Hà Nội", "Hải Phòng", "Đà Nẵng", "TP.HCM", "Cần Thơ",
              "Bắc Ninh", "Thái Bình", "Nam Định", "Nghệ An", "Quảng Ninh"]
+
+CASE_NAMES = [
+    "Trộm cắp tài sản tại cửa hàng điện máy",
+    "Cướp giật tài sản trên đường Bạch Đằng",
+    "Đột nhập kho hàng khu công nghiệp",
+    "Phá khoá xe máy tại bãi xe chợ Cồn",
+    "Trộm cắp đột nhập nhà dân",
+    "Cố ý gây thương tích tại quán ăn",
+]
+CASE_LOCATIONS = [
+    "Số 12 Lê Duẩn, P. Hải Châu 1",
+    "Số 88 Nguyễn Chí Thanh, P. Thạch Thang",
+    "Đường Bạch Đằng, P. Thạch Thang",
+    "Bãi xe chợ Cồn, P. Hải Châu 2",
+    "KCN Hoà Khánh, P. Hoà Khánh Bắc",
+    "Số 45 Trần Phú, P. Hải Châu 1",
+]
 
 OFFICERS = [
     ("canbo01", "Nguyễn Ngọc Hải"),
@@ -129,9 +124,9 @@ async def seed(reset: bool):
     db = client[DB_NAME]
 
     if reset:
-        print("[reset] xoá detainees / work_sessions / audit_logs")
+        print("[reset] xoá detainees / cases / audit_logs")
         await db.detainees.delete_many({})
-        await db.work_sessions.delete_many({})
+        await db.cases.delete_many({})
         await db.audit_logs.delete_many({})
 
     officers = await ensure_officers(db)
@@ -140,37 +135,37 @@ async def seed(reset: bool):
     now = datetime.utcnow()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # 1) Tạo 6 phiên rải trong 14 ngày, 1 phiên đang mở cho admin
-    sessions = []
+    # 1) Tạo 6 vụ án rải trong 14 ngày, 2 vụ còn đang điều tra.
+    # Vụ án không thuộc riêng cán bộ nào nên không gán officer; created_by chỉ ghi
+    # ai lập hồ sơ trong máy.
+    cases = []
     for i in range(6):
-        officer = random.choice(officers)
+        creator = random.choice(officers)
         days_ago = random.randint(0, 13)
-        opened = today_start - timedelta(days=days_ago, hours=random.randint(0, 6))
-        is_last = i == 5
-        # đảm bảo phiên đang mở là của admin để dashboard admin thấy hero card
-        if is_last:
-            officer = next((o for o in officers if o["username"] == "admin"), officer)
-            opened = now - timedelta(hours=1)
-        status = "open" if is_last else "closed"
-        closed = None if is_last else opened + timedelta(hours=random.randint(2, 6))
-        code = await _next_code(db, f"session_code_{opened.strftime('%Y%m%d')}", f"S{opened.strftime('%Y%m%d')}-")
+        occurred = today_start - timedelta(days=days_ago, hours=random.randint(0, 6))
+        created = occurred + timedelta(hours=random.randint(1, 5))
+        if created > now:
+            created = now - timedelta(minutes=random.randint(1, 60))
+        status = "investigating" if i >= 4 else "closed"
+        code = await _next_code(db, f"case_code_{occurred.strftime('%Y%m%d')}", f"VA{occurred.strftime('%Y%m%d')}-")
         doc = {
             "code": code,
             "status": status,
-            "officer": officer["username"],
-            "officer_full_name": officer.get("full_name", officer["username"]),
-            "location": random.choice(["Trại tạm giam số 1", "Trại tạm giam số 2", "Nhà tạm giữ CAH Cầu Giấy"]),
+            "name": random.choice(CASE_NAMES),
+            "location": random.choice(CASE_LOCATIONS),
+            "occurred_at": occurred,
             "note": "",
-            "opened_at": opened,
-            "closed_at": closed,
-            "detainee_count": 0,
+            "created_at": created,
+            "created_by": creator["username"],
+            "closed_at": None if status == "investigating" else created + timedelta(days=random.randint(2, 9)),
             "report_url": None,
             "report_filename": None,
         }
-        r = await db.work_sessions.insert_one(doc)
+        r = await db.cases.insert_one(doc)
         doc["_id"] = r.inserted_id
-        sessions.append(doc)
-    print(f"[sessions] tạo {len(sessions)} phiên (1 đang mở của admin)")
+        cases.append(doc)
+    n_open = sum(1 for c in cases if c["status"] == "investigating")
+    print(f"[cases] tạo {len(cases)} vụ án ({n_open} đang điều tra)")
 
     # 2) Tạo detainees rải trong 14 ngày qua
     n_target = 60
@@ -185,10 +180,10 @@ async def seed(reset: bool):
         )
         if created > now:
             created = now - timedelta(minutes=random.randint(1, 120))
-        # chọn phiên: ưu tiên phiên cùng ngày, không thì bất kỳ
-        same_day = [s for s in sessions
-                    if s["opened_at"].date() == created.date()]
-        sess = random.choice(same_day) if same_day else random.choice(sessions)
+        # chọn vụ án: ưu tiên vụ xảy ra cùng ngày, không thì bất kỳ
+        same_day = [c for c in cases
+                    if c["occurred_at"].date() == created.date()]
+        case = random.choice(same_day) if same_day else random.choice(cases)
         gender = "female" if random.random() < 0.28 else "male"
         name = random.choice(NAMES_FEMALE if gender == "female" else NAMES_MALE)
         code = await _next_code(db, "detainee_code", "CP", width=5)
@@ -215,8 +210,8 @@ async def seed(reset: bool):
             "photos": {},
             "created_at": created,
             "updated_at": created,
-            "created_by": sess["officer"],
-            "session_id": sess["_id"],
+            "created_by": case["created_by"],
+            "case_id": case["_id"],
         }
         try:
             r = await db.detainees.insert_one(doc)
@@ -224,19 +219,18 @@ async def seed(reset: bool):
             print(f"  skip {code}: {e}")
             continue
         inserted += 1
-        await db.work_sessions.update_one(
-            {"_id": sess["_id"]}, {"$inc": {"detainee_count": 1}}
-        )
+        # Khong $inc dem hồ sơ vào vụ án: backend đếm động bằng aggregate
+        # (_case_detainee_counts) nên không có field nào phải giữ đồng bộ.
         await db.audit_logs.insert_one({
             "at": created,
-            "actor": sess["officer"],
+            "actor": case["created_by"],
             "action": "create",
             "resource": "detainee",
             "ref": code,
             "ref_id": str(r.inserted_id),
             "ip": "127.0.0.1",
-            "data": {"full_name": name, "session": sess["code"]},
-            "session_id": sess["_id"],
+            "data": {"full_name": name, "case": case["code"]},
+            "case_id": case["_id"],
         })
     print(f"[detainees] tạo {inserted} hồ sơ + audit log tương ứng")
 
@@ -253,7 +247,7 @@ async def seed(reset: bool):
             "ref": "",
             "ip": "127.0.0.1",
             "data": {},
-            "session_id": None,
+            "case_id": None,
         })
 
     print("[done] seed hoàn tất")

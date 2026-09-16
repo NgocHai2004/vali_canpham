@@ -11,6 +11,7 @@ import SceneMatchPage from "./SceneMatchPage";
 import "./sceneMatch.css";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { useI18n, LanguageSwitch } from "./i18n";
+import { useFeatures } from "./lib/features";
 
 const Icon = {
   dashboard: (
@@ -72,12 +73,15 @@ const Icon = {
   ),
 };
 
+// Menu trai. "sessions" (Phien lam viec) va "cells" (Co so giam giu) DA BO khoi
+// menu theo yeu cau: nhanh nay khong dung 2 chuc nang do. Route + component van
+// giu (xem <main className="content">) vi luong thu nhan ho so con di qua phien,
+// va dashboard con nut dan sang; chi an khoi thanh dieu huong.
 const NAV_BASE = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: Icon.dashboard },
   { key: "scene_traces", labelKey: "nav.scene_traces", icon: Icon.folder },
   { key: "session_capture", labelKey: "nav.capture", icon: Icon.file },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
-  { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
   { key: "search", labelKey: "nav.search", icon: Icon.search },
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
   { key: "sync", labelKey: "nav.sync", icon: Icon.sync },
@@ -93,7 +97,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   useEffect(() => { setLastLocale(locale); }, [locale]);
   const [page, setPage] = useState("dashboard");
   // Vu an dang xem trong tab Dau vet hien truong ("" = dang o bang chon).
-  const [sceneSessionId, setSceneSessionId] = useState("");
+  const [sceneCaseId, setSceneCaseId] = useState("");
   const [editingDetainee, setEditingDetainee] = useState(null);
   // Ngu canh thu nhan: chi con dung de gan ho so vao MOT VU AN va biet quay ve dau.
   const [sessionCtx, setSessionCtx] = useState(null);
@@ -124,10 +128,10 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   };
 
   // Thêm đối tượng từ màn Phân tích đối sánh: cùng luồng thu nhận, nhưng lưu/huỷ
-  // xong quay lại đúng vụ án đang xem (sceneSessionId vẫn giữ nguyên).
-  const addSubjectFromScene = (sessionId) => {
+  // xong quay lại đúng vụ án đang xem (sceneCaseId vẫn giữ nguyên).
+  const addSubjectFromScene = (caseId) => {
     setEditingDetainee(null);
-    setSessionCtx({ sessionId, returnTo: "scene_traces" });
+    setSessionCtx({ caseId, returnTo: "scene_traces" });
     setPage("session_capture");
   };
   const doneCapture = () => {
@@ -195,14 +199,14 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
           {page === "dashboard" && <DashboardHome go={goPage} isAdmin={isAdmin} fullName={fullName} />}
           {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
           {page === "scene_traces" && (
-            sceneSessionId ? (
+            sceneCaseId ? (
               <SceneMatchPage
-                sessionId={sceneSessionId}
-                onBack={() => setSceneSessionId("")}
+                caseId={sceneCaseId}
+                onBack={() => setSceneCaseId("")}
                 onAddSubject={addSubjectFromScene}
               />
             ) : (
-              <SceneCasePicker onPick={setSceneSessionId} />
+              <SceneCasePicker onPick={setSceneCaseId} />
             )
           )}
           {page === "cells" && <CellsPage />}
@@ -211,8 +215,8 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
               go={goPage}
               initial={editingDetainee}
               onDone={() => setEditingDetainee(null)}
-              sessionId={sessionCtx?.sessionId}
-              onSavedInSession={doneCapture}
+              caseId={sessionCtx?.caseId}
+              onSavedInCase={doneCapture}
               onEditProfile={editDetainee}
             />
           )}
@@ -228,6 +232,8 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
   );
 }
 
+// Chip thiet bi tren header. Chip cccd/scale bi an khi thiet bi tuong ung tat
+// (xem lib/features.js) — camera va van tay luon hien.
 const DEVICE_CHIPS = [
   { key: "camera", labelKey: "header.device.camera" },
   { key: "fp", labelKey: "header.device.fp" },
@@ -235,6 +241,8 @@ const DEVICE_CHIPS = [
 
 function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee }) {
   const { t } = useI18n();
+  const features = useFeatures();
+  const chips = DEVICE_CHIPS.filter((d) => !d.feature || features[d.feature]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [viewingMatch, setViewingMatch] = useState(null);
@@ -282,7 +290,7 @@ function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditP
 
       <div className="header-actions">
         <div className="device-chips" role="group" aria-label={t("header.device_group")}>
-          {DEVICE_CHIPS.map((d) => {
+          {chips.map((d) => {
             const ok = Boolean(devices?.[d.key]);
             const label = t(d.labelKey);
             return (
@@ -442,6 +450,9 @@ function useNotifState() {
 
 function useDeviceConnections() {
   const [status, setStatus] = useState({ camera: false, cccd: false, fp: false, scale: false });
+  const features = useFeatures();
+  const cccdOn = features.cccd_reader;
+  const scaleOn = features.weight_scale;
 
   useEffect(() => {
     let cancelled = false;
@@ -475,7 +486,12 @@ function useDeviceConnections() {
     };
 
     const runAll = async () => {
-      const [camera, cccd, fp] = await Promise.all([checkCamera(), checkCccd(), checkFp()]);
+      // Co CCCD tat -> khong poll /api/cccd/health (chip da an, khoi goi vo ich).
+      const [camera, cccd, fp] = await Promise.all([
+        checkCamera(),
+        cccdOn ? checkCccd() : Promise.resolve(false),
+        checkFp(),
+      ]);
       if (cancelled) return;
       setStatus((prev) => ({ ...prev, camera, cccd, fp }));
     };
@@ -485,8 +501,8 @@ function useDeviceConnections() {
 
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     let host;
-    if (location.port === "5173") {
-      host = `${location.hostname}:8000`;
+    if (location.port === "5174") {
+      host = `${location.hostname}:8001`;
     } else if (window.appcccd && window.appcccd.getProxyPort && window.appcccd.getProxyPort()) {
       host = `${window.appcccd.proxyHost}:${window.appcccd.getProxyPort()}`;
     } else {
@@ -497,6 +513,8 @@ function useDeviceConnections() {
     let closed = false;
     let retry = 0;
     let retryTimer = null;
+    // Co can tat -> khong mo WS, khong retry. Chip "scale" da an nen khong can
+    // trang thai; server cung dong ngay neu co client cu goi vao.
 
     const openWs = () => {
       try {
@@ -523,7 +541,7 @@ function useDeviceConnections() {
       retryTimer = setTimeout(openWs, delay);
     };
 
-    openWs();
+    if (scaleOn) openWs();
 
     return () => {
       cancelled = true;
@@ -532,7 +550,9 @@ function useDeviceConnections() {
       if (retryTimer) clearTimeout(retryTimer);
       try { ws && ws.close(); } catch { /* noop */ }
     };
-  }, []);
+    // Phu thuoc vao 2 co: co ve muon (sau khi fetch /api/config/features xong)
+    // nen phai chay lai effect de dong WS / dung poll cho dung.
+  }, [cccdOn, scaleOn]);
 
   return status;
 }
@@ -557,12 +577,12 @@ function makeHwSample() {
 }
 
 function DashboardHome({ go, isAdmin = false, fullName = "" }) {
-  const { t, greeting, dayNames, formatNumber } = useI18n();
+  const { t, greeting, dayNames, formatNumber, formatDateTime, formatDate } = useI18n();
   const [stats, setStats] = useState(null);
+  const [cells, setCells] = useState([]);
   const [error, setError] = useState("");
   const [now, setNow] = useState(new Date());
   const [hw, setHw] = useState(() => makeHwSample());
-  const [cells, setCells] = useState([]);
 
   useEffect(() => {
     api.stats().then(setStats).catch((e) => setError(e.message));
@@ -601,7 +621,7 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
     <div className="page dashboard-page">
       <div className="dash-hero">
         <div>
-          <h1>{greet}, {stats.open_session?.officer_full_name || fullName || t("dashboard.greet_officer_default")}</h1>
+          <h1>{greet}, {fullName || t("dashboard.greet_officer_default")}</h1>
           <p>{timeStr} • {dateStr}</p>
         </div>
         {/* Admin khong tu thu nhan ho so (backend chan 403) nen khong co loi vao nhanh. */}
@@ -659,11 +679,6 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
         </section>
 
         <section className="panel">
-          <PanelHeader title={t("dashboard.panel.hardware")} />
-          <HardwareStatus hw={hw} />
-        </section>
-
-        <section className="panel">
           <PanelHeader
             title={t("dashboard.panel.cells")}
             action={t("dashboard.panel.manage")}
@@ -718,6 +733,11 @@ function DashboardHome({ go, isAdmin = false, fullName = "" }) {
             ))}
             {!recentActivity.length && <div className="empty">{t("dashboard.activity.empty")}</div>}
           </div>
+        </section>
+
+        <section className="panel">
+          <PanelHeader title={t("dashboard.panel.hardware")} />
+          <HardwareStatus hw={hw} />
         </section>
       </div>
     </div>
@@ -1185,7 +1205,8 @@ function DetaineesPage({ onEdit }) {
         ) : !items.length ? (
           <StateBox>{t("detainee.empty")}</StateBox>
         ) : (
-          <table className="detainees-table">
+          /* --even: 5 cot du lieu chia deu be ngang (xem CSS o duoi file). */
+          <table className="detainees-table detainees-table--even">
             <thead>
               <tr>
                 <th>{t("detainee.col.photo")}</th>
@@ -1194,7 +1215,6 @@ function DetaineesPage({ onEdit }) {
                 <th>{t("detainee.col.gender")}</th>
                 <th>{t("detainee.col.dob")}</th>
                 <th>{t("detainee.col.cccd")}</th>
-                <th>{t("detainee.col.cell")}</th>
                 <th>{t("detainee.col.actions")}</th>
               </tr>
             </thead>
@@ -1215,7 +1235,6 @@ function DetaineesPage({ onEdit }) {
                   <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
                   <td>{item.dob ? formatDate(item.dob) : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
-                  <td>{item.cell_code || "-"}</td>
                   <td>
                     <div className="row-actions">
                       <button onClick={() => setViewing(item)}>{t("detainee.action.view")}</button>
@@ -1368,15 +1387,17 @@ function DetailModal({ detainee, onClose, onEdit }) {
             </div>
           </aside>
 
+          {/* O "Buong giam" da bo: app khong con quan ly giam giu. Con 7 o nen
+              luoi de detail-grid-2x4 (8 o) se ho mot cho o cuoi — dung
+              detail-grid-2x4 nhung o "Noi o" cho chiem ca 2 cot de lap day. */}
           <div className="detail-grid-v2 detail-grid-2x4">
             <InfoTile icon={DetailIcon.cccd} label={t("detainee.field.cccd")} value={d.cccd_number || "—"} />
             <InfoTile icon={DetailIcon.note} label={t("detainee.field.personal_id")} value={d.personal_id || "—"} />
             <InfoTile icon={DetailIcon.dob} label={t("detainee.field.dob")} value={dobText} />
             <InfoTile icon={DetailIcon.ethnic} label={t("detainee.field.ethnicity")} value={d.ethnicity || "Kinh"} action={!d.ethnicity ? editMissing : null} />
-            <InfoTile icon={DetailIcon.door} label={t("detainee.field.cell")} value={d.cell_code || "—"} />
-            <InfoTile icon={DetailIcon.pin} label={t("detainee.field.address")} value={d.address || "—"} />
             <InfoTile icon={DetailIcon.gender} label={t("detainee.field.gender")} value={<span><b>{genderSymbol}</b> {genderText}</span>} />
             <InfoTile icon={DetailIcon.flag} label={t("detainee.field.nationality")} value={d.nationality || t("detainee.field.nationality_default")} action={!d.nationality ? editMissing : null} />
+            <InfoTile className="tile-span-2" icon={DetailIcon.pin} label={t("detainee.field.address")} value={d.address || "—"} />
           </div>
         </div>
       </div>
@@ -1399,7 +1420,7 @@ function InfoTile({ icon, label, value, action }) {
 
 function SyncPage() {
   const { t, formatDateTime } = useI18n();
-  const [sessions, setSessions] = useState([]);
+  const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -1415,11 +1436,11 @@ function SyncPage() {
     try {
       const params = {};
       if (statusFilter) params.status = statusFilter;
-      const r = await api.listSessions(params);
-      setSessions(r.items || []);
+      const r = await api.listCases(params);
+      setCases(r.items || []);
     } catch (e) {
       setError(e.message);
-      setSessions([]);
+      setCases([]);
     } finally {
       setLoading(false);
     }
@@ -1428,14 +1449,13 @@ function SyncPage() {
   useEffect(() => { load(); }, [statusFilter]);
   useEffect(() => { setPage(1); }, [statusFilter, q]);
 
-  const filtered = sessions.filter((s) => {
+  const filtered = cases.filter((c) => {
     if (!q.trim()) return true;
     const kw = q.trim().toLowerCase();
     return (
-      (s.code || "").toLowerCase().includes(kw) ||
-      (s.officer || "").toLowerCase().includes(kw) ||
-      (s.officer_full_name || "").toLowerCase().includes(kw) ||
-      (s.location || "").toLowerCase().includes(kw)
+      (c.code || "").toLowerCase().includes(kw) ||
+      (c.name || "").toLowerCase().includes(kw) ||
+      (c.location || "").toLowerCase().includes(kw)
     );
   });
   const totalRows = filtered.length;
@@ -1456,7 +1476,7 @@ function SyncPage() {
 
   const [syncErrors, setSyncErrors] = useState({});
   const [syncSuccess, setSyncSuccess] = useState({});
-  const [diffState, setDiffState] = useState(null); // { session, loading, diff }
+  const [diffState, setDiffState] = useState(null); // { caseDoc, loading, diff }
 
   const REMOTE = "/api/proxy"; // proxy qua backend để tránh CORS
 
@@ -1475,9 +1495,9 @@ function SyncPage() {
     } catch { return ""; }
   };
 
-  // Tải full detainee của 1 phiên
-  const loadSessionDetainees = async (sessionId) => {
-    const detail = await api.request(`/api/sessions/${sessionId}`);
+  // Tải full detainee của 1 vụ án
+  const loadCaseDetainees = async (caseId) => {
+    const detail = await api.getCase(caseId);
     return Promise.all(
       (detail.detainees || []).map((d) => api.getDetainee(d.id).catch(() => d))
     );
@@ -1537,34 +1557,34 @@ function SyncPage() {
   };
 
   // Bước 1: so sánh + mở modal xác nhận
-  const prepareSync = async (session) => {
-    setSyncErrors((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
-    setSyncSuccess((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
-    setDiffState({ session, loading: true, diff: null });
+  const prepareSync = async (caseDoc) => {
+    setSyncErrors((prev) => { const n = { ...prev }; delete n[caseDoc.id]; return n; });
+    setSyncSuccess((prev) => { const n = { ...prev }; delete n[caseDoc.id]; return n; });
+    setDiffState({ caseDoc, loading: true, diff: null });
     try {
       const [localDetainees, remoteResp] = await Promise.all([
-        loadSessionDetainees(session.id),
+        loadCaseDetainees(caseDoc.id),
         api.request(`${REMOTE}/pham-nhan`),
       ]);
       const remoteList = Array.isArray(remoteResp?.data) ? remoteResp.data : [];
       const diff = buildSyncDiff(localDetainees, remoteList);
-      setDiffState({ session, loading: false, diff });
+      setDiffState({ caseDoc, loading: false, diff });
     } catch (e) {
       setDiffState(null);
-      setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
+      setSyncErrors((prev) => ({ ...prev, [caseDoc.id]: e.message }));
     }
   };
 
   // Bước 2: sau khi user xác nhận trong modal -> đẩy thật
   const doSync = async (selectedTargets) => {
-    const session = diffState?.session;
+    const caseDoc = diffState?.caseDoc;
     const diff = diffState?.diff;
-    if (!session || !selectedTargets.length) {
+    if (!caseDoc || !selectedTargets.length) {
       setDiffState(null);
       return;
     }
     setDiffState(null);
-    setSyncingIds((prev) => new Set(prev).add(session.id));
+    setSyncingIds((prev) => new Set(prev).add(caseDoc.id));
     const pickEntry = (x) => ({
       code: x.code || "",
       full_name: x.full_name || "",
@@ -1577,12 +1597,13 @@ function SyncPage() {
       const payload = {
         total: mappedDetainees.length,
         items: [{
-          id: session.code || session.id || null,
-          officer: session.officer || null,
-          officer_full_name: session.officer_full_name || null,
-          location: session.location || null,
-          opened_at: session.opened_at || null,
-          closed_at: session.closed_at || null,
+          // Vu an khong co can bo phu trach: bo officer, thay opened_at bang
+          // thoi diem xay ra vu an (occurred_at) — moc ma he thong ben kia can.
+          id: caseDoc.code || caseDoc.id || null,
+          name: caseDoc.name || null,
+          location: caseDoc.location || null,
+          occurred_at: caseDoc.occurred_at || null,
+          closed_at: caseDoc.closed_at || null,
           detainees: mappedDetainees,
         }],
       };
@@ -1590,10 +1611,10 @@ function SyncPage() {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
+      setSyncSuccess((prev) => ({ ...prev, [caseDoc.id]: true }));
       notify.add();
       try {
-        await api.logSessionSync(session.id, {
+        await api.logCaseSync(caseDoc.id, {
           added: addSel.length,
           updated: updSel.length,
           duplicated: (diff?.duplicates || []).length,
@@ -1605,9 +1626,9 @@ function SyncPage() {
         });
       } catch { /* log-only; không chặn UX */ }
     } catch (e) {
-      setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
+      setSyncErrors((prev) => ({ ...prev, [caseDoc.id]: e.message }));
       try {
-        await api.logSessionSync(session.id, {
+        await api.logCaseSync(caseDoc.id, {
           added: 0,
           updated: 0,
           duplicated: (diff?.duplicates || []).length,
@@ -1622,19 +1643,19 @@ function SyncPage() {
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev);
-        next.delete(session.id);
+        next.delete(caseDoc.id);
         return next;
       });
     }
   };
 
   const syncSelected = async () => {
-    const targets = filtered.filter((s) => selected.has(s.id));
-    for (const s of targets) {
+    const targets = filtered.filter((c) => selected.has(c.id));
+    for (const c of targets) {
       // eslint-disable-next-line no-await-in-loop
-      await prepareSync(s);
+      await prepareSync(c);
       // prepareSync opens a modal -> wait for the user to resolve it before continuing.
-      // Since the modal is interactive, we stop the chain here; the user clicks each session.
+      // Since the modal is interactive, we stop the chain here; the user clicks each case.
       break;
     }
   };
@@ -1654,8 +1675,8 @@ function SyncPage() {
         />
         <select className="control" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">{t("sync.status.all")}</option>
-          <option value="open">{t("sync.status.open")}</option>
-          <option value="closed">{t("sync.status.closed")}</option>
+          <option value="investigating">{t("case.status.investigating")}</option>
+          <option value="closed">{t("case.status.closed")}</option>
         </select>
         <button className="button" onClick={load} disabled={loading}>{loading ? t("sync.loading") : t("common.refresh")}</button>
         <div className="sync-toolbar-spacer" />
@@ -1680,9 +1701,9 @@ function SyncPage() {
               </th>
               <th>{t("sync.col.code")}</th>
               <th>{t("sync.col.status")}</th>
-              <th>{t("sync.col.officer")}</th>
+              <th>{t("case.col.case")}</th>
               <th>{t("sync.col.location")}</th>
-              <th>{t("sync.col.opened")}</th>
+              <th>{t("case.col.occurred_at")}</th>
               <th>{t("sync.col.closed")}</th>
               <th style={{ textAlign: "center" }}>{t("sync.col.count")}</th>
               <th style={{ width: 140 }}>{t("sync.col.actions")}</th>
@@ -1692,31 +1713,32 @@ function SyncPage() {
             {pagedRows.length === 0 && !loading && (
               <tr><td colSpan={9} className="sync-empty">{t("sync.empty")}</td></tr>
             )}
-            {pagedRows.map((s) => {
-              const busy = syncingIds.has(s.id);
+            {pagedRows.map((c) => {
+              const busy = syncingIds.has(c.id);
+              const open = c.status === "investigating";
               return (
-                <tr key={s.id} className={selected.has(s.id) ? "row-selected" : ""}>
-                  <td><input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></td>
-                  <td><strong>{s.code}</strong></td>
+                <tr key={c.id} className={selected.has(c.id) ? "row-selected" : ""}>
+                  <td><input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleOne(c.id)} /></td>
+                  <td><strong>{c.code}</strong></td>
                   <td>
-                    <span className={"sync-badge " + (s.status === "open" ? "open" : "closed")}>
-                      {s.status === "open" ? t("sync.status.open") : t("sync.status.closed")}
+                    <span className={"sync-badge " + (open ? "open" : "closed")}>
+                      {t(open ? "case.status.investigating" : "case.status.closed")}
                     </span>
                   </td>
-                  <td>{s.officer_full_name || s.officer}</td>
-                  <td>{s.location || "—"}</td>
-                  <td>{fmtDT(s.opened_at)}</td>
-                  <td>{fmtDT(s.closed_at)}</td>
-                  <td style={{ textAlign: "center" }}>{s.detainee_count || 0}</td>
+                  <td>{c.name || t("case.no_name")}</td>
+                  <td>{c.location || "—"}</td>
+                  <td>{fmtDT(c.occurred_at)}</td>
+                  <td>{fmtDT(c.closed_at)}</td>
+                  <td style={{ textAlign: "center" }}>{c.detainee_count || 0}</td>
                   <td>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <button className="button small" disabled={busy} onClick={() => prepareSync(s)}>
+                      <button className="button small" disabled={busy} onClick={() => prepareSync(c)}>
                         {busy ? t("sync.syncing") : t("sync.action")}
                       </button>
-                      {syncErrors[s.id] && (
-                        <span style={{ fontSize: 11, color: "#e53e3e" }}>{t("sync.err_prefix", { message: syncErrors[s.id] })}</span>
+                      {syncErrors[c.id] && (
+                        <span style={{ fontSize: 11, color: "#e53e3e" }}>{t("sync.err_prefix", { message: syncErrors[c.id] })}</span>
                       )}
-                      {syncSuccess[s.id] && !syncErrors[s.id] && (
+                      {syncSuccess[c.id] && !syncErrors[c.id] && (
                         <span style={{ fontSize: 11, color: "#12af64" }}>{t("sync.success")}</span>
                       )}
                     </div>
@@ -1738,7 +1760,7 @@ function SyncPage() {
 
       {diffState && (
         <SyncDiffModal
-          session={diffState.session}
+          caseDoc={diffState.caseDoc}
           diff={diffState.diff}
           loading={diffState.loading}
           onConfirm={doSync}
@@ -2318,7 +2340,7 @@ function ImportExportPage() {
     try {
       const res = await exportToUsb(
         "/api/detainees/export/xlsx",
-        "can_pham.xlsx",
+        "nghi_pham.xlsx",
         pickDrive,
       );
       if (!res.cancelled) {
@@ -2366,7 +2388,7 @@ function ImportExportPage() {
           <h3>{t("import.export_title")}</h3>
           <p>{t("import.export_desc")}</p>
           <button className="button primary" onClick={doExport} disabled={exporting}>
-            {exporting ? t("session.exporting") : t("import.export_btn")}
+            {exporting ? t("common.exporting") : t("import.export_btn")}
           </button>
         </section>
 
@@ -2442,7 +2464,7 @@ function LogsPage() {
   const [dateTo, setDateTo] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("");
-  const [sessionFilter, setSessionFilter] = useState("");
+  const [caseFilter, setCaseFilter] = useState("");
   const [actorFilter, setActorFilter] = useState("");
   const [users, setUsers] = useState([]);
   const [viewing, setViewing] = useState(null);
@@ -2454,10 +2476,10 @@ function LogsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const params = { action: "sync", resource: "work_session" };
+      const params = { action: "sync", resource: "case" };
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
-      if (sessionFilter.trim()) params.session_code = sessionFilter.trim();
+      if (caseFilter.trim()) params.case_code = caseFilter.trim();
       if (actorFilter) params.actor = actorFilter;
       const res = await api.listLogs(params);
       setLogs(res.items || []);
@@ -2560,7 +2582,7 @@ function LogsPage() {
   const clearFilters = () => {
     setDateFrom("");
     setDateTo("");
-    setSessionFilter("");
+    setCaseFilter("");
     setActorFilter("");
   };
 
@@ -2614,8 +2636,8 @@ function LogsPage() {
                 className="control"
                 type="text"
                 placeholder={t("logs.field.session_ph")}
-                value={sessionFilter}
-                onChange={(e) => setSessionFilter(e.target.value)}
+                value={caseFilter}
+                onChange={(e) => setCaseFilter(e.target.value)}
               />
             </label>
             <label className="report-field">
@@ -2799,7 +2821,7 @@ function DetaineeHistoryPage({ onEdit }) {
         (l.ref || "").toLowerCase().includes(kw) ||
         (l.actor || "").toLowerCase().includes(kw) ||
         (officer.full_name || "").toLowerCase().includes(kw) ||
-        (l.session && (l.session.code || "").toLowerCase().includes(kw))
+        (l.case && (l.case.code || "").toLowerCase().includes(kw))
       );
     });
   }, [logs, q]);
@@ -2874,8 +2896,8 @@ function DetaineeHistoryPage({ onEdit }) {
 
         <div className="report-stat-grid">
           <ReportStat tone="blue" icon={Icon.file} label={t("history.action.create")} value={counts.create || 0} note={t("history.stat.note.create")} />
-          <ReportStat tone="orange" icon={Icon.sync} label={t("session.stat.update")} value={counts.update || 0} note={t("logs.stat.note.update")} />
-          <ReportStat tone="purple" icon={Icon.log} label={t("session.stat.delete")} value={counts.delete || 0} note={t("logs.stat.note.delete")} />
+          <ReportStat tone="orange" icon={Icon.sync} label={t("logs.stat.update")} value={counts.update || 0} note={t("logs.stat.note.update")} />
+          <ReportStat tone="purple" icon={Icon.log} label={t("logs.stat.delete")} value={counts.delete || 0} note={t("logs.stat.note.delete")} />
           <ReportStat tone="green" icon={Icon.cloudUpload} label={t("history.action.import")} value={counts.import || 0} note={t("logs.stat.note.import")} />
         </div>
 
@@ -2938,7 +2960,7 @@ function DetaineeHistoryPage({ onEdit }) {
             <thead>
               <tr>
                 <th style={{ width: "12%" }}>{t("logs.col.time")}</th>
-                <th style={{ width: "13%" }}>{t("logs.col.session")}</th>
+                <th style={{ width: "13%" }}>{t("logs.col.case")}</th>
                 <th style={{ width: "18%" }}>{t("logs.col.officer")}</th>
                 <th style={{ width: "11%" }}>{t("logs.col.action")}</th>
                 <th style={{ width: "12%" }}>{t("history.col.code")}</th>
@@ -2957,12 +2979,12 @@ function DetaineeHistoryPage({ onEdit }) {
                   <tr key={log.id}>
                     <td>{formatDateTime(log.at)}</td>
                     <td>
-                      {log.session ? (
-                        <span className="session-code-chip">
-                          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
-                            {log.session.status === "open" ? "●" : "✓"}
+                      {log.case ? (
+                        <span className="case-code-chip">
+                          <span className={`badge ${log.case.status === "investigating" ? "badge-open" : "badge-closed"}`}>
+                            {log.case.status === "investigating" ? "●" : "✓"}
                           </span>
-                          <span className="mono">{log.session.code}</span>
+                          <span className="mono">{log.case.code}</span>
                         </span>
                       ) : (
                         <span style={{ color: "var(--muted)" }}>—</span>
@@ -3023,42 +3045,30 @@ function DetaineeHistoryPage({ onEdit }) {
 
 function SearchPage() {
   const { t, formatDate } = useI18n();
-  const [mode, setMode] = useState("text"); // "text" | "cccd" | "fingerprint"
+  const [mode, setMode] = useState("text"); // "text" | "cccd"
   const [items, setItems] = useState([]);
-  const [cells, setCells] = useState([]);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
   const [cccdNumber, setCccdNumber] = useState("");
-  const [fpImageB64, setFpImageB64] = useState("");
-  const [fpTemplateB64, setFpTemplateB64] = useState("");
-  const [fpScanStatus, setFpScanStatus] = useState("");
-  const [fpScanning, setFpScanning] = useState(false);
-  const [fpMatchScore, setFpMatchScore] = useState(null);
-  const [cellCode, setCellCode] = useState("");
   const [gender, setGender] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [viewing, setViewing] = useState(null);
   const [searched, setSearched] = useState(false);
 
-  useEffect(() => {
-    api.listCells().then(setCells).catch(() => { });
-  }, []);
+  // Bo state `cells` + api.listCells(): o loc buong giam da bo khoi filter-bar,
+  // giu lai chi la mot request /api/cells vo ich moi lan mo trang Tra cuu.
 
   const resetResults = () => {
     setItems([]);
     setTotal(0);
     setSearched(false);
     setError("");
-    setFpMatchScore(null);
   };
 
   const switchMode = (m) => {
     setMode(m);
     resetResults();
-    setFpImageB64("");
-    setFpTemplateB64("");
-    setFpScanStatus("");
   };
 
   const doSearchText = async (e) => {
@@ -3068,7 +3078,6 @@ function SearchPage() {
     try {
       const params = new URLSearchParams({ limit: "100" });
       if (q.trim()) params.set("q", q.trim());
-      if (cellCode) params.set("cell_code", cellCode);
       if (gender) params.set("gender", gender);
       const res = await api.request(`/api/detainees?${params}`);
       setItems(res.items || []);
@@ -3107,73 +3116,8 @@ function SearchPage() {
     }
   };
 
-  const doFpScanAndMatch = async () => {
-    if (fpScanning) return;
-    setFpScanning(true);
-    setError("");
-    setFpScanStatus(t("search.status.check_fp"));
-    setFpImageB64("");
-    setFpTemplateB64("");
-    setItems([]);
-    setSearched(false);
-    setFpMatchScore(null);
-
-    let sid = null;
-    try {
-      const h = await fpApi.health();
-      if (!h.ok) {
-        throw new Error(h.error || t("search.status.check_fp"));
-      }
-      const startResp = await fpApi.startSession("__search_query__");
-      sid = startResp.session_id;
-
-      setFpScanStatus(t("search.status.place_any"));
-      const capRes = await fpApi.capture(sid);
-      const tmplB64 = capRes.finger?.template_b64;
-      const imgB64 = capRes.finger?.image_b64;
-      if (!tmplB64) throw new Error(t("search.err.no_template"));
-
-      setFpImageB64(imgB64 || "");
-      setFpTemplateB64(tmplB64);
-      setFpScanStatus(t("search.status.matching"));
-
-      // Cleanup session ngay sau khi có template
-      try { await fpApi.cancel(sid); } catch { /* noop */ }
-      sid = null;
-
-      setLoading(true);
-      const res = await api.matchFingerprintSingle(tmplB64);
-      let list = [];
-      if (Array.isArray(res.items)) list = res.items;
-      else if (res.detainee) list = [res.detainee];
-      else if (Array.isArray(res)) list = res;
-      setItems(list);
-      setTotal(list.length);
-      if (typeof res.score === "number") setFpMatchScore(res.score);
-      setSearched(true);
-      setFpScanStatus(list.length ? t("search.status.matched", { n: list.length }) : t("search.status.no_match"));
-    } catch (err) {
-      setError(err.message || t("search.err.match_fail"));
-      setFpScanStatus("");
-    } finally {
-      if (sid) {
-        try { await fpApi.cancel(sid); } catch { /* noop */ }
-      }
-      setFpScanning(false);
-      setLoading(false);
-    }
-  };
-
-  const clearFp = () => {
-    setFpImageB64("");
-    setFpTemplateB64("");
-    setFpScanStatus("");
-    setFpMatchScore(null);
-    resetResults();
-  };
-
   const subtitle = searched
-    ? t("search.subtitle.results", { n: total, pct: fpMatchScore != null ? (fpMatchScore * 100).toFixed(1) : "-" })
+    ? t("search.subtitle.results", { n: total })
     : t("search.subtitle.desc");
 
   return (
@@ -3199,15 +3143,6 @@ function SearchPage() {
         >
           {t("search.tab.cccd")}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "fingerprint"}
-          className={"search-tab " + (mode === "fingerprint" ? "active" : "")}
-          onClick={() => switchMode("fingerprint")}
-        >
-          {t("search.tab.fp")}
-        </button>
       </div>
 
       {mode === "text" && (
@@ -3218,14 +3153,8 @@ function SearchPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select className="control" value={cellCode} onChange={(e) => setCellCode(e.target.value)}>
-            <option value="">{t("search.cell.all")}</option>
-            {cells.map((cell) => (
-              <option key={cell.code} value={cell.code}>
-                {cell.code} - {cell.name}
-              </option>
-            ))}
-          </select>
+          {/* O loc theo BUONG GIAM da bo: khong con quan ly giam giu. Con lai
+              loc theo tu khoa + gioi tinh. */}
           <select className="control" value={gender} onChange={(e) => setGender(e.target.value)}>
             <option value="">{t("search.gender.all")}</option>
             <option value="male">{t("search.gender.male")}</option>
@@ -3254,48 +3183,6 @@ function SearchPage() {
         </form>
       )}
 
-      {mode === "fingerprint" && (
-        <div className="filter-bar filter-bar-fp">
-          <div className="fp-search-slot">
-            {fpImageB64 ? (
-              <div className="fp-search-preview">
-                <img src={`data:image/png;base64,${fpImageB64}`} alt={t("search.fp.alt")} />
-                <button
-                  type="button"
-                  className="fp-search-clear"
-                  onClick={clearFp}
-                  disabled={fpScanning}
-                  aria-label={t("search.fp.aria_delete")}
-                >×</button>
-              </div>
-            ) : (
-              <div className="fp-search-drop fp-search-drop--live" role="status" aria-live="polite">
-                <span className="fp-search-drop-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 11c0-4 3-7 7-7" />
-                    <path d="M5 4c4 0 7 3 7 7v6a3 3 0 0 0 3 3" />
-                    <path d="M8 11a4 4 0 0 1 8 0v5a2 2 0 0 0 2 2" />
-                    <path d="M12 15v1a3 3 0 0 0 3 3" />
-                  </svg>
-                </span>
-                <span>{fpScanStatus || t("search.fp.hint_click")}</span>
-                <span className="fp-search-drop-hint">
-                  {fpScanning ? t("search.fp.waiting") : t("search.fp.hint_place")}
-                </span>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            className="button primary"
-            onClick={doFpScanAndMatch}
-            disabled={fpScanning || loading}
-          >
-            {fpScanning ? t("search.scanning") : (fpTemplateB64 ? t("search.rescan") : t("search.start_scan"))}
-          </button>
-        </div>
-      )}
-
       {error && <StateBox type="error">{error}</StateBox>}
 
       <div className="table-card">
@@ -3315,7 +3202,6 @@ function SearchPage() {
                 <th>{t("search.col.gender")}</th>
                 <th>{t("search.col.dob")}</th>
                 <th>{t("search.col.cccd")}</th>
-                <th>{t("search.col.cell")}</th>
                 <th>{t("search.col.actions")}</th>
               </tr>
             </thead>
@@ -3332,7 +3218,6 @@ function SearchPage() {
                   <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
                   <td>{item.dob ? formatDate(item.dob) : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
-                  <td>{item.cell_code || "-"}</td>
                   <td>
                     <div className="row-actions">
                       <button onClick={() => setViewing(item)}>{t("common.view")}</button>
@@ -3513,37 +3398,39 @@ const FP_SETTINGS_DIGITS = ["thumb", "index", "middle", "ring", "little"];
 
 function SettingsPage() {
   const { t } = useI18n();
-  const [heightImage, setHeightImage] = useState("");
-  const [heightOffset, setHeightOffset] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // { left_thumb: "50", ... } - giu dang STRING de o input trong duoc trong khi
   // dang sua, khong bi Number("") = 0 bien thanh nguong 0.
   const [fpQ, setFpQ] = useState({});
   const [fpSaving, setFpSaving] = useState(false);
   const [fpError, setFpError] = useState("");
+  // Nguong doi sach dau vet hien truong. Giu STRING vi dung ly do tren, va giu
+  // ca config goc (hbie) de lay score_max + defaults lam nut "ve mac dinh".
+  const [hbie, setHbie] = useState(null);
+  const [matchThr, setMatchThr] = useState("");
+  const [keepScore, setKeepScore] = useState("");
+  const [hbieSaving, setHbieSaving] = useState(false);
+  const [hbieError, setHbieError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     // Hai config doc song song. Loi cua config nay KHONG duoc lam an config kia:
-    // neu service van tay tat thi phan chieu cao van phai dung duoc.
-    Promise.allSettled([api.measurementConfig(), api.fingerprintConfig()])
-      .then(([m, fp]) => {
+    // neu backend chua co route hbie thi phan nguong van tay van phai dung duoc.
+    Promise.allSettled([api.hbieConfig(), api.fingerprintConfig()])
+      .then(([hb, fp]) => {
         if (cancelled) return;
-        if (m.status === "fulfilled") {
-          const v = Number(m.value?.height_image);
-          setHeightImage(Number.isFinite(v) && v > 0 ? String(v) : "");
-          const o = Number(m.value?.height_offset);
-          setHeightOffset(Number.isFinite(o) && o > 0 ? String(o) : "");
+        if (hb.status === "fulfilled") {
+          setHbie(hb.value);
+          setMatchThr(String(hb.value?.match_threshold ?? ""));
+          setKeepScore(String(hb.value?.keep_score ?? ""));
         } else {
-          setError(m.reason?.message || String(m.reason));
+          setError(hb.reason?.message || String(hb.reason));
         }
-        // Doc that bai (service tat, backend chua co route) van phai dien
-        // FP_QUALITY_RECOMMENDED vao 10 o: o trong khong noi len dieu gi, con
-        // hien so mac dinh cho admin biet he thong dang chay o muc nao. Loi
-        // ghi ra console thay vi do len UI - admin khong lam gi duoc voi no,
-        // va bam Luu van hoat dong binh thuong.
+        // Doc that bai (backend chua co route) van phai dien FP_QUALITY_RECOMMENDED
+        // vao 10 o: o trong khong noi len dieu gi, con hien so mac dinh cho admin
+        // biet he thong dang chay o muc nao. Loi ghi ra console thay vi do len UI -
+        // admin khong lam gi duoc voi no, va bam Luu van hoat dong binh thuong.
         const by = fp.status === "fulfilled" ? (fp.value?.by_finger || {}) : {};
         const def = Number(fp.status === "fulfilled" ? fp.value?.default : NaN);
         const fallback = Number.isFinite(def) ? def : FP_QUALITY_RECOMMENDED;
@@ -3555,6 +3442,9 @@ function SettingsPage() {
         setFpQ(next);
         if (fp.status !== "fulfilled") {
           console.warn("[settings] doc nguong van tay loi:", fp.reason);
+        }
+        if (hb.status !== "fulfilled") {
+          console.warn("[settings] doc nguong doi sach dau vet loi:", hb.reason);
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -3601,32 +3491,62 @@ function SettingsPage() {
     }
   };
 
-  const submit = async (e) => {
+  // Thang diem HBIE co dinh 0..1000; doc tu backend de khong hardcode 2 lan.
+  const scoreMax = Number(hbie?.score_max) || 1000;
+  const mNum = Number(matchThr);
+  const kNum = Number(keepScore);
+  const mOk = matchThr.trim() !== "" && Number.isInteger(mNum) && mNum >= 1 && mNum <= scoreMax;
+  const kOk = keepScore.trim() !== "" && Number.isInteger(kNum) && kNum >= 0 && kNum <= scoreMax;
+  // kNum <= mNum la luat that su (BE cung chan): diem san cao hon nguong ket luan
+  // thi khong cap nao con o muc "can xem lai".
+  const pairOk = mOk && kOk && kNum <= mNum;
+  const defMatch = Number(hbie?.defaults?.match_threshold);
+  // Canh bao ngay khi dang go, khong doi bam Luu - admin phai thay truoc khi
+  // chot rang minh dang ha xuong duoi muc tai lieu HBIE khuyen nghi.
+  const thrLowered = mOk && Number.isFinite(defMatch) && mNum < defMatch;
+
+  const submitHbie = async (e) => {
     e.preventDefault();
-    const value = Number(heightImage);
-    const offset = Number(heightOffset);
-    if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(offset) || offset <= 0) {
-      setError(t("settings.err.invalid"));
+    if (!mOk) {
+      setHbieError(t("settings.hbie.err.match", { max: scoreMax }));
       return;
     }
-    setSaving(true);
-    setError("");
+    if (!kOk || kNum > mNum) {
+      setHbieError(t("settings.hbie.err.keep", { max: mNum }));
+      return;
+    }
+    setHbieSaving(true);
+    setHbieError("");
     try {
-      const res = await api.updateMeasurementConfig({ height_image: value, height_offset: offset });
-      setHeightImage(String(res.height_image));
-      setHeightOffset(String(res.height_offset));
-      toast.success(t("settings.saved"));
+      const res = await api.updateHbieConfig({ match_threshold: mNum, keep_score: kNum });
+      setMatchThr(String(res.match_threshold));
+      setKeepScore(String(res.keep_score));
+      const rc = res?.reclassified || {};
+      // Doi nguong ket luan thi BE gan lai nhan cho ket qua da luu - bao ro so
+      // dong vua doi de admin biet cai dat co an that, khong phai luu xong de do.
+      toast.success(rc.pairs || rc.traces
+        ? t("settings.hbie.saved_reclassified", { p: rc.pairs || 0, n: rc.traces || 0 })
+        : t("settings.saved"));
+      // Doi DIEM SAN khong tu sinh ra cac cap ma diem san cu da loc bo tu truoc:
+      // phai nhac admin bam "Phan tich lai", neu khong se tuong ket qua cu da quet lai.
+      // 8s thay vi 3.5s mac dinh: day la viec admin phai LAM (bam Phan tich lai),
+      // toast tat nhanh qua thi thong tin mat truoc khi kip doc.
+      if (res?.needs_rematch) toast.info(t("settings.hbie.saved_rematch"), 8000);
     } catch (e) {
-      setError(e.message);
+      setHbieError(e.message);
     } finally {
-      setSaving(false);
+      setHbieSaving(false);
     }
   };
 
-  const hi = Number(heightImage);
-  const ho = Number(heightOffset);
-  const hiValid = Number.isFinite(hi) && hi > 0;
-  const previewRows = [0.15, 0.2, 0.25, 0.3];
+  const resetHbie = () => {
+    const d = hbie?.defaults;
+    if (!d) return;
+    setMatchThr(String(d.match_threshold));
+    setKeepScore(String(d.keep_score));
+    setHbieError("");
+  };
+
   // Canh bao ngay khi dang nhap, khong doi bam Luu - admin phai thay truoc khi
   // chot rang minh dang ha duoi nguong nghiep vu. Liet ke DUNG ngon nao dang
   // thap, khong bao chung chung: co 10 o nen admin phai biet o nao.
@@ -3649,81 +3569,104 @@ function SettingsPage() {
         </div>
       ) : (
         <div className="settings-grid">
-          <section className="table-card settings-card">
-            <div className="settings-card-head">
-              <span className="settings-card-icon">{Icon.gear}</span>
-              <div>
-                <h2>{t("settings.measurement.title")}</h2>
-                <p>{t("settings.measurement.desc")}</p>
-              </div>
-            </div>
-            <form className="form" onSubmit={submit}>
-              <FieldRow label={t("settings.height_image.label")}>
-                <input
-                  className="control"
-                  type="number"
-                  min="1"
-                  step="any"
-                  value={heightImage}
-                  onChange={(e) => setHeightImage(e.target.value)}
-                  required
-                />
-              </FieldRow>
-              <p style={{ color: "var(--muted)", fontSize: 12, margin: "4px 0 16px" }}>
-                {t("settings.height_image.desc")}
-              </p>
-              <FieldRow label={t("settings.height_offset.label")}>
-                <input
-                  className="control"
-                  type="number"
-                  min="1"
-                  step="any"
-                  value={heightOffset}
-                  onChange={(e) => setHeightOffset(e.target.value)}
-                  required
-                />
-              </FieldRow>
-              <p style={{ color: "var(--muted)", fontSize: 12, margin: "4px 0 16px" }}>
-                {t("settings.height_offset.desc")}
-              </p>
-              <div className="modal-actions" style={{ marginTop: 0 }}>
-                <button type="submit" className="button primary" disabled={saving}>
-                  {saving ? t("common.saving") : t("common.save")}
+          <section className="table-card settings-card settings-card-hbie">
+            <form className="form" onSubmit={submitHbie}>
+              <div className="settings-card-head settings-card-head-row">
+                <span className="settings-card-icon">{Icon.search}</span>
+                <div>
+                  <h2>{t("settings.hbie.title")}</h2>
+                  <p>{t("settings.hbie.desc", { max: scoreMax })}</p>
+                </div>
+                <button type="submit" className="button primary" disabled={hbieSaving || !pairOk}>
+                  {hbieSaving ? t("common.saving") : t("common.save")}
                 </button>
               </div>
-            </form>
-          </section>
+              {hbieError && <StateBox type="error">{hbieError}</StateBox>}
 
-          <section className="table-card settings-card">
-            <div className="settings-card-head">
-              <span className="settings-card-icon">{Icon.chart}</span>
+              <div className="settings-hbie-body">
               <div>
-                <h2>{t("settings.formula.title")}</h2>
-                <p>{t("settings.formula.desc")}</p>
+              <FieldRow label={t("settings.hbie.match_threshold.label")}>
+                <input
+                  className="control"
+                  type="number"
+                  min="1"
+                  max={scoreMax}
+                  step="1"
+                  value={matchThr}
+                  onChange={(e) => setMatchThr(e.target.value)}
+                  aria-invalid={!mOk ? "true" : undefined}
+                  required
+                />
+              </FieldRow>
+              <p className="settings-fp-note">{t("settings.hbie.match_threshold.desc")}</p>
+
+              <FieldRow label={t("settings.hbie.keep_score.label")}>
+                <input
+                  className="control"
+                  type="number"
+                  min="0"
+                  max={scoreMax}
+                  step="1"
+                  value={keepScore}
+                  onChange={(e) => setKeepScore(e.target.value)}
+                  aria-invalid={!kOk ? "true" : undefined}
+                  required
+                />
+              </FieldRow>
+              <p className="settings-fp-note">{t("settings.hbie.keep_score.desc")}</p>
+
+              <div className="modal-actions" style={{ marginTop: 0 }}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={resetHbie}
+                  disabled={hbieSaving || !hbie?.defaults}
+                >
+                  {t("settings.hbie.reset", {
+                    m: hbie?.defaults?.match_threshold ?? "—",
+                    k: hbie?.defaults?.keep_score ?? "—",
+                  })}
+                </button>
               </div>
-            </div>
-            <div className="settings-formula settings-formula-compact">height_cm = (1 − head_ratio) × height_image + height_offset</div>
-            <p className="settings-preview-caption">
-              {hiValid
-                ? t("settings.preview.caption", { v: hi })
-                : t("settings.preview.invalid")}
-            </p>
-            <table className="settings-preview-table">
-              <thead>
-                <tr>
-                  <th>head_ratio</th>
-                  <th>{t("settings.preview.col_height")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {previewRows.map((r) => (
-                  <tr key={r}>
-                    <td>{r.toFixed(2)}</td>
-                    <td>{hiValid && ho > 0 ? `${((1 - r) * hi + ho).toFixed(1)} cm` : "—"}</td>
+              </div>
+
+              {/* Bang 3 muc diem: doc la hieu ngay 2 o ben trai cat ket qua o dau,
+                  khong bat admin tu hinh dung. So cap nhat theo o dang go nen
+                  thay truc tiep hau qua truoc khi bam Luu. */}
+              <div>
+              <table className="settings-preview-table">
+                <thead>
+                  <tr>
+                    <th>{t("settings.hbie.bands.col_range")}</th>
+                    <th>{t("settings.hbie.bands.col_effect")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{mOk ? `≥ ${mNum}` : "—"}</td>
+                    <td>{t("smp.matched")}</td>
+                  </tr>
+                  <tr>
+                    <td>{pairOk ? `${kNum} – ${mNum - 1}` : "—"}</td>
+                    <td>{t("smp.review")}</td>
+                  </tr>
+                  <tr>
+                    <td>{kOk ? `< ${kNum}` : "—"}</td>
+                    <td>{t("settings.hbie.bands.dropped")}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {thrLowered ? (
+                <p className="settings-fp-note" style={{ color: "var(--danger, #e5484d)" }}>
+                  {t("settings.hbie.warn_low", { v: defMatch })}
+                </p>
+              ) : (
+                <p className="settings-fp-note">{t("settings.hbie.note")}</p>
+              )}
+              </div>
+              </div>
+            </form>
           </section>
 
           <section className="table-card settings-card settings-card-fp">
@@ -3963,8 +3906,8 @@ function SyncLogDetailModal({ log, onClose }) {
               <div><strong>{officer.full_name || log.actor}</strong> {officer.full_name ? <small style={{ color: "var(--muted)" }}>@{log.actor}</small> : null}</div>
             </div>
             <div>
-              <div style={{ color: "var(--muted)", fontSize: 12 }}>{t("logs.col.session")}</div>
-              <div className="mono">{log.session?.code || log.ref || "—"}</div>
+              <div style={{ color: "var(--muted)", fontSize: 12 }}>{t("logs.col.case")}</div>
+              <div className="mono">{log.case?.code || log.ref || "—"}</div>
             </div>
           </div>
 
@@ -4562,6 +4505,69 @@ const styles = `
     justify-content: center;
     width: 100%;
   }
+
+  /* ===== Tooltip cho sidebar icon =====
+     Hien ben phai icon khi hover/focus. Dung data-tip (khong dung title= de
+     tranh tooltip he thong cham + lech tong mau). */
+  .nav-item[data-tip]::before,
+  .security-card[data-tip]::before {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-4px);
+    z-index: 60;
+    max-width: 240px;
+    width: max-content;
+    padding: 7px 11px;
+    border: 1px solid rgba(53, 216, 255, .28);
+    border-radius: 9px;
+    background: linear-gradient(180deg, rgba(12, 30, 60, .98), rgba(6, 20, 42, .98));
+    box-shadow: 0 10px 26px -10px rgba(2, 8, 23, .9);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .2px;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease, visibility .16s;
+  }
+  /* Mui nhon tro vao icon */
+  .nav-item[data-tip]::after,
+  .security-card[data-tip]::after {
+    content: "";
+    position: absolute;
+    left: calc(100% + 4px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-4px);
+    z-index: 61;
+    width: 7px;
+    height: 7px;
+    rotate: 45deg;
+    border-left: 1px solid rgba(53, 216, 255, .28);
+    border-bottom: 1px solid rgba(53, 216, 255, .28);
+    background: rgba(9, 25, 51, .98);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .16s ease, transform .16s ease, visibility .16s;
+  }
+  .nav-item[data-tip]:hover::before,
+  .nav-item[data-tip]:focus-visible::before,
+  .nav-item[data-tip]:hover::after,
+  .nav-item[data-tip]:focus-visible::after,
+  .security-card[data-tip]:hover::before,
+  .security-card[data-tip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
+  }
+  /* O vuong 44x44 chua icon. KHONG dat overflow:hidden — tooltip phai tran ra
+     ngoai; phan cat vach sang da chuyen vao .nav-icon. */
   .nav-item {
     position: relative;
     /* Giu light-trail cua muc active khong tran ra ngoai bo goc */
@@ -4654,8 +4660,10 @@ const styles = `
       0 8px 18px rgba(6, 55, 158, .45),
       inset 0 1px 0 rgba(255, 255, 255, .18);
   }
-  /* Animated light trail along the top edge of the active nav item */
-  .nav-item.active::after {
+  /* Vach sang chay tren dinh muc dang chon.
+     DAT TRONG .nav-icon (khong phai .nav-item::after) vi ::after cua .nav-item
+     da dung cho mui nhon tooltip — de chung o cung selector se de nhau. */
+  .nav-item.active .nav-icon::after {
     content: "";
     position: absolute;
     top: 0;
@@ -4674,7 +4682,11 @@ const styles = `
     100% { transform: translateX(320%); opacity: 0; }
   }
 
+  /* position:relative + overflow:hidden de vach sang (::after) chay trong o icon
+     va bi cat gon theo bo goc. */
   .nav-icon {
+    position: relative;
+    overflow: hidden;
     width: 34px;
     height: 34px;
     flex: 0 0 auto;
@@ -4730,9 +4742,12 @@ const styles = `
     padding: 6px 6px;
   }
 
+  /* Khong chan be ngang: sidebar da thu tu 200px xuong 56px, phan giai phong
+     phai vao noi dung chu khong thanh le trong. Truoc day max-width:1700px lam
+     man >1756px co le trong hai ben. */
   .page {
-    max-width: 1700px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
     height: 100%;
     min-height: 0;
     display: flex;
@@ -5351,6 +5366,79 @@ const styles = `
   .session-status.open { background: rgba(36, 215, 119, 0.12); color: var(--success); }
   .session-status.closed { background: rgba(53, 216, 255, 0.08); color: var(--muted); }
 
+  /* Detainee list on dashboard */
+  .dash-detainee-list {
+    padding: 6px 6px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .dash-detainee-row {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .dash-detainee-row:hover { background: rgba(53, 216, 255, 0.06); }
+  .dash-detainee-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: rgba(53, 216, 255, 0.10);
+    color: var(--primary-hi);
+    font-weight: 700;
+    font-size: 13px;
+    border: 1px solid rgba(53, 216, 255, 0.18);
+    flex-shrink: 0;
+  }
+  .dash-detainee-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dash-detainee-main { min-width: 0; }
+  .dash-detainee-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .dash-detainee-line strong {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dash-detainee-line small {
+    color: var(--muted);
+    font-size: 11.5px;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    flex-shrink: 0;
+  }
+  .dash-detainee-meta {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 11.5px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .dash-detainee-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(53, 216, 255, 0.10);
+    color: var(--primary-hi);
+    flex-shrink: 0;
+  }
+
   /* Activity feed */
   .activity-feed {
     padding: 6px 20px 16px;
@@ -5777,85 +5865,6 @@ const styles = `
     box-shadow: 0 1px 2px rgba(22, 139, 255, .18);
   }
 
-  /* Fingerprint search mode: 2 cols (slot + submit) */
-  .filter-bar-fp {
-    grid-template-columns: minmax(280px, 1fr) auto;
-  }
-  .fp-search-slot { display: flex; align-items: center; justify-content: flex-start; }
-  .fp-search-drop {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 200px;
-    height: 140px;
-    border: 2px dashed var(--border);
-    border-radius: 10px;
-    background: var(--bg-panel);
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: border-color .15s, background .15s, color .15s;
-    padding: 12px;
-    text-align: center;
-  }
-  .fp-search-drop:hover {
-    border-color: var(--primary-2);
-    background: rgba(22, 139, 255, 0.08);
-    color: var(--primary-2);
-  }
-  .fp-search-drop-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px; height: 42px;
-    border-radius: 50%;
-    background: rgba(22, 139, 255, 0.12);
-    color: var(--primary-2);
-  }
-  .fp-search-drop-icon svg { width: 24px; height: 24px; }
-  .fp-search-drop-hint {
-    font-size: 11px;
-    color: var(--muted);
-    font-weight: 400;
-  }
-  .fp-search-preview {
-    position: relative;
-    width: 140px;
-    height: 140px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    background: var(--bg-panel);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .fp-search-preview img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    display: block;
-  }
-  .fp-search-clear {
-    position: absolute;
-    top: 4px; right: 4px;
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    border: 0;
-    background: rgba(0, 0, 0, 0.55);
-    color: #fff;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-  .fp-search-clear:hover { background: var(--danger); }
   .control {
     width: 100%;
     height: 42px;
@@ -5878,11 +5887,11 @@ const styles = `
   }
 
   /* ===== Trang Cài đặt ===== */
-  /* Layout 2 hang TUONG MINH thay vi auto-fit: hang 1 la 2 card tham so (cot
-     trai rong hon vi co form nhap), hang 2 la card van tay chiem ca chieu ngang.
-     overflow:hidden + rows "auto 1fr" giu toan bo trang vua trong khung, khong
-     sinh thanh cuon; card van tay tu gian theo 1fr nen khong de lai khoang trong
-     o man hinh cao. */
+  /* Layout 2 hang TUONG MINH thay vi auto-fit: hang 1 la card nguong doi sach
+     dau vet, hang 2 la card van tay. Ca hai deu trai het chieu ngang (grid-column
+     1/-1) nen khong lo o trong o cot nao. overflow:hidden + rows "auto 1fr" giu
+     toan bo trang vua trong khung, khong sinh thanh cuon; card van tay tu gian
+     theo 1fr nen khong de lai khoang trong o man hinh cao. */
   .settings-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
@@ -5927,18 +5936,6 @@ const styles = `
   .settings-card-head-row { align-items: center; }
   .settings-card-head-row > div { flex: 1 1 auto; min-width: 0; }
   .settings-card-head-row > .button { flex: 0 0 auto; }
-  .settings-formula {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 13px;
-    background: #0f172a;
-    color: #e2e8f0;
-    padding: 12px 14px;
-    border-radius: 8px;
-    text-align: center;
-    letter-spacing: .3px;
-  }
-  .settings-formula-compact { font-size: 12px; padding: 9px 11px; }
-  .settings-preview-caption { font-size: 11.5px; color: var(--muted); margin: 10px 0 6px; }
   .settings-preview-table { width: 100%; border-collapse: collapse; }
   .settings-preview-table th {
     text-align: left;
@@ -5960,6 +5957,16 @@ const styles = `
      2 hang (2 ban tay) thay vi 2 cot x 5 hang: tiet kiem ~110px chieu cao, day
      la phan giup ca trang vua khung khong sinh thanh cuon. Ten ngon chi hien 1
      lan o tieu de cot thay vi lap lai 10 lan. */
+  .settings-card-hbie { grid-column: 1 / -1; }
+  /* Card HBIE rong het man hinh, nen ben trong tach 2 cot: cot trai la 2 o nhap
+     nguong, cot phai la bang 3 muc diem + ghi chu. De 1 cot thi .control (width
+     100%) keo o nhap dai hoan man hinh, vua xau vua kho nhin ra gioi han cua so. */
+  .settings-hbie-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
   .settings-card-fp { grid-column: 1 / -1; }
   .settings-fp-matrix {
     display: grid;
@@ -6021,6 +6028,20 @@ const styles = `
     width: 100%;
     border-collapse: collapse;
   }
+  /* CHI bang danh sach nghi pham (--even). Bang nhat ky dung chung class
+     .detainees-table nhung co 8 cot voi be rong % rieng — ap 56px/200px vao do
+     thi cot thoi gian/can bo bi bop lai. */
+  .detainees-table-wrap .detainees-table--even {
+    /* fixed: 5 cot du lieu (ma, ho ten, gioi tinh, sinh, CCCD) chia DEU be ngang
+       con lai. De auto thi cot rong theo do dai noi dung nen ca bang don ve ben
+       trai, chua ke moi trang du lieu lai le cot mot kieu. */
+    table-layout: fixed;
+  }
+  /* Anh dai dien va cum nut: rong CO DINH, khong an vao phan chia deu o giua. */
+  .detainees-table--even th:first-child,
+  .detainees-table--even td:first-child { width: 56px; }
+  .detainees-table--even th:last-child,
+  .detainees-table--even td:last-child { width: 200px; }
   .detainees-table th {
     background: rgba(53, 216, 255, 0.08);
     padding: 9px 14px;
@@ -7635,6 +7656,7 @@ const styles = `
   .dashboard-page .donut-legend-row strong { font-size: 13.5px; }
 
   .dashboard-page .session-list,
+  .dashboard-page .dash-detainee-list,
   .dashboard-page .activity-feed,
   .dashboard-page .hw-status,
   .dashboard-page .dev-list {
@@ -7642,7 +7664,8 @@ const styles = `
     min-height: 0;
     overflow-y: auto;
   }
-  .dashboard-page .session-row { padding: 6px 12px; }
+  .dashboard-page .session-row,
+  .dashboard-page .dash-detainee-row { padding: 6px 12px; }
   .dashboard-page .activity-row { padding: 6px 0; }
   .dashboard-page .hw-status { padding: 8px 14px 10px; gap: 8px; }
   .dashboard-page .hw-rings { gap: 6px; }
@@ -8729,7 +8752,9 @@ const styles = `
 
   /* Modern High-Tech Enterprise UI — disable light trails when reduced motion */
   @media (prefers-reduced-motion: reduce) {
-    .nav-item.active::after,
+    /* Vach sang da chuyen tu .nav-item::after sang .nav-icon::after
+       (::after cua .nav-item gio dung cho mui nhon tooltip). */
+    .nav-item.active .nav-icon::after,
     .stat-card::after {
       animation: none !important;
       opacity: 0;

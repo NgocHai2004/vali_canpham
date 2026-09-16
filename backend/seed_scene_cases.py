@@ -14,44 +14,21 @@ from datetime import datetime, timedelta
 
 from pymongo import MongoClient
 
-def _get_env(key: str, default: str) -> str:
-    val = os.getenv(key, "").strip()
-    if val:
-        return val
-    candidate_envs = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), ".env")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env")),
-    ]
-    for env_file in candidate_envs:
-        if os.path.exists(env_file):
-            try:
-                with open(env_file, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith("#") and "=" in line:
-                            k, v = line.split("=", 1)
-                            if k.strip() == key:
-                                return v.strip().strip('"').strip("'")
-            except Exception:
-                pass
-    return default
-
-MONGO_URL = _get_env("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = _get_env("DB_NAME", "app_cccd")
-OFFICER = _get_env("SEED_OFFICER", "canbo01")
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27018")
+DB_NAME = os.getenv("DB_NAME", "app_cccd")
+OFFICER = os.getenv("SEED_OFFICER", "canbo01")
 
 IMG_DIR = os.path.join(os.path.dirname(__file__), "uploads", "latent_cut")
 PER_CASE = 10
 
-# 6 vu an: (ten vu an, dia diem, xa/phuong)
+# 6 vu an: (ten vu an, dia diem)
 CASES = [
-    ("Trom cap tai san tai cua hang dien may Hoa Binh", "So 12 Le Duan, P. Hai Chau 1", "20194"),
-    ("Trom cap dot nhap nha dan pho Nguyen Chi Thanh", "So 88 Nguyen Chi Thanh, P. Thach Thang", "20195"),
-    ("Cuop giat tai san tren duong Bach Dang", "Duong Bach Dang, P. Thach Thang", "20195"),
-    ("Pha khoa xe may tai bai xe cho Con", "Bai xe cho Con, P. Hai Chau 2", "20196"),
-    ("Dot nhap kho hang khu cong nghiep Hoa Khanh", "KCN Hoa Khanh, P. Hoa Khanh Bac", "20203"),
-    ("Trom cap tai quan ca phe duong Tran Phu", "So 45 Tran Phu, P. Hai Chau 1", "20194"),
+    ("Trom cap tai san tai cua hang dien may Hoa Binh", "So 12 Le Duan, P. Hai Chau 1"),
+    ("Trom cap dot nhap nha dan pho Nguyen Chi Thanh", "So 88 Nguyen Chi Thanh, P. Thach Thang"),
+    ("Cuop giat tai san tren duong Bach Dang", "Duong Bach Dang, P. Thach Thang"),
+    ("Pha khoa xe may tai bai xe cho Con", "Bai xe cho Con, P. Hai Chau 2"),
+    ("Dot nhap kho hang khu cong nghiep Hoa Khanh", "KCN Hoa Khanh, P. Hoa Khanh Bac"),
+    ("Trom cap tai quan ca phe duong Tran Phu", "So 45 Tran Phu, P. Hai Chau 1"),
 ]
 
 # Loai dau vet + noi thu — cot "Loai dau vet" / "Nguon thu thap" tren bang.
@@ -73,13 +50,12 @@ def main():
 
     if not db.users.find_one({"username": OFFICER}):
         sys.exit(f"Chua co tai khoan '{OFFICER}'. Tao truoc roi chay lai.")
-    full_name = db.users.find_one({"username": OFFICER}).get("full_name") or OFFICER
 
     # Xoa lan seed truoc (chi doc co seed_demo) — khong dung vao data that.
-    old = [d["_id"] for d in db.work_sessions.find({"seed_demo": True}, {"_id": 1})]
+    old = [d["_id"] for d in db.cases.find({"seed_demo": True}, {"_id": 1})]
     db.scene_traces.delete_many({"seed_demo": True})
-    db.work_sessions.delete_many({"seed_demo": True})
-    print(f"da xoa {len(old)} phien seed cu")
+    db.cases.delete_many({"seed_demo": True})
+    print(f"da xoa {len(old)} vu an seed cu")
 
     # ponytail: CA 6 vu an deu la doc moi co seed_demo=True. Ban goc backfill
     # case_name vao phien THAT dang mo => sua data that, va lan chay sau khong don
@@ -87,20 +63,22 @@ def main():
     base = datetime(2026, 8, 3, 8, 30)
     n_tr = 0
 
-    for i, (case_name, location, commune) in enumerate(CASES):
-        opened = base + timedelta(days=i * 4, hours=i)
-        sid = db.work_sessions.insert_one({
-            "code": f"S{opened.strftime('%Y%m%d')}-{i + 1:04d}",
-            "status": "closed",
-            "case_name": case_name,
-            "commune_code": commune,
-            "officer": OFFICER,
-            "officer_full_name": full_name,
+    # 2 vu de "dang dieu tra" de con thu luong them dau vet / them ho so;
+    # 4 vu con lai "closed" de thu man hinh bi khoa.
+    for i, (name, location) in enumerate(CASES):
+        occurred = base + timedelta(days=i * 4, hours=i)
+        created = occurred + timedelta(hours=3)
+        status = "investigating" if i < 2 else "closed"
+        cid = db.cases.insert_one({
+            "code": f"VA{occurred.strftime('%Y%m%d')}-{i + 1:04d}",
+            "status": status,
+            "name": name,
             "location": location,
-            "note": "Phien seed demo.",
-            "opened_at": opened,
-            "closed_at": opened + timedelta(hours=6),
-            "detainee_count": 0,
+            "occurred_at": occurred,
+            "note": "Vu an seed demo.",
+            "created_at": created,
+            "created_by": OFFICER,
+            "closed_at": None if status == "investigating" else created + timedelta(days=6),
             "report_url": None,
             "report_filename": None,
             "seed_demo": True,
@@ -108,9 +86,9 @@ def main():
 
         for k in range(PER_CASE):
             g = i * PER_CASE + k
-            at = opened + timedelta(minutes=18 * k)
+            at = occurred + timedelta(minutes=18 * k)
             db.scene_traces.insert_one({
-                "session_id": sid,
+                "case_id": cid,
                 "seq": k + 1,
                 "url": f"/uploads/latent_cut/{imgs[g % len(imgs)]}",
                 "size": 90000 + (g * 5137) % 40000,
@@ -129,16 +107,24 @@ def main():
             })
             n_tr += 1
 
-    # self-check: du 6 vu an co ten, du 60 dau vet, moi vu du PER_CASE.
+        # counters phai khop seq da bom, khong thi anh them sau se trung seq.
+        db.counters.update_one(
+            {"_id": f"scene_seq_{cid}"},
+            {"$set": {"seq": PER_CASE}},
+            upsert=True,
+        )
+
+    # self-check: du 6 vu an, du 60 dau vet, moi vu du PER_CASE.
     # ponytail: loc theo seed_demo. Ban goc dung {"case_name": {"$ne": ""}} => match
     # ca phien THAT co case_name=None (None != "") nen assert fail oan tren DB co san.
-    codes = list(db.work_sessions.find({"officer": OFFICER, "seed_demo": True}))
-    assert len(codes) == len(CASES), f"vu an: {len(codes)} != {len(CASES)}"
+    rows = list(db.cases.find({"seed_demo": True}))
+    assert len(rows) == len(CASES), f"vu an: {len(rows)} != {len(CASES)}"
     assert n_tr == len(CASES) * PER_CASE, n_tr
-    for s in codes:
-        c = db.scene_traces.count_documents({"session_id": s["_id"]})
-        assert c == PER_CASE, f"{s['code']}: {c} dau vet"
-    print(f"OK: {len(codes)} vu an, {n_tr} dau vet ({PER_CASE}/vu an)")
+    for c in rows:
+        n = db.scene_traces.count_documents({"case_id": c["_id"]})
+        assert n == PER_CASE, f"{c['code']}: {n} dau vet"
+    n_open = sum(1 for c in rows if c["status"] == "investigating")
+    print(f"OK: {len(rows)} vu an ({n_open} dang dieu tra), {n_tr} dau vet ({PER_CASE}/vu an)")
 
 
 if __name__ == "__main__":

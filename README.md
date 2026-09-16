@@ -18,11 +18,11 @@ app_cccd/
 │   ├── weight_hub.py            # WebSocket hub cho cân
 │   ├── tests/
 │   └── services/                # Các service phần cứng (xem services/README.md)
-│       ├── usb_service/         # USB dongle (:8766)
-│       ├── fingerprint_service/ # ZK fingerprint (:8765)
+│       ├── usb_service/         # USB dongle (:8768)
+│       ├── morfin_service/      # Vân tay Morfin (:8767)
 │       ├── cccd_scanner/        # CccdService .NET (binary ngoài git)
 │       └── weight/              # Cân BLE → push backend
-├── frontend/                    # React + Vite (:5173)
+├── frontend/                    # React + Vite (:5174)
 ├── run.ps1 / stop.ps1           # Deploy 1 lệnh
 └── start-services.ps1           # Start usb + fingerprint
 ```

@@ -183,10 +183,17 @@ export const api = {
   me: () => request("/api/auth/me"),
   updateMe: (body) => request("/api/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
+  featureConfig: () => request("/api/config/features"),
+  // measurementConfig chi con DataCapturePage doc (tinh chieu cao tu dong khi
+  // FEATURE_HEIGHT_YOLO bat). O chinh sua trong Cai dat da bo: backend van giu
+  // PUT /api/config/measurement lam duong hieu chinh khi can bat lai YOLO.
   measurementConfig: () => request("/api/config/measurement"),
-  updateMeasurementConfig: (body) => request("/api/config/measurement", { method: "PUT", body: JSON.stringify(body) }),
   fingerprintConfig: () => request("/api/config/fingerprint"),
   updateFingerprintConfig: (body) => request("/api/config/fingerprint", { method: "PUT", body: JSON.stringify(body) }),
+  // Nguong doi sach dau vet hien truong (HBIE). GET moi user doc duoc de ve thang
+  // diem; PUT chi admin.
+  hbieConfig: () => request("/api/config/hbie"),
+  updateHbieConfig: (body) => request("/api/config/hbie", { method: "PUT", body: JSON.stringify(body) }),
 
   stats: () => request("/api/stats"),
 
@@ -254,7 +261,7 @@ export const api = {
 
 
   importXlsx: async (formData) => request("/api/detainees/import/xlsx", { method: "POST", body: formData }),
-  downloadExport: () => downloadFile("/api/detainees/export/xlsx", "can_pham.xlsx"),
+  downloadExport: () => downloadFile("/api/detainees/export/xlsx", "nghi_pham.xlsx"),
   downloadTemplate: () => downloadFile("/api/detainees/template/xlsx", "mau_import.xlsx"),
 
   listLogs: (params = {}) => {
@@ -274,42 +281,63 @@ export const api = {
     return request(`/api/users/${id}/avatar`, { method: "POST", body: fd });
   },
 
-  listSessions: (params = {}) => {
+  // ===== Vụ án (collection `cases`, thay cho phiên làm việc cũ) =====
+  listCases: (params = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "") qs.set(k, v);
     });
     const s = qs.toString();
-    return request(`/api/sessions${s ? `?${s}` : ""}`);
+    return request(`/api/cases${s ? `?${s}` : ""}`);
   },
 
   // Vụ án hiện trường. Khái niệm "phiên làm việc" đã bỏ: không còn mở/đóng phiên,
   // hồ sơ nghi phạm gắn trực tiếp vào vụ án (hoặc không gắn vụ án nào).
-  createSceneCase: (body) => request("/api/scene/cases", {
-    method: "POST",
-    body: JSON.stringify(body || {}),
-  }),
-  updateSceneCase: (id, body) => request(`/api/scene/cases/${id}`, {
+  createCase: (body) => request("/api/cases", { method: "POST", body: JSON.stringify(body || {}) }),
+  // patch = { name?, location?, occurred_at?, note?, status? }. Field khong gui thi
+  // backend giu nguyen. Ket thuc vu an = updateCase(id, { status: "closed" }) —
+  // khong con endpoint /close rieng.
+  updateCase: (id, patch) => request(`/api/cases/${id}`, {
     method: "PATCH",
-    body: JSON.stringify(body || {}),
+    body: JSON.stringify(patch || {}),
   }),
-  getSession: (id) => request(`/api/sessions/${id}`),
-  logSessionSync: (id, summary) => request(`/api/sessions/${id}/sync-log`, {
+  getCase: (id) => request(`/api/cases/${id}`),
+  closeCase: (id) => request(`/api/cases/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "closed" }),
+  }),
+  deleteCase: (id) => request(`/api/cases/${id}`, { method: "DELETE" }),
+  downloadCaseReport: (id, filename) => downloadFile(`/api/cases/${id}/report`, filename || `case_report.xlsx`),
+  logCaseSync: (id, summary) => request(`/api/cases/${id}/sync-log`, {
     method: "POST",
     body: JSON.stringify(summary || {}),
   }),
 
-  // ===== Dấu vết hiện trường (ảnh vụ án theo phiên) =====
-  // Không truyền sessionId => backend lấy phiên đang mở của cán bộ.
-  listSceneTraces: (sessionId) => request(
-    `/api/scene/traces${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`
+  createSceneCase: (body) => request("/api/cases", {
+    method: "POST",
+    body: JSON.stringify({ ...body, name: body.name ?? body.case_name }),
+  }),
+  updateSceneCase: (id, body) => request(`/api/cases/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ ...body, name: body.name ?? body.case_name }),
+  }),
+  getSession: (id) => request(`/api/cases/${id}`),
+  logSessionSync: (id, summary) => request(`/api/cases/${id}/sync-log`, {
+    method: "POST",
+    body: JSON.stringify(summary || {}),
+  }),
+
+  // ===== Dấu vết hiện trường (ảnh theo vụ án) =====
+  // Không truyền caseId => backend lấy vụ án đang điều tra gần nhất.
+  listSceneTraces: (caseId) => request(
+    `/api/scene/traces${caseId ? `?case_id=${encodeURIComponent(caseId)}` : ""}`
   ),
   // source: "camera" (chụp tại chỗ) | "upload" (chọn file). Ảnh do máy ngoài
   // bắn sang đi qua /api/scene/push nên không có ở đây.
-  createSceneTrace: async (file, { sessionId = "", note = "", source = "upload" } = {}) => {
+  createSceneTrace: async (file, { caseId = "", note = "", source = "upload" } = {}) => {
     const fd = new FormData();
     fd.append("file", file);
-    if (sessionId) fd.append("session_id", sessionId);
+    if (caseId) fd.append("case_id", caseId);
     if (note) fd.append("note", note);
     fd.append("source", source);
     return request("/api/scene/traces", { method: "POST", body: fd });
@@ -321,9 +349,24 @@ export const api = {
     body: JSON.stringify(typeof patch === "string" ? { note: patch } : patch),
   }),
   deleteSceneTrace: (id) => request(`/api/scene/traces/${id}`, { method: "DELETE" }),
+
+  // ===== Đối sánh dấu vết (engine HBIE) =====
+  // Bảng KẾT QUẢ ĐỐI SÁNH của vụ án. Tra ve { items, total, config } — config co
+  // threshold + score_max=1000 de UI ve thang diem dung, khong hardcode.
+  listSceneMatches: ({ caseId = "", traceId = "" } = {}) => {
+    const qs = new URLSearchParams();
+    if (caseId) qs.set("case_id", caseId);
+    if (traceId) qs.set("trace_id", traceId);
+    const s = qs.toString();
+    return request(`/api/scene/matches${s ? `?${s}` : ""}`);
+  },
+  // Doi sanh lai 1 dau vet: chay DONG BO (cho ket qua trả về) — khac luc upload
+  // (chay nen). Dung khi anh loi luc up, hoac vu an vua them doi tuong moi.
+  rematchSceneTrace: (id) => request(`/api/scene/traces/${id}/match`, { method: "POST" }),
+  hbieHealth: () => request("/api/scene/hbie/health"),
 };
 
-// ============ ZKFinger fingerprint sensor API (python service :8765) ============
+// ============ ZKFinger fingerprint sensor API (python service :8767) ============
 async function fpRequest(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   if (opts.body && !(opts.body instanceof FormData) && !headers["Content-Type"]) {
@@ -431,12 +474,12 @@ export const weightApi = {
   // Trả về hàm close() để đóng kết nối khi component unmount.
   connect(onValue) {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    // Dev Vite (:5173): nối thẳng vào backend :8000, tránh phụ thuộc `ws: true` trong vite.config.js.
+    // Dev Vite (:5174): nối thẳng vào backend :8001, tránh phụ thuộc `ws: true` trong vite.config.js.
     // Prod / khi FE serve cùng host với BE: giữ nguyên location.host.
     // Electron kiosk: ws đi qua proxy nội bộ (127.0.0.1:<proxyPort>) — preload inject.
     let host;
-    if (location.port === "5173") {
-      host = `${location.hostname}:8000`;
+    if (location.port === "5174") {
+      host = `${location.hostname}:8001`;
     } else if (window.appcccd && window.appcccd.getProxyPort && window.appcccd.getProxyPort()) {
       host = `${window.appcccd.proxyHost}:${window.appcccd.getProxyPort()}`;
     } else {

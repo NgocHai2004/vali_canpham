@@ -15,7 +15,7 @@ import { IcChevDown, IcClose, IcEye, IcPagePrev } from "./sceneMatchIcons";
 // So lieu doi sanh (diem minutiae, ngon tay, C09, chat luong, do tin cay) la
 // DEMO — he thong chua co engine trich minutiae. Xem sceneDemo.js.
 
-export default function SceneTraceFull({ item, row, session, onBack }) {
+export default function SceneTraceFull({ item, row, caseDoc, onBack }) {
   const { t, formatDateTime } = useI18n();
   const [zoom, setZoom] = useState(null);
 
@@ -89,7 +89,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
       <div className="stf-crumbbar">
         <div className="stf-crumb-main">
           <div className="stf-crumb">
-            <span>{session?.case_name || t("scene.no_case")}</span>
+            <span>{caseDoc?.name || t("scene.no_case")}</span>
             <span className="stf-sep">/</span>
             <span>{t("scene.crumb.traces")}</span>
             <span className="stf-sep">/</span>

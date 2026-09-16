@@ -3,7 +3,7 @@ import DuplicateWarnModal from "./DuplicateWarnModal";
 import { toast } from "./Toast";
 import { api, fpApi, cccdApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
-import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
+import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FINGER_STEP_OF, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_ROLL_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_LAYERS_BY_STEP, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
 import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
@@ -14,10 +14,12 @@ import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
 import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
 import { useI18n, apiT } from "./i18n";
 import { getMeasurementHeight } from "./lib/heightMeasurement";
+import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
-export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
+export default function DataCapturePage({ go, initial, onDone, caseId, caseCode, caseReadOnly = false, onSavedInCase, onEditProfile }) {
   const { t, formatDateLong } = useI18n();
+  const features = useFeatures();
   const isEdit = Boolean(initial && initial.id);
   const seed = useMemo(() => normalizeInitial(initial), [initial]);
   const [form, setForm] = useState(seed.form);
@@ -56,6 +58,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // platen phang chi dau ngon tiep xuc). Hardcode 50 o day se to do ngon ut du
   // no da dat nguong cua chinh no.
   const [fpMinQ, setFpMinQ] = useState({});
+  // So % dat DUNG VI TRI tung ngon tren anh CHUM, key = key anh (fp_plain_left...).
+  // Gia tri la slap_marks tu service: [{code, quality, no_quality, low, x_pct}].
+  //
+  // CHI SONG TRONG LUC THU, co y: khong ghi vao `photos` va khong vao payload luu
+  // ho so. So % la de can bo XEM roi quyet dinh Xac nhan hay Chup lai; luu no vao
+  // ho so thi phai chon giua nam so vao pixel anh (sua ban ghi chinh thuc cua van
+  // chum) hay them field vao schema - ca hai deu dat hon gia tri no mang lai.
+  // Mo lai ho so cu: anh con nguyen, khong con so.
+  //
+  // RIENG voi fpQuality: fpQuality khoa theo MA NGON cho luoi 10 o van LAN. Hai
+  // duong khac nhau, khong duoc gop - xem comment o cho set fpQuality trong
+  // collectFingersRun.
+  const [fpPlainMarks, setFpPlainMarks] = useState({});
   const [fpStatus, setFpStatus] = useState("");
   // fpError truoc day la STATE CHET: 28 cho goi setFpError ma khong mot JSX nao
   // doc no => moi loi chup roi vao hu khong. Can bo dat 3 ngon (cum cho 4) thi
@@ -86,7 +101,17 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [fpConfirm, setFpConfirm] = useState(null);
   // Ma ngon dang danh dau "khong co van tay" (ghi none, khong co anh). Giu o
   // state rieng de o ngon hien duoc dau none NGAY, ke ca truoc khi co session.
-  const [fpNoneCodes, setFpNoneCodes] = useState([]);
+  //
+  // NAP TU seed.photos.fp_missing, khong khoi tao rong.
+  //
+  // Truoc day la `useState([])` va khong co cho nao nap lai => co HAI NGUON ngon
+  // thieu lech nhau khi mo lai ho so cu de sua: fp_missing (duoc luu vao ho so)
+  // con nguyen, nhung fpNoneCodes rong. Hau qua: o mat badge `none`, isNone = false
+  // nen vong thu LAN LAI dung ngon da xac nhan la khong co van (fpStepHasData doc
+  // fpNoneCodesRef), va double-click lai an vao no.
+  // Nap o day thi luoi o, fpCount va vong thu dung CUNG MOT nguon su that.
+  const [fpNoneCodes, setFpNoneCodes] = useState(
+    () => (Array.isArray(seed.photos?.fp_missing) ? seed.photos.fp_missing : []));
   // Ref nhan banh cua fpNoneCodes de doc gia tri MOI NHAT trong startFpCollect /
   // retryFingerprint khi duoc goi tu closure auto-start (effect khong co deps moi,
   // giu closure render dau => state fpNoneCodes trong do la []) . Neu khong dung
@@ -109,6 +134,67 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // trong startFpCollect) de cleanup luc roi trang con biet ma nao can dong —
   // khong dong thi service giu thiet bi, vao lai trang khong thu duoc nua.
   const fpSidRef = useRef(null);
+  // TEN BUOC dang duoc yeu cau CHEN NGANG: can bo double-click vao mot o trong
+  // khi may dang thu ngon khac. Vong thu doc co nay o dau moi luot va nhay sang
+  // buoc do, thay vi bat can bo dung vong lai roi thu tay.
+  //
+  // Phai la ref chu khong phai state: vong thu chay trong mot closure duy nhat
+  // (collectFingersRun), state moi khong bao gio den duoc no.
+  const fpJumpRef = useRef(null);
+  // Anh hien tai, doc duoc tu TRONG vong thu. Cung ly do nhu fpNoneCodesRef:
+  // closure cua vong giu `photos` cua luc bat dau, nen khong the dung state de
+  // biet ngon nao vua co anh => se thu lai ngon da thu xong.
+  const photosRef = useRef(photos);
+  useEffect(() => { photosRef.current = photos; }, [photos]);
+
+  // Thu tu buoc CHUAN, khop dung `STEPS = ROLL_STEPS + SLAP_STEPS` cua service:
+  // lan het 10 ngon truoc, roi 3 lan chum.
+  const FP_ALL_STEP_NAMES = useMemo(() => [
+    ...FP_ROLL_ORDER.map((c) => FP_ROLL_STEP(c)),
+    ...FP_PLAIN_SLOTS.map((s) => s.step),
+  ], []);
+
+  // Dung doi tuong buoc {step, codes, roll} TU TEN BUOC, khong goi service.
+  // Vong thu chi can 3 truong nay: capture(sid, step.step), codes de biet o nao
+  // nhay, roll de biet ghi vao 10 o lan hay 3 o chum. Lam local vi duong chen
+  // ngang phai nhanh - them mot vong HTTP la them ~mot giay can bo phai cho.
+  const fpStepByName = useCallback((name) => {
+    const rollCode = FP_ROLL_CODE_BY_STEP[name];
+    if (rollCode) return { step: name, codes: [rollCode], roll: true };
+    const cluster = FP_CLUSTERS.find((c) => c.step === name);
+    if (cluster) return { step: name, codes: cluster.codes, roll: false };
+    return null;
+  }, []);
+
+  // Buoc nay DA CO DU LIEU chua? Doi chieu ANH THAT trong `photos`, khong phai
+  // trang thai done cua service.
+  //
+  // Hai nguon nay khac nhau that su: mo lai ho so cu (che do sua) thi anh da co
+  // san trong photos nhung session moi cua service coi la chua ngon nao xong =>
+  // tin service thi thu lai ca 10 ngon da co anh. Va nguoc lai, buoc chup roi
+  // nhung chua bam Xac nhan thi service coi la chua xong du anh da ve.
+  const fpStepHasData = useCallback((stepObj, ph, noneCodes) => {
+    if (!stepObj) return false;
+    if (stepObj.roll) {
+      const code = stepObj.codes[0];
+      // Ngon danh dau "khong co van tay" tinh la XONG: khong bao gio co anh, de
+      // vong thu quay lai thi no cho mai den timeout.
+      return noneCodes.includes(code) || !!ph[FP_CODE_TO_KEY[code]];
+    }
+    const key = FP_SHEET_KEY_BY_STEP[stepObj.step];
+    if (!key || !ph[key]) return false;
+    // O ngon cai: thieu mot trong hai anh tung ngon van la CHUA xong.
+    const layers = FP_PLAIN_LAYERS_BY_STEP[stepObj.step];
+    if (layers) return layers.every((ly) => !!ph[ly.key]);
+    return true;
+  }, []);
+
+  // Buoc ke tiep theo thu tu chuan, dung de bo qua buoc da co du lieu.
+  const fpStepAfter = useCallback((name) => {
+    const i = FP_ALL_STEP_NAMES.indexOf(name);
+    if (i < 0 || i + 1 >= FP_ALL_STEP_NAMES.length) return null;
+    return fpStepByName(FP_ALL_STEP_NAMES[i + 1]);
+  }, [FP_ALL_STEP_NAMES, fpStepByName]);
   // Xem truoc CHI BAN — to rieng, khong dung chung state voi xem truoc DANH BAN
   // de mo cai nay khong dong cai kia.
   const [fpSheetOpen, setFpSheetOpen] = useState(false);
@@ -117,7 +203,6 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [heightImage, setHeightImage] = useState(100);
   const [heightOffset, setHeightOffset] = useState(103);
 
-  const lastCheckedCccdRef = useRef("");   // tránh gọi check-cccd lặp lại cùng 1 số
   const [dupModal, setDupModal] = useState({ open: false, matches: [] });  // cảnh báo trùng lúc Lưu
   const [checkingDup, setCheckingDup] = useState(false);   // đang gộp check khi bấm Lưu
 
@@ -180,7 +265,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } catch { /* recognize fail → không hỏng flow chụp */ }
   }, [t]);
 
+  // YOLO tat -> khong can height_image/height_offset (khong do tu dong nua).
   useEffect(() => {
+    if (!features.height_yolo) return undefined;
     let cancelled = false;
     api.measurementConfig()
       .then((cfg) => {
@@ -193,7 +280,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         if (!cancelled) { setHeightImage(100); setHeightOffset(103); }
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [features.height_yolo]);
 
   useEffect(() => {
     setForm(seed.form);
@@ -210,20 +297,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     api.listCells().then(setCells).catch(() => setCells([]));
   }, []);
 
-  // "Don vi lap" = dia diem cua phien lam viec. Truoc day suy ra tu Noi giam giu
+  // "Don vi lap" = dia diem xay ra vu an. Truoc day suy ra tu Noi giam giu
   // (facility_code) — truong da bo khoi trang.
-  const [sessionLocation, setSessionLocation] = useState("");
+  const [caseLocation, setCaseLocation] = useState("");
   useEffect(() => {
-    if (!sessionId) {
-      setSessionLocation("");
+    if (!caseId) {
+      setCaseLocation("");
       return;
     }
     let cancelled = false;
-    api.getSession(sessionId)
-      .then((s) => { if (!cancelled) setSessionLocation(s?.location || ""); })
-      .catch(() => { if (!cancelled) setSessionLocation(""); });
+    api.getCase(caseId)
+      .then((c) => { if (!cancelled) setCaseLocation(c?.location || ""); })
+      .catch(() => { if (!cancelled) setCaseLocation(""); });
     return () => { cancelled = true; };
-  }, [sessionId]);
+  }, [caseId]);
 
   // Cooldown 10s: banner ok/err tự ẩn sau 10 giây
   useEffect(() => {
@@ -246,11 +333,59 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       return next;
     });
 
+  // YOLO tat -> khong tu dong dien height_cm. Truong height_cm van nhap tay.
   const applyMeasuredHeight = useCallback(({ linePixelHeight, imageHeight }) => {
+    if (!features.height_yolo) return;
     const measured = getMeasurementHeight({ linePixelHeight, imageHeight, heightImage, heightOffset });
     if (!measured || measured < 50 || measured > 250) return;
     setForm((f) => ({ ...f, height_cm: String(measured) }));
-  }, [heightImage, heightOffset]);
+  }, [heightImage, heightOffset, features.height_yolo]);
+
+  // Bam vao mot o VAN LAN => thu ngon do. Duong duy nhat, khong dieu kien.
+  //
+  // O dang `none` van thu duoc, va PHAI bo dau none TRUOC khi thu: capture() cua
+  // service loai ngon `missing` khoi `codes`, con lai rong => HTTP 400 "Ca cum...
+  // khong con ngon nao de chup". Bam vao o la y dinh ro rang "ngon nay co van, thu
+  // di", nen bo dau la dung - khong phai tac dung phu.
+  //
+  // fpToggleNone lo phan dong bo: xoa co local, goi markNone(value=false) len
+  // service neu dang co session, va cat nhip chup dang chay.
+  const fpCaptureRollCell = async (fpCode, photoKey, isNone) => {
+    if (isNone) await fpToggleNone(fpCode);
+    await fpRequestJump(FP_ROLL_STEP(fpCode),
+      () => retryFingerprint(photoKey, fpCode));
+  };
+
+  // Double-click vao MOT O trong khi vong thu DANG chay => thu o do TRUOC.
+  //
+  // Truoc day ca hai duong double-click deu bi chan boi `!fpRunning`, ma vong thu
+  // tu chay ngay khi vao trang va khong bao gio tu dung => fpRunning gan nhu luon
+  // true => double-click hau nhu KHONG BAO GIO an. Can bo phai bam Khoa cho vong
+  // dung roi moi click duoc - khong ai doan ra.
+  //
+  // Cach lam: KHONG mo session moi (session moi lam service quen het cum da xong).
+  // Chi dat co cho vong thu dang chay, roi CAT lan chup dang cho tay bang
+  // stopCapture() - neu khong cat thi co nay chi duoc doc sau khi SDK het timeout
+  // (~20s), can bo click xong tuong may khong phan ung. Vong doc co o dau luot ke
+  // tiep va nhay sang buoc do; xong buoc do, service tra next_step la buoc chua
+  // xong dau tien => tu quay ve cho dang do.
+  //
+  // Vong KHONG chay (chua bam Thu thap, hoac da xong het) => khong co ai doc co,
+  // nen di duong cu: mo session rieng de thu lai mot minh buoc do (fallback).
+  const fpRequestJump = async (stepName, fallback) => {
+    if (!fpRunningRef.current) {
+      await fallback();
+      return;
+    }
+    fpJumpRef.current = stepName;
+    setFpStatus(t("capture.status.fp_jump_queued", {
+      step: t(`fpenroll.step.${stepName}`),
+    }));
+    // Bao truoc cho catch cua vong lap: loi sap toi la do TA cat, khong phai may
+    // loi. Cung y nghia nhu trong fpToggleNone.
+    fpStopExpectedRef.current = true;
+    try { await fpApi.stopCapture(); } catch { /* noop */ }
+  };
 
   // Nhap DOI 1 o van tay => chup lai CA CUM chua ngon do (4 ngon ban tay hoac
   // 2 ngon cai). Morfin la slap scanner: 4 ngon den tu cung 1 anh, khong tach
@@ -417,6 +552,164 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
+  // Thu lai MOT CUM CHUM - double-click vao o van chum, doi xung voi
+  // double-click vao o van lan (retryFingerprint).
+  //
+  // KHONG dung chung retryFingerprint duoc, va do la ly do o chum truoc day
+  // khong co onDoubleClick nao ca. Goi ham do cho o chum sai HAI duong:
+  //   1. No tim buoc bang `steps.find((s) => s.codes.includes(code))`. STEPS =
+  //      ROLL_STEPS + SLAP_STEPS nen buoc LAN luon khop truoc: truyen left_thumb
+  //      se ra roll_left_thumb, tuc lan lai ngon cai chu khong chup lai cum.
+  //   2. Neu co ep lay dung buoc chum thi vong ghi anh cua no day `captured` vao
+  //      FP_CODE_TO_KEY (fp_l1..fp_r5) => 4 mieng cat tu anh chum GHI DE sach anh
+  //      van lan da thu, kem theo fp_templates. Dung cai loi ma vong thu chinh
+  //      canh bao o khoi `if (step.roll)`.
+  // Nen cum chum co duong rieng, ghi dung 3 cho cua no: anh ca ban tay
+  // (fp_plain_*), 2 anh tung ngon cai (o ngon cai), va fpPlainMarks (% tren anh).
+  const retryPlainStep = async (stepName) => {
+    if (fpRunning) {
+      setFpError(t("capture.err.fp_running"));
+      return;
+    }
+    // Lay buoc theo TEN, khong phai theo ma ngon - xem ly do (1) o tren.
+    let group;
+    try {
+      const steps = await fpApi.listSteps();
+      group = steps.find((s) => s.step === stepName && !s.roll);
+    } catch (e) {
+      setFpError(e.message);
+      return;
+    }
+    if (!group) {
+      setFpError(t("capture.err.unknown_step", { step: stepName }));
+      return;
+    }
+
+    // KHONG xoa anh cu o day - cung ly do nhu retryFingerprint: co 6 duong thoat
+    // khong hoan lai duoc, mot lan that bai la o trong vinh vien. Anh chi bi ghi
+    // de khi da co anh moi trong tay.
+    setFpError("");
+    setFpStatus(t("capture.status.check_scanner"));
+    fpAbortRef.current = false;
+
+    try {
+      const h = await fpApi.health();
+      if (!h.ok) {
+        setFpError(h.error || t("capture.err.fp_not_ready"));
+        setFpStatus("");
+        return;
+      }
+    } catch (e) {
+      setFpError(e.message);
+      setFpStatus("");
+      return;
+    }
+
+    // Chot co NGAY (ref) truoc setState, de vong auto-start 3s/lan khong chen vao
+    // giua ma mo session moi. Xem retryFingerprint.
+    fpRunningRef.current = true;
+    setFpRunning(true);
+    setFpNextCode(group.codes[0]);
+    setFpActiveCodes(group.codes);
+    // fpActiveStep = ten buoc chum => DUNG o chum nay nhay vien (dieu kien
+    // `fpRunning && fpActiveStep === slot.step` trong JSX).
+    setFpActiveStep(group.step);
+    // roll = false => luoi 10 o van lan DUNG YEN suot lan thu lai nay. Neu de
+    // true thi 4 o lan cua ban tay do nhay lien tuc, can bo tuong dang bi thu lai.
+    setFpActiveRoll(false);
+    const groupName = t(`fpenroll.step.${group.step}`);
+    setFpStatus(t("fpenroll.status.reading_step", { step: groupName }));
+
+    let sid = null;
+    try {
+      const r = await fpApi.startSession("__retry__" + group.step);
+      sid = r.session_id;
+      fpSidRef.current = sid;
+
+      // Session moi quen cac ngon da danh dau thieu - phai danh dau lai, neu
+      // khong SDK doi du 4 ngon roi timeout. Xem retryFingerprint.
+      const noneSync = fpNoneCodesRef.current;
+      if (noneSync.length) {
+        try { await fpApi.markNone(sid, noneSync, true); } catch (e) { setFpError(e.message); }
+      }
+
+      let capRes = null;
+      let lastErr = null;
+      for (let attempt = 1; attempt <= FP_MAX_FAILS; attempt++) {
+        if (fpAbortRef.current) return;
+        try {
+          capRes = await fpApi.capture(sid, group.step);
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (fpAbortRef.current) return;
+          setFpError(e.message);
+          setFpStatus(t("capture.status.retry_attempt", {
+            name: groupName, n: attempt, max: FP_MAX_FAILS,
+          }));
+        }
+      }
+      if (!capRes) {
+        throw new Error(lastErr
+          ? t("capture.err.fp_too_many_fails", { count: FP_MAX_FAILS })
+          : t("capture.err.fp_not_ready"));
+      }
+      if (fpAbortRef.current) return;
+
+      // ANH CA BAN TAY -> o chum. Day la ban ghi chinh thuc cua van chum.
+      const plainKey = FP_SHEET_KEY_BY_STEP[group.step];
+      if (plainKey && capRes.slap_thumb_b64) {
+        try {
+          const f = await b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`);
+          const up = await api.uploadPhoto(f);
+          setPhotos((p) => ({ ...p, [plainKey]: up.url }));
+        } catch (e) {
+          setFpError(t("capture.err.save_photo", { message: e.message }));
+        }
+      }
+      // % tung ngon dat dung vi tri tren anh chum. Ngoai try/catch upload: upload
+      // loi thi van con so de can bo doc, va nguoc lai.
+      if (plainKey && capRes.slap_marks) {
+        setFpPlainMarks((p) => ({ ...p, [plainKey]: capRes.slap_marks }));
+      }
+      // O NGON CAI: hai layer, moi layer anh RIENG cua mot ngon cai (SDK tach san
+      // trong cung lan chup). Key rieng fp_plain_<ma> nen khong dung anh chum.
+      const layers = FP_PLAIN_LAYERS_BY_STEP[group.step];
+      if (layers) {
+        for (const ly of layers) {
+          const c = (capRes.captured || []).find((x) => x.code === ly.code);
+          if (!c?.image_b64) continue;
+          try {
+            const f = await b64PngToFile(c.image_b64, `${ly.key}.png`);
+            const up = await api.uploadPhoto(f);
+            setPhotos((p) => ({ ...p, [ly.key]: up.url }));
+          } catch (e) {
+            setFpError(t("capture.err.save_photo", { message: e.message }));
+          }
+        }
+      }
+      // CO Y KHONG ghi `captured` vao fp_l1..fp_r5, fp_templates hay fpQuality.
+      // Do la 3 cho cua van LAN. Buoc chum cung tra ve dung cac ma ngon do (service
+      // cat ngon ra tu anh ca ban tay), nen ghi vao la xoa anh lan + template lan
+      // that - ly do (2) o dau ham.
+      setFpStatus(t("capture.status.retook", { name: groupName }));
+      setOk(t("capture.status.updated", { name: groupName }));
+    } catch (e) {
+      setFpError(e.message);
+    } finally {
+      if (sid) {
+        try { await fpApi.cancel(sid); } catch { /* noop */ }
+      }
+      if (fpSidRef.current === sid) fpSidRef.current = null;
+      fpRunningRef.current = false;
+      setFpRunning(false);
+      setFpNextCode(null);
+      setFpActiveCodes([]);
+      setFpActiveStep(null);
+      setFpActiveRoll(false);
+    }
+  };
+
   // Chay vong thu tu mot cum bat dau (startStep), dung khi: xong het 10 ngon,
   // that bai qua gioi han, bi abort, HOAC gap partial (con ngon loi trong cum) —
   // luc do tam dung setFpPartial de can bo quyet dinh, va tra ve ma khong lam
@@ -452,8 +745,47 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     let fails = 0;
     let busy = 0;
     let paused = false;
+    // Ten buoc vua duoc chen ngang yeu cau. Buoc nay KHONG bi bo qua boi luat
+    // "da co anh thi bo qua": double-click la lenh thu lai co y cua can bo.
+    //
+    // KHONG can bien "quay lai cho dang dung": sau khi ngon chen ngang xong,
+    // service tra next_step la buoc CHUA XONG dau tien (tuc la quay ve dung cho
+    // dang do), va luat bo qua ben duoi tu day tiep qua nhung buoc da co anh.
+    // Hai co che nay gop lai chinh la "thu ngon click truoc, roi quay lai ngon kia".
+    let jumpTarget = null;
 
     while (step && !fpAbortRef.current) {
+      // ---- CHEN NGANG: can bo double-click vao mot o trong khi may dang doi
+      // ngon khac => thu NGON DO TRUOC, roi quay lai cho dang dung.
+      //
+      // Doc o DAU luot, sau khi lan chup truoc da tra ve. fpRequestJump da goi
+      // stopCapture() de cat lan chup dang cho tay, nen luot vua roi thoat gan
+      // nhu ngay - khong phai cho het ~20s timeout cua SDK.
+      if (fpJumpRef.current) {
+        const jumpName = fpJumpRef.current;
+        fpJumpRef.current = null;
+        const jumpStep = fpStepByName(jumpName);
+        if (jumpStep) {
+          jumpTarget = jumpStep.step;
+          step = jumpStep;
+        }
+      }
+      // Buoc nay DA CO ANH roi => bo qua, sang buoc ke tiep. Day la yeu cau
+      // "ngon nao da thu co du lieu roi thi bo qua, thu ngon tiep".
+      //
+      // Doi chieu photosRef (anh THAT) chu khong phai trang thai done cua service:
+      // mo lai ho so cu de sua thi anh da co san nhung session moi coi la chua
+      // ngon nao xong => tin service se thu lai ca 10 ngon da co anh.
+      //
+      // KHONG bo qua buoc vua bi chen ngang yeu cau (jumpTarget): double-click la
+      // lenh THU LAI co y cua can bo, o do dang co anh la chuyen binh thuong -
+      // bo qua no thi double-click thanh vo tac dung.
+      if (step.step !== jumpTarget
+          && fpStepHasData(step, photosRef.current, fpNoneCodesRef.current)) {
+        step = fpStepAfter(step.step);
+        continue;
+      }
+      jumpTarget = null;
       setFpNextCode(step.codes[0]);
       // Buoc LAN co dung 1 ma trong codes => nhap nhay DUNG MOT o. Buoc CHUM co
       // 4 (hoac 2) ma => ca cum nhay cung luc, vi may chup ca cum trong 1 lan.
@@ -474,6 +806,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         capRes = await fpApi.capture(sid, step.step);
       } catch (e) {
         if (fpAbortRef.current) break;
+        // LOI NAY DO TA CAT, khong phai may loi => quay lai dau vong NGAY.
+        //
+        // fpStopExpectedRef truoc day duoc SET o hai cho (fpRequestJump,
+        // fpToggleNone) ma KHONG CHO NAO DOC - co chet. Hau qua: bam vao o de thu
+        // ngon khac thi stopCapture() lam capture() dang do nem loi, roi khoi duoi
+        // day chay `fails++` + sleepFp(600ms * fails, tran 5s) TRUOC KHI vong quay
+        // lai dau doc fpJumpRef => moi cu bam phai cho them ngan ay moi thay may
+        // chuyen ngon. Con toast mot loi ma chinh ta gay ra.
+        // Doc va tat co ngay tai day: khong toast, khong cong fails, khong ngu.
+        if (fpStopExpectedRef.current) {
+          fpStopExpectedRef.current = false;
+          continue;
+        }
         // KHONG dung vong vi loi. Truoc day het 15 lan la break => vong thu chet
         // giua duong, va startFpCollect (finally) da set fpAutoStoppedRef = true
         // nen auto-start KHONG BAO GIO chay lai => man hinh dung han, cac cum sau
@@ -537,6 +882,35 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           setPhotos((p) => ({ ...p, [plainKey]: up.url }));
         } catch (e) {
           setFpError(t("capture.err.save_photo", { message: e.message }));
+        }
+      }
+      // So % dat DUNG VI TRI tung ngon tren anh chum vua chup (service tinh x_pct
+      // tren anh GOC, xem _mark_x_pct). Dat NGOAI try/catch upload o tren: upload
+      // anh loi thi van con so de can bo doc, va nguoc lai.
+      //
+      // KHONG vao `photos`, KHONG vao payload luu ho so - xem comment o fpPlainMarks.
+      if (plainKey && !step.roll && capRes.slap_marks) {
+        setFpPlainMarks((p) => ({ ...p, [plainKey]: capRes.slap_marks }));
+      }
+      // O NGON CAI hien HAI LAYER - mot layer moi ngon cai, moi layer la anh RIENG
+      // cua ngon do (captured[].image_b64 - SDK tach san tung ngon trong cung lan
+      // chup chum). Van la MOT lan chup: da thu tach thanh 2 lan chup 1 ngon va
+      // thiet bi tu choi (-2019, count=4) - xem SLAP_STEPS trong api.py.
+      //
+      // Layer luu vao photos theo key rieng (fp_plain_left_thumb /
+      // fp_plain_right_thumb) nen ho so co ca anh tung ngon cai, khong chi anh chum.
+      const layers = FP_PLAIN_LAYERS_BY_STEP[step.step];
+      if (layers && !step.roll) {
+        for (const ly of layers) {
+          const c = (capRes.captured || []).find((x) => x.code === ly.code);
+          if (!c?.image_b64) continue;
+          try {
+            const f = await b64PngToFile(c.image_b64, `${ly.key}.png`);
+            const up = await api.uploadPhoto(f);
+            setPhotos((p) => ({ ...p, [ly.key]: up.url }));
+          } catch (e) {
+            setFpError(t("capture.err.save_photo", { message: e.message }));
+          }
         }
       }
       // CHI buoc LAN duoc ghi vao 10 o fp_l1..fp_r5 (va fp_templates).
@@ -840,26 +1214,19 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       }
     }
 
-    // Cảnh báo nếu số CCCD vừa quét đã có trong danh sách (toàn hệ thống).
-    const cccd = (d.cccd_number || "").replace(/\D/g, "");
-    if (cccd && cccd.length >= 9 && cccd !== lastCheckedCccdRef.current) {
-      lastCheckedCccdRef.current = cccd;
-      try {
-        const r = await api.checkCccd(cccd);
-        if (r && r.matched && r.detainee) {
-          raiseAlert({ source: "cccd", detainee: r.detainee });
-        }
-      } catch (e) {
-        console.error("[CCCD] check duplicate failed:", e);
-      }
-    }
+    // BO tra cuu theo so CCCD. Truoc day quet the xong la tu goi api.checkCccd() roi
+    // bat canh bao "doi tuong da co trong danh sach" neu so CCCD trung. Gio doi chieu
+    // trung chi con dua vao ho ten + ngay sinh + gioi tinh, luc bam Luu ho so.
   };
 
   // Tự động lắng nghe đầu đọc CCCD ngay khi vào trang, chạy liên tục.
   // Mỗi lần backend trả thẻ mới, nó tự dời baseline nên vòng lặp chỉ nhận thẻ mới,
   // không lặp lại thẻ cũ. Thẻ mới vào thì chèn dữ liệu lên form.
   useEffect(() => {
-    if (sessionReadOnly) return;
+    if (caseReadOnly) return;
+    // May doc CCCD tat -> khong lang nghe dau doc, khong bao loi "chua san sang".
+    // Cac truong CCCD o muc I van nhap tay binh thuong.
+    if (!features.cccd_reader) return;
 
     let stopped = false;
     const ac = new AbortController();
@@ -925,13 +1292,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         cccdApi.cancel(sid).catch(() => { /* noop */ });
       }
     };
-  }, [sessionReadOnly]);
+    // features.cccd_reader ve muon (sau khi fetch /api/config/features) nen phai
+    // co trong deps, khong thi vong lap da chay roi khong dung lai duoc.
+  }, [caseReadOnly, features.cccd_reader]);
 
   // Tự động bật quét vân tay khi vào trang. Máy quét chưa sẵn sàng thì thử lại
   // âm thầm mỗi 3s (không hiện lỗi đỏ) — giống vòng CCCD, cắm máy vào là tự chạy.
   const fpAutoStoppedRef = useRef(false);   // cán bộ đã bấm Dừng thủ công -> không auto-start lại
   useEffect(() => {
-    if (sessionReadOnly) return;
+    if (caseReadOnly) return;
     let stopped = false;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -969,9 +1338,24 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         .then(() => { if (sid) return fpApi.cancel(sid); })
         .catch(() => { /* noop */ });
     };
-  }, [sessionReadOnly]);
+  }, [caseReadOnly]);
 
-  const fpCount = FINGERS.filter((f) => photos[f.key]).length;
+  // Ngon DA XU LY = co anh HOAC da danh dau "khong co van tay".
+  //
+  // Truoc day chi dem `photos[f.key]`, ma ngon danh dau thieu bi set ve "" (xem
+  // fpToggleNone) => nguoi mat mot ngon thi KPI dung "9 / 10" vinh vien va o
+  // checklist "Van tay" khong bao gio tick (`ok: fpCount === 10`). Khong chan Luu
+  // (required: false) nhung can bo doc man hinh se tuong con viec chua lam.
+  //
+  // Doc tu photos.fp_missing chu khong tu state fpNoneCodes: fp_missing duoc LUU
+  // vao ho so, nen mo lai ho so cu de sua thi con nguyen, con fpNoneCodes chi song
+  // trong phien thu.
+  //
+  // Anh huong den vong auto-start (fpCountRef.current < 10): du 10 ngon ke ca ngon
+  // thieu thi khong tu chay lai nua - dung, vi khong con gi de thu.
+  const fpMissingCodes = photos.fp_missing || [];
+  const fpCount = FINGERS.filter(
+    (f) => photos[f.key] || fpMissingCodes.includes(f.code)).length;
   // Ngon nao da thu -> sang len tren 2 icon ban tay tong quan o khoi KPI.
   const fpDoneByHand = useMemo(() => {
     const out = { left: [], right: [] };
@@ -1010,14 +1394,23 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   useEffect(() => { fpCountRef.current = fpCount; }, [fpCount]);
 
   const checks = useMemo(() => {
+    // CHI 2 TRUONG chan Luu: ma ho so + so CCCD (dung 12 chu so).
+    //
+    // Ho ten / ngay sinh KHONG con chan nua: nghi pham nhieu khi chua khai duoc
+    // ten that hoac ngay sinh ngay luc thu nhan, chan lai thi can bo khong luu
+    // duoc van tay da lay xong. Hai o do van hien trong checklist (required:
+    // false) de can bo biet con thieu.
+    //
+    // PHAI khop voi _require_capture_fields o backend va dau * tren nhan. Lech
+    // nhau thi nut bam duoc ma server tra 400.
     const personalOk = !!(form.personal_id || "").trim();
-    const cccdOk =
-      !!form.full_name.trim() &&
-      /^\d{12}$/.test(form.cccd_number || "") &&
-      !!form.dob;
+    const cccdOk = /^\d{12}$/.test(form.cccd_number || "");
+    const identityOk = !!form.full_name.trim() && !!form.dob;
     return [
       { key: "personal_id", label: t("capture.verify.item.code"), ok: personalOk, required: true },
       { key: "cccd", label: t("capture.verify.item.cccd"), ok: cccdOk, required: true },
+      // Ho ten + ngay sinh: hien de can bo biet con thieu, nhung KHONG chan Luu.
+      { key: "identity", label: t("capture.verify.item.identity"), ok: identityOk, required: false },
       { key: "portrait", label: t("capture.verify.item.portrait"), ok: portraitCount === 3, required: false },
       { key: "fp", label: t("capture.verify.item.fp"), ok: fpCount === 10, required: false },
       // Can nang da bo khoi trang => "thong tin bo sung" chi con do chieu cao.
@@ -1044,7 +1437,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         return /^\d{12}$/.test(s) ? s : null;
       };
       const body = {
-        session_id: sessionId || null,
+        case_id: caseId || null,
         // ---- Thông tin hồ sơ (thanh trên cùng) ----
         personal_id: strOrNull(form.personal_id),
         record_sheet_no: strOrNull(form.record_sheet_no),
@@ -1113,8 +1506,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         notify.add();
         setOk(t("capture.updated", { code: updated.code, name: updated.full_name }));
         if (onDone) onDone();
-        if (onSavedInSession) {
-          setTimeout(() => onSavedInSession(), 600);
+        if (onSavedInCase) {
+          setTimeout(() => onSavedInCase(), 600);
         } else if (go) {
           setTimeout(() => go("detainees"), 800);
         }
@@ -1124,8 +1517,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         setOk(t("capture.saved", { code: created.code, name: created.full_name }));
         setForm(EMPTY_FORM);
         setPhotos({});
-        if (sessionId && onSavedInSession) {
-          setTimeout(() => onSavedInSession(), 800);
+        if (caseId && onSavedInCase) {
+          setTimeout(() => onSavedInCase(), 800);
         }
       }
     } catch (ex) {
@@ -1135,8 +1528,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  // Bấm Lưu: gộp check-cccd + check-duplicate chạy song song 1 lần. Nếu phát hiện
-  // hồ sơ trùng → mở modal xác nhận (officer tự quyết). Không trùng → lưu luôn.
+  // Bam Luu: doi chieu ho so trung bang check-duplicate (ho ten + ngay sinh + gioi
+  // tinh). Neu phat hien trung -> mo modal xac nhan (officer tu quyet). Khong trung
+  // -> luu luon. KHONG con tra cuu theo so CCCD.
   const submit = async () => {
     if (!allRequiredValid) return;
     const cccd = (form.cccd_number || "").replace(/\D/g, "");
@@ -1148,8 +1542,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setCheckingDup(true);
     setErr("");
     try {
-      const [cccdRes, dupRes] = await Promise.allSettled([
-        cccd.length >= 9 ? api.checkCccd(cccd) : Promise.resolve({ matched: false }),
+      // BO tra cuu theo so CCCD. Chi con doi chieu ho ten + ngay sinh + gioi tinh
+      // (checkDuplicate). Truoc day con goi api.checkCccd(cccd) song song va coi
+      // trung so CCCD la mot "match" chan luu.
+      const [dupRes] = await Promise.allSettled([
         api.checkDuplicate(dupBody),
       ]);
 
@@ -1164,16 +1560,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         matches.push({ source, detainee });
       };
 
-      if (cccdRes.status === "fulfilled" && cccdRes.value?.matched && cccdRes.value.detainee) {
-        pushMatch(cccdRes.value.detainee, "cccd");
-      }
       if (dupRes.status === "fulfilled" && Array.isArray(dupRes.value?.duplicates)) {
         dupRes.value.duplicates.forEach((d) => pushMatch(d, "info"));
       }
 
-      // Cả 2 check đều lỗi mạng → không chặn officer vì lỗi hạ tầng, cho lưu luôn.
-      if (cccdRes.status === "rejected" && dupRes.status === "rejected") {
-        console.error("[dup-check] cả 2 API lỗi:", cccdRes.reason, dupRes.reason);
+      // Check loi mang -> khong chan officer vi loi ha tang, cho luu luon.
+      if (dupRes.status === "rejected") {
+        console.error("[dup-check] API loi:", dupRes.reason);
       }
 
       if (matches.length > 0) {
@@ -1219,8 +1612,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   const backToList = () => {
     if (onDone) onDone();
-    if (onSavedInSession) {
-      onSavedInSession();
+    if (onSavedInCase) {
+      onSavedInCase();
     } else if (go) {
       go("detainees");
     }
@@ -1243,11 +1636,17 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   //
   // O "2 ngon cai" gom ca hai ban tay => tra ve MOT MANG hinh (2 cai); hai o kia
   // mot hinh.
+  //
+  // Nguon la FP_PLAIN_SLOTS + FINGER_STEP_OF, KHONG phai step cua FP_CLUSTERS:
+  // `step` trong FP_CLUSTERS chi con la nhan bo cuc, khong bao dam khop ten buoc
+  // cua service (xem constants.js). FINGER_STEP_OF la bang duy nhat anh xa ma ngon
+  // -> ten buoc that.
   const plainHandsByStep = useMemo(() => {
     const out = {};
-    for (const cluster of FP_CLUSTERS) {
+    for (const slot of FP_PLAIN_SLOTS) {
       const hands = [];
-      for (const code of cluster.codes) {
+      for (const code of FP_ROLL_ORDER) {
+        if (FINGER_STEP_OF[code] !== slot.step) continue;
         const side = code.startsWith("left") ? "left" : "right";
         let hand = hands.find((h) => h.side === side);
         if (!hand) {
@@ -1256,7 +1655,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         }
         hand.active.push(code.replace(/^(left|right)_/, ""));
       }
-      out[cluster.step] = hands;
+      if (hands.length) out[slot.step] = hands;
+    }
+    return out;
+  }, []);
+  // Glyph cho MOT ngon (dung cho layer cua o ngon cai): mot ban tay, to dung ngon
+  // cua layer do. Tra ve MANG mot phan tu de vong render dung chung mot duong voi
+  // plainHandsByStep (o thuong tra mang 1-2 ban tay).
+  const plainHandsByCode = useMemo(() => {
+    const out = {};
+    for (const code of FP_ROLL_ORDER) {
+      out[code] = [{
+        side: code.startsWith("left") ? "left" : "right",
+        active: [code.replace(/^(left|right)_/, "")],
+      }];
     }
     return out;
   }, []);
@@ -1264,8 +1676,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // 10 van tay va cac truong bat buoc.
   const readyState = fpCount === 10 && portraitCount === 3 && allRequiredValid;
   const todayStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-  // Don vi lap = dia diem cua phien lam viec (truoc day suy ra tu noi giam giu).
-  const unitName = sessionLocation;
+  // Don vi lap = dia diem xay ra vu an (truoc day suy ra tu noi giam giu).
+  const unitName = caseLocation;
 
   return (
     <div className="page capture-page cap-flat">
@@ -1291,7 +1703,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         dateStr={todayStr}
         unitName={unitName}
         ready={allRequiredValid}
-        disabled={sessionReadOnly}
+        disabled={caseReadOnly}
       />
 
       <div className="case-main cap-sheet cap-sheet--split">
@@ -1301,7 +1713,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <section className="cap-sec" id="cap-sec-personal">
           <h2 className="cap-sec-title">{t("capture.roman.1")}</h2>
           <div className="cap-sec-body">
-            <SectionPersonal form={form} setField={setField} disabled={sessionReadOnly} />
+            <SectionPersonal form={form} setField={setField} disabled={caseReadOnly} />
           </div>
         </section>
 
@@ -1309,7 +1721,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <section className="cap-sec" id="cap-sec-case">
           <h2 className="cap-sec-title">{t("capture.roman.2")}</h2>
           <div className="cap-sec-body">
-            <SectionCase form={form} setField={setField} disabled={sessionReadOnly} />
+            <SectionCase form={form} setField={setField} disabled={caseReadOnly} />
           </div>
         </section>
 
@@ -1344,7 +1756,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <section className="cap-sec" id="cap-sec-identify">
           <h2 className="cap-sec-title">{t("capture.roman.3")}</h2>
           <div className="cap-sec-body">
-            <SectionIdentify form={form} setField={setField} disabled={sessionReadOnly} />
+            <SectionIdentify form={form} setField={setField} disabled={caseReadOnly} />
           </div>
         </section>
         </div>
@@ -1444,7 +1856,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                       // o da thu xong lai sang len nhu dang bi thu lai. Bao hieu cua
                       // buoc chum thuoc 3 o fp_plain_* (theo fpActiveStep), khong phai
                       // luoi nay.
-                      const cellActive = fpRunning && fpActiveRoll && (
+                      // `!isNone` la CHOT: o da danh dau thieu KHONG BAO GIO sang.
+                      //
+                      // Thieu no thi o vua tich ⊘ van nhap nhay nhu dang cho thu:
+                      // fpActiveCodes duoc set TRUOC khi can bo bam ⊘ va giu nguyen
+                      // suot lan chup do, nen dieu kien duoi van dung. Can bo thay o
+                      // co badge `none` ma vien vẫn sang => tuong may vẫn doi ngon do.
+                      const cellActive = fpRunning && fpActiveRoll && !isNone && (
                         fpActiveCodes.length
                           ? fpActiveCodes.includes(fpCode)
                           : fpNextCode === fpCode
@@ -1466,18 +1884,39 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                           // vong thu chay ngay khi vao trang nen fpRunning gan
                           // nhu luon true, phai Khoa moi bam duoc. fpToggleNone
                           // tu lo phan con lai (cat lan chup dang chay).
-                          onClick={fpNoneMode ? () => fpToggleNone(fpCode) : undefined}
-                          onDoubleClick={() => !fpRunning && !fpNoneMode && !isNone && retryFingerprint(key, fpCode)}
+                          // MOT LAN CLICK = THU NGON NAY. Khong dieu kien nao ca.
+                          //
+                          // Nut ⊘ tren o da BO HAN. No nam de len o o goc tren-trai
+                          // (left:2px top:2px, 18x18) va chi hien khi hover, nen mot
+                          // cu bam vao goc do roi vao NUT chu khong vao o => o bi
+                          // danh dau `none` thay vi duoc thu. Vung bam nho, khong co
+                          // ranh gioi nhin thay, va no lam DUONG THU HAI cho mot viec
+                          // ma nut "Ngón thiếu" o header da lo. Bo di thi bam vao o
+                          // chi con dung MOT nghia.
+                          //
+                          // KHONG chan gi:
+                          //   - dang thu ngon khac  => fpRequestJump chen ngang: cat
+                          //     nhip chup hien tai, thu ngon nay truoc, roi vong tu
+                          //     quay lai cho dang do (jumpTarget + luat bo qua).
+                          //   - o da co anh        => thu lai, ghi de anh cu.
+                          //   - o dang `none`      => THU LUON, va bo dau none truoc
+                          //     khi thu (xem fpClearNoneThenCapture): giu none thi
+                          //     service loai ngon do khoi `codes` => 400 "khong con
+                          //     ngon nao de chup".
+                          onClick={
+                            fpNoneMode ? () => fpToggleNone(fpCode)
+                              : () => fpCaptureRollCell(fpCode, key, isNone)
+                          }
                           title={
                             fpNoneMode
                               ? (isNone
                                   ? t("capture.fp.none_mode_tap_off", { name: label })
                                   : t("capture.fp.none_mode_tap_on", { name: label }))
                               : isNone
-                                ? t("capture.fp.none_hint")
-                                : filled ? t("capture.fp.dbl_retake") : t("capture.fp.dbl_take")
+                                ? t("capture.fp.tap_take_none", { name: label })
+                                : filled ? t("capture.fp.tap_retake") : t("capture.fp.tap_take")
                           }
-                          style={{ cursor: fpRunning || (isNone && !fpNoneMode) ? "default" : "pointer" }}
+                          style={{ cursor: "pointer" }}
                         >
                           {/* So 1..10 theo thu tu in tren chi ban giay. O van
                               nhom theo cum chup nen so khong lien tiep — day la
@@ -1506,24 +1945,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                               const cls = q >= need + 20 ? "good" : q >= need ? "ok" : "bad";
                               return <span className={"fp-cell-quality " + cls}>{q}%</span>;
                             })()}
-                            {/* Bat/tat "khong co van tay" cho rieng o nay. Phai la nut
-                                that (khong phai double-click o) vi double-click da danh
-                                cho chup lai cum, va danh dau none can dung duoc CA KHI
-                                chua co session. */}
-                            <button
-                              type="button"
-                              className={"fp-cell-none-btn" + (isNone ? " on" : "")}
-                              onClick={(e) => { e.stopPropagation(); fpToggleNone(fpCode); }}
-                              /* Khong chan theo fpRunning: day la nut can bam DUNG
-                                 LUC may dang chay het timeout vi cho du 4 ngon.
-                                 Xem fpToggleNone. */
-                              title={isNone
-                                ? t("capture.fp.none_off", { name: label })
-                                : t("capture.fp.none_on", { name: label })}
-                              aria-pressed={isNone}
-                            >
-                              ⊘
-                            </button>
+                            {/* NUT ⊘ DA BO HAN khoi o.
+                                No nam de len o o goc tren-trai (left:2px top:2px,
+                                18x18) va chi hien khi hover, nen mot cu bam vao goc
+                                do roi vao NUT chu khong vao o => o bi danh dau `none`
+                                thay vi duoc thu. Vung bam nho, khong co ranh gioi
+                                nhin thay, va no la DUONG THU HAI cho viec ma nut
+                                "Ngón thiếu" o header da lo roi.
+                                Gio: bam vao o = THU ngon do (mot nghia duy nhat).
+                                Danh dau thieu: bam "Ngón thiếu" o header roi bam vao o. */}
                           </div>
                           {/* KHONG co chip "Da thu" o day. Chip chi hien tren o DA co
                               anh, nen o da thu cao hon o chua thu => moi ngon lan xong
@@ -1552,13 +1982,40 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
             <div className="fp-block">
             <h3 className="cap-sub-title cap-sub-title--fp">
               {t("capture.fp.plain_full")}
-              <span className="fp-row-count">{plainCount} / 3</span>
+              <span className="fp-row-count">{plainCount} / 4</span>
             </h3>
             <div className="fp-plain-row">
               {/* BA o, dung 3 buoc chum cua morfin_service (SLAP_STEPS):
                   4 ngon trai | 2 ngon cai | 4 ngon phai. */}
               {FP_PLAIN_SLOTS.map((slot) => {
-                const filled = !!photos[slot.key];
+                const img = photos[slot.key];
+                // So % dat dung vi tri tung ngon tren anh chum. Chi co trong LUC THU
+                // (fpPlainMarks khong duoc luu vao ho so).
+                const marks = img ? (fpPlainMarks[slot.key] || []) : [];
+                // O NGON CAI co 2 LAYER: moi layer mot ngon cai, anh RIENG cua ngon do
+                // (SDK tach san trong cung lan chup chum). Hai o kia: mot layer, anh chum.
+                const layers = FP_PLAIN_LAYERS_BY_STEP[slot.step];
+                // `parts` gop ca hai truong hop lam MOT duong code cho vong render.
+                // Layer cua ngon cai lay mark cua DUNG ngon do va dat lai x_pct = 50:
+                // anh layer la anh mot ngon da canh giua, khong con la anh chum nen toa
+                // do x tren anh chum khong con y nghia o day.
+                const parts = layers
+                  ? layers.map((ly) => ({
+                    key: ly.key,
+                    labelKey: ly.labelKey,
+                    img: photos[ly.key],
+                    hands: plainHandsByCode[ly.code],
+                    marks: photos[ly.key]
+                      ? marks.filter((m) => m.code === ly.code)
+                        .map((m) => ({ ...m, x_pct: 50 }))
+                      : [],
+                  }))
+                  : [{
+                    key: slot.key, labelKey: slot.labelKey, img,
+                    hands: plainHandsByStep[slot.step], marks,
+                  }];
+                // "Xong" = MOI layer da co anh. O ngon cai thieu mot ngon van la chua xong.
+                const filled = parts.every((p) => !!p.img);
                 // Dang chup DUNG cum nay => nhay khung ngoai cua o, giong o lan.
                 // Truoc day doi chieu fpConfirm?.step: fpConfirm chi co gia tri khi
                 // vong da TAM DUNG cho xac nhan, ma luc do fpRunning = false => dieu
@@ -1569,27 +2026,78 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                     key={slot.key}
                     className={"fp-plain-cell " + (filled ? "done" : "empty") +
                       (active ? " active neon-active" : "")}
-                    title={t(slot.labelKey)}
+                    /* MOT LAN CLICK = CHUP LAI ca cum nay. Doi xung voi o van lan.
+                       Truoc day o chum khong co duong thu lai nao ngoai nut "Chup
+                       lai cum" - ma nut do CHI hien khi vong dang tam dung cho xac
+                       nhan (fpConfirm). Cum da xac nhan xong roi moi phat hien anh
+                       xau thi khong con cach nao chup lai ngoai xoa het lam lai.
+
+                       KHONG chan theo fpRunning (giong o lan): fpRequestJump chen
+                       ngang - cat nhip chup hien tai, chup cum nay truoc, roi vong tu
+                       quay lai cho dang do. Cum da co anh thi chup lai, ghi de.
+                       O chum khong co trang thai `none`: danh dau thieu la theo TUNG
+                       NGON, va cum chi con cho so ngon that su co (tham so `absent`
+                       cua SDK) nen van chup binh thuong. Ca cum deu thieu thi
+                       step_done da coi la xong, khong ai bam vao day nua.
+                       Mode "ngon thieu" van nhuong cho viec danh dau. */
+                    onClick={fpNoneMode ? undefined
+                      : () => fpRequestJump(slot.step, () => retryPlainStep(slot.step))}
+                    /* O ngon cai KHONG dat title theo nhan cum o day: moi layer tu
+                       mang ten ngon cua no. Dat ca hai cho thi tooltip hien "2 ngon
+                       cai" roi "Cai trai" - lap, doc ra thanh "Cai trai / Cai trai".
+                       Nhung tooltip HUONG DAN thu lai thi o nao cung can, nen o ngon
+                       cai dung rieng cau khong kem ten cum. */
+                    title={layers
+                      ? t("capture.fp.tap_retake_plain_thumbs")
+                      : t("capture.fp.tap_retake_plain", { name: t(slot.labelKey) })}
+                    style={{ cursor: fpNoneMode ? "default" : "pointer" }}
                   >
-                    <div className="fp-plain-thumb">
-                      {filled
-                        ? <img src={photos[slot.key]} alt={t(slot.labelKey)} />
-                        : (
-                          // Chua co anh cum => hien ICON BAN TAY thay dau "—" cu.
-                          // CHI to cac ngon THUOC CUM NAY va da thu duoc; khong nhay
-                          // tung ngon (viec nhay do khung ngoai cua o lo, xem .active).
-                          // O "2 ngon cai" ra 2 hinh (trai + phai), hai o kia 1 hinh.
-                          <span className="fp-plain-hands">
-                            {(plainHandsByStep[slot.step] || []).map((h) => (
-                              <HandGlyph
-                                key={h.side}
-                                side={h.side}
-                                active={h.active}
-                                className="plain"
-                              />
-                            ))}
-                          </span>
-                        )}
+                    <div className={"fp-plain-thumb"
+                      + (layers ? " fp-plain-thumb--split" : "")}>
+                      {/* O NGON CAI: hai LAYER, moi layer mot ngon cai voi anh RIENG
+                          cua ngon do (SDK tach san trong cung lan chup). Hai o kia:
+                          mot layer duy nhat, anh chum ca ban tay.
+                          Dung MOT duong code cho ca hai loai o - `parts` la [chinh o]
+                          voi o thuong, la [cai trai, cai phai] voi o ngon cai. */}
+                      {parts.map((p) => (
+                        <div
+                          key={p.key}
+                          className={"fp-plain-part" + (layers ? " fp-plain-half" : "")}
+                          title={layers ? t(p.labelKey) : undefined}
+                        >
+                          {p.img
+                            ? <img src={p.img} alt={t(p.labelKey)} />
+                            : (
+                              // Chua co anh => hien ICON BAN TAY thay dau "—" cu.
+                              // CHI to cac ngon THUOC LAYER NAY; khong nhay tung ngon
+                              // (viec nhay do khung ngoai cua o lo, xem .active).
+                              <span className="fp-plain-hands">
+                                {(p.hands || []).map((h) => (
+                                  <HandGlyph key={h.side} side={h.side}
+                                    active={h.active} className="plain" />
+                                ))}
+                              </span>
+                            )}
+                          {p.marks.length > 0 && (
+                            <span className="fp-mark-strip">
+                              {p.marks.map((m) => (
+                                <span
+                                  key={m.code}
+                                  className={"fp-mark"
+                                    + (m.no_quality ? " nq" : m.low ? " low" : "")}
+                                  style={{ left: `${m.x_pct}%` }}
+                                  title={m.name_vi}
+                                >
+                                  {/* no_quality = SDK khong do duoc, KHONG phai
+                                      0% - hien 0 se lam can bo tuong ngon hong.
+                                      Dung quy uoc cua luoi 10 o van lan. */}
+                                  {m.no_quality ? "—" : m.quality}
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </div>
+                      ))}
                     </div>
                     {/* KHONG con nhan chu duoi o ("Long ban tay trai", "4 ngon
                         trai"...). Nam dong chu x ~15px chiem cho ma khong noi them
@@ -1802,8 +2310,8 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
                 <div>{cellName(form.sub_camp_code)}</div>
               </>
             )}
-            <div className="pv-g-label">{t("detainee.field.cell")}</div>
-            <div>{cellName(form.cell_code)}</div>
+            {/* Dong "Buong giam" da bo khoi ban xem truoc: app khong con quan ly
+                giam giu nen o nhap cung khong con, in ra chi la mot dong "—". */}
             <div className="pv-g-label">{t("pdf.field.date_in")}</div>
             <div>{toDobInput(form.date_in) || toDobInput(new Date())}</div>
           </div>

@@ -9,7 +9,7 @@ window.addEventListener('error', e => window.__probeErr.push('ERR: ' + (e.error?
 createRoot(document.getElementById('root')).render(
   <LanguageProvider>
     <DataCapturePage go={() => {}} initial={null} onDone={() => {}}
-      sessionId={null} sessionCode={null} sessionReadOnly={false}
-      onSavedInSession={() => {}} onEditProfile={() => {}} />
+      caseId={null} caseCode={null} caseReadOnly={false}
+      onSavedInCase={() => {}} onEditProfile={() => {}} />
   </LanguageProvider>
 )

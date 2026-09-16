@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from pymongo import MongoClient
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27018")
 DB_NAME = os.getenv("DB_NAME", "app_cccd")
 
 

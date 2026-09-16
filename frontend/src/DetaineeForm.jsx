@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, cccdApi, weightApi } from "./api";
 import { notify } from "./notifications";
 import { useI18n } from "./i18n";
+import { useFeatures } from "./lib/features";
 
 const emptyForm = {
   full_name: "",
@@ -29,6 +30,7 @@ function isoToDMY(iso) {
 
 export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const { t, formatDate } = useI18n();
+  const features = useFeatures();
   const [form, setForm] = useState(() => {
     if (!initial) return { ...emptyForm };
     return {
@@ -49,7 +51,10 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
   const cccdAbortRef = useRef(null);
   const weightFlashTimerRef = useRef(null);
 
+  // Can dien tu tat -> khong mo WS, khong tu dong dien weight_kg.
+  // Truong weight_kg van nhap tay binh thuong.
   useEffect(() => {
+    if (!features.weight_scale) return undefined;
     const close = weightApi.connect((payload) => {
       const kg = Math.round(payload.weight_kg);
       if (!kg || kg < 20 || kg > 200) return;
@@ -62,7 +67,7 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
       close();
       if (weightFlashTimerRef.current) clearTimeout(weightFlashTimerRef.current);
     };
-  }, []);
+  }, [features.weight_scale]);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -199,7 +204,8 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                   disabled={uploading}
                 />
               </label>
-              {!initial && (
+              {/* May doc CCCD tat -> an nut. Cac truong CCCD ben duoi van nhap tay. */}
+              {!initial && features.cccd_reader && (
                 <button
                   type="button"
                   className="btn-cccd-reader"
@@ -293,21 +299,13 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
                 </Field>
               </div>
 
-              <div className="row-2">
-                <Field label={t("detainee.field.cell")}>
-                  <select className="input" value={form.cell_code || ""} onChange={set("cell_code")}>
-                    <option value="">{t("detainee.form.select_cell")}</option>
-                    {cells.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {t("detainee.form.cell_option", { code: c.code, name: c.name, current: c.current, capacity: c.capacity })}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={t("detainee.form.date_in_label")}>
-                  <input className="input" value={form.date_in || ""} onChange={set("date_in")} placeholder={t("detainee.form.date_in_ph")} />
-                </Field>
-              </div>
+              {/* O chon BUONG GIAM da bo: khong con quan ly giam giu trong app nay
+                  (2 tab "Phien lam viec" va "Co so giam giu" da bo han). Con lai
+                  mot minh "Ngay vao" nen KHONG boc row-2 nua — row-2 chia 2 cot,
+                  de nguyen thi o nay chi rong nua hang, con nua kia trong tron. */}
+              <Field label={t("detainee.form.date_in_label")}>
+                <input className="input" value={form.date_in || ""} onChange={set("date_in")} placeholder={t("detainee.form.date_in_ph")} />
+              </Field>
 
               <Field label={t("detainee.field.note")}>
                 <textarea className="input" rows={2} value={form.note || ""} onChange={set("note")} />
@@ -334,12 +332,13 @@ export default function DetaineeForm({ initial, cells, onClose, onSaved }) {
               <ul className="dup-list">
                 {dupCheck.duplicates.map((d) => (
                   <li key={d.id}>
+                    {/* Bo tham so `cell`: chuoi detainee.dup.row khong con doan
+                        "buong {cell}" nua (app khong quan ly giam giu). */}
                     {t("detainee.dup.row", {
                       code: d.code,
                       name: d.full_name,
                       gender: d.gender === "female" ? t("common.female") : t("common.male"),
                       dob: d.dob ? formatDate(d.dob) : "—",
-                      cell: d.cell_code || "—",
                     })}
                   </li>
                 ))}

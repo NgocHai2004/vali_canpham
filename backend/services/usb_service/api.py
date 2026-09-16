@@ -1,7 +1,7 @@
 """
 USB Dongle Verification Service — App CCCD.
 
-Chay song song voi backend main.py (:8000), tren may co USB dongle cam vao.
+Chay song song voi backend main.py (:8001), tren may co USB dongle cam vao.
 Cung cap 3 endpoint:
 
 - GET  /api/usb/health              - service health + so drive USB dang cam
@@ -11,7 +11,7 @@ Cung cap 3 endpoint:
 Chay:
     $env:DONGLE_SECRET = "<mat khau bi mat cua co quan>"
     .venv/Scripts/python.exe -m uvicorn --app-dir backend/services/usb_service api:app `
-        --host 127.0.0.1 --port 8766
+        --host 127.0.0.1 --port 8768
 
 Backend main.py phai co cung DONGLE_SECRET de verify HMAC signature.
 """
@@ -115,31 +115,26 @@ def _load_dotenv_secret(name: str) -> str:
     val = os.getenv(name, "").strip()
     if val:
         return val
-    candidate_paths = [
-        os.path.abspath(os.path.join(os.getcwd(), ".env")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".env")),
-    ]
-    for env_path in candidate_paths:
-        if os.path.exists(env_path):
-            try:
-                with open(env_path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line or line.startswith("#") or "=" not in line:
-                            continue
-                        k, v = line.split("=", 1)
-                        if k.strip() == name:
-                            return v.strip().strip('"').strip("'")
-            except Exception:
-                pass
+    # .env nam o goc project (Vali_hientruong/.env), 2 cap thu muc len tu usb_service/
+    env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", ".env"))
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                if k.strip() == name:
+                    return v.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
     return ""
 
 
 _secret_str = _load_dotenv_secret("DONGLE_SECRET")
 if not _secret_str:
     raise SystemExit(
-        "Bat buoc co DONGLE_SECRET: dat trong C:\\Users\\vali-01\\Documents\\App_CCCD\\.env "
+        "Bat buoc co DONGLE_SECRET: dat trong C:\\Users\\vali-01\\Documents\\Vali_hientruong\\.env "
         "(dong DONGLE_SECRET=...) hoac set env var."
         "\n  PowerShell:  $env:DONGLE_SECRET = 'your-secret-here'"
         "\n  Bash:        export DONGLE_SECRET='your-secret-here'"

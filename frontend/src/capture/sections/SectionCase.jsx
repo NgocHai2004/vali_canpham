@@ -8,12 +8,15 @@ export function SectionCase({ form, setField, disabled = false }) {
   const { t } = useI18n();
   return (
     <div className="cap-grid cap-grid--case">
-      <InfoField label={t("capture.case.arrest_date")}>
+      {/* Bat ngay + Don vi bat: moi truong TRAI CA HANG (span-3col) thay vi
+          chia doi hang. Don vi bat thuong dai ("Cong an phuong ... quan ...")
+          nen o nua hang bi cat chu. */}
+      <InfoField label={t("capture.case.arrest_date")} className="span-3col">
         <input className="control control-sm" value={form.arrest_date} disabled={disabled}
           placeholder={t("capture.form.date_ph")}
           onChange={(e) => setField("arrest_date", e.target.value)} />
       </InfoField>
-      <InfoField label={t("capture.case.arrest_unit")}>
+      <InfoField label={t("capture.case.arrest_unit")} className="span-3col">
         <input className="control control-sm" value={form.arrest_agency} disabled={disabled}
           placeholder={t("capture.arrest_agency_ph")}
           onChange={(e) => setField("arrest_agency", e.target.value)} />

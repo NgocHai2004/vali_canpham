@@ -1,4 +1,4 @@
-"""FastAPI service cho Morfin slap scanner. Thay the zkfp service (port 8765).
+"""FastAPI service cho Morfin slap scanner. Thay the zkfp service (port 8767).
 
 Giu nguyen contract cua service cu de frontend doi it nhat:
     GET  /api/health
@@ -18,7 +18,7 @@ Enroll 10 ngon = 4 lan chup thay vi 10 lan bam.
 
 Chay:
     python -m uvicorn --app-dir backend/services/morfin_service api:app \
-        --host 127.0.0.1 --port 8765
+        --host 127.0.0.1 --port 8767
 """
 from __future__ import annotations
 
@@ -50,17 +50,34 @@ from morfin import FingerType, SlapPosition  # noqa: E402
 # theo giai phau. Mapping duoi day chi dung khi nguoi dan dat tay DUNG CHIEU
 # (long ban tay up xuong, dau ngon huong ra xa nguoi dat).
 #
-# SDK khong cho biet ngon cai nao la trai/phai (SLAP_LABELS chi co
-# "Thumb A"/"Thumb B") => chup ngon cai TUNG BEN MOT, ban tay do frontend
-# chi dinh qua step, khong doan.
-# Thu tu 3 buoc: 4 ngon trai -> 2 ngon cai -> 4 ngon phai.
+# NGON CAI CHUP CHUM CA HAI NGON trong MOT lan - khong tach duoc.
 #
-# CHUA XAC MINH DUOC tren thiet bi that: voi SlapPosition.THUMB, slot nao la
-# ngon cai TRAI. SDK chi tra "Thumb A"/"Thumb B", khong noi ben nao. Mapping
-# duoi day theo dung quy uoc cua cac slap khac (slot 1 = trai nhat trong anh),
-# tuc la nguoi dan dat 2 ngon cai canh nhau thi cai trai nam ben trai anh.
-# => Can 1 lan chup that de xac nhan. Neu bi nguoc, doi thu tu 2 ma trong
-#    "codes" cua buoc "thumbs" la xong, khong phai sua logic.
+# DA THU tach thanh 2 buoc 1 ngon (thumb_left / thumb_right, moi buoc khai ngon
+# cai ben kia vao tham so `exceptions` cua StartCapture) va SDK TU CHOI. Log tu
+# thiet bi that (Morfin MORPHS, serial 10783121):
+#
+#   step=thumb_left THAT BAI code=-2019 (Capture timeout) frames=64 count=4
+#   msg='Hand Position [UNKNOWN]'
+#
+# Doc ra: frames=64 nghia la cam bien CO thay ngon (preview doc duoc Quality 62),
+# nen khong phai loi dat tay hay thiet bi. Nhung count=4: SDK VAN cho DU 4 ngon
+# du da khai 1 ngon vao exceptions => `exceptions` KHONG ha duoc so ngon SDK cho
+# o che do chum. Va 'Hand Position [UNKNOWN]' cho biet no khong nhan ra tu the
+# mot ngon cai don le. auto_capture khong bao gio chot frame => het timeout.
+#
+# count=4 cung LOAI duong "chup ngon cai o LEFT_HAND/RIGHT_HAND voi 3 ngon kia
+# khai absent": cung dua vao exceptions de ha so ngon, se 408 y nhu vay.
+#
+# => Ngon cai phai chup chum 2 ngon. Hau qua phai chap nhan: slot nao la ngon cai
+#    TRAI phai suy theo toa do x (slot 1 = trai nhat trong anh), vi SDK chi tra
+#    "Thumb A"/"Thumb B" chu khong noi ben nao. Nguoi dan dat nguoc hai ngon cai
+#    thi template bi gan lech sang ngon kia. Khong co duong nao khac o che do FLAT.
+#    Muon chup rieng tung ngon cai thi phai dung FingerType.ROLL (van LAN, da chay
+#    tot - xem ROLL_STEPS), nhung do la van lan chu khong phai van phang.
+#
+# Thu tu 3 buoc chum = DUNG THU TU 3 O TREN MAN HINH, trai sang phai:
+#   4 ngon trai -> 2 ngon cai -> 4 ngon phai
+# Cung quy uoc voi ROLL_ORDER: can bo doc mot mach, khong phai nhay o.
 SLAP_STEPS: list[dict] = [
     {
         "step": "left_hand",
@@ -70,18 +87,18 @@ SLAP_STEPS: list[dict] = [
         "codes": ["left_little", "left_ring", "left_middle", "left_index"],
     },
     {
-        "step": "right_hand",
-        "slap": SlapPosition.RIGHT_HAND,
-        "label_vi": "4 ngon ban tay phai",
-        "expect": 4,
-        "codes": ["right_index", "right_middle", "right_ring", "right_little"],
-    },
-    {
         "step": "thumbs",
         "slap": SlapPosition.THUMB,
         "label_vi": "2 ngon cai",
         "expect": 2,
         "codes": ["left_thumb", "right_thumb"],
+    },
+    {
+        "step": "right_hand",
+        "slap": SlapPosition.RIGHT_HAND,
+        "label_vi": "4 ngon ban tay phai",
+        "expect": 4,
+        "codes": ["right_index", "right_middle", "right_ring", "right_little"],
     },
 ]
 
@@ -300,6 +317,36 @@ def _bmp_to_png_b64(blob: bytes, thumb: Optional[int] = None,
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
+def _png_width(blob: bytes) -> int:
+    """Be ngang anh slap THO (pixel), de quy toa do x cua ngon ra phan tram.
+
+    Doc tu anh GOC chu khong phai anh da thumbnail: toa do x trong ImageInfo la
+    toa do tren anh goc. Tra 0 khi khong doc duoc - caller bo qua viec dat so.
+    """
+    if not blob:
+        return 0
+    try:
+        return Image.open(io.BytesIO(blob)).width
+    except Exception:  # noqa: BLE001 - anh loi khong duoc lam do ca lan chup
+        return 0
+
+
+def _mark_x_pct(fc, slap_w: int) -> Optional[float]:
+    """Vi tri ngang (phan tram) de dat so % cua mot ngon tren anh chum.
+
+    Dung phan tram chu khong pixel: anh FE hien la ban da thumbnail(600) roi con
+    scale theo CSS, nen pixel cua anh goc khong con y nghia o phia FE.
+
+    Lay DIEM GIUA ngon (x -> x2). Neu SDK khong ghi RightBottomCordinates (x2 <=
+    x) thi lui ve dung canh trai: so lech ve ben trai mot chut nhung VAN dung
+    ngon, hon la khong hien so nao.
+    """
+    if slap_w <= 0:
+        return None
+    x = fc.x + (fc.x2 - fc.x) / 2 if fc.x2 > fc.x else fc.x
+    return round(max(0.0, min(100.0, x / slap_w * 100)), 1)
+
+
 @dataclass
 class FingerRecord:
     code: str
@@ -364,6 +411,25 @@ class Session:
         return all(self.fingers[c].done for c in STEP_BY_NAME[step]["codes"])
 
     def step_done(self, step: str) -> bool:
+        # Buoc ma MOI ngon deu danh dau "khong co van tay" => XONG, khong doi xac nhan.
+        #
+        # Xac nhan ton tai de can bo XEM ANH roi chap nhan. Buoc nay khong co anh nao
+        # ca, nen khong co gi de xem va khong co gi de xac nhan.
+        #
+        # Thieu nhanh nay thi buoc lan cua ngon thieu KHONG BAO GIO done: ten buoc
+        # ("roll_left_little") chi duoc vao self.confirmed ben trong capture()
+        # (auto_confirmed cho buoc lan), ma ngon thieu thi khong bao gio chup =>
+        # next_step() tra ve mai buoc do => finished mai la False. Hau qua tren FE:
+        # bao "chua xong" va BO QUA tra cuu trung 10 ngon (matchFingerprint nam trong
+        # nhanh srvDone) - mat mot chuc nang nghiep vu that voi moi nguoi thieu ngon.
+        # mark_none cung khong vao duoc: no discard(rec.step), ma rec.step la ten buoc
+        # CHUM ("left_hand"), khong phai "roll_left_little".
+        #
+        # Ap cho ca buoc chum: cum ma ca 4 ngon deu thieu cung thoat duoc (truoc day
+        # capture() tra 400 "khong con ngon nao de chup" lap vo han).
+        codes = STEP_BY_NAME[step]["codes"]
+        if all(self.fingers[c].missing for c in codes):
+            return True
         return step in self.confirmed and self.step_captured(step)
 
     def next_step(self) -> Optional[dict]:
@@ -405,6 +471,15 @@ sessions: dict[str, Session] = {}
 _lock = threading.Lock()
 # 1 handle thiet bi cho ca process => chi cho 1 capture chay cung luc.
 _capture_lock = threading.Lock()
+# Thoi gian toi da /api/capture/stop cho luong chup cu nha _capture_lock.
+# Dai hon mot nhip SDK thoat khoi cho, nhung khong de request treo vo han.
+# /api/capture/stop cho luong chup cu nha _capture_lock. Phai LON HON thoi gian
+# cho toi da cua engine (ROLL_TIMEOUT 30 + 10 = 40s) — dat 8s nhu truoc la bo cho
+# truoc khi lock duoc nha, tra ve som va client tuong thiet bi ranh.
+STOP_LOCK_TIMEOUT = 45.0
+# capture() cho bao lau sau khi engine.stop() de giat thiet bi tu lan chup cu.
+# engine.stop() cat cho ngay nen luong cu thoat trong ~1s; 12s la du du.
+PREEMPT_TIMEOUT = 12.0
 
 app = FastAPI(title="Morfin Slap Enroll")
 
@@ -438,8 +513,16 @@ def list_fingers() -> list[dict]:
 
 @app.get("/api/steps")
 def list_steps() -> list[dict]:
+    # `roll` PHAI co o day, khong chi o /api/session/{sid}.
+    # Frontend retryFingerprint (double-click vao o de thu lai) lay group tu DUNG
+    # endpoint nay roi set fpActiveRoll = !!group.roll. Thieu co => fpActiveRoll
+    # luon false trong ca lan thu lai => dieu kien `fpRunning && fpActiveRoll` o
+    # luoi 10 o khong bao gio dung => o KHONG nhay vien lam, can bo double-click
+    # xong khong biet may dang doi ngon nao. Vong thu chinh khong bi vi no doc
+    # next_step tu /session (cho do da tra `roll`).
     return [{"step": s["step"], "label_vi": s["label_vi"],
-             "expect": s["expect"], "codes": s["codes"]} for s in STEPS]
+             "expect": s["expect"], "codes": s["codes"],
+             "roll": bool(s.get("roll"))} for s in STEPS]
 
 
 @app.get("/api/live")
@@ -506,6 +589,10 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     # nen neu khong khai bao ngon vang thi SDK cho den het timeout roi tra -2019
     # => api tra 408 "chup that bai", khong bao gio den duoc 422 co huong dan.
     codes = [c for c in step["codes"] if not s.fingers[c].missing]
+    # absent_extra = ngon KHONG thuoc buoc nay nhung phai khai voi SDK la vang, de
+    # auto_capture chot frame o dung so ngon cua buoc. Chi buoc ngon cai dung: chup
+    # cai trai thi cai phai la absent_extra. Thieu no thi SlapPosition.THUMB cho du
+    # 2 ngon den het timeout roi tra -2019 => 408 vinh vien.
     if not codes:
         raise HTTPException(
             400,
@@ -513,10 +600,21 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
             "ngon nao de chup.",
         )
     expect = len(codes)
-    absent = [c for c in step["codes"] if s.fingers[c].missing]
+    absent = ([c for c in step["codes"] if s.fingers[c].missing]
+              + step.get("absent_extra", []))
 
+    # Khong tra 409 ngay. Lan chup cu co the con dang cho tay TOI 40 GIAY
+    # (ROLL_TIMEOUT 30 + 10 trong engine.done.wait), va truong hop pho bien nhat
+    # la: can bo roi trang giua luc dang cho => React unmount, mount lai, phien
+    # MOI goi capture trong khi luong cu chua thoat. Tra 409 o day lam man hinh
+    # moi dung ~40s (nguoi dung: "1 luc sau da duoc").
+    #
+    # Xu ly: GIANH thiet bi - bao SDK thoi cho (engine.stop()) de luong cu thoat
+    # som, roi cho lock trong PREEMPT_TIMEOUT. Chi 409 khi that su khong giat duoc.
     if not _capture_lock.acquire(blocking=False):
-        raise HTTPException(409, "Dang co lenh chup khac chay.")
+        engine.stop()
+        if not _capture_lock.acquire(timeout=PREEMPT_TIMEOUT):
+            raise HTTPException(409, "Dang co lenh chup khac chay.")
     try:
         if step.get("roll"):
             # Lan: 1 ngon, mot lan StartCapture(ROLL) keo dai (~50 khung/giay
@@ -621,6 +719,10 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
     nq_slots = set(result.no_quality)
     captured = []
     low = []
+    # marks = so % dat DUNG VI TRI tung ngon tren anh chum. Chi buoc CHUM: anh lan
+    # co 1 ngon va % cua no da hien o o ngon trong luoi 10 o.
+    marks = []
+    slap_w = _png_width(result.slap_image) if not step.get("roll") else 0
     for code, fc in zip(codes, got):
         rec = s.fingers[code]
         rec.template_b64 = base64.b64encode(fc.template).decode("ascii")
@@ -639,12 +741,27 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         captured.append({**rec.to_public(include_template=True),
                          "image_b64": rec.image_b64,
                          "thumb_b64": _bmp_to_png_b64(fc.image, thumb=200, center=True)})
-        if rec.no_quality or rec.quality < _min_quality(code):
+        weak = rec.quality < _min_quality(code)
+        if rec.no_quality or weak:
             low.append({
                 "code": code, "name_vi": FINGER_NAME[code],
                 "reason": "no_quality" if rec.no_quality else "weak",
                 "quality": fc.quality, "need": _min_quality(code),
             })
+        # Mot mark = mot so % dat len anh chum. `low` o tren la danh sach ngon dang
+        # ngo (FE dung cho o xac nhan); mark la CHO DAT SO, ngon nao cung co - nen
+        # hai cai nay khong gop duoc.
+        if slap_w > 0:
+            x_pct = _mark_x_pct(fc, slap_w)
+            if x_pct is not None:
+                marks.append({
+                    "code": code, "name_vi": FINGER_NAME[code],
+                    "quality": fc.quality, "no_quality": rec.no_quality,
+                    # `low` tinh o service, khong de FE tu suy: nguong RIENG tung
+                    # ngon la chuyen cua service (xem _min_quality), FE ghep hai
+                    # bang de to mau la mot cho lech nua khong can co.
+                    "low": weak, "x_pct": x_pct,
+                })
 
     # Chup lai cum thi coi nhu xac nhan cu khong con hieu luc: can bo phai xem
     # anh MOI roi xac nhan lai. Neu khong bo, cum da xac nhan mot lan se tu dong
@@ -691,6 +808,9 @@ def capture(sid: str, body: CaptureReq | None = None) -> dict:
         "step": step["step"],
         "captured": captured,
         "slap_thumb_b64": s.slap_images[step["step"]],
+        # So % dat DUNG VI TRI tung ngon tren anh chum (xem _mark_x_pct). Rong voi
+        # buoc lan: anh lan chi co 1 ngon va % cua no da hien o o ngon trong luoi.
+        "slap_marks": marks,
         # Nguong tung ngon. Frontend phai dung map nay de to mau badge, khong
         # hardcode 50 - admin dat nguong RIENG cho tung ngon trong Settings.
         "min_quality_by_code": {c: _min_quality(c) for c in codes},
@@ -858,7 +978,24 @@ def del_session(sid: str) -> dict:
 
 @app.post("/api/capture/stop")
 def stop_capture() -> dict:
-    return {"ok": True, "code": engine.stop()}
+    """Dung lan chup dang chay VA cho den khi thiet bi that su ranh.
+
+    Vi sao phai cho: engine.stop() chi bao SDK thoi cho tay. Request capture() cu
+    van dang block trong engine.capture_slap()/capture_roll(), nen no CHUA chay
+    den `finally` de nha _capture_lock. Neu tra ve ngay tai day, client (frontend
+    luc roi trang) tuong thiet bi da ranh, mount lai trang va goi capture moi ->
+    acquire(blocking=False) that bai -> 409 "Dang co lenh chup khac chay."
+    Do dung la bug "thoat giua luc thu nhan roi vao lai thi van tay khong chay".
+
+    Cho bang cach acquire chinh _capture_lock: acquire duoc = luong cu da thoat
+    va da nha lock = thiet bi ranh thuc su. Nha ra ngay sau do.
+    """
+    code = engine.stop()
+    # Timeout de khong treo request neu luong cu vi ly do nao do khong thoat.
+    got = _capture_lock.acquire(timeout=STOP_LOCK_TIMEOUT)
+    if got:
+        _capture_lock.release()
+    return {"ok": True, "code": code, "device_free": got}
 
 
 class QualityCfgReq(BaseModel):
@@ -874,7 +1011,7 @@ def get_quality_cfg() -> dict:
 
 @app.post("/api/config/quality")
 def set_quality_cfg(body: QualityCfgReq) -> dict:
-    """Nhan nguong TUNG NGON tu backend chinh (8000) sau khi admin doi Settings.
+    """Nhan nguong TUNG NGON tu backend chinh (8001) sau khi admin doi Settings.
 
     KHONG co auth o service nay - service chi bind 127.0.0.1 va khong duoc
     expose qua Vite proxy. Auth (require_admin) + audit log nam o backend
