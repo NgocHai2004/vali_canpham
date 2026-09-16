@@ -418,18 +418,29 @@ label.smp-drop.on {
   flex-wrap: wrap;
 }
 
-/* 2 panel dưới: dấu vết (0.84fr) + hồ sơ đối tượng (1.16fr) như design. */
+/* 2 panel trên: dấu vết + hồ sơ đối tượng chia đều kích thước 50/50 (1fr 1fr).
+   Chiều cao cố định 280px để nhường không gian phía dưới cho bảng đối sánh hiện đủ 10 dòng. */
+.smp-top-panels {
+  flex: 0 0 280px;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
 .smp-bottom {
   flex: 1 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: 0.84fr 1.16fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
   align-items: stretch;
 }
 
 /* Man hep: 2 panel xep doc -> khong con vua 1 trang, tra scroll lai cho trang. */
 @media (max-width: 1240px) {
+  .smp-top-panels,
   .smp-bottom {
     grid-template-columns: 1fr;
   }
@@ -477,12 +488,9 @@ label.smp-drop.on {
 }
 
 .smp-tr-row {
-  /* 7 cot: thumb | ma+ten file | vi tri dau vet | thoi gian | size | nut | tick.
-     Vi tri dau vet tach ra cot rieng (truoc nam duoi ma trong .smp-tr-meta) nen
-     phai THEM track, khong thi no an vao cot thoi gian. minmax(0,..) de ten dai
-     bi ellipsis chu khong day rong cot. */
+  /* 6 cot: thumb | ma+ten file | vi tri dau vet | thoi gian | nut | tick. */
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) minmax(0, 0.8fr) 118px 72px 90px 26px;
+  grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 1fr) 124px 90px 24px;
   align-items: center;
   gap: 12px;
   padding: 5px 10px;
@@ -513,20 +521,22 @@ label.smp-drop.on {
   object-fit: cover;
   display: block;
   background: #35383d;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.smp-thumb-md:hover {
+  border-color: #60a5fa;
+  transform: scale(1.08);
 }
 
 .smp-tr-src {
   text-align: left;
 }
 
-/* Lui cot thoi gian sang phai: padding-left chu KHONG transform/margin — cot
-   rong co dinh 118px, transform se day chu tran sang cot size ben canh. */
 .smp-tr-time {
-  padding-left: 16px;
-}
-
-.smp-tr-size {
   text-align: right;
+  padding-right: 4px;
 }
 
 .smp-check {
@@ -566,7 +576,7 @@ label.smp-drop.on {
   display: grid;
   grid-template-columns: 80px 1fr auto 22px;
   gap: 14px;
-  align-items: start;
+  align-items: center;
   border: 1px solid #24486f;
   border-radius: 12px;
   background: rgba(13, 29, 53, .75);
@@ -614,15 +624,26 @@ label.smp-drop.on {
 
 .smp-hands {
   display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.smp-hand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .smp-hand-title {
-  text-align: center;
-  font-size: 11.5px;
-  color: #a9bedb;
-  margin-bottom: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #8ea4c4;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  width: 60px;
+  text-align: right;
+  flex-shrink: 0;
+  margin: 0;
 }
 
 .smp-hand-label {
@@ -634,17 +655,24 @@ label.smp-drop.on {
 
 .smp-fingers {
   display: flex;
-  gap: 6px;
+  gap: 5px;
 }
 
 .smp-finger {
-  width: 27px;
-  height: 34px;
+  width: 34px;
+  height: 44px;
   border-radius: 5px;
-  border: 1px solid #2b4a72;
+  border: 1.5px solid var(--smp-blue);
+  box-sizing: border-box;
   object-fit: cover;
   display: block;
-  background: #35383d;
+  background: #0b1a30;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.smp-finger:hover {
+  border-color: #60a5fa;
+  transform: scale(1.06);
 }
 
 .smp-sub-row {
@@ -3002,7 +3030,7 @@ textarea.smp-modal-in {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-top: 14px;
+  margin-top: 8px;
 }
 
 .smp-tr-search {
@@ -3301,8 +3329,17 @@ textarea.smp-modal-in {
    global trong styles.css nen KHONG dinh nghia lai o day.
    Dat o CUOI file de thang cac rule hover cu o tren (vd .smp-tr-row:hover). */
 
-/* ---- Panel & the ---- */
-.smp .smp-panel,
+/* ---- Panel: giu nguyen vi tri, khong nhac len khi hover ---- */
+.smp .smp-panel {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.smp .smp-panel:hover,
+.smp .smp-panel:has(.smp-trg.on) {
+  border-color: rgba(53, 216, 255, 0.25);
+}
+
+/* ---- The ben trong panel (dong dau vet, the doi tuong) ---- */
 .smp .smp-tr-row,
 .smp .smp-sub-row,
 .smp .smp-sub-open,
@@ -3312,11 +3349,6 @@ textarea.smp-modal-in {
   transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s;
 }
 
-/* :has(.smp-trg.on) — popover (Bo loc / Tat ca doi tuong) nam o top layer nen
-   :hover KHONG lan len DOM ancestor: dua chuot vao trong popover la panel mat
-   hover. Trigger co class .on suot thoi gian popover mo => dung lam co giu hover. */
-.smp .smp-panel:hover,
-.smp .smp-panel:has(.smp-trg.on),
 .smp .smp-tr-row:hover,
 .smp .smp-sub-row:hover,
 .smp .smp-sub-open:hover,
@@ -3508,17 +3540,17 @@ textarea.smp-modal-in {
 }
 
 .stf-zoom-wrap .stf-dot-m {
-  width: 18px;
-  height: 18px;
-  margin: -9px 0 0 -9px;
-  border-width: 3px;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, .85);
+  width: 15px;
+  height: 15px;
+  margin: -7.5px 0 0 -7.5px;
+  border-width: 2px;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .85);
 }
 
 .stf-zoom-wrap .stf-dot-m>i {
-  left: 21px;
-  top: -7px;
-  font-size: 17px;
+  left: 17px;
+  top: -5px;
+  font-size: 13px;
 }
 
 /* The nho trong 4.1: bo so thu tu (khong doc noi o 72px), cham van du day. */
@@ -3851,24 +3883,38 @@ textarea.smp-modal-in {
   grid-template-columns: 190px 1fr;
 }
 
-/* Anh van tay trong the HO SO DOI TUONG: design 36x48, vien sang hon. */
+/* Anh van tay trong the HO SO DOI TUONG: chia 2 dong (tay phai / tay trai). */
 .smp-hands {
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.smp-hand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .smp-hand-title {
-  font-size: 11px;
+  font-size: 10.5px;
+  font-weight: 600;
   letter-spacing: .4px;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  width: 60px;
+  text-align: right;
+  color: #8ea4c4;
+  flex-shrink: 0;
+  margin: 0;
 }
 
 .smp-finger {
-  width: 48px;
-  height: 64px;
-  border-radius: 6px;
-  border: 1px solid #3a5f8c;
+  width: 34px;
+  height: 44px;
+  border-radius: 5px;
+  border: 1.5px solid var(--smp-blue);
   background: #0b1a30;
+  box-sizing: border-box;
 }
 
 /* ---- Bang KET QUA DOI SANH: ap 1:1 design "Phan tich doi sanh" ----
@@ -4048,8 +4094,10 @@ textarea.smp-modal-in {
 
 .scene-zoom-modal {
   position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
+  width: min(720px, 92vw);
+  height: min(600px, 86vh);
+  min-width: 460px;
+  min-height: 400px;
   display: flex;
   flex-direction: column;
   background: rgba(13, 29, 53, .97);
@@ -4105,8 +4153,9 @@ textarea.smp-modal-in {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
-  max-height: calc(90vh - 55px);
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
   background: #070f1c;
 }
 
@@ -4117,12 +4166,16 @@ textarea.smp-modal-in {
   justify-content: center;
   max-width: 100%;
   max-height: 100%;
+  height: 100%;
+  width: auto;
 }
 
 .stf-zoom-wrap img {
   display: block;
-  max-width: 80vw;
-  max-height: calc(90vh - 90px);
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, .5);

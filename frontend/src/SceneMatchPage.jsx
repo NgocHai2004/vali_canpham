@@ -4,7 +4,6 @@ import { api } from "./api";
 import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
 import { MATCH_ROWS, SUBJECTS } from "./sceneMatchDemo";
-import { fmtSize } from "./SceneTracesPage";
 import { DEMO_ITEMS, SCORE_TOTAL } from "./sceneDemo";
 import {
   IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
@@ -99,8 +98,9 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // ----- Ket qua doi sanh (fake) -----
+  // ----- Ket qua doi sanh: chi co khi phien da co dau vet hien truong -----
   const rows = useMemo(() => {
+    if (traces.length === 0) return [];
     const kw = q.trim().toLowerCase();
     const out = MATCH_ROWS.filter((r) => {
       if (subjectSel.size && !subjectSel.has(r.name)) return false;
@@ -117,7 +117,7 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
       score_asc:  (a, b) => a.score - b.score,
     }[sortBy];
     return cmp ? out.sort(cmp) : out;
-  }, [q, subjectSel, fingerFilter, minScore, sortBy]);
+  }, [traces.length, q, subjectSel, fingerFilter, minScore, sortBy]);
 
   // Danh sach ngon tay lay tu chinh data -> khong can export thu tu tu sceneMatchDemo.
   const FINGER_OPTS = useMemo(
@@ -286,6 +286,44 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
       </div>
 
       {err && <div className="lg-err" role="alert">{err}</div>}
+
+      {/* ---------- 2 panel tren: dau vet (trai) + ho so doi tuong (phai) ---------- */}
+      <div className="smp-top-panels">
+        <SceneTracePanel
+          t={t}
+          traces={shownTraces}
+          total={traces.length}
+          q={traceQ}
+          setQ={setTraceQ}
+          picked={picked}
+          toggle={toggle}
+          traceCode={traceCode}
+          formatDateTime={formatDateTime}
+          onAddFiles={addTraces}
+          uploading={uploading}
+          onDelete={(items) => setDelTrace(items[0] || null)}
+          onEdit={setEditTrace}
+          sort={traceSort}
+          setSort={setTraceSort}
+          onSelectAll={selectAllShown}
+          onClearSel={clearSel}
+        />
+        <SubjectPanel
+          t={t}
+          subjects={traces.length > 0 ? SUBJECTS : []}
+          openSub={openSub}
+          setOpenSub={setOpenSub}
+          // ponytail: chi chan theo status (co trong payload san). Backend con chan
+          // officer != user va role admin -> se bao 403 luc luu. Them officer vao
+          // GET /api/scene/traces neu can chan som ngay tren nut.
+          onAdd={onAddSubject && session?.status === "open"
+            ? () => onAddSubject(session.id)
+            : null}
+          addDisabledHint={session && session.status !== "open"
+            ? t("smp.sub.add_closed")
+            : ""}
+        />
+      </div>
 
       {/* ---------- KET QUA DOI SANH ---------- */}
       <section className="smp-panel smp-panel-match">
@@ -527,44 +565,6 @@ export default function SceneMatchPage({ sessionId, onBack, onAddSubject }) {
         </div>
       </section>
 
-      {/* ---------- 2 panel duoi: dau vet + ho so doi tuong ---------- */}
-      <div className="smp-bottom">
-        <SceneTracePanel
-          t={t}
-          traces={shownTraces}
-          total={traces.length}
-          q={traceQ}
-          setQ={setTraceQ}
-          picked={picked}
-          toggle={toggle}
-          traceCode={traceCode}
-          formatDateTime={formatDateTime}
-          onAddFiles={addTraces}
-          uploading={uploading}
-          onDelete={(items) => setDelTrace(items[0] || null)}
-          onEdit={setEditTrace}
-          sort={traceSort}
-          setSort={setTraceSort}
-          onSelectAll={selectAllShown}
-          onClearSel={clearSel}
-        />
-        <SubjectPanel
-          t={t}
-          subjects={SUBJECTS}
-          openSub={openSub}
-          setOpenSub={setOpenSub}
-          // ponytail: chi chan theo status (co trong payload san). Backend con chan
-          // officer != user va role admin -> se bao 403 luc luu. Them officer vao
-          // GET /api/scene/traces neu can chan som ngay tren nut.
-          onAdd={onAddSubject && session?.status === "open"
-            ? () => onAddSubject(session.id)
-            : null}
-          addDisabledHint={session && session.status !== "open"
-            ? t("smp.sub.add_closed")
-            : ""}
-        />
-      </div>
-
       {editTrace && (
         <TraceEditModal
           t={t}
@@ -681,7 +681,6 @@ function SceneTracePanel({
   // "Chon tat ca" tinh tren danh sach DANG HIEN (da loc/tim), khong phai toan bo
   // traces — nguoi dung thay gi thi chon dung cai do.
   const allPicked = traces.length > 0 && traces.every((x) => picked.has(x.id));
-  const [dragOver, setDragOver] = useState(false);
   const [zoom, setZoom] = useState(null);
   // Design: 3 nut Xem / Chinh sua / Xoa ngay tren the, thay cho menu "...".
   const actions = (it, grid) => (
@@ -714,13 +713,6 @@ function SceneTracePanel({
     onAddFiles(e.target.files);
     e.target.value = "";     // chon lai cung file van chay onChange
   };
-  // Kéo thả: phải chặn dragover, không thì browser mở ảnh thay vì gọi onDrop.
-  const onDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    if (uploading) return;
-    onAddFiles(e.dataTransfer.files);
-  };
   return (
     <section className="smp-panel smp-panel-trace">
       <div className="smp-panel-head">
@@ -743,25 +735,6 @@ function SceneTracePanel({
           </label>
         </div>
       </div>
-
-      <label
-        className={"smp-drop" + (dragOver ? " on" : "")}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-      >
-        <div className="smp-drop-ic"><IcUpload /></div>
-        <div className="smp-drop-main">{t("smp.trace.drop")}</div>
-        <div className="smp-drop-sub">{t("smp.trace.drop_hint")}</div>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          hidden
-          disabled={uploading}
-          onChange={pick}
-        />
-      </label>
 
       <div className="smp-tr-tools">
         <input
@@ -826,14 +799,20 @@ function SceneTracePanel({
               className={"smp-tr-row" + (picked.has(it.id) ? " on" : "")}
               onClick={() => toggle(it.id)}
             >
-              <img className="smp-thumb-md" src={it.url} alt={traceCode(it)} loading="lazy" />
+              <img
+                className="smp-thumb-md"
+                src={it.url}
+                alt={traceCode(it)}
+                title={t("common.view")}
+                loading="lazy"
+                onClick={(e) => { e.stopPropagation(); setZoom(it); }}
+              />
               <div className="smp-tr-meta">
                 <div className="smp-strong">{traceCode(it)}</div>
                 <div className="smp-dim smp-ellip">{fileName(it.url)}</div>
               </div>
               <div className="smp-dim smp-ellip smp-tr-src">{it.collection_source || "—"}</div>
               <div className="smp-dim smp-tr-time">{formatDateTime(it.captured_at)}</div>
-              <div className="smp-dim smp-tr-size">{fmtSize(it.size)}</div>
               {actions(it, false)}
               <div className="smp-check">{picked.has(it.id) && <span className="smp-tick-dot"><IcCheck /></span>}</div>
             </div>
@@ -841,13 +820,30 @@ function SceneTracePanel({
         </div>
       )}
 
-      {/* Xem anh chi tiet: dung lai .scene-zoom-backdrop cua styles.css.
-          Portal ra body: .smp-panel-trace co transform (hover lift -2px) nen no
-          la containing block cua position:fixed => overlay chi phu panel
-          (709x457) thay vi ca man hinh. */}
+      {/* Xem anh chi tiet: popup modal phong to */}
       {zoom && createPortal(
-        <div className="scene-zoom-backdrop" onMouseDown={() => setZoom(null)}>
-          <img src={zoom.url} alt={traceCode(zoom)} />
+        <div className="scene-zoom-backdrop" onClick={() => setZoom(null)}>
+          <div className="scene-zoom-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="scene-zoom-head">
+              <span className="scene-zoom-title">
+                {traceCode(zoom)}{zoom.collection_source ? ` • ${zoom.collection_source}` : ""}
+              </span>
+              <button
+                type="button"
+                className="scene-zoom-close"
+                onClick={() => setZoom(null)}
+                title={t("common.close") || "Đóng"}
+                aria-label={t("common.close") || "Đóng"}
+              >
+                <IcClose s={18} />
+              </button>
+            </div>
+            <div className="scene-zoom-body">
+              <div className="stf-zoom-wrap">
+                <img src={zoom.url} alt={traceCode(zoom)} />
+              </div>
+            </div>
+          </div>
         </div>,
         document.body
       )}
@@ -965,71 +961,72 @@ function SubjectPanel({
       </div>
 
       <div className="smp-sub-list">
-        {subjects.map((s) => {
-          const open = s.id === openSub;
-          return open ? (
-            <div className="smp-sub-open" key={s.id}>
-              <div className="smp-sub-photo">
-                {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
-              </div>
-              <div className="smp-sub-info">
-                <div className="smp-top-line">
-                  <span className="smp-strong">{s.name}</span>
-                  {s.primary && (
-                    <span className="smp-chip smp-chip-blue">{t("smp.sub.primary")}</span>
-                  )}
-                </div>
-                <div className="smp-sub-fields">
-                  <div>CCCD: {s.cccd}</div>
-                  <div>{t("smp.sub.dob")}: {s.dob}</div>
-                  <div>{t("smp.sub.sex")}: {s.sex}</div>
-                </div>
-                <button type="button" className="btn-link">{t("smp.sub.detail")}</button>
-              </div>
-              <div className="smp-hands">
-                {/* Design xep Tay phai truoc Tay trai. */}
-                {[["right", t("smp.sub.right")], ["left", t("smp.sub.left")]].map(([key, label]) => (
-                  <div key={key}>
-                    <div className="smp-hand-title">{label}</div>
-                    <div className="smp-fingers">
-                      {/* Tay trai: ut -> cai; tay phai: cai -> ut. Doc lien 2 ban la
-                          thu tu ngon chay deu tu trai qua phai nhu 2 ban tay up xuong. */}
-                      {(key === "left" ? [...s[key]].reverse() : s[key]).map((f) => (
-                        <img
-                          className="smp-finger"
-                          key={f.label}
-                          src={f.url}
-                          alt={t(f.label)}
-                          title={t(f.label)}
-                          loading="lazy"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="smp-sub-toggle"
-                onClick={() => setOpenSub("")}
-                aria-label={t("smp.sub.collapse")}
-              ><IcChevUp /></button>
-            </div>
-          ) : (
-            <div className="smp-sub-row" key={s.id} onClick={() => setOpenSub(s.id)}>
-              <div className="smp-sub-row-left">
-                <div className="smp-sub-avatar">
+        {subjects.length === 0 ? (
+          <div className="scene-empty">{t("smp.sub.empty") || "Phiên này chưa có hồ sơ đối tượng."}</div>
+        ) : (
+          subjects.map((s) => {
+            const open = s.id === openSub;
+            return open ? (
+              <div className="smp-sub-open" key={s.id}>
+                <div className="smp-sub-photo">
                   {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
                 </div>
-                <div>
-                  <div className="smp-strong">{s.name}</div>
-                  <div className="smp-dim">CCCD: {s.cccd}</div>
+                <div className="smp-sub-info">
+                  <div className="smp-top-line">
+                    <span className="smp-strong">{s.name}</span>
+                    {s.primary && (
+                      <span className="smp-chip smp-chip-blue">{t("smp.sub.primary")}</span>
+                    )}
+                  </div>
+                  <div className="smp-sub-fields">
+                    <div>CCCD: {s.cccd}</div>
+                    <div>{t("smp.sub.dob")}: {s.dob}</div>
+                    <div>{t("smp.sub.sex")}: {s.sex}</div>
+                  </div>
+                  <button type="button" className="btn-link">{t("smp.sub.detail")}</button>
                 </div>
+                <div className="smp-hands">
+                  {[["right", t("smp.sub.right")], ["left", t("smp.sub.left")]].map(([key, label]) => (
+                    <div key={key} className="smp-hand-row">
+                      <div className="smp-hand-title">{label}</div>
+                      <div className="smp-fingers">
+                        {s[key].map((f) => (
+                          <img
+                            className="smp-finger"
+                            key={f.label}
+                            src={f.url}
+                            alt={t(f.label)}
+                            title={t(f.label)}
+                            loading="lazy"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="smp-sub-toggle"
+                  onClick={() => setOpenSub("")}
+                  aria-label={t("smp.sub.collapse")}
+                ><IcChevUp /></button>
               </div>
-              <div className="smp-sub-row-right"><span className="smp-dim2">{t("smp.sub.photos", { n: s.photoCount })}</span><IcChevRight /></div>
-            </div>
-          );
-        })}
+            ) : (
+              <div className="smp-sub-row" key={s.id} onClick={() => setOpenSub(s.id)}>
+                <div className="smp-sub-row-left">
+                  <div className="smp-sub-avatar">
+                    {s.photo ? <img src={s.photo} alt={s.name} loading="lazy" /> : <IcAvatar />}
+                  </div>
+                  <div>
+                    <div className="smp-strong">{s.name}</div>
+                    <div className="smp-dim">CCCD: {s.cccd}</div>
+                  </div>
+                </div>
+                <div className="smp-sub-row-right"><span className="smp-dim2">{t("smp.sub.photos", { n: s.photoCount })}</span><IcChevRight /></div>
+              </div>
+            );
+          })
+        )}
       </div>
     </section>
   );

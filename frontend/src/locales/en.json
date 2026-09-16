@@ -1175,6 +1175,7 @@
   "smp.sub.detail": "View full profile",
   "smp.sub.dob": "Date of birth",
   "smp.sub.edit": "Edit information",
+  "smp.sub.empty": "No subject profiles in this case.",
   "smp.sub.f.cccd": "ID number",
   "smp.sub.f.name": "Full name",
   "smp.sub.left": "Left hand",

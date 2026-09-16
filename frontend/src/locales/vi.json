@@ -1175,6 +1175,7 @@
   "smp.sub.detail": "Xem chi tiết hồ sơ",
   "smp.sub.dob": "Ngày sinh",
   "smp.sub.edit": "Chỉnh sửa thông tin",
+  "smp.sub.empty": "Phiên này chưa có hồ sơ đối tượng.",
   "smp.sub.f.cccd": "Số CCCD",
   "smp.sub.f.name": "Họ và tên",
   "smp.sub.left": "Tay trái",
