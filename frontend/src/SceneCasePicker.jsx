@@ -79,7 +79,7 @@ export default function SceneCasePicker({ onPick }) {
   // Lọc chạy ở server (tên / mã / cán bộ / địa chỉ / ngày) nên items đã là kết
   // quả của trang hiện tại và total là tổng đã lọc.
   const rows = items;
-  const hasFilter = !!(qSent || dateFrom || dateTo);
+  const hasFilter = Boolean(q || dateFrom || dateTo || statusFilter);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -99,12 +99,23 @@ export default function SceneCasePicker({ onPick }) {
             <div className="smp-field smp-field-wide">
               <IcSearch />
               <input
-                type="search"
+                type="text"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder={t("scene.case.search_ph")}
                 aria-label={t("common.search")}
               />
+              {q && (
+                <button
+                  type="button"
+                  className="smp-field-clear"
+                  onClick={() => setQ("")}
+                  title={t("common.clear") || "Xóa tìm kiếm"}
+                  aria-label={t("common.clear") || "Xóa tìm kiếm"}
+                >
+                  <IcClose s={13} />
+                </button>
+              )}
             </div>
             {/* type=date chứ không phải datetime-local: cán bộ lọc theo ngày,
                 không ai nhớ phút mở vụ án. */}
@@ -117,6 +128,20 @@ export default function SceneCasePicker({ onPick }) {
                   max={dateTo || undefined}
                   onChange={(e) => setDateFrom(e.target.value)}
                 />
+                {dateFrom && (
+                  <button
+                    type="button"
+                    className="scp-date-clear"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setDateFrom("");
+                    }}
+                    title={t("common.clear") || "Xóa ngày bắt đầu"}
+                    aria-label={t("common.clear") || "Xóa ngày bắt đầu"}
+                  >
+                    <IcClose s={11} />
+                  </button>
+                )}
               </label>
               <label className="scp-date">
                 <span className="smp-dim">{t("common.to")}</span>
@@ -126,6 +151,20 @@ export default function SceneCasePicker({ onPick }) {
                   min={dateFrom || undefined}
                   onChange={(e) => setDateTo(e.target.value)}
                 />
+                {dateTo && (
+                  <button
+                    type="button"
+                    className="scp-date-clear"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setDateTo("");
+                    }}
+                    title={t("common.clear") || "Xóa ngày kết thúc"}
+                    aria-label={t("common.clear") || "Xóa ngày kết thúc"}
+                  >
+                    <IcClose s={11} />
+                  </button>
+                )}
               </label>
             </div>
             <div

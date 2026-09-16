@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "./i18n";
 import { demoFiles, demoMatch, minutiae } from "./sceneDemo";
 import { traceCode } from "./SceneTracesPage";
-import { IcChevDown, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatchIcons";
+import { IcChevDown, IcClose, IcDownload, IcExport, IcEye, IcPagePrev } from "./sceneMatchIcons";
 import SceneMatchReportModal, { SceneReportContent, reportFileName } from "./SceneMatchReportModal";
 import { buildProfilePdfBlob } from "./lib/exportProfilePdf";
 import { usbApi } from "./api";
@@ -234,7 +235,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
                 <button
                   type="button"
                   className="stf-file-img"
-                  onClick={() => setZoom({ url: f.url, dots: f.dots })}
+                  onClick={() => setZoom({ url: f.url, dots: f.dots, title: `${t(f.groupKey)} - ${t(f.kindKey)} (${f.name})` })}
                 >
                   <img src={f.url} alt={f.name} loading="lazy" />
                   {f.dots && <Dots />}
@@ -248,7 +249,7 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
                   <button
                     type="button"
                     className="smp-btn-line"
-                    onClick={() => setZoom({ url: f.url, dots: f.dots })}
+                    onClick={() => setZoom({ url: f.url, dots: f.dots, title: `${t(f.groupKey)} - ${t(f.kindKey)} (${f.name})` })}
                   >
                     {t("scene.file.view")}
                   </button>
@@ -346,13 +347,30 @@ export default function SceneTraceFull({ item, row, session, onBack }) {
 
       {/* Dai verification */}
 
-      {zoom && (
-        <div className="scene-zoom-backdrop" onMouseDown={() => setZoom(null)}>
-          <div className="stf-zoom-wrap">
-            <img src={zoom.url} alt={code} />
-            {zoom.dots && <Dots />}
+      {zoom && createPortal(
+        <div className="scene-zoom-backdrop" onClick={() => setZoom(null)}>
+          <div className="scene-zoom-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="scene-zoom-head">
+              <span className="scene-zoom-title">{zoom.title || code}</span>
+              <button
+                type="button"
+                className="scene-zoom-close"
+                onClick={() => setZoom(null)}
+                title={t("common.close") || "Đóng"}
+                aria-label={t("common.close") || "Đóng"}
+              >
+                <IcClose s={18} />
+              </button>
+            </div>
+            <div className="scene-zoom-body">
+              <div className="stf-zoom-wrap">
+                <img src={zoom.url} alt={zoom.title || code} />
+                {zoom.dots && <Dots />}
+              </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Khung nội dung A4 ẩn để xuất PDF / Lưu USB trực tiếp mà không cần mở popup */}
