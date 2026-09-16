@@ -76,7 +76,7 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
   const [editTrace, setEditTrace] = useState(null);   // != null => mo modal sua
   const [delTrace, setDelTrace] = useState(null);     // != null => mo popup xac nhan xoa
   const [picked, setPicked] = useState(() => new Set());
-  const [openSub, setOpenSub] = useState(null);
+  const [openSub, setOpenSub] = useState("");
   const [uploading, setUploading] = useState(false);
   const [realMatches, setRealMatches] = useState([]);
   const [detainees, setDetainees] = useState([]);
@@ -187,13 +187,6 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
     }
     return [];
   }, [detainees]);
-
-  // Tu dong mo doi tuong dau tien khi tai danh sach lan dau
-  useEffect(() => {
-    if (openSub === null && subjectsList.length > 0) {
-      setOpenSub(subjectsList[0].id);
-    }
-  }, [subjectsList, openSub]);
 
   // ----- Ket qua doi sanh: chi co khi phien da co dau vet hien truong -----
   const rows = useMemo(() => {

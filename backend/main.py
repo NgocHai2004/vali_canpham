@@ -2614,6 +2614,25 @@ async def scene_push(
     return _s_scene(doc)
 
 
+def _case_id_query(case_doc_or_id):
+    if isinstance(case_doc_or_id, dict):
+        cid = case_doc_or_id.get("_id")
+    else:
+        cid = case_doc_or_id
+    if not cid:
+        return {}
+    oids = []
+    if isinstance(cid, ObjectId):
+        oids = [cid, str(cid)]
+    else:
+        oids = [cid]
+        try:
+            oids.append(ObjectId(str(cid)))
+        except Exception:
+            pass
+    return {"$in": oids}
+
+
 @app.get("/api/scene/traces")
 async def list_scene_traces(
     case_id: Optional[str] = Query(default=None),
@@ -2622,7 +2641,7 @@ async def list_scene_traces(
     case_doc = await _scene_case_or_400(case_id)
     items = [
         _s_scene(d)
-        async for d in db.scene_traces.find({"case_id": case_doc["_id"]}).sort([("seq", 1)])
+        async for d in db.scene_traces.find({"case_id": _case_id_query(case_doc)}).sort([("seq", 1)])
     ]
     case_info = {
         "id": str(case_doc["_id"]),
@@ -2758,7 +2777,7 @@ def _spawn_case_rematch(case_doc: dict) -> None:
 async def _rematch_case_safe(case_doc: dict) -> None:
     # Tuần tự từng dấu vết: mỗi lượt là một loạt request sang HBIE, bắn song song
     # chỉ làm service ngoài chịu tải vô ích.
-    async for tr in db.scene_traces.find({"case_id": case_doc["_id"]}).sort("seq", 1):
+    async for tr in db.scene_traces.find({"case_id": _case_id_query(case_doc)}).sort("seq", 1):
         await _match_trace_safe(tr, case_doc)
 
 
@@ -2879,7 +2898,7 @@ async def _match_trace(trace_doc: dict, case_doc: dict) -> dict:
     feature = await _trace_feature(trace_doc)
 
     pairs = []
-    async for det in db.detainees.find({"case_id": case_doc["_id"]}).sort("created_at", 1):
+    async for det in db.detainees.find({"case_id": _case_id_query(case_doc)}).sort("created_at", 1):
         feats = await _detainee_features(det)
         for code, feat in feats.items():
             try:
@@ -2941,7 +2960,7 @@ async def list_scene_matches(
 ):
     """Bảng KẾT QUẢ ĐỐI SÁNH của 1 vụ án (hoặc của 1 dấu vết), điểm cao trước."""
     case_doc = await _scene_case_or_400(case_id)
-    q = {"case_id": case_doc["_id"]}
+    q = {"case_id": _case_id_query(case_doc)}
     if trace_id:
         q["trace_id"] = _oid(trace_id)
     items = [
@@ -2952,7 +2971,7 @@ async def list_scene_matches(
     traces = {
         d["_id"]: d
         async for d in db.scene_traces.find(
-            {"case_id": case_doc["_id"]},
+            {"case_id": _case_id_query(case_doc)},
             {"url": 1, "seq": 1, "landmark": 1, "img_width": 1, "img_height": 1, "feature_quality": 1},
         )
     }
@@ -3092,7 +3111,7 @@ async def rematch_scene_case(
     matched_count = 0
     traces_count = 0
     errors = []
-    async for tr in db.scene_traces.find({"case_id": case_doc["_id"]}).sort("seq", 1):
+    async for tr in db.scene_traces.find({"case_id": _case_id_query(case_doc)}).sort("seq", 1):
         traces_count += 1
         try:
             res = await _match_trace(tr, case_doc)
