@@ -2,15 +2,12 @@ import { useI18n } from "../../i18n";
 
 // Thanh tom tat ho so — dai ngang, nhan nho + gia tri dam. KHONG phai the lon:
 // day la vung nhan dang ho so, khong phai dashboard, nen moi o chi cao 1 dong.
-// So ho so nghi pham / so chi ban / so AK do can bo dien tay (khong sinh tu dong)
+// So ho so can pham / so chi ban / so AK do can bo dien tay (khong sinh tu dong)
 // vi chung lay tu so dang ky giay cua don vi.
-function SumText({ label, value, onChange, placeholder, disabled, wide = false, required = false }) {
+function SumText({ label, value, onChange, placeholder, disabled, wide = false }) {
   return (
     <label className={"rec-sum-item" + (wide ? " rec-sum-item--wide" : "")}>
-      <span className="rec-sum-label">
-        {label}
-        {required && <span className="req-star" title="Bắt buộc">&nbsp;*</span>}
-      </span>
+      <span className="rec-sum-label">{label}</span>
       <input
         className="rec-sum-input"
         value={value || ""}
@@ -38,12 +35,12 @@ export function RecordSummary({
   const { t } = useI18n();
   return (
     <div className="rec-sum" role="group" aria-label={t("capture.summary.record_id")}>
-      {/* Ma ho so BAT BUOC (backend: create_detainee doi personal_id, va chan
-          trung ma). Truoc day chuoi "Ma nghi pham *" nam o key
-          capture.form.personal_id — key do chi con dung lam PLACEHOLDER, nen dau
-          * khong bao gio hien ra: can bo khong biet o nay bat buoc. */}
-      <SumText label={t("capture.summary.record_id")} value={form.personal_id}
-        onChange={(v) => setField("personal_id", v)} required
+      {/* Dau * = bat buoc. Noi o day chu KHONG sua chuoi trong locales, vi khoa
+          nay con dung lam aria-label cua ca nhom o tren — them * vao locale thi
+          trinh doc man hinh doc ca dau sao cho nhom. Cung la quy uoc san co:
+          DetaineeForm.jsx dung t(...) + " *". */}
+      <SumText label={t("capture.summary.record_id") + " *"} value={form.personal_id}
+        onChange={(v) => setField("personal_id", v)}
         placeholder={t("capture.form.personal_id_ph")} disabled={disabled} />
       <SumText label={t("capture.summary.record_sheet_no")} value={form.record_sheet_no}
         onChange={(v) => setField("record_sheet_no", v)} disabled={disabled} />

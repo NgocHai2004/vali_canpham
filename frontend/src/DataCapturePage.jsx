@@ -17,7 +17,7 @@ import { getMeasurementHeight } from "./lib/heightMeasurement";
 import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
-export default function DataCapturePage({ go, initial, onDone, caseId, caseCode, caseReadOnly = false, onSavedInCase, onEditProfile }) {
+export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
   const { t, formatDateLong } = useI18n();
   const features = useFeatures();
   const isEdit = Boolean(initial && initial.id);
@@ -226,7 +226,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
     } catch { /* noop */ }
   }, [t]);
 
-  // Dedup đối sánh vân tay: 1 nghi phạm đã đăng ký = 1 cảnh báo trong 1 phiên chụp.
+  // Dedup đối sánh vân tay: 1 can phạm đã đăng ký = 1 cảnh báo trong 1 phiên chụp.
   const fpMatchedIdsRef = useRef(new Set());
   useEffect(() => { fpMatchedIdsRef.current = new Set(); }, [seed]);
 
@@ -297,20 +297,20 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
     api.listCells().then(setCells).catch(() => setCells([]));
   }, []);
 
-  // "Don vi lap" = dia diem xay ra vu an. Truoc day suy ra tu Noi giam giu
+  // "Don vi lap" = dia diem cua phien lam viec. Truoc day suy ra tu Noi giam giu
   // (facility_code) — truong da bo khoi trang.
-  const [caseLocation, setCaseLocation] = useState("");
+  const [sessionLocation, setSessionLocation] = useState("");
   useEffect(() => {
-    if (!caseId) {
-      setCaseLocation("");
+    if (!sessionId) {
+      setSessionLocation("");
       return;
     }
     let cancelled = false;
-    api.getCase(caseId)
-      .then((c) => { if (!cancelled) setCaseLocation(c?.location || ""); })
-      .catch(() => { if (!cancelled) setCaseLocation(""); });
+    api.getSession(sessionId)
+      .then((s) => { if (!cancelled) setSessionLocation(s?.location || ""); })
+      .catch(() => { if (!cancelled) setSessionLocation(""); });
     return () => { cancelled = true; };
-  }, [caseId]);
+  }, [sessionId]);
 
   // Cooldown 10s: banner ok/err tự ẩn sau 10 giây
   useEffect(() => {
@@ -983,7 +983,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         setFpStatus(t("capture.status.done_10"));
         setOk(t("capture.status.done_10_full"));
         // Sau khi thu đủ 10 ngón: tra cứu dùng left_thumb (theo logic BE mới).
-        // BE chỉ so left_thumb với left_thumb của nghi phạm, khớp nếu score > 80.
+        // BE chỉ so left_thumb với left_thumb của can phạm, khớp nếu score > 80.
         try {
           const latestPhotos = await new Promise((resolve) => {
             setPhotos((p) => { resolve(p); return p; });
@@ -1223,7 +1223,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
   // Mỗi lần backend trả thẻ mới, nó tự dời baseline nên vòng lặp chỉ nhận thẻ mới,
   // không lặp lại thẻ cũ. Thẻ mới vào thì chèn dữ liệu lên form.
   useEffect(() => {
-    if (caseReadOnly) return;
+    if (sessionReadOnly) return;
     // May doc CCCD tat -> khong lang nghe dau doc, khong bao loi "chua san sang".
     // Cac truong CCCD o muc I van nhap tay binh thuong.
     if (!features.cccd_reader) return;
@@ -1294,13 +1294,13 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
     };
     // features.cccd_reader ve muon (sau khi fetch /api/config/features) nen phai
     // co trong deps, khong thi vong lap da chay roi khong dung lai duoc.
-  }, [caseReadOnly, features.cccd_reader]);
+  }, [sessionReadOnly, features.cccd_reader]);
 
   // Tự động bật quét vân tay khi vào trang. Máy quét chưa sẵn sàng thì thử lại
   // âm thầm mỗi 3s (không hiện lỗi đỏ) — giống vòng CCCD, cắm máy vào là tự chạy.
   const fpAutoStoppedRef = useRef(false);   // cán bộ đã bấm Dừng thủ công -> không auto-start lại
   useEffect(() => {
-    if (caseReadOnly) return;
+    if (sessionReadOnly) return;
     let stopped = false;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -1338,7 +1338,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         .then(() => { if (sid) return fpApi.cancel(sid); })
         .catch(() => { /* noop */ });
     };
-  }, [caseReadOnly]);
+  }, [sessionReadOnly]);
 
   // Ngon DA XU LY = co anh HOAC da danh dau "khong co van tay".
   //
@@ -1393,24 +1393,16 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
   useEffect(() => { fpRunningRef.current = fpRunning; }, [fpRunning]);
   useEffect(() => { fpCountRef.current = fpCount; }, [fpCount]);
 
+  // CHI 2 TRUONG BAT BUOC (danh dau * tren giao dien): ma ho so (personal_id)
+  // va so CCCD 12 chu so. Truoc day cccdOk con doi ho ten + ngay sinh, va
+  // backend doi them gioi tinh => 4 truong moi luu duoc. Nay can bo luu ho so
+  // voi 2 truong nay roi bo sung phan con lai sau.
   const checks = useMemo(() => {
-    // CHI 2 TRUONG chan Luu: ma ho so + so CCCD (dung 12 chu so).
-    //
-    // Ho ten / ngay sinh KHONG con chan nua: nghi pham nhieu khi chua khai duoc
-    // ten that hoac ngay sinh ngay luc thu nhan, chan lai thi can bo khong luu
-    // duoc van tay da lay xong. Hai o do van hien trong checklist (required:
-    // false) de can bo biet con thieu.
-    //
-    // PHAI khop voi _require_capture_fields o backend va dau * tren nhan. Lech
-    // nhau thi nut bam duoc ma server tra 400.
     const personalOk = !!(form.personal_id || "").trim();
     const cccdOk = /^\d{12}$/.test(form.cccd_number || "");
-    const identityOk = !!form.full_name.trim() && !!form.dob;
     return [
       { key: "personal_id", label: t("capture.verify.item.code"), ok: personalOk, required: true },
       { key: "cccd", label: t("capture.verify.item.cccd"), ok: cccdOk, required: true },
-      // Ho ten + ngay sinh: hien de can bo biet con thieu, nhung KHONG chan Luu.
-      { key: "identity", label: t("capture.verify.item.identity"), ok: identityOk, required: false },
       { key: "portrait", label: t("capture.verify.item.portrait"), ok: portraitCount === 3, required: false },
       { key: "fp", label: t("capture.verify.item.fp"), ok: fpCount === 10, required: false },
       // Can nang da bo khoi trang => "thong tin bo sung" chi con do chieu cao.
@@ -1437,7 +1429,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         return /^\d{12}$/.test(s) ? s : null;
       };
       const body = {
-        case_id: caseId || null,
+        session_id: sessionId || null,
         // ---- Thông tin hồ sơ (thanh trên cùng) ----
         personal_id: strOrNull(form.personal_id),
         record_sheet_no: strOrNull(form.record_sheet_no),
@@ -1465,6 +1457,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         arrest_date: strOrNull(form.arrest_date),
         arrest_agency: strOrNull(form.arrest_agency),
         case_about: strOrNull(form.case_about),
+        fp_formula: strOrNull(form.fp_formula),
         // ---- III. Đặc điểm nhận dạng ----
         face_shape: strOrNull(form.face_shape),
         height_cm: form.height_cm ? Math.round(Number(form.height_cm)) : null,
@@ -1473,6 +1466,14 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         earlobe: strOrNull(form.earlobe),
         scars: strOrNull(form.scars),
         physical_abnormalities: strOrNull(form.physical_abnormalities),
+        // ---- Mau 208: vo/chong + can bo lap ----
+        spouse_name: strOrNull(form.spouse_name),
+        spouse_residence: strOrNull(form.spouse_residence),
+        officer_name: strOrNull(form.officer_name),
+        // ---- Mau 205: khoi can bo chi ban (o "Can bo lap CB" dung officer_name) ----
+        officer_sorter: strOrNull(form.officer_sorter),
+        officer_classifier: strOrNull(form.officer_classifier),
+        officer_class_checker: strOrNull(form.officer_class_checker),
         // ---- IV. Ảnh nhận dạng ----
         photo_url: photos.portrait_front || null,
         photos,
@@ -1506,10 +1507,10 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         notify.add();
         setOk(t("capture.updated", { code: updated.code, name: updated.full_name }));
         if (onDone) onDone();
-        if (caseId && onSavedInCase) {
-          setTimeout(() => onSavedInCase(), 600);
+        if (sessionId && onSavedInSession) {
+          setTimeout(() => onSavedInSession(), 600);
         } else if (go) {
-          setTimeout(() => go("scene_traces"), 800);
+          setTimeout(() => go("sessions"), 800);
         }
       } else {
         const created = await api.createDetainee(body);
@@ -1517,8 +1518,8 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         setOk(t("capture.saved", { code: created.code, name: created.full_name }));
         setForm(EMPTY_FORM);
         setPhotos({});
-        if (caseId && onSavedInCase) {
-          setTimeout(() => onSavedInCase(), 800);
+        if (sessionId && onSavedInSession) {
+          setTimeout(() => onSavedInSession(), 800);
         }
       }
     } catch (ex) {
@@ -1612,10 +1613,10 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
 
   const backToList = () => {
     if (onDone) onDone();
-    if (caseId && onSavedInCase) {
-      onSavedInCase();
+    if (sessionId && onSavedInSession) {
+      onSavedInSession();
     } else if (go) {
-      go("scene_traces");
+      go("sessions");
     }
   };
 
@@ -1676,8 +1677,8 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
   // 10 van tay va cac truong bat buoc.
   const readyState = fpCount === 10 && portraitCount === 3 && allRequiredValid;
   const todayStr = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-  // Don vi lap = dia diem xay ra vu an (truoc day suy ra tu noi giam giu).
-  const unitName = caseLocation;
+  // Don vi lap = dia diem cua phien lam viec (truoc day suy ra tu noi giam giu).
+  const unitName = sessionLocation;
 
   return (
     <div className="page capture-page cap-flat">
@@ -1703,7 +1704,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         dateStr={todayStr}
         unitName={unitName}
         ready={allRequiredValid}
-        disabled={caseReadOnly}
+        disabled={sessionReadOnly}
       />
 
       <div className="case-main cap-sheet cap-sheet--split">
@@ -1713,28 +1714,32 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         <section className="cap-sec" id="cap-sec-personal">
           <h2 className="cap-sec-title">{t("capture.roman.1")}</h2>
           <div className="cap-sec-body">
-            <SectionPersonal form={form} setField={setField} disabled={caseReadOnly} />
+            <SectionPersonal form={form} setField={setField} disabled={sessionReadOnly} />
           </div>
         </section>
 
-        {/* ================ II. THONG TIN VU VIEC ================ */}
+        {/* ================ II. THONG TIN VU VIEC ================
+             Gom ca khoi 4 o CAN BO (mau 205) va o GHI CHU trai 2 cot — xem
+             SectionCase. Truoc day can bo la mot muc rieng (III) nam canh muc
+             nay; gop vao day thi cac muc duoi tro ve so cu: nhan dang III,
+             anh IV, van tay V. */}
         <section className="cap-sec" id="cap-sec-case">
           <h2 className="cap-sec-title">{t("capture.roman.2")}</h2>
           <div className="cap-sec-body">
-            <SectionCase form={form} setField={setField} disabled={caseReadOnly} />
+            <SectionCase form={form} setField={setField} disabled={sessionReadOnly} />
           </div>
         </section>
 
         </div>
 
-        {/* ---- Cot phai: chi anh nhan dang. Van tay (V) da tach xuong hang
+        {/* ---- Cot phai: chi anh nhan dang. Van tay (VI) da tach xuong hang
              rieng ben duoi vi luoi 10 o + 3 anh chum khong du cho trong nua o
              ngang; de canh muc III thi o van tay bi bop nho. ---- */}
         <div className="cap-col">
         {/* ================ IV. ANH NHAN DANG (3x4) ================ */}
         <section className="cap-sec" id="cap-sec-photo">
           <h2 className="cap-sec-title">
-            {t("capture.roman.4")}
+            {t("capture.roman.5")}
             <span className="fp-row-count">{portraitCount} / 3</span>
           </h2>
           <div className="cap-sec-body">
@@ -1752,21 +1757,21 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
 
         {/* ---- Hang giua, trai het be ngang: dac diem nhan dang ---- */}
         <div className="cap-col cap-col--full">
-        {/* ================ III. DAC DIEM NHAN DANG ================ */}
+        {/* ================ IV. DAC DIEM NHAN DANG ================ */}
         <section className="cap-sec" id="cap-sec-identify">
-          <h2 className="cap-sec-title">{t("capture.roman.3")}</h2>
+          <h2 className="cap-sec-title">{t("capture.roman.4")}</h2>
           <div className="cap-sec-body">
-            <SectionIdentify form={form} setField={setField} disabled={caseReadOnly} />
+            <SectionIdentify form={form} setField={setField} disabled={sessionReadOnly} />
           </div>
         </section>
         </div>
 
         {/* ---- Hang duoi, trai het be ngang: chi ban van tay ---- */}
         <div className="cap-col cap-col--full">
-        {/* ================ V. CHI BAN VAN TAY ================ */}
+        {/* ================ VI. CHI BAN VAN TAY ================ */}
         <section className="cap-sec" id="cap-sec-fp">
           <div className="cap-sec-head">
-            <h2 className="cap-sec-title">{t("capture.roman.5")}</h2>
+            <h2 className="cap-sec-title">{t("capture.roman.6")}</h2>
               <div className="fp-header-actions">
                 {fpConfirm && (
                   <>
@@ -2186,6 +2191,7 @@ export default function DataCapturePage({ go, initial, onDone, caseId, caseCode,
         <FpSheetPreviewModal
           form={form}
           photos={photos}
+          unitName={unitName}
           onClose={() => setFpSheetOpen(false)}
         />
       )}
@@ -2310,8 +2316,8 @@ export const ProfilePreviewContent = forwardRef(function ProfilePreviewContent(
                 <div>{cellName(form.sub_camp_code)}</div>
               </>
             )}
-            {/* Dong "Buong giam" da bo khoi ban xem truoc: app khong con quan ly
-                giam giu nen o nhap cung khong con, in ra chi la mot dong "—". */}
+            <div className="pv-g-label">{t("detainee.field.cell")}</div>
+            <div>{cellName(form.cell_code)}</div>
             <div className="pv-g-label">{t("pdf.field.date_in")}</div>
             <div>{toDobInput(form.date_in) || toDobInput(new Date())}</div>
           </div>
