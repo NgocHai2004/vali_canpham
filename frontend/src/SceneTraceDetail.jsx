@@ -46,8 +46,8 @@ export default function SceneTraceDetail({ item, busy, onClose, onSaveNote, onOp
 
   const rows = [
     [t("scene.col.code"), item.code || "—"],
-    [t("scene.col.type"), item.trace_type || "—"],
-    [t("scene.col.source"), item.collection_source || "—"],
+    [t("scene.col.type"), item.trace_type && item.trace_type !== "—" ? item.trace_type : "Vân tay"],
+    [t("scene.col.source"), item.collection_source && item.collection_source !== "—" ? item.collection_source : "Trực tiếp"],
     [t("scene.col.time"), formatDateTime ? formatDateTime(item.captured_at) : item.captured_at],
     [t("scene.detail.collected_by"), item.created_by || item.device_id || "—"],
   ];

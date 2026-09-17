@@ -136,7 +136,12 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
       if (detainee?.id) full = await api.getDetainee(detainee.id);
     } catch { /* dùng dữ liệu có sẵn nếu không nạp được */ }
     setEditingDetainee(full);
-    setCaseCtx(null);
+    setCaseCtx({
+      caseId: sceneCaseId || activeCaseId || detainee?.case_id || null,
+      caseCode: null,
+      caseReadOnly: false,
+      returnTo: page === "scene_traces" ? "scene_traces" : null,
+    });
     setActiveCaseId(null);
     setPage("session_capture");
   };
@@ -260,6 +265,7 @@ export default function Dashboard({ username = "admin", role = "user", fullName 
                 caseId={sceneCaseId}
                 onBack={() => setSceneCaseId("")}
                 onAddSubject={addSubjectFromScene}
+                onOpenDetainee={editDetainee}
               />
             ) : (
               <CasesPage

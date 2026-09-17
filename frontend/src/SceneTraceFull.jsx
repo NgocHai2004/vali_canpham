@@ -120,7 +120,7 @@ async function downloadImageWithDots(imgUrl, dots, filename) {
 }
 
 // Trang chi tiết 1 dấu vết — mở từ 1 dòng bảng KẾT QUẢ ĐỐI SÁNH.
-export default function SceneTraceFull({ item, row = {}, session, detainees = [], subjects = [], onBack }) {
+export default function SceneTraceFull({ item, row = {}, session, detainees = [], subjects = [], onBack, onOpenDetainee }) {
   const { t, formatDateTime } = useI18n();
   const [zoom, setZoom] = useState(null);
   const [fetchedDetainee, setFetchedDetainee] = useState(null);
@@ -170,6 +170,7 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
       url: latentUrl,
       size: 1.2,
       dots: null,
+      isLatent: true,
     },
     {
       n: 2,
@@ -180,6 +181,7 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
       url: candidateUrl,
       size: 1.1,
       dots: null,
+      isLatent: false,
     },
     {
       n: 3,
@@ -190,6 +192,7 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
       url: latentUrl,
       size: 1.3,
       dots: latentDots,
+      isLatent: true,
     },
     {
       n: 4,
@@ -200,6 +203,7 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
       url: candidateUrl,
       size: 1.3,
       dots: candidateDots,
+      isLatent: false,
     },
   ], [latentUrl, candidateUrl, latentDots, candidateDots]);
 
@@ -212,11 +216,14 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
   const fingerLabel = safeRow.finger ? t(safeRow.finger) : t(m.finger);
   const subjectLabel = safeRow.name ? `Nghi phạm: ${safeRow.name}${safeRow.cccd && safeRow.cccd !== "—" ? ` (CCCD ${safeRow.cccd})` : ""}` : m.subject;
 
+  const traceType = item.trace_type && item.trace_type !== "—" ? item.trace_type : "Vân tay";
+  const collectionSource = item.collection_source && item.collection_source !== "—" ? item.collection_source : "Trực tiếp";
+
   // Thông tin dấu vết: 6 field đầu từ DB
   const info = [
     [t("scene.col.code"), code],
-    [t("scene.col.type"), item.trace_type || "—"],
-    [t("scene.col.source"), item.collection_source || "—"],
+    [t("scene.col.type"), traceType],
+    [t("scene.col.source"), collectionSource],
     [t("scene.col.place"), session?.location || m.place],
     [t("scene.col.time"), fmt(item.captured_at)],
     [t("scene.detail.officer"), item.created_by || item.device_id || "—"],
@@ -374,27 +381,57 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
     ["detainee.field.note", subject.note],
   ];
 
+  const handleOpenDetaineeDetail = async () => {
+    let target = activeDetainee;
+    if (!target && subject.id && String(subject.id).length === 24) {
+      target = await api.getDetainee(subject.id).catch(() => null);
+    }
+    if (!target && (subject.cccd || subject.cccd_number)) {
+      const cccd = (subject.cccd_number || subject.cccd || "").trim();
+      if (cccd && cccd !== "—") {
+        const res = await api.checkCccd(cccd).catch(() => null);
+        if (res?.detainee) target = res.detainee;
+        if (!target) target = await api.getDetaineeByPersonalId(cccd).catch(() => null);
+      }
+    }
+    if (!target) {
+      target = {
+        id: subject.id || `sub-demo`,
+        full_name: subject.full_name || subject.name || "Nguyễn Ngọc Hải",
+        cccd_number: subject.cccd_number || (subject.cccd && subject.cccd !== "—" ? subject.cccd : "026204004933"),
+        dob: subject.dob || subject.birth_year || "12/03/2004",
+        gender: subject.gender || subject.sex || "male",
+        alias: subject.alias || "",
+        nationality: subject.nationality || "Việt Nam",
+        ethnicity: subject.ethnicity || "Kinh",
+        occupation: subject.occupation || "Tự do",
+        hometown: subject.hometown || "",
+        address: subject.address || "",
+        temp_address: subject.temp_address || "",
+        current_address: subject.current_address || "",
+        father_name: subject.father_name || "",
+        mother_name: subject.mother_name || "",
+        note: subject.note || "",
+        portrait: portraitUrl,
+        portrait_cropped_url: portraitUrl,
+        photos: {
+          portrait_front: portraitUrl,
+          ...(subject.photos || {}),
+        },
+        fingerprints: {
+          ...(subject.fingerprints || {}),
+        },
+      };
+    }
+    if (onOpenDetainee) {
+      onOpenDetainee(target);
+    }
+  };
+
   return (
     <div className="stf">
-      {/* Breadcrumb + chip trạng thái + nút quay lại */}
+      {/* Nút quay lại & hành động bên trái, Breadcrumb + chips bên phải */}
       <div className="stf-crumbbar">
-        <div className="stf-crumb-main">
-          <div className="stf-crumb">
-            <span>{session?.name || session?.case_name || (session?.code ? `Vụ án ${session.code}` : t("scene.no_case"))}</span>
-            <span className="stf-sep">/</span>
-            <span>{t("scene.crumb.traces")}</span>
-            <span className="stf-sep">/</span>
-            <span className="stf-crumb-cur">{code}</span>
-          </div>
-          <div className="stf-chips">
-            <span className="stf-chip stf-chip-ok">
-              <span className="stf-dot" />
-              {t("scene.tag.analyzed")}
-            </span>
-            <span className="stf-chip stf-chip-fill">{t("scene.tag.files", { n: files.length })}</span>
-            <span className="stf-chip">{t("scene.tag.report", { n: 1 })}</span>
-          </div>
-        </div>
         <div className="stf-crumb-act">
           <button type="button" className="smp-btn-ghost" onClick={onBack}>
             <IcPagePrev />
@@ -405,9 +442,27 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
             <IcChevDown />
           </button>
         </div>
+        <div className="stf-crumb-main">
+          <div className="stf-crumb">
+            <span>{session?.name || session?.case_name || (session?.code ? `Vụ án ${session.code}` : t("scene.no_case"))}</span>
+            <span className="stf-sep">/</span>
+            <span>{t("scene.crumb.traces")}</span>
+            <span className="stf-sep">/</span>
+            <span className="stf-crumb-cur">{code}</span>
+          </div>
+          <span className="stf-crumb-divider" aria-hidden="true" />
+          <div className="stf-chips">
+            <span className="stf-chip stf-chip-ok">
+              <span className="stf-dot" />
+              {t("scene.tag.analyzed")}
+            </span>
+            <span className="stf-chip stf-chip-fill">{t("scene.tag.files", { n: files.length })}</span>
+            <span className="stf-chip">{t("scene.tag.report", { n: 1 })}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Ảnh chính diện của đối tượng | Thông tin dấu vết | Kết quả đối sánh */}
+      {/* Ảnh chính diện của đối tượng | Thông tin dấu vết | Thông tin nghi phạm */}
       <div className="stf-top">
         <div className="stf-latent stf-portrait-box">
           {portraitUrl ? (
@@ -451,26 +506,31 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
           </div>
         </section>
 
-        <section className="stf-card">
-          <h3 className="stf-h">{t("scene.match.title")}</h3>
-          <div className="stf-kv stf-kv-spread">
-            <div className="stf-kv-row">
-              <span className="stf-k">{t("scene.match.verdict")}</span>
-              <strong className={matched ? "stf-verdict ok" : "stf-verdict warn"}>
-                {matched ? t("scene.match.v_match") : t("scene.match.v_review")}
-              </strong>
-            </div>
-            {result.map(([k, v]) => (
-              <div className="stf-kv-row" key={k}>
-                <span className="stf-k">{k}</span>
-                <span className="stf-v">{v}</span>
+        <section className="stf-card stf-subject">
+          <div className="stf-card-head">
+            <h3 className="stf-h">{t("detainee.detail.subtitle")}</h3>
+            <button
+              type="button"
+              className="smp-btn-primary stf-btn-detail"
+              onClick={handleOpenDetaineeDetail}
+              title={t("detainee.view_detail") || "Xem chi tiết nghi phạm"}
+            >
+              <IcEye s={13} />
+              <span>{t("common.detail") || "Chi tiết"}</span>
+            </button>
+          </div>
+          <dl className="stf-subject-info">
+            {subjectInfo.map(([key, value]) => (
+              <div className="stf-subject-row" key={key}>
+                <dt>{t(key)}</dt>
+                <dd>{value || "—"}</dd>
               </div>
             ))}
-          </div>
+          </dl>
         </section>
       </div>
 
-      {/* 4.1 Folder matching | 4.2 Thông tin nghi phạm */}
+      {/* 4.1 Folder matching | 4.2 Kết quả đối sánh */}
       <div className="stf-mid">
         <section className="stf-card stf-folder">
           <h3 className="stf-h">
@@ -495,10 +555,19 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
                   <img src={f.url} alt={f.name} loading="lazy" />
                   {f.dots && <DotsOverlay dots={f.dots} />}
                 </button>
-                <div className="stf-file-name">{f.name}</div>
-                <div className="stf-file-meta">
-                  <span>PNG</span>
-                  <span>{f.size.toFixed(1)} MB</span>
+                <div className="stf-file-progress">
+                  <div className="stf-file-progress-head">
+                    <span className="stf-file-progress-label">{t("scene.match.percent")}</span>
+                    <span className={`stf-file-progress-val ${f.isLatent ? "ok" : (matched ? "ok" : "warn")}`}>
+                      {f.isLatent ? "100%" : percentStr}
+                    </span>
+                  </div>
+                  <div className="stf-file-progress-track">
+                    <div
+                      className={`stf-file-progress-bar ${f.isLatent ? "ok" : (matched ? "ok" : "warn")}`}
+                      style={{ width: `${f.isLatent ? 100 : Math.min(100, Math.max(0, parseFloat(String(percentStr).replace(/[^0-9.]/g, "")) || 88))}%` }}
+                    />
+                  </div>
                 </div>
                 <div className="stf-file-act">
                   <button
@@ -520,16 +589,23 @@ export default function SceneTraceFull({ item, row = {}, session, detainees = []
             ))}
           </div>
         </section>
-        <section className="stf-card stf-subject">
-          <h3 className="stf-h">{t("detainee.detail.subtitle")}</h3>
-          <dl className="stf-subject-info">
-            {subjectInfo.map(([key, value]) => (
-              <div className="stf-subject-row" key={key}>
-                <dt>{t(key)}</dt>
-                <dd>{value || "—"}</dd>
+
+        <section className="stf-card stf-match-card">
+          <h3 className="stf-h">{t("scene.match.title")}</h3>
+          <div className="stf-kv stf-kv-spread">
+            <div className="stf-kv-row">
+              <span className="stf-k">{t("scene.match.verdict")}</span>
+              <strong className={matched ? "stf-verdict ok" : "stf-verdict warn"}>
+                {matched ? t("scene.match.v_match") : t("scene.match.v_review")}
+              </strong>
+            </div>
+            {result.map(([k, v]) => (
+              <div className="stf-kv-row" key={k}>
+                <span className="stf-k">{k}</span>
+                <span className="stf-v">{v}</span>
               </div>
             ))}
-          </dl>
+          </div>
         </section>
       </div>
 

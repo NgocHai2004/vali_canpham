@@ -17,7 +17,7 @@ const NAMES = [
   ["Nguyễn Ngọc Hải", "026204004933", "12/03/2004", "Nam"],
 ];
 
-const FINGERS = [
+export const FINGERS = [
   "fp.finger.right_index.long",
   "fp.finger.right_middle.long",
   "fp.finger.right_ring.long",
@@ -30,7 +30,7 @@ const FINGERS = [
   "fp.finger.left_little.long",
 ];
 
-const FINGER_KEYS = [
+export const FINGER_KEYS = [
   "right_index", "right_middle", "right_ring", "right_thumb", "right_little",
   "left_index", "left_middle", "left_ring", "left_thumb", "left_little",
 ];

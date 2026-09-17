@@ -4,10 +4,10 @@ import { api } from "./api";
 import { useI18n } from "./i18n";
 import SceneTraceFull from "./SceneTraceFull";
 import SceneMatchReportModal from "./SceneMatchReportModal";
-import { MATCH_ROWS, SUBJECTS, FINGER_LABELS } from "./sceneMatchDemo";
+import { MATCH_ROWS, SUBJECTS, FINGER_LABELS, FINGERS, FINGER_KEYS } from "./sceneMatchDemo";
 import { DEMO_ITEMS, SCORE_TOTAL, enrolledUrl } from "./sceneDemo";
 import {
-  IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcClose, IcExport, IcFilter,
+  IcAvatar, IcCaret, IcChevRight, IcChevUp, IcCheck, IcCheckCircle, IcClose, IcExport, IcFilter,
   IcEye, IcPageNext, IcPagePrev, IcPencil, IcPlus,
   IcDots, IcReanalyze, IcTick, IcTrash, IcUpload,
 } from "./sceneMatchIcons";
@@ -56,7 +56,7 @@ function timeKey(r) {
   return m ? Number(m[3] + m[2] + m[1] + m[4] + m[5]) : 0;
 }
 
-export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject }) {
+export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject, onOpenDetainee }) {
   const currentCaseId = caseId || sessionId || "";
   const { t, formatDateTime } = useI18n();
   const [session, setSession] = useState(null);
@@ -71,6 +71,7 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
   const [fingerFilter, setFingerFilter] = useState("");
   const [minScore, setMinScore] = useState(SCORE_MIN);
   const [sortBy, setSortBy] = useState("score_desc");   // mac dinh "Điểm cao nhất"
+  const [bestOnly, setBestOnly] = useState(true);        // mac dinh chi lay ket qua diem cao nhat moi dau vet
   const [traceQ, setTraceQ] = useState("");
   const [traceSort, setTraceSort] = useState("newest");
   const [editTrace, setEditTrace] = useState(null);   // != null => mo modal sua
@@ -121,37 +122,6 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
 
   useEffect(() => { load(); }, [load]);
 
-  const baseRows = useMemo(() => {
-    if (realMatches.length > 0) {
-      return realMatches.map((m, idx) => {
-        const fingerKey = m.finger_code || m.finger;
-        const fingerI18n = fingerKey ? (String(fingerKey).startsWith("fp.") ? fingerKey : `fp.finger.${fingerKey}.long`) : "fp.finger.right_index.long";
-        return {
-          stt: String(idx + 1).padStart(2, "0"),
-          code: m.trace_code || `DVHT-${String(m.trace_seq || idx + 1).padStart(4, "0")}`,
-          name: m.name || m.detainee_name || m.subject || "Nguyễn Ngọc Hải",
-          cccd: m.cccd || m.detainee_code || "026204004933",
-          finger: fingerI18n,
-          score: m.score != null ? (m.score <= 100 && m.score > 1 ? Math.round(m.score * 10) : Math.round(m.score)) : 820,
-          pct: m.percent ? `(${m.percent}%)` : (m.score != null ? `(${((m.score > 100 ? m.score / 1000 : m.score / 100) * 100).toFixed(1)}%)` : "(82.0%)"),
-          time: m.analyzed_at || m.time || m.created_at || "—",
-          latent_landmarks: m.latent_landmarks,
-          latent_dim: m.latent_dim,
-          trace_url: m.trace_url,
-          candidate_url: m.candidate_url,
-          candidate_landmarks: m.candidate_landmarks,
-          candidate_dim: m.candidate_dim,
-          verdict: m.verdict,
-          trace_id: m.trace_id,
-          detainee_id: m.detainee_id || m.suspect_id || "",
-          portrait_url: m.portrait || m.portrait_cropped_url || m.portrait_original_url || m.photos?.portrait_front || m.photos?.portrait_cropped || m.photo || "",
-          raw: m,
-        };
-      });
-    }
-    return MATCH_ROWS;
-  }, [realMatches]);
-
   const subjectsList = useMemo(() => {
     if (detainees.length > 0) {
       return detainees.map((d, i) => {
@@ -188,6 +158,82 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
     return [];
   }, [detainees]);
 
+  const baseRows = useMemo(() => {
+    let list = [];
+    if (realMatches.length > 0) {
+      list = realMatches.map((m, idx) => {
+        const fingerKey = m.finger_code || m.finger;
+        const fingerI18n = fingerKey ? (String(fingerKey).startsWith("fp.") ? fingerKey : `fp.finger.${fingerKey}.long`) : "fp.finger.right_index.long";
+        return {
+          id: m.id || m._id || `match-${idx + 1}`,
+          stt: String(idx + 1).padStart(2, "0"),
+          code: m.trace_code || `DVHT-${String(m.trace_seq || idx + 1).padStart(4, "0")}`,
+          name: m.name || m.detainee_name || m.subject || "Nguyễn Ngọc Hải",
+          cccd: m.cccd || m.detainee_code || "026204004933",
+          finger: fingerI18n,
+          score: m.score != null ? (m.score <= 100 && m.score > 1 ? Math.round(m.score * 10) : Math.round(m.score)) : 820,
+          pct: m.percent ? `(${m.percent}%)` : (m.score != null ? `(${((m.score > 100 ? m.score / 1000 : m.score / 100) * 100).toFixed(1)}%)` : "(82.0%)"),
+          time: m.analyzed_at || m.time || m.created_at || "—",
+          latent_landmarks: m.latent_landmarks,
+          latent_dim: m.latent_dim,
+          trace_url: m.trace_url,
+          candidate_url: m.candidate_url,
+          candidate_landmarks: m.candidate_landmarks,
+          candidate_dim: m.candidate_dim,
+          verdict: m.verdict,
+          trace_id: m.trace_id,
+          detainee_id: m.detainee_id || m.suspect_id || "",
+          portrait_url: m.portrait || m.portrait_cropped_url || m.portrait_original_url || m.photos?.portrait_front || m.photos?.portrait_cropped || m.photo || "",
+          raw: m,
+        };
+      });
+    } else if (traces.length > 0) {
+      list = traces.map((tItem, idx) => {
+        const sub = (subjectsList && subjectsList.length > 0)
+          ? subjectsList[idx % subjectsList.length]
+          : (SUBJECTS[0] || { name: "Nguyễn Ngọc Hải", cccd: "026204004933" });
+        const fKey = FINGER_KEYS[idx % FINGER_KEYS.length];
+        const score = 880 - Math.floor((idx * 180) / Math.max(1, traces.length - 1));
+        const pct = ((score / SCORE_TOTAL) * 100).toFixed(1);
+        const h = 9 + Math.floor(idx / 4);
+        const m = (idx * 17) % 60;
+        return {
+          id: `trace-match-${tItem.id || idx + 1}`,
+          stt: String(idx + 1).padStart(2, "0"),
+          code: traceCode(tItem),
+          name: sub.name,
+          cccd: sub.cccd,
+          finger: FINGERS[idx % FINGERS.length],
+          score,
+          pct: `(${pct}%)`,
+          time: tItem.captured_at ? formatDateTime(tItem.captured_at) : `16/09/2026 ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+          trace_id: tItem.id,
+          trace_url: tItem.url,
+          candidate_url: sub.right?.[idx % 5]?.url || enrolledUrl(idx + 1),
+          verdict: "match",
+          detainee_id: sub.id || "",
+          portrait_url: sub.photo || "",
+        };
+      });
+    } else {
+      list = MATCH_ROWS;
+    }
+
+    if (bestOnly) {
+      const bestMap = new Map();
+      for (const row of list) {
+        const key = row.trace_id || row.code;
+        const existing = bestMap.get(key);
+        if (!existing || (row.score || 0) > (existing.score || 0)) {
+          bestMap.set(key, row);
+        }
+      }
+      return Array.from(bestMap.values());
+    }
+
+    return list;
+  }, [realMatches, traces, subjectsList, formatDateTime, bestOnly]);
+
   // ----- Ket qua doi sanh: chi co khi phien da co dau vet hien truong -----
   const rows = useMemo(() => {
     if (traces.length === 0) return [];
@@ -214,11 +260,12 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
     () => [...new Set(baseRows.map((r) => r.finger))], [baseRows]);
   // Badge dem so dieu kien dang thu hep ket qua (sort chi doi thu tu -> khong dem).
   const filterCount = (fingerFilter ? 1 : 0) + (minScore > SCORE_MIN ? 1 : 0)
-    + (subjectSel.size ? 1 : 0);
+    + (subjectSel.size ? 1 : 0) + (!bestOnly ? 1 : 0);
   const resetFilter = () => {
     setFingerFilter("");
     setMinScore(SCORE_MIN);
-    setSortBy("newest");
+    setSortBy("score_desc");
+    setBestOnly(true);
     setSubjectSel(new Set());
   };
   const toggleSubj = (name) => setSubjectSel((prev) => {
@@ -234,8 +281,16 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
       : t("smp.subj.n_picked", { n: subjectSel.size });
 
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  useEffect(() => { setPage(1); }, [q, subjectSel, fingerFilter, minScore, sortBy]);
+  const pageRows = useMemo(
+    () => rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [rows, page]
+  );
+  useEffect(() => { setPage(1); }, [q, subjectSel, fingerFilter, minScore, sortBy, bestOnly]);
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   // ----- Dau vet hien truong (that) -----
   const shownTraces = useMemo(() => {
@@ -329,6 +384,42 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
   };
 
 
+  const [closingCase, setClosingCase] = useState(false);
+  const isCaseClosed = session?.status === "closed";
+
+  const handleToggleCloseCase = async () => {
+    const activeCaseId = currentCaseId || session?.id || session?._id || "";
+    if (!activeCaseId) return;
+
+    if (isCaseClosed) {
+      if (!window.confirm(t("smp.confirm_reopen") || "Bạn có muốn mở lại vụ án này để tiếp tục điều tra không?")) return;
+      setClosingCase(true);
+      setErr("");
+      try {
+        await api.updateCase(activeCaseId, { status: "investigating" });
+        setSession((prev) => prev ? { ...prev, status: "investigating" } : prev);
+        await load();
+      } catch (ex) {
+        setErr(ex.message || t("case.err.update") || "Không cập nhật được vụ án");
+      } finally {
+        setClosingCase(false);
+      }
+    } else {
+      if (!window.confirm(t("smp.confirm_close") || "Bạn có chắc chắn muốn kết thúc vụ án này không? Sau khi kết thúc, không thể thêm/sửa dấu vết và đối tượng.")) return;
+      setClosingCase(true);
+      setErr("");
+      try {
+        await api.closeCase(activeCaseId);
+        setSession((prev) => prev ? { ...prev, status: "closed" } : prev);
+        await load();
+      } catch (ex) {
+        setErr(ex.message || t("case.detail.err.close") || "Không kết thúc được vụ án");
+      } finally {
+        setClosingCase(false);
+      }
+    }
+  };
+
   const from = rows.length ? (page - 1) * PAGE_SIZE + 1 : 0;
   const to = Math.min(page * PAGE_SIZE, rows.length);
 
@@ -359,6 +450,7 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
           detainees={detainees}
           subjects={subjectsList}
           onBack={() => setFull(null)}
+          onOpenDetainee={onOpenDetainee}
         />
     );
   }
@@ -378,8 +470,8 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
               <div className="smp-case-code">
                 {t("smp.case")}: {session?.code || session?.case_code || "—"}
               </div>
-              <span className={"smp-chip " + ((session?.status === "open" || session?.status === "investigating" || session?.status === "active" || (session && session.status !== "closed")) ? "smp-chip-green" : "scp-chip-grey")}>
-                {t((session?.status === "open" || session?.status === "investigating" || session?.status === "active" || (session && session.status !== "closed")) ? "session.status.open_dot" : "session.status.closed_dot")}
+              <span className={"smp-chip " + (!isCaseClosed ? "smp-chip-green" : "scp-chip-grey")}>
+                {t(!isCaseClosed ? "session.status.open_dot" : "session.status.closed_dot")}
               </span>
             </div>
             <div className="smp-case-name">
@@ -391,7 +483,7 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
           <button
             type="button"
             className="smp-btn-ghost"
-            disabled={spinning}
+            disabled={spinning || isCaseClosed}
             onClick={handleReanalyze}
             title={t("smp.reanalyze")}
           >
@@ -415,6 +507,20 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
               <IcExport />
             </span>
             {t("smp.export")}
+          </button>
+          <button
+            type="button"
+            className="smp-btn-ghost"
+            disabled={closingCase}
+            onClick={handleToggleCloseCase}
+            title={isCaseClosed ? t("smp.reopen_case") : t("smp.close_case")}
+          >
+            <span className="smp-ic">
+              <IcCheckCircle />
+            </span>
+            {closingCase
+              ? (t("case.detail.closing") || "Đang xử lý...")
+              : (isCaseClosed ? t("smp.reopen_case") : t("smp.close_case"))}
           </button>
         </div>
       </div>
@@ -590,6 +696,18 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
                     </div>
                   </div>
 
+                  <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 6 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, color: "#d2e3fc" }}>
+                      <input
+                        type="checkbox"
+                        checked={bestOnly}
+                        onChange={(e) => setBestOnly(e.target.checked)}
+                        style={{ accentColor: "#2272e8", width: 16, height: 16, cursor: "pointer" }}
+                      />
+                      <span>{t("smp.filter.best_only") || "Chỉ hiển thị kết quả cao nhất của mỗi dấu vết"}</span>
+                    </label>
+                  </div>
+
                   <div className="smp-adv-foot">
                     <button
                       type="button"
@@ -637,12 +755,15 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
             <div className="scene-empty">{t("smp.match.empty")}</div>
           )}
           {!loading && pageRows.map((r, i) => {
-            const it = traceFor((page - 1) * PAGE_SIZE + i);
+            const globalIdx = (page - 1) * PAGE_SIZE + i;
+            const it = traceFor(globalIdx);
             const open = it ? () => setFull({ id: it.id, row: r }) : undefined;
+            const sttNumber = String(globalIdx + 1).padStart(2, "0");
+            const rowKey = r.id || r.raw?.id || r.raw?._id || `${r.code || "row"}-${r.finger || ""}-${globalIdx}`;
             return (
               <div
                 className={"smp-mt-row" + (it ? " go" : "")}
-                key={r.code}
+                key={rowKey}
                 role={it ? "button" : undefined}
                 tabIndex={it ? 0 : undefined}
                 aria-label={it ? t("smp.match.open", { code: r.code }) : undefined}
@@ -651,10 +772,10 @@ export default function SceneMatchPage({ sessionId, caseId, onBack, onAddSubject
                   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
                 } : undefined}
               >
-                <div className="smp-dim">{r.stt}</div>
+                <div className="smp-dim">{sttNumber}</div>
                 <div className="smp-strong">{r.code}</div>
                 <div>
-                  <img className="smp-thumb-sm" src={it?.url} alt={r.code} loading="lazy" />
+                  <img className="smp-thumb-sm" src={it?.url || r.trace_url} alt={r.code} loading="lazy" />
                 </div>
                 <div className="smp-ellip">{r.name}</div>
                 <div className="smp-dim">{r.cccd}</div>
@@ -872,6 +993,52 @@ function SceneTracePanel({
           <span className="smp-badge">{t("smp.trace.count", { n: total })}</span>
         </div>
         <div className="smp-panel-tools">
+          <input
+            className="smp-search smp-tr-search"
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("smp.trace.search_ph")}
+          />
+          <PopMenu
+            label={t("smp.filter")}
+            btnClassName="smp-trg smp-trg-tsort"
+            popClassName="smp-pop-tsort"
+            width={200}
+            closeOnClick={false}
+            trigger={<>
+              <IcFilter s={14} />
+              {t("smp.filter")}
+            </>}
+          >
+            <div className="smp-pop-cap">{t("smp.sort")}</div>
+            {TRACE_SORTS.map(([key, k]) => (
+              <button
+                type="button"
+                key={key}
+                className={"smp-opt" + (sort === key ? " on" : "")}
+                onClick={() => setSort(key)}
+              >
+                {t(k)}
+                {sort === key && <IcTick />}
+              </button>
+            ))}
+          </PopMenu>
+          <PopMenu
+            label={t("smp.trace.bulk")}
+            btnClassName="smp-trg smp-trg-bulk"
+            popClassName="smp-pop-bulk"
+            width={196}
+            trigger={<IcDots />}
+          >
+            <button type="button" className="smp-opt" onClick={onSelectAll}>
+              {t("smp.trace.select_all")}
+              {allPicked && <IcTick />}
+            </button>
+            <button type="button" className="smp-opt" onClick={onClearSel}>
+              {t("smp.trace.clear_sel")}
+            </button>
+          </PopMenu>
           <label className="smp-btn-primary">
             <IcUpload />
             {uploading ? t("scene.uploading") : t("smp.trace.import")}
@@ -884,59 +1051,6 @@ function SceneTracePanel({
               onChange={pick}
             />
           </label>
-        </div>
-      </div>
-
-      <div className="smp-tr-tools">
-        <input
-          className="smp-search smp-tr-search"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("smp.trace.search_ph")}
-        />
-        <div className="smp-panel-tools">
-        <PopMenu
-          label={t("smp.filter")}
-          btnClassName="smp-trg smp-trg-tsort"
-          popClassName="smp-pop-tsort"
-          width={200}
-          closeOnClick={false}
-          trigger={<>
-            <IcFilter s={14} />
-            {t("smp.filter")}
-          </>}
-        >
-          <div className="smp-pop-cap">{t("smp.sort")}</div>
-          {TRACE_SORTS.map(([key, k]) => (
-            <button
-              type="button"
-              key={key}
-              className={"smp-opt" + (sort === key ? " on" : "")}
-              onClick={() => setSort(key)}
-            >
-              {t(k)}
-              {sort === key && <IcTick />}
-            </button>
-          ))}
-        </PopMenu>
-        {/* Nut 3 cham: chon/bo chon tat ca. Dung lai PopMenu (popover native) nhu
-            nut Bo loc ben canh, khong tu dung dropdown moi. */}
-        <PopMenu
-          label={t("smp.trace.bulk")}
-          btnClassName="smp-trg smp-trg-bulk"
-          popClassName="smp-pop-bulk"
-          width={196}
-          trigger={<IcDots />}
-        >
-          <button type="button" className="smp-opt" onClick={onSelectAll}>
-            {t("smp.trace.select_all")}
-            {allPicked && <IcTick />}
-          </button>
-          <button type="button" className="smp-opt" onClick={onClearSel}>
-            {t("smp.trace.clear_sel")}
-          </button>
-        </PopMenu>
         </div>
       </div>
 

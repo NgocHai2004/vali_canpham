@@ -17,7 +17,24 @@ import { getMeasurementHeight } from "./lib/heightMeasurement";
 import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
-export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
+export default function DataCapturePage({
+  go,
+  initial,
+  onDone,
+  sessionId,
+  sessionCode,
+  sessionReadOnly = false,
+  onSavedInSession,
+  caseId,
+  caseCode,
+  caseReadOnly = false,
+  onSavedInCase,
+  onEditProfile,
+}) {
+  const activeCaseId = caseId || sessionId || "";
+  const activeCaseCode = caseCode || sessionCode || "";
+  const activeReadOnly = caseReadOnly || sessionReadOnly;
+  const activeSaved = onSavedInCase || onSavedInSession;
   const { t, formatDateLong } = useI18n();
   const features = useFeatures();
   const isEdit = Boolean(initial && initial.id);
@@ -301,16 +318,17 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // (facility_code) — truong da bo khoi trang.
   const [sessionLocation, setSessionLocation] = useState("");
   useEffect(() => {
-    if (!sessionId) {
+    if (!activeCaseId) {
       setSessionLocation("");
       return;
     }
     let cancelled = false;
-    api.getSession(sessionId)
-      .then((s) => { if (!cancelled) setSessionLocation(s?.location || ""); })
+    const fetchLoc = api.getCase ? api.getCase(activeCaseId) : api.getSession(activeCaseId);
+    fetchLoc
+      .then((s) => { if (!cancelled) setSessionLocation(s?.location || s?.place || ""); })
       .catch(() => { if (!cancelled) setSessionLocation(""); });
     return () => { cancelled = true; };
-  }, [sessionId]);
+  }, [activeCaseId]);
 
   // Cooldown 10s: banner ok/err tự ẩn sau 10 giây
   useEffect(() => {
@@ -1223,7 +1241,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   // Mỗi lần backend trả thẻ mới, nó tự dời baseline nên vòng lặp chỉ nhận thẻ mới,
   // không lặp lại thẻ cũ. Thẻ mới vào thì chèn dữ liệu lên form.
   useEffect(() => {
-    if (sessionReadOnly) return;
+    if (activeReadOnly) return;
     // May doc CCCD tat -> khong lang nghe dau doc, khong bao loi "chua san sang".
     // Cac truong CCCD o muc I van nhap tay binh thuong.
     if (!features.cccd_reader) return;
@@ -1294,13 +1312,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     };
     // features.cccd_reader ve muon (sau khi fetch /api/config/features) nen phai
     // co trong deps, khong thi vong lap da chay roi khong dung lai duoc.
-  }, [sessionReadOnly, features.cccd_reader]);
+  }, [activeReadOnly, features.cccd_reader]);
 
   // Tự động bật quét vân tay khi vào trang. Máy quét chưa sẵn sàng thì thử lại
   // âm thầm mỗi 3s (không hiện lỗi đỏ) — giống vòng CCCD, cắm máy vào là tự chạy.
   const fpAutoStoppedRef = useRef(false);   // cán bộ đã bấm Dừng thủ công -> không auto-start lại
   useEffect(() => {
-    if (sessionReadOnly) return;
+    if (activeReadOnly) return;
     let stopped = false;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -1338,7 +1356,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         .then(() => { if (sid) return fpApi.cancel(sid); })
         .catch(() => { /* noop */ });
     };
-  }, [sessionReadOnly]);
+  }, [activeReadOnly]);
 
   // Ngon DA XU LY = co anh HOAC da danh dau "khong co van tay".
   //
@@ -1429,7 +1447,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         return /^\d{12}$/.test(s) ? s : null;
       };
       const body = {
-        session_id: sessionId || null,
+        session_id: activeCaseId || null,
+        case_id: activeCaseId || null,
         // ---- Thông tin hồ sơ (thanh trên cùng) ----
         personal_id: strOrNull(form.personal_id),
         record_sheet_no: strOrNull(form.record_sheet_no),
@@ -1507,10 +1526,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         notify.add();
         setOk(t("capture.updated", { code: updated.code, name: updated.full_name }));
         if (onDone) onDone();
-        if (sessionId && onSavedInSession) {
-          setTimeout(() => onSavedInSession(), 600);
+        if (activeCaseId && activeSaved) {
+          setTimeout(() => activeSaved(), 600);
         } else if (go) {
-          setTimeout(() => go("sessions"), 800);
+          setTimeout(() => go("scene_traces"), 800);
         }
       } else {
         const created = await api.createDetainee(body);
@@ -1518,8 +1537,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         setOk(t("capture.saved", { code: created.code, name: created.full_name }));
         setForm(EMPTY_FORM);
         setPhotos({});
-        if (sessionId && onSavedInSession) {
-          setTimeout(() => onSavedInSession(), 800);
+        if (activeCaseId && activeSaved) {
+          setTimeout(() => activeSaved(), 800);
         }
       }
     } catch (ex) {
@@ -1613,10 +1632,10 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   const backToList = () => {
     if (onDone) onDone();
-    if (sessionId && onSavedInSession) {
-      onSavedInSession();
+    if (activeCaseId && activeSaved) {
+      activeSaved();
     } else if (go) {
-      go("sessions");
+      go("scene_traces");
     }
   };
 
@@ -1704,7 +1723,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         dateStr={todayStr}
         unitName={unitName}
         ready={allRequiredValid}
-        disabled={sessionReadOnly}
+        disabled={activeReadOnly}
       />
 
       <div className="case-main cap-sheet cap-sheet--split">
@@ -1714,7 +1733,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <section className="cap-sec" id="cap-sec-personal">
           <h2 className="cap-sec-title">{t("capture.roman.1")}</h2>
           <div className="cap-sec-body">
-            <SectionPersonal form={form} setField={setField} disabled={sessionReadOnly} />
+            <SectionPersonal form={form} setField={setField} disabled={activeReadOnly} />
           </div>
         </section>
 
@@ -1726,7 +1745,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <section className="cap-sec" id="cap-sec-case">
           <h2 className="cap-sec-title">{t("capture.roman.2")}</h2>
           <div className="cap-sec-body">
-            <SectionCase form={form} setField={setField} disabled={sessionReadOnly} />
+            <SectionCase form={form} setField={setField} disabled={activeReadOnly} />
           </div>
         </section>
 
@@ -1761,7 +1780,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         <section className="cap-sec" id="cap-sec-identify">
           <h2 className="cap-sec-title">{t("capture.roman.4")}</h2>
           <div className="cap-sec-body">
-            <SectionIdentify form={form} setField={setField} disabled={sessionReadOnly} />
+            <SectionIdentify form={form} setField={setField} disabled={activeReadOnly} />
           </div>
         </section>
         </div>

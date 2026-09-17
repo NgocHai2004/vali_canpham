@@ -29,9 +29,9 @@
 .smp-top {
   flex: 0 0 auto;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 20px;
   flex-wrap: wrap;
 }
 
@@ -45,7 +45,7 @@
    — tên vụ án tự thẳng với chữ "Vụ án", không cần lề cứng đo tay. */
 .smp-top-left {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -59,7 +59,6 @@
   padding: 9px 15px;
   gap: 7px;
   color: #9db3d1;
-  margin-top: 6px;
 }
 
 .smp-back:hover {
@@ -73,7 +72,7 @@
 }
 
 .smp-case-name {
-  margin-top: 7px;
+  margin-top: 4px;
   color: var(--smp-dim);
   font-size: 13.5px;
 }
@@ -81,7 +80,8 @@
 .smp-top-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .smp-chip {
@@ -485,16 +485,18 @@ label.smp-drop.on {
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
-  margin-top: 14px;
+  margin-top: 4px;
 }
 
 .smp-tr-row {
   /* 6 cot: thumb | ma+ten file | vi tri dau vet | thoi gian | nut | tick. */
   display: grid;
-  grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 1fr) 124px 90px 24px;
+  grid-template-columns: 48px minmax(0, 1.2fr) minmax(0, 1fr) 124px 90px 24px;
   align-items: center;
   gap: 12px;
-  padding: 5px 10px;
+  padding: 8px 12px;
+  min-height: 62px;
+  box-sizing: border-box;
   border-radius: 10px;
   flex: 0 0 auto;
   border: 1.5px solid #1b3355;
@@ -512,11 +514,14 @@ label.smp-drop.on {
 
 .smp-tr-meta {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .smp-thumb-md {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-radius: 6px;
   border: 1px solid #2b4a72;
   object-fit: cover;
@@ -1554,50 +1559,55 @@ label.smp-drop.on {
   --stf-blue: #4f9dff;
   --stf-dim: #8ea4c4;
   --stf-ok: #34d399;
-  display: grid;
-  grid-template-columns: 280px 1fr 1fr;
-  grid-auto-rows: auto;
-  gap: 10px;
-  padding: 6px 14px 12px;
-  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-radius: 12px;
   border: 1px solid var(--stf-line);
   background: linear-gradient(180deg, rgba(16, 33, 58, .92), rgba(9, 19, 35, .92));
   box-shadow: 0 18px 40px rgba(0, 0, 0, .35);
   color: #e8eef8;
-  font-size: 14px;
+  font-size: 13.5px;
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* ---- Breadcrumb ---- */
 .stf-crumbbar {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 0 2px 6px;
+  gap: 12px;
+  padding: 0 0 6px;
   border-bottom: 1px solid var(--stf-line);
   flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 
 .stf-crumb-main {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 9px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
   min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  margin-left: auto;
 }
 
 .stf-crumb {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 9px;
-  flex-wrap: wrap;
+  gap: 6px;
   font-size: 13.5px;
   color: var(--stf-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .stf-sep {
@@ -1609,35 +1619,47 @@ label.smp-drop.on {
   font-weight: 600;
 }
 
+.stf-crumb-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--stf-line2);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
 .stf-crumb-act {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex: 0 0 auto;
+  flex-shrink: 0;
 }
 
 .stf-crumb-act>button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .stf-chips {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .stf-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 5px;
   font-size: 11.5px;
+  line-height: 1;
   border: 1px solid var(--stf-line2);
   color: #a9bedb;
+  white-space: nowrap;
 }
 
 .stf-chip-fill {
@@ -1660,7 +1682,6 @@ label.smp-drop.on {
 }
 
 .stf-notice {
-  grid-column: 1 / -1;
   margin: 0;
   font-size: 11.5px;
   color: var(--stf-dim);
@@ -1671,51 +1692,58 @@ label.smp-drop.on {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
   border: 1px solid var(--stf-card-line);
   background: rgba(13, 29, 53, .75);
 }
 
 .stf-h {
   margin: 0;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #1b3355;
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 16.5px;
+  font-weight: 700;
   color: #e8eef8;
+  line-height: 1.25;
 }
 
 .stf-h-sub {
   color: var(--stf-dim);
   font-weight: 400;
+  font-size: 14px;
 }
 
-/* ---- Hang 1: anh latent | thong tin | ket qua ---- */
+/* ---- Hang 1: anh latent (25%) | thong tin (37.5%) | ket qua (37.5%) ---- */
 .stf-top {
-  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: subgrid;
-  gap: 10px;
+  grid-template-columns: 1fr 1.5fr 1.5fr;
+  gap: 8px;
   align-items: stretch;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .stf-latent {
   display: flex;
-  padding: 8px;
-  border-radius: 12px;
+  padding: 6px;
+  border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--stf-card-line);
   background: rgba(9, 19, 35, .9);
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .stf-latent-btn {
   position: relative;
   flex: 1;
   min-width: 0;
+  height: 100%;
+  width: 100%;
   padding: 0;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid #2b4a72;
   background: #081220;
   overflow: hidden;
@@ -1740,60 +1768,68 @@ label.smp-drop.on {
 .stf-portrait-empty {
   flex: 1;
   min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px dashed #2b4a72;
   background: rgba(8, 18, 32, 0.6);
   color: #7296c0;
   font-size: 13.5px;
   font-weight: 500;
   text-align: center;
-  padding: 16px;
-  min-height: 180px;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
-/* Ca 2 panel hang 1 dung chung the: label co dinh + value trai. */
+/* Ca 2 panel hang 1: Chi tiet dau vet & Ket qua doi sanh */
 .stf-kv {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  flex: 1;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 13.5px;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+  margin-top: 8px;
+  font-size: 15px;
 }
 
 .stf-kv-row {
+  flex: 1;
   display: grid;
-  grid-template-columns: 148px 1fr;
+  grid-template-columns: 140px 1fr;
   column-gap: 12px;
   align-items: center;
   padding: 2px 0;
+  border-bottom: 1px solid rgba(22, 48, 79, 0.6);
+}
+
+.stf-kv-row:last-child {
+  border-bottom: none;
 }
 
 .stf-kv-spread .stf-kv-row {
-  grid-template-columns: 196px 1fr;
+  grid-template-columns: 180px 1fr;
 }
 
 .stf-k {
   color: #9bb3d3;
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 500;
 }
 
 .stf-v {
   color: #ffffff;
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .stf-verdict {
-  font-size: 14.5px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: .4px;
 }
@@ -1806,51 +1842,51 @@ label.smp-drop.on {
   color: #fbbf24;
 }
 
-/* ---- Hang 2: 4.1 folder | 4.2 bao cao C09 ---- */
+/* ---- Hang 2: 4.1 folder | 4.2 thong tin doi tuong ---- */
 .stf-mid {
-  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: subgrid;
-  gap: 10px;
+  grid-template-columns: 2.1fr 1fr;
+  gap: 8px;
   align-items: stretch;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
 }
 
 .stf-folder {
-  grid-column: 1 / span 2;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100%;
 }
 
 .stf-subject {
-  grid-column: 3;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: 100%;
 }
 
 .stf-subject-info {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr) minmax(0, 1fr));
   column-gap: 16px;
+  row-gap: 0;
   align-content: space-between;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  margin: 10px 0 0;
-  font-size: 13.5px;
+  margin: 8px 0 0;
+  font-size: 14.5px;
 }
 
 .stf-subject-row {
   display: grid;
   grid-column: span 2;
   grid-template-columns: subgrid;
-  gap: 12px;
-  padding: 7px 0;
-  border-bottom: 1px solid #1b3355;
-  line-height: 1.4;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(27, 51, 85, 0.7);
+  line-height: 1.35;
   align-items: center;
 }
 
@@ -1865,7 +1901,7 @@ label.smp-drop.on {
 
 .stf-subject-row dt {
   color: #9bb3d3;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
@@ -1873,7 +1909,7 @@ label.smp-drop.on {
 .stf-subject-row dd {
   margin: 0;
   color: #ffffff;
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -1881,48 +1917,55 @@ label.smp-drop.on {
 .stf-files {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-top: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .stf-file {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   min-width: 0;
-  padding: 8px;
-  border-radius: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
   border: 1px solid #24486f;
   background: rgba(9, 19, 35, .75);
+  height: 100%;
+  box-sizing: border-box;
 }
 
 /* center (khong flex-start): tieu de 2 dong nen so bi dinh sat dinh, can giua
    cho no ngang voi khoi 2 dong. */
 .stf-file-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
 }
 
 .stf-file-n {
-  flex: 0 0 23px;
-  width: 23px;
-  height: 23px;
-  border-radius: 5px;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #2272e8;
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .stf-file-title {
   min-width: 0;
-  font-size: 11.5px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.3;
   color: #cbdcf3;
-  min-height: 32px;
+  min-height: 28px;
 }
 
 .stf-file-sub {
@@ -1931,55 +1974,100 @@ label.smp-drop.on {
 }
 
 .stf-file-img {
-  margin-top: 9px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 6px;
   padding: 0;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid #2b4a72;
   background: #2f3237;
   box-shadow: inset 0 0 24px rgba(0, 0, 0, .55);
   overflow: hidden;
+  position: relative;
 }
 
 .stf-file-img img {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 110px;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.stf-file-name {
-  margin-top: 9px;
-  font-size: 11.5px;
-  color: #dce8f8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.stf-file-progress {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
 }
 
-.stf-file-meta {
+.stf-file-progress-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  margin-top: 4px;
-  font-size: 10.5px;
-  color: #7f95b5;
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+
+.stf-file-progress-label {
+  color: #9bb3d3;
+  font-weight: 500;
+}
+
+.stf-file-progress-val {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.stf-file-progress-val.ok {
+  color: var(--stf-ok, #34d399);
+}
+
+.stf-file-progress-val.warn {
+  color: #fbbf24;
+}
+
+.stf-file-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(6, 15, 29, 0.9);
+  border: 1px solid #1f3b60;
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.stf-file-progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #1d68d8, #34d399);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+  transition: width 0.3s ease;
+}
+
+.stf-file-progress-bar.warn {
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
 }
 
 .stf-file-act {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 9px;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 /* Nut Xem/Tai trong the: dung .smp-btn-line (co hover san) nhung thu nho lai. */
 .stf-file-act>.smp-btn-line {
   flex: 1;
-  padding: 5px 0;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: 4px 0;
+  border-radius: 4px;
+  font-size: 10.5px;
   justify-content: center;
   text-decoration: none;
 }
@@ -3116,300 +3204,76 @@ textarea.smp-modal-in {
   margin-top: 4px;
 }
 
-/* Ô tìm kiếm panel dấu vết + hàng công cụ — số đo design. */
-.smp-tr-tools {
+/* Ô tìm kiếm panel dấu vết + hàng công cụ — hiển thị hàng 1 thẳng hàng không bị rớt dòng */
+.smp-panel-trace .smp-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin-top: 8px;
-}
-
-.smp-tr-search {
-  flex: 1;
-  max-width: 300px;
-  padding: 9px 13px;
-  font-size: 13px;
-}
-
-/* ---- Thu gon cho vua 1 man hinh (khong scroll doc) ----
-   Do thuc te @1440x900: noi dung 1009px / khung 831px => tran 178px.
-   Panel 4.2 cao 461px keo ca hang .stf-mid len (4.1 chi can 311px), nen cat
-   chu yeu o to giay C09 + cac khoang dem. Doi so o day chu dung sua block tren. */
-.stf {
-  gap: 10px;
-}
-
-.stf-crumbbar {
-  padding-bottom: 10px;
-}
-
-/* Hang 1: panel cao dung noi dung, bot khoang dong. */
-.stf-top {
-  gap: 10px;
-}
-
-.stf-top .stf-card {
-  padding: 10px 12px;
-}
-
-.stf-kv {
-  gap: 5px;
-  margin-top: 8px;
-}
-
-.stf-latent {
-  padding: 6px;
-}
-
-/* Hang 2. */
-.stf-mid {
-  gap: 10px;
-}
-
-.stf-folder,
-.stf-c09 {
-  padding: 10px 12px;
-}
-
-.stf-files {
+  flex-wrap: nowrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-bottom: 6px;
 }
 
-.stf-file-img img {
-  height: 72px;
+.smp-panel-trace .smp-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
-/* To giay C09: cat ~86px bang cach bot dem + anh van tay nho lai. */
-.stf-doc {
-  margin-top: 8px;
-  padding: 8px 12px;
+.smp-panel-trace .smp-panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
-.stf-doc-title {
-  font-size: 11.5px;
-  margin-top: 7px;
-}
-
-.stf-doc-sub {
-  margin-top: 2px;
-}
-
-.stf-doc-grid {
-  margin-top: 7px;
-  font-size: 9px;
-}
-
-.stf-doc-lb {
-  flex: 0 0 86px;
-  padding: 3px 5px;
-}
-
-.stf-doc-cell>span:last-child {
-  padding: 3px 5px;
-}
-
-.stf-doc-pair {
-  margin-top: 6px;
-  font-size: 9px;
-}
-
-.stf-doc-pair-h {
-  padding: 3px;
-}
-
-.stf-doc-col-h {
-  padding: 2px;
-}
-
-.stf-doc-col img {
-  width: 46px;
-  height: 46px;
-  margin: 5px auto;
-}
-
-/* Cap 1 dong: ten ngon + doi tuong dai se tran ra 2-3 dong, moi dong +12px. */
-.stf-doc-cap {
-  padding: 1px 5px 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stf-c09-act {
-  gap: 26px;
-  margin-top: 8px;
-}
-
-.stf-c09-act>button,
-.stf-c09-act>.stf-btn-usb {
-  padding: 7px 13px;
+.smp-panel-trace .smp-tr-search {
+  flex: 1 1 140px;
+  min-width: 100px;
+  max-width: 170px;
+  height: 32px;
+  padding: 0 10px;
   font-size: 12px;
+  box-sizing: border-box;
 }
 
-/* Dai verification. */
-.stf-verify {
-  padding: 9px 12px;
-}
-
-.stf-verify-row {
-  gap: 14px;
-  margin-top: 8px;
-}
-
-.stf-verify-imgs img {
-  width: 148px;
-  height: 52px;
-}
-
-.stf-stat-big {
-  margin-top: 2px;
-  font-size: 19px;
-}
-
-.stf-stat-ok {
-  margin-top: 4px;
-}
-
-/* Vong cat cuoi: sau 2 lat tren con tran 59px @900px. */
-.stf {
-  padding: 12px 14px;
-  gap: 9px;
-}
-
-.stf-notice {
-  display: none;
-}
-
-/* canh bao demo da co o panel ket qua */
-.stf-doc-pair-body img {
-  margin: 4px auto;
-}
-
-.stf-verify-imgs img {
-  height: 46px;
-}
-
-.stf-file-title {
-  min-height: 28px;
-}
-
-/* ---- The fill het panel 4.1, khung anh co tran ----
-   The cao het panel (align-content: stretch) nen khong ho khoang trong duoi.
-   Anh hut bot cho du nhung chan o max-height, khong keo dai vo han nhu truoc
-   (278px); phan du con lai day 2 nut xuong day the bang margin-top: auto. */
-.stf-files {
-  flex: 1;
-  min-height: 0;
-  align-content: stretch;
-}
-
-.stf-file {
-  min-height: 0;
-}
-
-.stf-file-img {
-  flex: 1 1 auto;
-  min-height: 64px;
-}
-
-/* cover (khong fill/contain): fill keo doc 1.35x lam bien dang van tay. cover giu
-   dung ti le, bo day khung => 4 the nhin bang nhau vi anh da chuan hoa van cao 88%
-   canvas (tools/norm_vantay.py). Doi lai: cover bam theo chieu cao nen cat 2 ben,
-   chi giu 74% chieu ngang anh — van nao rong >74% canvas se mat ria.
-   ponytail: muon khong cat gi thi sua khung ve ti le anh (217x203 cho 800x750). */
-.stf-file-img img {
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Ket qua doi sanh cao bang Chi tiet dau vet: cac dong dan deu ra ca cot. */
-.stf-top .stf-card .stf-kv {
-  flex: 1;
-}
-
-
-/* Lat cuoi: sau khi cho panel bang chieu cao nhau con tran 19px @1440x900. */
-.stf-verify {
-  padding: 8px 12px;
-}
-
-.stf-verify-row {
-  gap: 12px;
-  margin-top: 6px;
-}
-
-.stf-verify-imgs img {
-  height: 42px;
-}
-
-.stf-stat-big {
-  font-size: 18px;
-}
-
-/* Vua khung 900px: 843 - 831 = con tran 12px. Cat o dem ngoai (padding/gap)
-   thay vi bop tiep noi dung. ponytail: so nay tinh cho man 900px; man thap hon
-   .stf van scroll — doi 3 so duoi day neu can khit man khac. */
-.stf {
-  padding: 8px 14px;
-  gap: 8px;
-}
-
-.stf-crumbbar {
-  padding-bottom: 8px;
-}
-
-.stf-verify {
-  padding: 7px 12px;
-}
-
-/* 4.2: to giay gian het chieu cao con lai => hang nut nam sat day panel thay vi
-   lo lung giua, va anh van tay to len cho khop khung. */
-.stf-mid {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.stf-mid>* {
-  min-height: 0;
-}
-
-.stf-c09 .stf-doc {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.stf-doc-pair {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.stf-doc-pair-body {
-  flex: 1;
-  min-height: 0;
-}
-
-.stf-doc-col {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Anh ghep vao bao cao: khung phai theo ti le anh that (800x750 = 16/15), khong
-   thi cover cat mat van tay. aspect-ratio lay chieu rong tu chieu cao => ca 2
-   nguon (latent_cut + vantay_synth) cung mot khung, khong meo, khong lech co. */
-.stf-doc-col img {
-  flex: 1;
+.smp-panel-trace .smp-trg-tsort {
+  height: 32px;
   width: auto;
-  aspect-ratio: 16 / 15;
-  min-height: 46px;
-  max-height: 120px;
-  margin: 6px auto;
-  object-fit: cover;
+  min-width: 78px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  box-sizing: border-box;
 }
+
+.smp-panel-trace .smp-trg-bulk {
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  flex: 0 0 32px;
+  box-sizing: border-box;
+}
+
+.smp-panel-trace .smp-btn-primary {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+
 
 
 /* ================= Hover dung chung: man Dau vet hien truong (.smp / .scp)
@@ -3731,237 +3595,7 @@ textarea.smp-modal-in {
   }
 }
 
-/* ---- Can lai ti le 2 hang: hang 1 to len, hang 2 nho lai ----
-   .stf-mid la flex:1 1 auto nen chi can noi rong hang 1 (bo bot cac nhat cat
-   o block thu gon phia tren) — hang 2 tu hut lai dung phan con lai, tong chieu
-   cao khong doi => van khong scroll.
-   ponytail: so tinh cho 1080px; man thap hon co @media (max-height:820px) lo. */
-.stf-top {
-  gap: 14px;
-}
 
-.stf-top .stf-card,
-.stf-subject {
-  padding: 18px 20px;
-}
-
-.stf-top .stf-kv {
-  gap: 11px;
-  margin-top: 13px;
-  font-size: 12.5px;
-}
-
-.stf-latent {
-  padding: 12px;
-}
-
-/* Ten panel la muc dinh huong cua man -> to hon han noi dung. Cac thanh phan
-   trong panel bu lai (kv 12.5px, the 4.1 va to giay C09 nho lai) nen tong
-   chieu cao khong doi => van khong scroll. */
-.stf .stf-h {
-  font-size: 17px;
-  padding-bottom: 12px;
-}
-
-.stf .stf-h-sub {
-  font-size: 13px;
-}
-
-/* Bu cho tieu de: noi dung 2 panel hang 2 + dai verification nho lai. */
-/* Chu trong the 4.1: 10-11px doc kho -> tang. Anh cap max-height de nhuong
-   cho phan chu vua tang; .stf-file-img la flex:1 nen no tu co lai, khong tran. */
-.stf-file-title {
-  font-size: 12.5px;
-}
-
-.stf-file-name {
-  font-size: 12.5px;
-}
-
-.stf-file-meta {
-  font-size: 11.5px;
-}
-
-.stf-file-n {
-  flex: 0 0 27px;
-  width: 27px;
-  height: 27px;
-  font-size: 15px;
-}
-
-.stf-file-act>.smp-btn-line {
-  padding: 8px 0;
-  font-size: 12.5px;
-  border: 1px solid var(--stf-line2);
-}
-
-/* To giay C09: 9px doc kho -> tang len. Anh van tay (flex:1, min-height 46px,
-   max 92px) la van xa: chu cao them thi anh co lai, panel khong tran. */
-.stf-doc-nation {
-  font-size: 12px;
-}
-
-.stf-doc-motto {
-  font-size: 11px;
-}
-
-.stf-doc-title {
-  font-size: 13.5px;
-}
-
-.stf-doc-sub {
-  font-size: 10.5px;
-}
-
-.stf-doc-grid {
-  font-size: 11px;
-}
-
-.stf-doc-pair {
-  font-size: 11px;
-}
-
-.stf-doc-lb {
-  flex: 0 0 106px;
-  padding: 4px 6px;
-}
-
-.stf-doc-cell>span:last-child {
-  padding: 4px 6px;
-}
-
-.stf-doc-col-h {
-  padding: 3px;
-}
-
-.stf-c09-act>button,
-.stf-c09-act>.stf-btn-usb {
-  padding: 10px 17px;
-  font-size: 13px;
-}
-
-.stf-stat .stf-k {
-  font-size: 12px;
-}
-
-.stf-stat-big {
-  font-size: 21px;
-  margin-top: 4px;
-}
-
-.stf-stat-of {
-  font-size: 12px;
-}
-
-.stf-stat-ok {
-  font-size: 12.5px;
-  margin-top: 5px;
-}
-
-.stf-verify-finger {
-  padding: 9px 13px;
-  font-size: 13px;
-}
-
-.stf-verify {
-  padding: 11px 14px;
-}
-
-.stf-verify-row {
-  gap: 15px;
-  margin-top: 8px;
-}
-
-.stf-verify-imgs img {
-  width: 158px;
-  height: 60px;
-}
-
-.stf-verify .stf-h {
-  font-size: 14.5px;
-}
-
-/* 4.1 chua 4 the theo hang ngang nen an chieu ngang; 4.2 chi co to giay 2 cot
-   nen nhuong duoc. 1.05fr/1fr => the 4.1 chi rong 201px (bop chu). */
-.stf-mid {
-  grid-template-columns: subgrid;
-}
-
-/* Hang 2 chiu phan bu: bot dem + ha san anh de 2 panel nen duoc. */
-.stf-folder,
-.stf-c09 {
-  padding: 9px 11px;
-}
-
-.stf-files {
-  gap: 8px;
-}
-
-.stf-file {
-  padding: 7px;
-}
-
-.stf-file-img {
-  min-height: 46px;
-}
-
-.stf-file-title {
-  min-height: 26px;
-}
-
-.stf-file-name,
-.stf-file-act {
-  margin-top: 7px;
-}
-
-.stf-doc {
-  margin-top: 7px;
-  padding: 7px 11px;
-}
-
-.stf-doc-col img {
-  max-height: 92px;
-  margin: 4px auto;
-}
-
-.stf-c09-act {
-  margin-top: 7px;
-}
-
-/* ================= Ap design "Phan tich doi sanh" =================
-   Khac chinh so voi ban truoc: hang co duong ke ngan (border-bottom tung o)
-   thay vi cach nhau bang gap, cot nhan 138px / 190px, anh van tay 36x48. */
-
-/* Hang 1: ke ngan giua cac dong. Padding thay cho gap -> duong ke chay lien
-   het chieu ngang panel (design ve border-bottom tren ca 2 o cua moi hang). */
-.stf-top .stf-kv {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  flex: 1;
-  gap: 0;
-}
-
-.stf-top .stf-kv-row {
-  flex: 1;
-  display: grid;
-  align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid #16304f;
-}
-
-.stf-top .stf-kv-row:last-child {
-  border-bottom: 0;
-}
-
-/* Dat sau .stf-top .stf-card de thang o do uu tien bang nhau (cung 0,3,0). */
-.stf-top .stf-card .stf-kv-row {
-  grid-template-columns: 138px 1fr;
-}
-
-.stf-top .stf-kv-spread .stf-kv-row {
-  grid-template-columns: 190px 1fr;
-}
 
 /* Anh van tay trong the HO SO DOI TUONG: chia 2 dong (tay phai / tay trai). */
 .smp-hands {
@@ -4278,6 +3912,33 @@ textarea.smp-modal-in {
 
 .stf-top .stf-kv-spread .stf-kv-row {
   grid-template-columns: 218px 1fr;
+}
+
+/* Header the Thong tin nghi pham: tieu de ben trai, nut Chi tiet ben phai */
+.stf-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.stf-card-head .stf-h {
+  margin: 0;
+}
+
+.stf-btn-detail {
+  height: 28px !important;
+  padding: 0 12px !important;
+  font-size: 12.5px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  font-weight: 500 !important;
+  flex: 0 0 auto !important;
 }
 
 /* .smp-mt-wrap phai co lai duoc, khong thi .smp-pg bi day ra ngoai panel va
