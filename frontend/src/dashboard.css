@@ -580,6 +580,10 @@
     min-height: 0;
     overflow: auto;
     padding: 6px 6px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    height: 100%;
   }
 
   /* Khong chan be ngang: sidebar da thu tu 200px xuong 56px, phan giai phong
@@ -592,6 +596,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
     gap: 12px;
   }
   .page-title {
@@ -1868,7 +1873,8 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    min-height: 440px;
     display: flex;
     flex-direction: column;
   }
@@ -1901,9 +1907,10 @@
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 8px 14px;
+    padding: 10px 16px;
     background: var(--bg-panel);
     border-top: 1px solid var(--border);
+    margin-top: auto !important;
   }
   .detainees-table-wrap .session-list-total {
     font-size: 12px;
@@ -2095,6 +2102,7 @@
     gap: 6px;
     flex-wrap: nowrap;
     justify-content: flex-end;
+    align-items: center;
   }
   .cells-table .row-actions button {
     padding: 5px 9px;
@@ -2102,6 +2110,9 @@
     white-space: nowrap;
     line-height: 1.2;
     flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease;
   }
   .row-facility { background: rgba(22, 139, 255, 0.08); }
   .row-facility td { font-weight: 700; }
@@ -2126,15 +2137,24 @@
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  .row-actions { display: flex; gap: 7px; }
+  .row-actions { display: flex; gap: 7px; align-items: center; }
   .row-actions button {
     padding: 6px 9px;
     border: 1px solid var(--border);
     border-radius: 7px;
     color: var(--text);
     background: var(--bg-panel);
+    cursor: pointer;
   }
-  .row-actions .danger-text { color: #dc3545; }
+  .row-actions .danger-text,
+  .cells-table .row-actions button.danger-text {
+    color: #ef4444 !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+  }
+  .row-actions .danger-text:hover,
+  .cells-table .row-actions button.danger-text:hover {
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
 
   .pagination {
     display: flex;
@@ -3596,6 +3616,9 @@
     height: 100%;
     min-height: 0;
     gap: 12px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
     overflow: hidden;
   }
   .report-fixed {
@@ -3607,10 +3630,28 @@
   .report-scroll {
     flex: 1 1 auto;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
     overflow: auto;
     padding-bottom: 4px;
   }
-  .report-scroll .table-card { overflow: visible; }
+  .report-scroll .table-card {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: visible;
+  }
+  .table-card .session-list-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    margin-top: auto !important;
+  }
   .report-scroll thead th {
     position: sticky;
     top: 0;

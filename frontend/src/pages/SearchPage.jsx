@@ -24,6 +24,8 @@ function SearchPage() {
   const [error, setError] = useState("");
   const [viewing, setViewing] = useState(null);
   const [searched, setSearched] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
 
   useEffect(() => {
     api.listCells().then(setCells).catch(() => { });
@@ -35,6 +37,7 @@ function SearchPage() {
     setSearched(false);
     setError("");
     setFpMatchScore(null);
+    setPage(1);
   };
 
   const switchMode = (m) => {
@@ -160,6 +163,9 @@ function SearchPage() {
     ? t("search.subtitle.results", { n: total, pct: fpMatchScore != null ? (fpMatchScore * 100).toFixed(1) : "-" })
     : t("search.subtitle.desc");
 
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const paged = items.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <div className="page">
       <PageHeader title={t("search.title")} subtitle={subtitle} />
@@ -282,7 +288,7 @@ function SearchPage() {
 
       {error && <StateBox type="error">{error}</StateBox>}
 
-      <div className="table-card">
+      <div className="table-card detainees-table-wrap">
         {!searched ? (
           <StateBox>{t("search.hint_empty")}</StateBox>
         ) : loading ? (
@@ -290,21 +296,21 @@ function SearchPage() {
         ) : !items.length ? (
           <StateBox>{t("search.empty")}</StateBox>
         ) : (
-          <table>
+          <table className="cells-table">
             <thead>
               <tr>
-                <th>{t("search.col.photo")}</th>
+                <th style={{ width: "48px" }}>{t("search.col.photo")}</th>
                 <th>{t("search.col.code")}</th>
                 <th>{t("search.col.name")}</th>
                 <th>{t("search.col.gender")}</th>
                 <th>{t("search.col.dob")}</th>
                 <th>{t("search.col.cccd")}</th>
                 <th>{t("search.col.cell")}</th>
-                <th>{t("search.col.actions")}</th>
+                <th style={{ textAlign: "right" }}>{t("search.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {paged.map((item) => (
                 <tr key={item.id}>
                   <td>
                     <div className="table-avatar">
@@ -317,8 +323,8 @@ function SearchPage() {
                   <td>{item.dob ? formatDate(item.dob) : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
                   <td>{item.cell_code || "-"}</td>
-                  <td>
-                    <div className="row-actions">
+                  <td style={{ textAlign: "right" }}>
+                    <div className="row-actions" style={{ justifyContent: "flex-end" }}>
                       <button onClick={() => setViewing(item)}>{t("common.view")}</button>
                     </div>
                   </td>
@@ -326,6 +332,33 @@ function SearchPage() {
               ))}
             </tbody>
           </table>
+        )}
+
+        {searched && !loading && items.length > 0 && (
+          <div className="session-list-toolbar" style={{ marginTop: "auto" }}>
+            <div className="session-list-total">
+              {t("common.total", { n: items.length })}
+            </div>
+            <div className="pagination">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                {t("common.prev")}
+              </button>
+              <span>
+                {t("common.page_of", { page, total: totalPages })}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                {t("common.next")}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

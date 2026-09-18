@@ -338,13 +338,17 @@ def _mark_x_pct(fc, slap_w: int) -> Optional[float]:
     scale theo CSS, nen pixel cua anh goc khong con y nghia o phia FE.
 
     Lay DIEM GIUA ngon (x -> x2). Neu SDK khong ghi RightBottomCordinates (x2 <=
-    x) thi lui ve dung canh trai: so lech ve ben trai mot chut nhung VAN dung
-    ngon, hon la khong hien so nao.
+    x) thi them offset nua be rong ngon (~8% slap_w) de so can vao giua ngon thay
+    vi sat mep trai anh.
     """
     if slap_w <= 0:
         return None
-    x = fc.x + (fc.x2 - fc.x) / 2 if fc.x2 > fc.x else fc.x
-    return round(max(0.0, min(100.0, x / slap_w * 100)), 1)
+    if getattr(fc, "x2", 0) > getattr(fc, "x", 0):
+        x = fc.x + (fc.x2 - fc.x) / 2
+    else:
+        x = getattr(fc, "x", 0) + (slap_w * 0.08)
+    pct = round(max(0.0, min(100.0, x / slap_w * 100)), 1)
+    return max(8.0, min(92.0, round(pct + 3.0, 1)))
 
 
 @dataclass

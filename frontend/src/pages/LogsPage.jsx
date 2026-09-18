@@ -8,6 +8,8 @@ import { notify } from "../notifications";
 import DetailModal from "../components/DetailModal";
 import DetaineeForm from "../DetaineeForm";
 
+const PAGE_SIZE = 12;
+
 function LogsPage() {
   const { t } = useI18n();
   const [logs, setLogs] = useState([]);
@@ -15,6 +17,7 @@ function LogsPage() {
   const [cells, setCells] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [actionFilter, setActionFilter] = useState("");
@@ -39,6 +42,7 @@ function LogsPage() {
       const res = await api.listLogs(params);
       setLogs(res.items || []);
       setCounts(res.counts || { sync: 0 });
+      setPage(1);
       setError("");
     } catch (e) {
       setError(e.message);
@@ -232,62 +236,83 @@ function LogsPage() {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => {
-              const busy = busyRef === log.id;
-              const officer = log.officer || {};
-              const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
-              const d = log.data || {};
-              return (
-                <tr key={log.id}>
-                  <td>{formatDateTime(log.at)}</td>
-                  <td>
-                    {log.session ? (
-                      <span className="session-code-chip">
-                        <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
-                          {log.session.status === "open" ? "●" : "✓"}
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+              const curPage = Math.min(Math.max(1, page), totalPages);
+              const pageRows = logs.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+              return pageRows.map((log) => {
+                const busy = busyRef === log.id;
+                const officer = log.officer || {};
+                const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
+                const d = log.data || {};
+                return (
+                  <tr key={log.id}>
+                    <td>{formatDateTime(log.at)}</td>
+                    <td>
+                      {log.session ? (
+                        <span className="session-code-chip">
+                          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
+                            {log.session.status === "open" ? "●" : "✓"}
+                          </span>
+                          <span className="mono">{log.session.code}</span>
                         </span>
-                        <span className="mono">{log.session.code}</span>
-                      </span>
-                    ) : (
-                      <span className="mono">{log.ref || "—"}</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="officer-cell">
-                      {officer.avatar_url ? (
-                        <img className="officer-avatar" src={officer.avatar_url} alt="" />
                       ) : (
-                        <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                        <span className="mono">{log.ref || "—"}</span>
                       )}
-                      <div className="officer-name">
-                        <strong>{officer.full_name || log.actor}</strong>
-                        {officer.full_name ? <small>@{log.actor}</small> : null}
+                    </td>
+                    <td>
+                      <div className="officer-cell">
+                        {officer.avatar_url ? (
+                          <img className="officer-avatar" src={officer.avatar_url} alt="" />
+                        ) : (
+                          <span className="officer-avatar officer-avatar-fallback">{initials}</span>
+                        )}
+                        <div className="officer-name">
+                          <strong>{officer.full_name || log.actor}</strong>
+                          {officer.full_name ? <small>@{log.actor}</small> : null}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
-                      <span className="status-badge create">{t("logs.sync.added")}: {d.added || 0}</span>
-                      <span className="status-badge update">{t("logs.sync.updated")}: {d.updated || 0}</span>
-                      <span className="status-badge delete">{t("logs.sync.duplicated")}: {d.duplicated || 0}</span>
-                      {Number(d.failed || 0) > 0 && (
-                        <span className="status-badge delete">{t("logs.sync.failed")}: {d.failed}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
+                        <span className="status-badge create">{t("logs.sync.added")}: {d.added || 0}</span>
+                        <span className="status-badge update">{t("logs.sync.updated")}: {d.updated || 0}</span>
+                        <span className="status-badge delete">{t("logs.sync.duplicated")}: {d.duplicated || 0}</span>
+                        {Number(d.failed || 0) > 0 && (
+                          <span className="status-badge delete">{t("logs.sync.failed")}: {d.failed}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              });
+            })()}
             {!logs.length && (
               <tr><td colSpan={5}><div className="empty">{t("common.empty")}</div></td></tr>
             )}
           </tbody>
         </table>
+        <div className="session-list-toolbar">
+          <div className="session-list-total">{t("common.total", { n: logs.length })}</div>
+          <div className="pagination">
+            {(() => {
+              const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+              const curPage = Math.min(Math.max(1, page), totalPages);
+              return (
+                <>
+                  <button disabled={curPage <= 1 || loading} onClick={() => setPage(Math.max(1, curPage - 1))}>{t("common.prev")}</button>
+                  <span>{t("common.page_of", { page: curPage, total: totalPages })}</span>
+                  <button disabled={curPage >= totalPages || loading} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>{t("common.next")}</button>
+                </>
+              );
+            })()}
+          </div>
+        </div>
       </div>
       </div>
 

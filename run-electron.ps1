@@ -24,10 +24,10 @@ $frontend = Join-Path $root 'frontend'
 $dist     = Join-Path $frontend 'dist'
 $logs     = Join-Path $root 'logs'
 $envFile  = Join-Path (Split-Path -Parent $root) '.env'
-# Service OCR (repo rieng): python -m app.api_server, port 8787.
-# .venv cua App_CCCD KHONG co pytesseract/pypdfium2 -> dung system python.
-$ocrRoot  = 'C:\Users\vali-01\Documents\ScanSnap_iX1400_Driver_AutoInstall'
-$ocrPy    = 'C:\Users\vali-01\AppData\Local\Programs\Python\Python310\python.exe'
+# Service OCR: ocr_service.py (Tesseract-vie), port 8787.
+# Dung system python (Python310) vi .venv khong co deps OCR.
+$ocrScript = Join-Path (Split-Path -Parent $root) 'ocr_service.py'
+$ocrPy     = 'C:\Users\vali-01\AppData\Local\Programs\Python\Python310\python.exe'
 
 function Write-Step($msg) { Write-Host "`n[run-electron] $msg" -ForegroundColor Cyan }
 
@@ -127,27 +127,28 @@ for ($i = 0; $i -lt 90; $i++) {
 }
 if (-not $backendOk) { throw "Backend khong healthy sau 90s (kiem tra logs/backend.err.log hoac docker logs)." }
 
-# ---- 4. OCR service (repo ScanSnap_iX1400_Driver_AutoInstall, port 8787) ----
+# ---- 4. OCR service (ocr_service.py - Tesseract-vie, port 8787) ----
 # Hung file ScanSnap Home xuat ra scan_paper, OCR, day sang backend (8000).
 # Chay sau backend ready de push khong bi loi mang. Guard chong trung giong nhau.
-Write-Step "4/6 OCR service (8787)..."
+Write-Step "4/6 OCR service (Tesseract-vie watch scan_paper)..."
 if (-not (Test-Path $ocrPy)) {
     Write-Warning "  Khong tim thay $ocrPy - bo qua OCR service."
+} elseif (-not (Test-Path $ocrScript)) {
+    Write-Warning "  Khong tim thay $ocrScript - bo qua OCR service."
 } elseif (Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue) {
     Write-Host "  OCR service da lang nghe 8787 - bo qua spawn."
 } else {
-    # api_server in tieng Viet ra stdout; khi redirect ra file, Python mac dinh
-    # dung cp1252 -> UnicodeEncodeError. Set PYTHONIOENCODING=utf-8 cho process OCR.
     $env:PYTHONIOENCODING = 'utf-8'
+    $env:TESSDATA_PREFIX  = Join-Path (Split-Path -Parent $root) 'tessdata_user'
     Start-Process -FilePath $ocrPy `
-        -ArgumentList '-m','app.api_server','--folder',(Join-Path (Split-Path -Parent $root) 'scan_paper'),'--out','data','--port','8787' `
-        -WorkingDirectory $ocrRoot `
+        -ArgumentList '-u', $ocrScript, '--watch', '--folder', (Join-Path (Split-Path -Parent $root) 'scan_paper'), '--backend', 'http://127.0.0.1:8000', '--port', '8787' `
+        -WorkingDirectory (Split-Path -Parent $root) `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logs 'ocr.out.log') `
         -RedirectStandardError  (Join-Path $logs 'ocr.err.log')
-    Remove-Item Env:PYTHONIOENCODING -ErrorAction SilentlyContinue
     Write-Host "  Da start OCR service (folder=scan_paper, port 8787)."
 }
+
 
 # ---- 5. Build frontend va dong bo webdist ----
 Write-Step "5/6 Frontend build & sync..."

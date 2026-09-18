@@ -1162,6 +1162,8 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       occupation: d.occupation || f.occupation,
       father_name: d.father_name || f.father_name,
       mother_name: d.mother_name || f.mother_name,
+      spouse_name: d.spouse_name || f.spouse_name,
+      spouse_residence: d.spouse_residence || f.spouse_residence,
       case_about: d.case_about || f.case_about,
       fp_formula: d.fp_formula || f.fp_formula,
       arrest_date: d.arrest_date || f.arrest_date,
@@ -1169,9 +1171,20 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       record_sheet_no: d.record_sheet_no || f.record_sheet_no,
       fp_sheet_no: d.fp_sheet_no || f.fp_sheet_no,
       record_date: d.record_date || f.record_date,
+      record_scope: d.record_scope || f.record_scope,
+      ak_no: d.ak_no || f.ak_no,
+      face_shape: d.face_shape || f.face_shape,
+      height_cm: d.height_cm != null ? String(d.height_cm) : f.height_cm,
+      nose: d.nose || f.nose,
+      ear_features: d.ear_features || f.ear_features,
+      earlobe: d.earlobe || f.earlobe,
+      scars: d.scars || f.scars,
+      physical_abnormalities: d.physical_abnormalities || f.physical_abnormalities,
       officer_name: d.officer_name || f.officer_name,
+      officer_sorter: d.officer_sorter || f.officer_sorter,
       officer_classifier: d.officer_classifier || f.officer_classifier,
       officer_class_checker: d.officer_class_checker || f.officer_class_checker,
+      note: d.note || f.note,
     }));
   };
 
@@ -1955,7 +1968,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                   }))
                   : [{
                     key: slot.key, labelKey: slot.labelKey, img,
-                    hands: plainHandsByStep[slot.step], marks,
+                    hands: plainHandsByStep[slot.step],
+                    marks: marks.map((m) => {
+                      let x = m.x_pct;
+                      if (typeof x === "number") {
+                        x = Math.max(9, Math.min(91, x + 3.5));
+                      }
+                      return { ...m, x_pct: x };
+                    }),
                   }];
                 // "Xong" = MOI layer da co anh. O ngon cai thieu mot ngon van la chua xong.
                 const filled = parts.every((p) => !!p.img);
@@ -2028,7 +2048,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
                                   key={m.code}
                                   className={"fp-mark"
                                     + (m.no_quality ? " nq" : m.low ? " low" : "")}
-                                  style={{ left: `${m.x_pct}%` }}
+                                  style={{ left: typeof m.x_pct === "number" ? `clamp(14px, ${m.x_pct}%, calc(100% - 14px))` : `${m.x_pct}%` }}
                                   title={m.name_vi}
                                 >
                                   {/* no_quality = SDK khong do duoc, KHONG phai

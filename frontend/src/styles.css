@@ -5674,6 +5674,9 @@ textarea.input {
   flex-direction: column;
   gap: 10px;
   max-width: none;
+  flex: 1 1 auto;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .session-list-head {
@@ -5786,7 +5789,8 @@ textarea.input {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 440px;
   display: flex;
   flex-direction: column;
 }
@@ -5889,9 +5893,10 @@ textarea.input {
   align-items: center;
   gap: 12px;
   flex: 0 0 auto;
-  padding: 8px 14px;
+  padding: 10px 16px;
   background: rgba(8, 22, 46, 0.5);
   border-top: 1px solid var(--border);
+  margin-top: auto !important;
 }
 
 .session-list-toolbar .session-list-total {
@@ -5965,8 +5970,15 @@ textarea.input {
 
 /* ============ Session Detail Page ============ */
 .session-detail-page {
-  padding: 20px 24px;
+  padding: 14px 18px;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  gap: 10px;
 }
 
 .session-detail-back {
@@ -8807,15 +8819,18 @@ textarea.input {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
+  min-height: 440px;
+  flex: 1 1 auto;
 }
 .sync-table-wrap .session-list-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   background: rgba(53, 216, 255, 0.04);
   border-top: 1px solid var(--border);
+  margin-top: auto !important;
 }
 .sync-table-wrap .session-list-total {
   font-size: 12px;
@@ -9502,9 +9517,10 @@ textarea.input {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 16px;
-  background: rgba(0, 0, 0, 0.55);
+  height: 18px;
+  background: rgba(0, 0, 0, 0.65);
   pointer-events: none;
+  z-index: 3;
 }
 /* left = x_pct do service tinh (diem giua ngon, tinh tren anh goc). translateX(-50%)
    de so CAN GIUA vi tri do chu khong bat dau tu do. */
@@ -9514,10 +9530,12 @@ textarea.input {
   transform: translateX(-50%);
   font-size: 11px;
   font-weight: 700;
-  line-height: 12px;
+  line-height: 14px;
   font-variant-numeric: tabular-nums;
   color: #fff;
   white-space: nowrap;
+  padding: 0 3px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 .fp-mark.low { color: #ff6b7a; }
 /* no_quality: SDK khong do duoc, KHONG phai van tay kem => xam, khong do. To do

@@ -64,16 +64,56 @@ function CellsPage() {
     ct === "tam_giam" ? t("detainee.custody_type.detention")
       : ct === "tam_giu" ? t("detainee.custody_type.temporary_hold") : "—";
 
+  // Lấy toàn bộ mã buồng con cháu của 1 node
+  const getCellDescendantCodes = (node, allList = cells) => {
+    if (!node) return [];
+    if (node.level === "cell") return [node.code];
+    if (node.level === "sub_camp") {
+      return allList.filter((c) => c.level === "cell" && c.parent === node.code).map((c) => c.code);
+    }
+    if (node.level === "facility") {
+      const direct = allList.filter((c) => c.level === "cell" && c.parent === node.code).map((c) => c.code);
+      const subCampCodes = new Set(allList.filter((s) => s.level === "sub_camp" && s.parent === node.code).map((s) => s.code));
+      const subCells = allList.filter((c) => c.level === "cell" && subCampCodes.has(c.parent)).map((c) => c.code);
+      return [...direct, ...subCells];
+    }
+    return [];
+  };
+
+  // Tính tổng sức chứa và số lượng hiện tại cho node
+  const getRollupStats = (node, allList = cells) => {
+    if (node.level === "cell") {
+      return {
+        capacity: node.capacity != null && !isNaN(Number(node.capacity)) ? Number(node.capacity) : null,
+        current: node.current || 0,
+      };
+    }
+    const descendantCodes = new Set(getCellDescendantCodes(node, allList));
+    const descendantCells = allList.filter((c) => c.level === "cell" && descendantCodes.has(c.code));
+    const current = descendantCells.reduce((sum, c) => sum + (c.current || 0), 0);
+    const caps = descendantCells.filter((c) => c.capacity != null && !isNaN(Number(c.capacity)) && Number(c.capacity) > 0);
+    const capacity = caps.length ? caps.reduce((sum, c) => sum + Number(c.capacity), 0) : (node.capacity ?? null);
+    return { capacity, current };
+  };
+
   // Danh sách phẳng theo thứ tự cây: facility → sub_camp → cell
   const orderedRows = [];
   cells.filter((c) => c.level === "facility").forEach((f) => {
-    orderedRows.push({ ...f, depth: 0 });
+    const fStats = getRollupStats(f);
+    orderedRows.push({ ...f, ...fStats, depth: 0 });
     cells.filter((s) => s.level === "sub_camp" && s.parent === f.code).forEach((s) => {
-      orderedRows.push({ ...s, depth: 1 });
-      cells.filter((r) => r.level === "cell" && r.parent === s.code).forEach((r) => orderedRows.push({ ...r, depth: 2 }));
+      const sStats = getRollupStats(s);
+      orderedRows.push({ ...s, ...sStats, depth: 1 });
+      cells.filter((r) => r.level === "cell" && r.parent === s.code).forEach((r) => {
+        const rStats = getRollupStats(r);
+        orderedRows.push({ ...r, ...rStats, depth: 2 });
+      });
     });
     // Buồng gắn trực tiếp facility (Nhà tạm giữ)
-    cells.filter((r) => r.level === "cell" && r.parent === f.code).forEach((r) => orderedRows.push({ ...r, depth: 1 }));
+    cells.filter((r) => r.level === "cell" && r.parent === f.code).forEach((r) => {
+      const rStats = getRollupStats(r);
+      orderedRows.push({ ...r, ...rStats, depth: 1 });
+    });
   });
 
   const filtered = orderedRows.filter((row) => {
@@ -129,14 +169,14 @@ function CellsPage() {
           <table className="cells-table">
             <thead>
               <tr>
-                <th style={{ width: "13%" }}>{t("cells.col.code")}</th>
-                <th style={{ width: "17%" }}>{t("cells.col.name")}</th>
-                <th style={{ width: "11%" }}>{t("cells.col.level")}</th>
+                <th style={{ width: "12%" }}>{t("cells.col.code")}</th>
+                <th style={{ width: "16%" }}>{t("cells.col.name")}</th>
+                <th style={{ width: "10%" }}>{t("cells.col.level")}</th>
                 <th style={{ width: "12%" }}>{t("detainee.field.custody_type")}</th>
                 <th style={{ width: "8%", textAlign: "center" }}>{t("cells.col.capacity")}</th>
                 <th style={{ width: "8%", textAlign: "center" }}>{t("cells.col.current")}</th>
-                <th style={{ width: "13%" }}>{t("cells.col.note")}</th>
-                <th style={{ width: "18%", textAlign: "right" }}>{t("cells.col.actions")}</th>
+                <th style={{ width: "12%" }}>{t("cells.col.note")}</th>
+                <th style={{ width: "22%", textAlign: "right" }}>{t("cells.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -172,20 +212,34 @@ function CellsPage() {
             </tbody>
           </table>
         )}
-      </div>
 
-      {/* Phân trang */}
-      {totalPages > 1 && (
-        <div className="pager">
-          <button className="button secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            {t("common.prev")}
-          </button>
-          <span className="pager-info">{t("common.page_of", { page, total: totalPages })}</span>
-          <button className="button secondary" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-            {t("common.next")}
-          </button>
-        </div>
-      )}
+        {!loading && filtered.length > 0 && (
+          <div className="session-list-toolbar" style={{ marginTop: "auto" }}>
+            <div className="session-list-total">
+              {t("common.total", { n: filtered.length })}
+            </div>
+            <div className="pagination">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                {t("common.prev")}
+              </button>
+              <span>
+                {t("common.page_of", { page, total: totalPages })}
+              </span>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                {t("common.next")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {showForm && (
         <CellForm
@@ -221,7 +275,23 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ cell_code: cell.code, limit: "200" });
+      const descCodes = (() => {
+        if (!cell) return [];
+        if (cell.level === "cell") return [cell.code];
+        if (cell.level === "sub_camp") {
+          return allCells.filter((c) => c.level === "cell" && c.parent === cell.code).map((c) => c.code);
+        }
+        if (cell.level === "facility") {
+          const direct = allCells.filter((c) => c.level === "cell" && c.parent === cell.code).map((c) => c.code);
+          const subCampCodes = new Set(allCells.filter((s) => s.level === "sub_camp" && s.parent === cell.code).map((s) => s.code));
+          const subCells = allCells.filter((c) => c.level === "cell" && subCampCodes.has(c.parent)).map((c) => c.code);
+          return [...direct, ...subCells];
+        }
+        return [cell.code];
+      })();
+
+      const codeParam = descCodes.length ? descCodes.join(",") : cell.code;
+      const params = new URLSearchParams({ cell_code: codeParam, limit: "200" });
       const res = await api.request(`/api/detainees?${params}`);
       setItems(res.items || []);
     } catch (e) {
@@ -252,7 +322,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
     }
   };
 
-  const otherCells = allCells.filter((c) => c.code !== cell.code);
+  const targetCells = allCells.filter((c) => c.level === "cell");
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -277,6 +347,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                   <th>{t("cells.transfer.col.code")}</th>
                   <th>{t("cells.transfer.col.name")}</th>
                   <th>{t("cells.transfer.col.gender")}</th>
+                  {cell.level !== "cell" && <th>{t("cells.level.cell")}</th>}
                   <th>{t("cells.transfer.col.action")}</th>
                 </tr>
               </thead>
@@ -286,6 +357,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                     <td><strong>{item.personal_id || item.code}</strong></td>
                     <td>{item.full_name}</td>
                     <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
+                    {cell.level !== "cell" && <td><span className="mono">{item.cell_code || "—"}</span></td>}
                     <td>
                       <select
                         className="control"
@@ -298,7 +370,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                         }}
                       >
                         <option value="">{t("cells.transfer.select")}</option>
-                        {otherCells.map((c) => (
+                        {targetCells.filter((c) => c.code !== item.cell_code).map((c) => (
                           <option key={c.code} value={c.code}>
                             {t("cells.transfer.opt", { code: c.code, name: c.name, current: c.current, capacity: c.capacity })}
                           </option>

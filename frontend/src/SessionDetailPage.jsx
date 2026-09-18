@@ -318,7 +318,7 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
                   <td>{d.gender === "female" ? t("common.female") : t("common.male")}</td>
                   <td>{d.dob ? formatDate(d.dob) : "—"}</td>
                   <td className="mono">{d.cccd_number || "—"}</td>
-                  <td>{d.cell_code || "—"}</td>
+                  <td>{d.cell_code || session?.cell_code || "—"}</td>
                   <td>{fmtTime(d.created_at)}</td>
                   <td className="col-missing-warn">
                     {isMissing && (
@@ -345,16 +345,14 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
             })}
           </tbody>
         </table>
-        {allDetainees.length > 0 && (
-          <div className="session-list-toolbar">
-            <div className="session-list-total">{t("common.total", { n: allDetainees.length })}</div>
-            <div className="pagination">
-              <button disabled={curPage <= 1} onClick={() => setPage(Math.max(1, curPage - 1))}>{t("common.prev")}</button>
-              <span>{t("common.page_of", { page: curPage, total: totalPages })}</span>
-              <button disabled={curPage >= totalPages} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>{t("common.next")}</button>
-            </div>
+        <div className="session-list-toolbar">
+          <div className="session-list-total">{t("common.total", { n: allDetainees.length })}</div>
+          <div className="pagination">
+            <button disabled={curPage <= 1} onClick={() => setPage(Math.max(1, curPage - 1))}>{t("common.prev")}</button>
+            <span>{t("common.page_of", { page: curPage, total: totalPages })}</span>
+            <button disabled={curPage >= totalPages} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>{t("common.next")}</button>
           </div>
-        )}
+        </div>
       </div>
 
       {confirmClose && (

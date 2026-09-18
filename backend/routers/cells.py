@@ -22,8 +22,31 @@ async def list_cells(user: dict = Depends(get_current_user)):
     async for r in database.db.detainees.aggregate(pipeline):
         if r["_id"]:
             counts[r["_id"]] = r["n"]
+
+    # 1. Gán số lượng can phạm trực tiếp cho từng buồng (level == 'cell')
     for c in cells:
         c["current"] = counts.get(c["code"], 0)
+
+    # 2. Rollup cho cấp phân trại (sub_camp): tổng buồng con
+    for s in cells:
+        if s.get("level") == "sub_camp":
+            child_cells = [c for c in cells if c.get("level") == "cell" and c.get("parent") == s.get("code")]
+            s["current"] = sum(c.get("current", 0) for c in child_cells)
+            caps = [int(c["capacity"]) for c in child_cells if c.get("capacity") is not None and str(c.get("capacity")).isdigit()]
+            s["capacity"] = sum(caps) if caps else None
+
+    # 3. Rollup cho cấp cơ sở giam giữ (facility): tổng buồng trực tiếp + buồng trong các phân trại
+    for f in cells:
+        if f.get("level") == "facility":
+            direct_cells = [c for c in cells if c.get("level") == "cell" and c.get("parent") == f.get("code")]
+            sub_camps = [s for s in cells if s.get("level") == "sub_camp" and s.get("parent") == f.get("code")]
+            sub_camp_codes = {s.get("code") for s in sub_camps}
+            sub_cells = [c for c in cells if c.get("level") == "cell" and c.get("parent") in sub_camp_codes]
+            all_cells = direct_cells + sub_cells
+            f["current"] = sum(c.get("current", 0) for c in all_cells)
+            caps = [int(c["capacity"]) for c in all_cells if c.get("capacity") is not None and str(c.get("capacity")).isdigit()]
+            f["capacity"] = sum(caps) if caps else None
+
     return cells
 
 

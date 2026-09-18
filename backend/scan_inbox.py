@@ -71,15 +71,28 @@ _TRUONG_DANG_CAP = {
     "ngheNghiep": "occupation",
     "hoTenCha": "father_name",
     "hoTenMe": "mother_name",
+    "voChong": "spouse_name",
+    "choOVoChong": "spouse_residence",
     "lapVeViec": "case_about",
     "ctVanTay": "fp_formula",
     "batDauNgay": "arrest_date",
     "donViBat": "arrest_agency",
     "canBoLap": "officer_name",
+    "canBoSapXep": "officer_sorter",
     "canBoPhanLoai": "officer_classifier",
     "canBoKtPhanLoai": "officer_class_checker",
     "lapNgay": "record_date",
     "cmndCccd": "cccd_number",
+    "hoSoAkSo": "ak_no",
+    "khuonMat": "face_shape",
+    "chieuCao": "height_cm",
+    "songMui": "nose",
+    "nepTaiDuoi": "ear_features",
+    "daiTai": "earlobe",
+    "dauVetRieng": "scars",
+    "diHinh": "physical_abnormalities",
+    "ghiChu": "note",
+    "phamVi": "record_scope",
 }
 
 # "so" trung ten o ca hai mau nhung la hai thu khac nhau: so danh ban khac so
@@ -197,7 +210,17 @@ def fields_tu_ho_so(ho_so: dict) -> Optional[dict]:
     if gop is None:
         return None
     _ngay_hoa(gop)
+    if "height_cm" in gop:
+        try:
+            val = float(gop["height_cm"])
+            if 50.0 <= val <= 250.0:
+                gop["height_cm"] = val
+            else:
+                gop.pop("height_cm", None)
+        except (ValueError, TypeError):
+            gop.pop("height_cm", None)
     return gop
+
 
 
 class _CaptureSession:

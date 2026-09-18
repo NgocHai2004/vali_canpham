@@ -132,7 +132,7 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
             dob_str,
             d.get("cccd_number", "") or "",
             d.get("hometown", "") or "",
-            d.get("cell_code", "") or "",
+            d.get("cell_code", "") or session_doc.get("cell_code", "") or "",
             d.get("note", "") or "",
         ])
     for col in ws2.columns:

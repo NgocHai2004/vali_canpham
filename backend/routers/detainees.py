@@ -70,7 +70,11 @@ async def list_detainees(
             {"personal_id": {"$regex": rx, "$options": "i"}},
         ]
     if cell_code:
-        filt["cell_code"] = cell_code
+        codes = [c.strip() for c in cell_code.split(",") if c.strip()]
+        if len(codes) == 1:
+            filt["cell_code"] = codes[0]
+        elif len(codes) > 1:
+            filt["cell_code"] = {"$in": codes}
     if gender:
         filt["gender"] = gender
     total = await database.db.detainees.count_documents(filt)
@@ -145,6 +149,9 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
 
     doc = body.model_dump()
     doc.pop("session_id", None)
+    for field in ("custody_type", "facility_code", "sub_camp_code", "cell_code"):
+        if not doc.get(field) and session_doc.get(field):
+            doc[field] = session_doc.get(field)
     doc.update({
         "personal_id": personal_id,
         "cccd_number": body.cccd_number or "",
@@ -191,6 +198,12 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
             raise HTTPException(403, "Hồ sơ này thuộc phiên đã đóng, không thể chỉnh sửa.")
     upd = body.model_dump()
     upd.pop("session_id", None)
+    for field in ("custody_type", "facility_code", "sub_camp_code", "cell_code"):
+        if not upd.get(field):
+            if existing.get(field):
+                upd[field] = existing.get(field)
+            elif session_doc and session_doc.get(field):
+                upd[field] = session_doc.get(field)
     upd["dob"] = parse_dob(body.dob)
     upd["date_in"] = parse_dob(body.date_in)
     upd["issued_date"] = parse_dob(body.issued_date)
