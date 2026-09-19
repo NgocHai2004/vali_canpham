@@ -1,6 +1,6 @@
-"""Detainee routes — CRUD, check-cccd, check-duplicate, transfer, by-personal-id."""
-
+import os
 import re
+import shutil
 from datetime import datetime
 from typing import Optional
 
@@ -8,12 +8,14 @@ import anyio
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 import face_recognition_service
+from config import DETAINEES_UPLOAD_DIR
 from models import DetaineeIn, TransferBody
 from auth import get_current_user
 from helpers import (
     parse_object_id, serialize_doc, scope_filter, audit_log,
     ensure_can_touch, ensure_session_editable, parse_dob,
     require_capture_fields, find_duplicates, resolve_upload_path,
+    commit_detainee_photos, commit_detainee_file, sanitize_folder_name,
     MATCH_PROJECTION,
 )
 import database
@@ -152,6 +154,15 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
     for field in ("custody_type", "facility_code", "sub_camp_code", "cell_code"):
         if not doc.get(field) and session_doc.get(field):
             doc[field] = session_doc.get(field)
+
+    # Commit các file ảnh vào thư mục riêng của can phạm: uploads/detainees/{personal_id}/
+    if doc.get("photos"):
+        doc["photos"] = commit_detainee_photos(doc["photos"], personal_id)
+    if doc.get("photo_url"):
+        doc["photo_url"] = commit_detainee_file(doc["photo_url"], personal_id)
+    elif doc.get("photos", {}).get("portrait_front"):
+        doc["photo_url"] = doc["photos"]["portrait_front"]
+
     doc.update({
         "personal_id": personal_id,
         "cccd_number": body.cccd_number or "",
@@ -215,6 +226,16 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
             raise HTTPException(400, f"Mã can phạm '{new_pid}' đã có trong hồ sơ khác.")
         upd["personal_id"] = new_pid
         upd["cccd_number"] = body.cccd_number or upd.get("cccd_number", "")
+
+    clean_pid = (upd.get("personal_id") or existing.get("personal_id") or det_id).strip()
+    # Commit các file ảnh vào thư mục riêng của can phạm: uploads/detainees/{clean_pid}/
+    if upd.get("photos"):
+        upd["photos"] = commit_detainee_photos(upd["photos"], clean_pid)
+    if upd.get("photo_url"):
+        upd["photo_url"] = commit_detainee_file(upd["photo_url"], clean_pid)
+    elif upd.get("photos", {}).get("portrait_front"):
+        upd["photo_url"] = upd["photos"]["portrait_front"]
+
     upd["updated_at"] = datetime.utcnow()
     doc = await database.db.detainees.find_one_and_update({"_id": parse_object_id(det_id)}, {"$set": upd}, return_document=True)
     # Cập nhật face_embedding nếu portrait_front thay đổi
@@ -247,6 +268,18 @@ async def delete_detainee(det_id: str, request: Request, user: dict = Depends(ge
             {"_id": sid},
             {"$inc": {"detainee_count": -1}, "$set": {"updated_at": datetime.utcnow()}},
         )
+
+    # Dọn dẹp thư mục ảnh riêng của can phạm
+    pid = doc.get("personal_id")
+    if pid:
+        clean_pid = sanitize_folder_name(pid)
+        folder = os.path.join(DETAINEES_UPLOAD_DIR, clean_pid)
+        if os.path.isdir(folder):
+            try:
+                shutil.rmtree(folder)
+            except Exception:
+                pass
+
     await audit_log(request, user, "delete", "detainee", doc.get("personal_id", det_id), ref_id=det_id, session_id=sid)
     return {"ok": True}
 

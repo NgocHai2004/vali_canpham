@@ -169,14 +169,14 @@ function CellsPage() {
           <table className="cells-table">
             <thead>
               <tr>
-                <th style={{ width: "12%" }}>{t("cells.col.code")}</th>
-                <th style={{ width: "16%" }}>{t("cells.col.name")}</th>
-                <th style={{ width: "10%" }}>{t("cells.col.level")}</th>
-                <th style={{ width: "12%" }}>{t("detainee.field.custody_type")}</th>
+                <th style={{ width: "13%", textAlign: "left" }}>{t("cells.col.code")}</th>
+                <th style={{ width: "17%", textAlign: "left" }}>{t("cells.col.name")}</th>
+                <th style={{ width: "11%", textAlign: "left" }}>{t("cells.col.level")}</th>
+                <th style={{ width: "13%", textAlign: "left" }}>{t("detainee.field.custody_type")}</th>
                 <th style={{ width: "8%", textAlign: "center" }}>{t("cells.col.capacity")}</th>
                 <th style={{ width: "8%", textAlign: "center" }}>{t("cells.col.current")}</th>
-                <th style={{ width: "12%" }}>{t("cells.col.note")}</th>
-                <th style={{ width: "22%", textAlign: "right" }}>{t("cells.col.actions")}</th>
+                <th style={{ width: "12%", textAlign: "left" }}>{t("cells.col.note")}</th>
+                <th style={{ width: "18%", textAlign: "left" }}>{t("cells.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -186,21 +186,27 @@ function CellsPage() {
                 const indent = row.depth === 2 ? "　　└ " : row.depth === 1 ? "└ " : "";
                 return (
                   <tr key={row.code} className={rowClass}>
-                    <td className="mono" style={{ whiteSpace: "nowrap" }}>
+                    <td className="mono" style={{ whiteSpace: "nowrap", textAlign: "left" }}>
                       {indent}<strong>{row.code}</strong>
                     </td>
-                    <td>{row.level === "facility" ? <strong>{row.name}</strong> : row.name}</td>
-                    <td><span className="badge-level">{levelLabel(row.level)}</span></td>
-                    <td>{row.level === "facility" ? custodyLabel(row.custody_type) : "—"}</td>
+                    <td style={{ textAlign: "left" }}>{row.level === "facility" ? <strong>{row.name}</strong> : row.name}</td>
+                    <td style={{ textAlign: "left" }}><span className="badge-level">{levelLabel(row.level)}</span></td>
+                    <td style={{ textAlign: "left" }}>
+                      <span style={{ fontWeight: row.level === "facility" ? 600 : "normal" }}>
+                        {custodyLabel(custodyOf(row))}
+                      </span>
+                    </td>
                     <td style={{ textAlign: "center" }}>{row.capacity || "—"}</td>
                     <td style={{ textAlign: "center" }}>
                       <strong style={{ color: row.current > 0 ? "var(--primary-hi)" : "inherit" }}>
                         {row.current || 0}
                       </strong>
                     </td>
-                    <td style={{ color: "var(--muted)", fontSize: 12 }}>{row.note || "-"}</td>
-                    <td style={{ textAlign: "right" }}>
-                      <div className="row-actions" style={{ justifyContent: "flex-end", flexWrap: "nowrap" }}>
+                    <td style={{ color: "var(--muted)", fontSize: 12, textAlign: "left" }}>
+                      {(row.note && row.note.trim() !== "-") ? row.note : (row.parent ? (cells.find((c) => c.code === row.parent)?.name || row.name) : row.name)}
+                    </td>
+                    <td style={{ textAlign: "left" }}>
+                      <div className="row-actions" style={{ justifyContent: "flex-start", flexWrap: "nowrap" }}>
                         <button type="button" onClick={() => setViewingCell(row)}>{t("cells.view_detainees")}</button>
                         <button type="button" onClick={() => { setEditing(row); setShowForm(true); }}>{t("common.edit")}</button>
                         <button type="button" className="danger-text" onClick={() => deleteCell(row)}>{t("common.delete")}</button>

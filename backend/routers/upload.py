@@ -6,7 +6,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from bson import ObjectId
 
-from config import UPLOAD_DIR
+from config import UPLOAD_DIR, TMP_UPLOAD_DIR, DETAINEES_UPLOAD_DIR
+from helpers import sanitize_folder_name
 from auth import get_current_user
 
 router = APIRouter()
@@ -16,6 +17,7 @@ router = APIRouter()
 async def upload_photo(
     file: UploadFile = File(...),
     type: str = Query(default=""),
+    personal_id: str = Query(default=""),
     user: dict = Depends(get_current_user),
 ):
     ext = os.path.splitext(file.filename or "")[1].lower()
@@ -26,10 +28,21 @@ async def upload_photo(
         raise HTTPException(400, "Ảnh vượt quá 5MB")
 
     name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{ObjectId()}{ext}"
-    path = os.path.join(UPLOAD_DIR, name)
+
+    if personal_id and personal_id.strip():
+        clean_pid = sanitize_folder_name(personal_id.strip())
+        target_dir = os.path.join(DETAINEES_UPLOAD_DIR, clean_pid)
+        os.makedirs(target_dir, exist_ok=True)
+        rel_url = f"/uploads/detainees/{clean_pid}/{name}"
+    else:
+        target_dir = TMP_UPLOAD_DIR
+        os.makedirs(target_dir, exist_ok=True)
+        rel_url = f"/uploads/tmp/{name}"
+
+    path = os.path.join(target_dir, name)
     with open(path, "wb") as f:
         f.write(data)
     return {
-        "url": f"/uploads/{name}",
+        "url": rel_url,
         "size": len(data),
     }

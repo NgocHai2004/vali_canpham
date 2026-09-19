@@ -106,6 +106,12 @@ ADMIN_PASSWORD = "admin123"
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+TMP_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "tmp")
+os.makedirs(TMP_UPLOAD_DIR, exist_ok=True)
+DETAINEES_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "detainees")
+os.makedirs(DETAINEES_UPLOAD_DIR, exist_ok=True)
+AVATARS_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "avatars")
+os.makedirs(AVATARS_UPLOAD_DIR, exist_ok=True)
 REPORTS_DIR = os.path.join(UPLOAD_DIR, "reports")
 os.makedirs(REPORTS_DIR, exist_ok=True)
 

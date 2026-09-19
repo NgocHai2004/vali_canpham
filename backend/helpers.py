@@ -2,13 +2,15 @@
 
 import os
 import re
+import shutil
+import time
 from datetime import datetime
 from typing import Optional, List
 
 from fastapi import HTTPException, Request
 from bson import ObjectId
 
-from config import UPLOAD_DIR
+from config import UPLOAD_DIR, DETAINEES_UPLOAD_DIR, TMP_UPLOAD_DIR
 import database
 
 
@@ -200,6 +202,94 @@ def resolve_upload_path(url: str) -> str | None:
     rel = url[len("/uploads/"):]
     path = os.path.join(UPLOAD_DIR, rel.replace("/", os.sep))
     return path if os.path.isfile(path) else None
+
+
+def sanitize_folder_name(name: str) -> str:
+    """Chuẩn hoá chuỗi thành tên thư mục an toàn trên filesystem (Windows/Linux)."""
+    if not name:
+        return "unnamed"
+    sanitized = re.sub(r'[^\w\-.]', '_', str(name).strip())
+    return sanitized or "unnamed"
+
+
+def commit_detainee_file(url: str, personal_id: str) -> str:
+    """Nếu URL là file local (trong /uploads/ hoặc /uploads/tmp/), di chuyển vào
+    /uploads/detainees/{personal_id}/{filename} và trả về URL mới.
+    Nếu đã nằm trong đúng thư mục hoặc là URL ngoài, giữ nguyên.
+    """
+    if not url or not isinstance(url, str) or not url.startswith("/uploads/"):
+        return url
+
+    clean_pid = sanitize_folder_name(personal_id)
+    target_rel_prefix = f"/uploads/detainees/{clean_pid}/"
+    if url.startswith(target_rel_prefix):
+        return url
+
+    local_src = resolve_upload_path(url)
+    if not local_src or not os.path.isfile(local_src):
+        return url
+
+    target_dir = os.path.join(DETAINEES_UPLOAD_DIR, clean_pid)
+    os.makedirs(target_dir, exist_ok=True)
+
+    filename = os.path.basename(local_src)
+    target_path = os.path.join(target_dir, filename)
+
+    if os.path.abspath(local_src) != os.path.abspath(target_path):
+        if os.path.exists(target_path):
+            name_part, ext = os.path.splitext(filename)
+            filename = f"{name_part}_{int(time.time()*1000)}{ext}"
+            target_path = os.path.join(target_dir, filename)
+        try:
+            shutil.move(local_src, target_path)
+        except Exception:
+            try:
+                shutil.copy2(local_src, target_path)
+                os.remove(local_src)
+            except Exception:
+                return url
+
+    return f"/uploads/detainees/{clean_pid}/{filename}"
+
+
+def commit_detainee_photos(photos: dict, personal_id: str) -> dict:
+    """Quét toàn bộ cấu trúc photos (gồm chân dung, CCCD, vân tay, quét) và commit toàn bộ file
+    vào thư mục /uploads/detainees/{personal_id}/."""
+    if not photos or not isinstance(photos, dict) or not personal_id:
+        return photos or {}
+
+    updated = dict(photos)
+    for key, val in list(updated.items()):
+        if key == "face_embedding":
+            continue
+        if isinstance(val, str) and val.startswith("/uploads/"):
+            updated[key] = commit_detainee_file(val, personal_id)
+        elif isinstance(val, dict):
+            sub_dict = {}
+            for sub_k, sub_v in val.items():
+                if isinstance(sub_v, str) and sub_v.startswith("/uploads/"):
+                    sub_dict[sub_k] = commit_detainee_file(sub_v, personal_id)
+                else:
+                    sub_dict[sub_k] = sub_v
+            updated[key] = sub_dict
+        elif isinstance(val, list):
+            sub_list = []
+            for item in val:
+                if isinstance(item, str) and item.startswith("/uploads/"):
+                    sub_list.append(commit_detainee_file(item, personal_id))
+                elif isinstance(item, dict):
+                    sub_d = {}
+                    for ik, iv in item.items():
+                        if isinstance(iv, str) and iv.startswith("/uploads/"):
+                            sub_d[ik] = commit_detainee_file(iv, personal_id)
+                        else:
+                            sub_d[ik] = iv
+                    sub_list.append(sub_d)
+                else:
+                    sub_list.append(item)
+            updated[key] = sub_list
+
+    return updated
 
 
 # ---------------------------------------------------------------------------
