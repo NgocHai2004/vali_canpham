@@ -55,12 +55,6 @@ export function RecordSummary({
         onChange={(v) => setField("record_sheet_no", v)} disabled={disabled} />
       <SumText label={t("capture.summary.fp_sheet_no")} value={form.fp_sheet_no}
         onChange={(v) => setField("fp_sheet_no", v)} disabled={disabled} />
-      {/* "Lan ngay" tren chi ban = lap lan thu N, ngay dd/mm/yyyy. Hai o rieng:
-          lan thu N la so thu tu (ho so lap lai nhieu lan), ngay la ngay lap cua
-          LAN DO — khac voi "Ngay lap" o duoi (ngay hom nay, chi doc). */}
-      <SumText label={t("capture.summary.record_times")} value={form.record_times}
-        onChange={(v) => setField("record_times", v.replace(/\D/g, "").slice(0, 3))}
-        placeholder="1" disabled={disabled} />
       <SumText label={t("capture.summary.record_date")} value={form.record_date}
         onChange={(v) => setField("record_date", v)}
         placeholder={t("capture.form.date_ph")} disabled={disabled} />

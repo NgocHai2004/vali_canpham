@@ -68,6 +68,80 @@ const DatedLine = ({ label, value, grow = 1, sub }) => {
   );
 };
 
+function splitFixedLines(text, totalLines = 2, firstCap = 42, nextCap = 60) {
+  const clean = String(text || "").trim();
+  if (!clean) {
+    return Array(totalLines).fill("");
+  }
+  const words = clean.split(/\s+/);
+  const lines = [];
+  let cur = [];
+  let curLen = 0;
+  let cap = firstCap;
+
+  for (const w of words) {
+    const wLen = w.length + (cur.length > 0 ? 1 : 0);
+    if (curLen + wLen <= cap || cur.length === 0) {
+      cur.push(w);
+      curLen += wLen;
+    } else {
+      lines.push(cur.join(" "));
+      if (lines.length >= totalLines) {
+        break;
+      }
+      cur = [w];
+      curLen = w.length;
+      cap = nextCap;
+    }
+  }
+
+  if (cur.length > 0 && lines.length < totalLines) {
+    lines.push(cur.join(" "));
+  }
+
+  if (lines.length > totalLines) {
+    lines.length = totalLines;
+    if (!lines[totalLines - 1].endsWith("...")) {
+      lines[totalLines - 1] = lines[totalLines - 1].slice(0, Math.max(10, nextCap - 4)) + "...";
+    }
+  } else if (lines.length === totalLines) {
+    const joinedWords = lines.join(" ").split(/\s+/);
+    if (joinedWords.length < words.length && !lines[totalLines - 1].endsWith("...")) {
+      lines[totalLines - 1] = lines[totalLines - 1].slice(0, Math.max(10, nextCap - 4)) + "...";
+    }
+  }
+
+  while (lines.length < totalLines) {
+    lines.push("");
+  }
+
+  return lines;
+}
+
+const MultilineL = ({ label, value, totalLines = 2, firstCap = 42, nextCap = 60, sub, noColon }) => {
+  const lines = splitFixedLines(value, totalLines, firstCap, nextCap);
+  return (
+    <>
+      <div className="nsb-line">
+        <span className={"nsb-lab" + (noColon ? " no-colon" : "")}>
+          {label}
+          {sub ? <sup>{sub}</sup> : null}
+        </span>
+        <span className="nsb-val">{lines[0]}</span>
+      </div>
+      {lines.slice(1).map((lineText, idx) => (
+        lineText ? (
+          <div key={idx} className="nsb-line">
+            <span className="nsb-val">{lineText}</span>
+          </div>
+        ) : (
+          <div key={idx} className="nsb-blank" />
+        )
+      ))}
+    </>
+  );
+};
+
 export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewContent(
   { form, photos = {}, unitName = "" },
   ref,
@@ -132,8 +206,8 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
                 value={val(form.cccd_number)} grow={1} />
             </div>
             <L label={t("namesheet.field.hometown")} value={val(form.hometown)} />
-            <L label={t("namesheet.field.address")} value={val(form.address)} />
-            <div className="nsb-blank" />
+            <MultilineL label={t("namesheet.field.address")} value={val(form.address)}
+              totalLines={2} firstCap={36} nextCap={50} />
             <L label={t("namesheet.field.temp_address")} value={val(form.temp_address)} />
           </div>
         </div>
@@ -160,9 +234,8 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
         {/* Hang duoi: "Lap ve viec" + "C/T van tay" ben trai, 2 o van tro ben phai. */}
         <div className="nsb-bot">
           <div className="nsb-bot-l">
-            <L label={t("namesheet.field.case_about")} value={val(form.case_about)} />
-            <div className="nsb-blank" />
-            <div className="nsb-blank" />
+            <MultilineL label={t("namesheet.field.case_about")} value={val(form.case_about)}
+              totalLines={3} firstCap={45} nextCap={62} />
             <div className="nsb-ct">
               <span>{t("namesheet.field.fp_formula")}</span>
               <span className="nsb-ct-line nsb-ct-solid">{val(form.fp_formula)}</span>
@@ -195,8 +268,8 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
           <div className="nsb-208-l">
             <L label={t("namesheet.field.ak_no")} value={val(form.ak_no)} />
             <L label={t("namesheet.field.spouse")} value={val(form.spouse_name)} />
-            <L label={t("namesheet.field.residence")} value={val(form.spouse_residence)} />
-            <div className="nsb-blank" />
+            <MultilineL label={t("namesheet.field.residence")} value={val(form.spouse_residence)}
+              totalLines={2} firstCap={36} nextCap={50} />
           </div>
           <div className="nsb-barcode">
             <div className="nsb-formno-it">{t("namesheet.form_no_208")}</div>
@@ -221,7 +294,8 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
             <L label={t("namesheet.field.nose")} value={val(form.nose)} />
             <L label={t("namesheet.field.earlobe")} value={val(form.earlobe)} />
           </div>
-          <L label={t("namesheet.field.marks")} value={val(form.scars)} />
+          <MultilineL label={t("namesheet.field.marks")} value={val(form.scars)}
+            totalLines={2} firstCap={48} nextCap={68} />
         </div>
 
         {/* Hang duoi: 3 anh 3x4 | Di hinh + 1 dong trong + Can bo lap. */}
@@ -258,11 +332,10 @@ export const NameSheetPreviewContent = forwardRef(function NameSheetPreviewConte
             </div>
           </div>
           <div className="nsb-208-right">
-            <L label={t("namesheet.field.abnormal")} value={val(form.physical_abnormalities)} />
-            <div className="nsb-blank" />
-            <div className="nsb-blank" />
-            <L label={t("namesheet.field.officer")} value={val(form.officer_name)} />
-            <div className="nsb-blank" />
+            <MultilineL label={t("namesheet.field.abnormal")} value={val(form.physical_abnormalities)}
+              totalLines={3} firstCap={35} nextCap={50} />
+            <MultilineL label={t("namesheet.field.officer")} value={val(form.officer_name)}
+              totalLines={2} firstCap={35} nextCap={50} />
           </div>
         </div>
       </div>

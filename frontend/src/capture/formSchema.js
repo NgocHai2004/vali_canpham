@@ -86,6 +86,13 @@ export const EMPTY_FORM = {
   ...LEGACY_FORM,
 };
 
+export function getTodayDateStr() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
 export function toDobInput(v) {
   if (!v) return "";
   const s = String(v);
@@ -102,7 +109,7 @@ export function toDobInput(v) {
 }
 
 export function normalizeInitial(initial) {
-  if (!initial) return { form: EMPTY_FORM, photos: {} };
+  if (!initial) return { form: { ...EMPTY_FORM, record_date: getTodayDateStr() }, photos: {} };
   const photos = initial.photos && typeof initial.photos === "object" ? { ...initial.photos } : {};
   if (initial.photo_url && !photos.portrait_front) photos.portrait_front = initial.photo_url;
   return {
@@ -113,7 +120,7 @@ export function normalizeInitial(initial) {
       record_sheet_no: initial.record_sheet_no || "",
       fp_sheet_no: initial.fp_sheet_no || "",
       record_times: initial.record_times != null ? String(initial.record_times) : "",
-      record_date: toDobInput(initial.record_date),
+      record_date: initial.record_date ? toDobInput(initial.record_date) : getTodayDateStr(),
       ak_no: initial.ak_no || "",
       record_scope: initial.record_scope || "",
       // ---- I. Thong tin nhan than ----

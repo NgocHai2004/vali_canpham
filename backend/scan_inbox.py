@@ -47,7 +47,9 @@ _SESSION_TTL = 900.0
 # Ten mau ben OCR (app/templates.py) — giu nguyen chuoi, khong import qua OCR.
 MAU_CHI_BAN = "chi_ban_295"
 MAU_DANH_BAN = "danh_ban_204"
-MAU_CHAP_NHAN = (MAU_CHI_BAN, MAU_DANH_BAN)
+MAU_BIEN_BAN = "bien_ban"
+MAU_TU_DO = "tu_do"
+MAU_CHAP_NHAN = (MAU_CHI_BAN, MAU_DANH_BAN, MAU_BIEN_BAN, MAU_TU_DO)
 
 # Ly do tu choi, tra ve cho service OCR ghi log va cho health().
 LY_DO_KHONG_DUNG_DOI_TUONG = "khong_dung_mot_doi_tuong"
@@ -93,6 +95,12 @@ _TRUONG_DANG_CAP = {
     "diHinh": "physical_abnormalities",
     "ghiChu": "note",
     "phamVi": "record_scope",
+    "gioiTinh": "gender",
+    "ngayCap": "issued_date",
+    "noiCap": "issued_place",
+    "tonGiao": "religion",
+    "soDanhBan": "record_sheet_no",
+    "soChiBan": "fp_sheet_no",
 }
 
 # "so" trung ten o ca hai mau nhung la hai thu khac nhau: so danh ban khac so
@@ -100,6 +108,8 @@ _TRUONG_DANG_CAP = {
 _TRUONG_RIENG = {
     MAU_CHI_BAN: {"so": "fp_sheet_no"},
     MAU_DANH_BAN: {"so": "record_sheet_no"},
+    MAU_BIEN_BAN: {"so": "record_sheet_no"},
+    MAU_TU_DO: {"so": "record_sheet_no"},
 }
 
 # Cua so ngay: OCR tra ve tho, khong phai datetime.
@@ -155,49 +165,54 @@ def _chi_so_cccd(tho: Optional[str]) -> Optional[str]:
 
 
 def _gop_fields(ho_so: dict) -> Optional[dict]:
-    """Gop fields cua hai to trong mot HoSo; None neu to nao khong phai 295/204.
-
-    CCCD: chi bản và danh bản cùng chồng lên key `cccd_number`, tờ sau (danh)
-    ghi đè tờ trước. Nếu tờ sau OCR đọc không đủ 12 số thì đừng làm mất số đúng
-    của tờ trước — giữ giá trị hợp lệ đầu tiên dò được.
-    """
+    """Gop fields cua cac to trong mot HoSo (ho tro ca mau co dinh va tu do)."""
     gop: dict = {}
-    for khoa_mau in ("chiBan", "danhBan"):
-        to = ho_so.get(khoa_mau)
-        if not to:
-            continue
-        mau = to.get("template")
-        if mau not in MAU_CHAP_NHAN:
-            return None
-        ten_truong_rieng = _TRUONG_RIENG[mau]
+
+    # Neu ho_so truyen truc tiep fields / dict phang
+    if "fields" in ho_so and isinstance(ho_so["fields"], dict):
+        cac_to = [ho_so]
+    else:
+        cac_to = []
+        for k, v in ho_so.items():
+            if isinstance(v, dict) and "fields" in v:
+                cac_to.append(v)
+
+    if not cac_to:
+        # ho_so chinh la dict chua cac truong truc tiep
+        cac_to = [{"template": "tu_do", "fields": ho_so}]
+
+    for to in cac_to:
+        mau = to.get("template", "tu_do")
+        ten_truong_rieng = _TRUONG_RIENG.get(mau, {})
         for ten, gia_tri in (to.get("fields") or {}).items():
             if gia_tri is None or (isinstance(gia_tri, str) and not gia_tri.strip()):
-                continue  # OCR khong doc duoc: de white space trong form yen
+                continue
             if ten in _TRUONG_DANG_CAP:
-                # Trường ghép chung hai tờ (cccd_number): giữ giá trị hợp lệ
-                # đầu tiên, không để tờ sau đọc dở ghi đè số đúng của tờ trước.
                 khoa = _TRUONG_DANG_CAP[ten]
                 gia_tri = gia_tri.strip() if isinstance(gia_tri, str) else gia_tri
                 if ten == "cmndCccd":
                     if khoa in gop and _chi_so_cccd(gia_tri) is None:
-                        continue  # tờ này đọc thiếu số — không xoá số cũ đã hợp lệ
+                        continue
                     gop[khoa] = gia_tri
                 else:
                     gop[khoa] = gia_tri
             elif ten in ten_truong_rieng:
                 gop[ten_truong_rieng[ten]] = gia_tri
+            else:
+                # Neu ten truong da dung chuan DetaineeIn
+                gop[ten] = gia_tri.strip() if isinstance(gia_tri, str) else gia_tri
+
     if "cccd_number" in gop:
-        # DetaineeIn cccd_number la `^\d{12}$` — OCR doc thieu so thi khong do
-        # vao form (can bo nhap tay), vi ghi so sai se lam loi khi bam Luu.
         so = _chi_so_cccd(gop.pop("cccd_number"))
         if so:
             gop["cccd_number"] = so
+
     return gop or None
 
 
 def _ngay_hoa(gop: dict) -> None:
     """Doi tại chỗ các trường ngày sang YYYY-MM-DD; xoa neu khong parse duoc."""
-    for khoa in ("dob", "record_date", "arrest_date"):
+    for khoa in ("dob", "record_date", "arrest_date", "issued_date"):
         if khoa in gop:
             gia_tri = parse_ngay(gop.pop(khoa))
             if gia_tri:
@@ -205,14 +220,17 @@ def _ngay_hoa(gop: dict) -> None:
 
 
 def fields_tu_ho_so(ho_so: dict) -> Optional[dict]:
-    """Mot HoSo (dict) -> dict truong cua DetaineeIn; None neu khong dung mau."""
+    """Mot HoSo (dict) -> dict truong cua DetaineeIn."""
     gop = _gop_fields(ho_so)
     if gop is None:
         return None
     _ngay_hoa(gop)
     if "height_cm" in gop:
         try:
-            val = float(gop["height_cm"])
+            raw_h = str(gop["height_cm"]).lower().replace("m", "").replace("cm", "").replace(" ", "").replace(",", ".")
+            val = float(raw_h)
+            if val < 3.0:
+                val = val * 100.0  # 1.68m -> 168.0
             if 50.0 <= val <= 250.0:
                 gop["height_cm"] = val
             else:

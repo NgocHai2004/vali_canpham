@@ -45,6 +45,9 @@ if (Test-Path $envFile) {
 }
 if (-not $env:DONGLE_SECRET) { throw "DONGLE_SECRET chua duoc set." }
 if (-not $env:JWT_SECRET)    { throw "JWT_SECRET chua duoc set." }
+if (-not $env:MONGO_URL -or $env:MONGO_URL.Contains('27018')) { $env:MONGO_URL = 'mongodb://127.0.0.1:27017' }
+if (-not $env:USB_SERVICE_URL -or $env:USB_SERVICE_URL.Contains('8768')) { $env:USB_SERVICE_URL = 'http://127.0.0.1:8766' }
+if (-not $env:FP_SERVICE_URL -or $env:FP_SERVICE_URL.Contains('8767'))  { $env:FP_SERVICE_URL  = 'http://127.0.0.1:8765' }
 
 if (-not (Test-Path $logs)) { New-Item -ItemType Directory -Path $logs -Force | Out-Null }
 

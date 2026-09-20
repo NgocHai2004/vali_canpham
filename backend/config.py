@@ -83,7 +83,7 @@ FEATURE_SCAN_OCR = _env_bool("FEATURE_SCAN_OCR")
 # Database
 # ---------------------------------------------------------------------------
 
-MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+MONGO_URL = _env_str_from_dotenv("MONGO_URL") or "mongodb://127.0.0.1:27017"
 # DB tach theo nhanh git: Hai_dev giu DB that `app_cccd`, nhanh khac dung DB
 # rieng. Hai nhanh KHONG cung schema (cases/case_id vs work_sessions/session_id)
 # nen dung chung mot DB la doc khong ra du lieu cua nhau. Xem backend/db_target.py.
@@ -168,7 +168,8 @@ def update_fp_cache(values: dict) -> None:
 # Fingerprint matching
 # ---------------------------------------------------------------------------
 
-FP_SERVICE_URL = os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
+_raw_fp_url = _env_str_from_dotenv("FP_SERVICE_URL") or os.getenv("FP_SERVICE_URL", "http://127.0.0.1:8765")
+FP_SERVICE_URL = "http://127.0.0.1:8765" if "8767" in _raw_fp_url else _raw_fp_url
 FP_MATCH_THRESHOLD = int(os.getenv("FP_MATCH_THRESHOLD", "85"))  # luu cho cac luong khac (neu co)
 FP_MATCH_FINGER = os.getenv("FP_MATCH_FINGER", "left_thumb")     # ngon dung de ket luan
 FP_LEFT_THUMB_THRESHOLD = int(os.getenv("FP_LEFT_THUMB_THRESHOLD", "80"))  # score > N (dung >)
@@ -190,7 +191,8 @@ FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.4"))
 # USB dongle
 # ---------------------------------------------------------------------------
 
-USB_SERVICE_URL = os.getenv("USB_SERVICE_URL", "http://127.0.0.1:8766")
+_raw_usb_url = _env_str_from_dotenv("USB_SERVICE_URL") or os.getenv("USB_SERVICE_URL", "http://127.0.0.1:8766")
+USB_SERVICE_URL = "http://127.0.0.1:8766" if "8768" in _raw_usb_url else _raw_usb_url
 
 # ---------------------------------------------------------------------------
 # Scan OCR

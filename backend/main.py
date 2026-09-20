@@ -1,4 +1,4 @@
-"""Thiết bị thu thập & quản lý căn cước can phạm — FastAPI application entry point.
+"""Thiết bị thu thập thông tin thông minh thông tin can phạm — FastAPI application entry point.
 
 File này chỉ chịu trách nhiệm:
   1. Tạo FastAPI app instance
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     await database.close_db()
 
 
-app = FastAPI(title="Thiết bị thu thập & quản lý căn cước can phạm", lifespan=lifespan)
+app = FastAPI(title="Thiết bị thu thập thông tin thông minh thông tin can phạm", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$",
