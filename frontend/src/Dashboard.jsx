@@ -7,6 +7,8 @@ import Header from "./components/Header";
 import ProfileEditModal from "./components/ProfileEditModal";
 import useDeviceConnections from "./hooks/useDeviceConnections";
 import useNotifState from "./hooks/useNotifState";
+import useDashboardTheme from "./hooks/useDashboardTheme";
+import DashThemeToggle from "./components/dashboard/DashThemeToggle";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
@@ -21,6 +23,10 @@ import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
 import { FieldRow } from "./components/FieldRow";
 import "./dashboard.css";
+// Phải import SAU "./dashboard.css": CSS của DashboardHome được phát ra trước
+// (vì dòng import nó ở trên), nên nếu đặt import này trong DashboardHome.jsx
+// thì dashboardHome.css sẽ đứng TRƯỚC dashboard.css và thua mọi xung đột.
+import "./dashboardHome.css";
 
 // Re-export for components importing from Dashboard
 export { CellForm, FieldRow };
@@ -63,6 +69,7 @@ export default function Dashboard({
   const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN] : NAV_BASE;
   const deviceStatus = useDeviceConnections();
   const notifState = useNotifState();
+  const dashTheme = useDashboardTheme();
 
   const goPage = async (key, opts = {}) => {
     if (key !== "session_capture") {
@@ -157,7 +164,10 @@ export default function Dashboard({
   };
 
   return (
-    <div className="app">
+    // data-dash-theme CHỈ có khi đang ở dashboard: mọi override theme sáng trong
+    // dashboardHome.css đều khoá theo thuộc tính này, nên các trang khác không
+    // thể bị ảnh hưởng. React bỏ hẳn attribute khi giá trị là undefined.
+    <div className="app" data-dash-theme={page === "dashboard" ? dashTheme.theme : undefined}>
       <Header
         username={username}
         fullName={fullName}
@@ -199,6 +209,13 @@ export default function Dashboard({
           ))}
         </nav>
 
+        {/* Nút đổi theme nằm trong menu dọc, ngay trên thẻ bảo mật. Chỉ hiện khi
+            ở dashboard vì theme chỉ áp cho trang này — sang trang khác bấm sẽ
+            không thấy gì đổi. */}
+        {page === "dashboard" && (
+          <DashThemeToggle theme={dashTheme.theme} onToggle={dashTheme.toggle} />
+        )}
+
         <div
           className="security-card"
           data-tip={`${t("nav.security_title")} — ${t("nav.security_desc")}`}
@@ -209,7 +226,9 @@ export default function Dashboard({
       </aside>
 
       <main className="content">
-        {page === "dashboard" && <DashboardHome go={goPage} isAdmin={isAdmin} fullName={fullName} />}
+        {page === "dashboard" && (
+          <DashboardHome go={goPage} fullName={fullName} />
+        )}
         {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
         {page === "cells" && <CellsPage />}
         {page === "sessions" && (

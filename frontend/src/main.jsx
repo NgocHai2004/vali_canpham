@@ -88,6 +88,23 @@ class ErrorBoundary extends Component {
 
 const isPreviewRoute = new URLSearchParams(window.location.search).get('preview') === '1'
 
+/**
+ * Kiosk: chặn zoom ngoài ý muốn.
+ *
+ * Electron bật zoom theo Ctrl+lăn chuột (và Ctrl +/-/0), rồi Chromium LƯU mức
+ * zoom vào profile (`per_host_zoom_levels` trong Preferences) — nên chỉ một lần
+ * lỡ tay là toàn bộ giao diện nhỏ đi VĨNH VIỄN, khởi động lại cũng không hết.
+ * Với màn hình kiosk cố định thì zoom không có ích gì, chặn luôn cho chắc.
+ */
+window.addEventListener("wheel", (e) => {
+  if (e.ctrlKey) e.preventDefault();
+}, { passive: false });
+
+window.addEventListener("keydown", (e) => {
+  if (!e.ctrlKey) return;
+  if (e.key === "-" || e.key === "=" || e.key === "+" || e.key === "0") e.preventDefault();
+});
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Thiết Bị Thu Thập &amp; Quản Lý Căn Cước Can Phạm - Vibotics</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script data-purpose="tailwind-config">
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            tactical: {
+              900: '#070b13',
+              850: '#0c1322',
+              800: '#0f172a',
+              750: '#141d33',
+              700: '#1a243e',
+              border: '#1e293b',
+              accent: '#1e60ff',
+              cyan: '#00d2ff',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              purple: '#8b5cf6'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+<!-- Custom Styles for specialized telemetry and glows -->
+<style data-purpose="theme-styles">
+    body {
+      background-color: #070b13;
+      color: #cbd5e1;
+      font-size: 13px;
+      user-select: none;
+    }
+    
+    /* Subtle glow and surface backgrounds */
+    .tactical-card {
+      background: linear-gradient(180deg, rgba(16, 24, 43, 0.85) 0%, rgba(10, 16, 29, 0.95) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(12px);
+    }
+    
+    .tactical-card:hover {
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .glow-blue {
+      box-shadow: 0 0 25px -4px rgba(30, 96, 255, 0.4);
+    }
+
+    /* Custom Temp Bar Gradient */
+    .temp-gauge-bar {
+      background: linear-gradient(90deg, #00d2ff 0%, #10b981 40%, #eab308 75%, #ef4444 100%);
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #070b13;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex overflow-hidden antialiased font-sans">
+<!-- BEGIN: LeftSidebar -->
+<aside class="w-16 flex-shrink-0 bg-[#060a11] border-r border-slate-800/80 flex flex-col items-center py-3.5 justify-between z-30 select-none" data-purpose="sidebar">
+<div class="flex flex-col items-center gap-6 w-full">
+<!-- Brand Logo Badge 'V' -->
+<a class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 to-blue-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-blue-600/30 tracking-tight" href="#">
+        V
+      </a>
+<!-- Primary Navigation Icons -->
+<nav class="flex flex-col gap-2.5 w-full items-center px-2">
+<!-- Dashboard (Active) -->
+<a class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25 transition" href="#">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</a>
+<!-- Folder / Records -->
+<a class="w-10 h-10 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center justify-center transition" href="#">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</a>
+<!-- Sync / Refresh -->
+<a class="w-10 h-10 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center justify-center transition" href="#">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</a>
+<!-- Target / Capture -->
+<a class="w-10 h-10 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center justify-center transition" href="#">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<circle cx="12" cy="12" r="8" stroke-width="1.8"></circle>
+<circle cx="12" cy="12" r="3" stroke-width="1.8"></circle>
+<path d="M12 2v2m0 16v2m10-10h-2M4 10H2" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</a>
+<!-- Users / Person -->
+<a class="w-10 h-10 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center justify-center transition" href="#">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</a>
+<!-- Locked / Security -->
+<a class="w-10 h-10 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center justify-center transition" href="#">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<rect height="10" rx="2" stroke-width="1.8" width="14" x="5" y="11"></rect>
+<path d="M8 11V7a4 4 0 118 0v4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</a>
+</nav>
+</div>
+<!-- Bottom Shield Badge -->
+<div class="w-full flex justify-center pb-1">
+<button class="w-10 h-10 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 flex items-center justify-center transition">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</button>
+</div>
+</aside>
+<!-- END: LeftSidebar -->
+<!-- Main Content Layout -->
+<div class="flex-1 flex flex-col h-screen overflow-y-auto overflow-x-hidden">
+<!-- BEGIN: TopHeader -->
+<header class="h-14 border-b border-slate-800/80 px-5 flex items-center justify-between bg-[#080d17]/90 backdrop-blur sticky top-0 z-20" data-purpose="top-header">
+<!-- Title & Organization subtext -->
+<div class="flex flex-col">
+<h1 class="text-sm font-bold tracking-wider uppercase text-white flex items-center gap-2">
+          THIẾT BỊ THU THẬP &amp; QUẢN LÝ CĂN CƯỚC CAN PHẠM
+        </h1>
+<span class="text-[11px] text-slate-400 font-normal">
+          Công an nhân dân - Phiên bản 5.3.4.1
+        </span>
+</div>
+<!-- Right Header Actions & Indicators -->
+<div class="flex items-center gap-3.5">
+<!-- Telemetry Status Pills -->
+<div class="flex items-center gap-2">
+<span class="flex items-center gap-1.5 px-3 py-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-medium">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+            Camera
+          </span>
+<span class="flex items-center gap-1.5 px-3 py-1 bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-medium">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.07 1-4.279 1-6.559A9 9 0 103.003 11c0 1.637.284 3.208.807 4.664" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+            Vân tay
+          </span>
+</div>
+<!-- Language Switcher -->
+<div class="flex items-center bg-slate-900 border border-slate-700/60 rounded-full p-0.5 text-xs font-semibold">
+<button class="px-2.5 py-0.5 rounded-full bg-blue-600 text-white shadow-sm">VI</button>
+<button class="px-2.5 py-0.5 text-slate-400 hover:text-white transition">EN</button>
+</div>
+<!-- Notification Bell -->
+<button class="relative p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+<span class="absolute top-1 right-1 w-3.5 h-3.5 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">1</span>
+</button>
+<!-- User Profile Pill -->
+<div class="flex items-center gap-2.5 pl-1.5 border-l border-slate-800">
+<div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-md">
+            N
+          </div>
+<div class="flex flex-col text-left leading-tight">
+<span class="text-xs font-semibold text-white">Nguyễn Ngọc Hải</span>
+<span class="text-[10px] text-slate-400">Cán bộ</span>
+</div>
+<!-- Fullscreen / Focus Icon -->
+<button class="ml-1 p-1 text-slate-400 hover:text-white">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+</header>
+<!-- END: TopHeader -->
+<!-- BEGIN: DashboardBody -->
+<main class="p-4 space-y-3.5 flex-1 max-w-[1700px] w-full mx-auto">
+<!-- Greeting Banner & Device Session Box -->
+<section class="tactical-card rounded-2xl p-4.5 px-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 border border-blue-900/40" data-purpose="banner-and-active-session">
+<!-- Background Neon Wave Effect -->
+<div class="absolute inset-0 bg-gradient-to-r from-blue-950/40 via-blue-900/10 to-transparent pointer-events-none"></div>
+<div class="absolute -right-20 -top-20 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+<!-- Left Greeting Text -->
+<div class="relative z-10">
+<h2 class="text-xl font-bold text-white tracking-wide">
+            Chào buổi trưa, Nguyễn Ngọc Hải
+          </h2>
+<p class="text-xs text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
+<span>12:16</span>
+<span>·</span>
+<span>Thứ sáu, 18/09/2026</span>
+</p>
+</div>
+<!-- Right Quick Device Action Card -->
+<div class="relative z-10 flex items-center gap-5 bg-slate-900/70 border border-slate-700/60 rounded-xl px-4 py-2.5 shadow-lg">
+<!-- Vali Rugged Case Mockup/Thumbnail -->
+<div class="w-16 h-12 bg-slate-950 rounded-lg border border-slate-700/80 flex items-center justify-center p-1 relative overflow-hidden group">
+<div class="w-14 h-10 border-2 border-slate-700 rounded bg-slate-900/90 flex flex-col items-center justify-center">
+<span class="text-[7px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-0.5">
+<span class="text-blue-500 font-black">V</span> VIBOTICS
+              </span>
+</div>
+<div class="absolute bottom-0 inset-x-0 h-0.5 bg-blue-500"></div>
+</div>
+<!-- Device Status Text -->
+<div class="flex flex-col text-xs leading-snug">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-emerald-400 text-[11px] font-medium">Thiết bị đang mở</span>
+</div>
+<span class="font-bold text-slate-100 tracking-wide text-sm mt-0.5">S20260918-0002</span>
+<span class="text-slate-400 text-[11px]">Đã nhập 0 hồ sơ</span>
+</div>
+<!-- Primary Call to Action Button -->
+<button class="ml-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg flex items-center gap-2 shadow-lg shadow-blue-600/30 transition">
+<span>Vào phiên</span>
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</section>
+<!-- BEGIN: 4 Metric Cards -->
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5" data-purpose="metric-cards">
+<!-- Card 1: Hồ sơ hôm nay -->
+<div class="tactical-card rounded-xl p-3.5 flex items-center justify-between border-l-4 border-l-emerald-500/80">
+<div class="flex items-center gap-3">
+<div class="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+<div>
+<span class="text-[11px] font-semibold tracking-wider text-slate-400 uppercase block">HỒ SƠ HÔM NAY</span>
+<span class="text-xl font-bold text-white leading-tight">0</span>
+<span class="text-[11px] text-slate-400 block mt-0.5">Bằng hôm qua</span>
+</div>
+</div>
+<div class="flex items-center gap-1 text-emerald-400 text-xs font-semibold bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">
+<span>↑ 0%</span>
+<svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<!-- Card 2: Tổng hồ sơ can phạm -->
+<div class="tactical-card rounded-xl p-3.5 flex items-center justify-between border-l-4 border-l-blue-500/80">
+<div class="flex items-center gap-3">
+<div class="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+<div>
+<span class="text-[11px] font-semibold tracking-wider text-slate-400 uppercase block">TỔNG HỒ SƠ CAN PHẠM</span>
+<span class="text-xl font-bold text-white leading-tight">0</span>
+<span class="text-[11px] text-slate-400 block mt-0.5">Đang quản lý toàn hệ thống</span>
+</div>
+</div>
+<svg class="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-pointer" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<!-- Card 3: Phiên đang mở -->
+<div class="tactical-card rounded-xl p-3.5 flex items-center justify-between border-l-4 border-l-purple-500/80">
+<div class="flex items-center gap-3">
+<div class="w-11 h-11 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+<div>
+<span class="text-[11px] font-semibold tracking-wider text-slate-400 uppercase block">PHIÊN ĐANG MỞ</span>
+<span class="text-xl font-bold text-white leading-tight">1</span>
+<span class="text-[11px] text-purple-300 font-mono block mt-0.5">S20260918-0002</span>
+</div>
+</div>
+<svg class="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-pointer" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<!-- Card 4: Hồ sơ thiếu dữ liệu -->
+<div class="tactical-card rounded-xl p-3.5 flex items-center justify-between border-l-4 border-l-amber-500/80">
+<div class="flex items-center gap-3">
+<div class="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+<div>
+<span class="text-[11px] font-semibold tracking-wider text-slate-400 uppercase block">HỒ SƠ THIẾU DỮ LIỆU</span>
+<span class="text-xl font-bold text-white leading-tight">0</span>
+<span class="text-[11px] text-emerald-400 block mt-0.5">Đầy đủ</span>
+</div>
+</div>
+<svg class="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-pointer" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+</section>
+<!-- END: 4 Metric Cards -->
+<!-- BEGIN: Charts Row -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-3.5" data-purpose="charts-row">
+<!-- Left: Activity Chart (14 ngày qua) -->
+<div class="tactical-card rounded-2xl p-4 lg:col-span-7 flex flex-col justify-between">
+<div class="flex items-center justify-between mb-2">
+<h3 class="font-semibold text-white text-sm">Hoạt động 14 ngày qua</h3>
+<div class="relative">
+<button class="bg-slate-900 border border-slate-700 text-slate-300 px-3 py-1 rounded-lg text-xs flex items-center gap-2 hover:border-slate-500 transition">
+<span>Hồ sơ mới</span>
+<svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+<!-- Chart Visual Area (SVG vector recreation) -->
+<div class="h-44 w-full relative mt-2 pt-2 pb-1">
+<svg class="w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 650 140">
+<!-- Y Axis Reference Lines -->
+<g stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3" stroke-width="1">
+<line x1="30" x2="640" y1="10" y2="10"></line>
+<line x1="30" x2="640" y1="35" y2="35"></line>
+<line x1="30" x2="640" y1="60" y2="60"></line>
+<line x1="30" x2="640" y1="85" y2="85"></line>
+<line x1="30" x2="640" y1="110" y2="110"></line>
+</g>
+<!-- Y Axis Labels -->
+<g class="text-[9px] fill-slate-500" text-anchor="end">
+<text x="22" y="14">50</text>
+<text x="22" y="39">40</text>
+<text x="22" y="64">30</text>
+<text x="22" y="89">20</text>
+<text x="22" y="114">10</text>
+<text x="22" y="130">0</text>
+</g>
+<!-- Chart Gradient Fill -->
+<defs>
+<lineargradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35"></stop>
+<stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<!-- Area Path: Baseline with spike on 12/9 -->
+<path d="M 40,128 L 290,128 L 335,85 L 385,128 L 635,128 L 635,130 L 40,130 Z" fill="url(#lineFill)"></path>
+<!-- Stroke Path -->
+<path d="M 40,128 L 290,128 L 335,85 L 385,128 L 635,128" fill="none" stroke="#2563eb" stroke-width="2.5"></path>
+<!-- Peak Dot on 12/9 with Glow -->
+<circle class="glow-blue" cx="335" cy="85" fill="#60a5fa" r="4.5" stroke="#1d4ed8" stroke-width="2"></circle>
+</svg>
+<!-- X Axis Dates Labels -->
+<div class="flex justify-between pl-8 pr-2 pt-1 text-[10px] text-slate-400 font-mono">
+<span>5/9</span>
+<span>6/9</span>
+<span>7/9</span>
+<span>8/9</span>
+<span>9/9</span>
+<span>10/9</span>
+<span>11/9</span>
+<span class="text-blue-400 font-semibold">12/9</span>
+<span>13/9</span>
+<span>14/9</span>
+<span>15/9</span>
+<span>16/9</span>
+<span>17/9</span>
+<span>18/9</span>
+</div>
+</div>
+</div>
+<!-- Right: Gender Demographics (Cơ cấu giới tính) -->
+<div class="tactical-card rounded-2xl p-4 lg:col-span-5 flex flex-col justify-between">
+<div class="flex items-center justify-between mb-2">
+<h3 class="font-semibold text-white text-sm">Cơ cấu giới tính</h3>
+<button class="bg-slate-900 border border-slate-700 text-slate-300 px-3 py-1 rounded-lg text-xs flex items-center gap-2 hover:border-slate-500 transition">
+<span>Hôm nay</span>
+<svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+<div class="flex items-center justify-around py-3">
+<!-- Donut Gauge Chart -->
+<div class="relative w-36 h-36 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 100 100">
+<!-- Track -->
+<circle cx="50" cy="50" fill="none" r="38" stroke="rgba(255, 255, 255, 0.08)" stroke-width="11"></circle>
+<!-- Zero/Initial Arc Indicator -->
+<circle cx="50" cy="50" fill="none" r="38" stroke="#0077b6" stroke-dasharray="238.7" stroke-dashoffset="200" stroke-linecap="round" stroke-width="11"></circle>
+</svg>
+<!-- Center Metric -->
+<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+<span class="text-xl font-bold text-white">0%</span>
+<span class="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">NAM</span>
+</div>
+</div>
+<!-- Legend & Stats -->
+<div class="space-y-3 w-44">
+<!-- Nam -->
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center gap-2 text-slate-300">
+<span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+<span>Nam</span>
+</div>
+<div class="flex items-center gap-3 font-semibold">
+<span class="text-white">0</span>
+<span class="text-slate-400 text-[11px] w-6 text-right">0%</span>
+</div>
+</div>
+<!-- Nữ -->
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center gap-2 text-slate-300">
+<span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span>
+<span>Nữ</span>
+</div>
+<div class="flex items-center gap-3 font-semibold">
+<span class="text-white">0</span>
+<span class="text-slate-400 text-[11px] w-6 text-right">0%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Charts Row -->
+<!-- BEGIN: Telemetry & Cells Row -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-3.5" data-purpose="telemetry-and-cells-row">
+<!-- Left: Telemetry / Hardware Status of Rugged Case -->
+<div class="tactical-card rounded-2xl p-4 lg:col-span-7 flex flex-col justify-between">
+<div class="flex items-center justify-between mb-3">
+<h3 class="font-semibold text-white text-sm">Trạng thái vali thu nhận</h3>
+<svg class="w-4 h-4 text-slate-500 hover:text-slate-300 cursor-pointer" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<!-- Gauges Grid -->
+<div class="grid grid-cols-4 gap-2.5 mb-3.5">
+<!-- CPU -->
+<div class="bg-slate-900/80 border border-slate-700/60 rounded-xl p-2.5 flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] text-slate-400 font-bold uppercase">CPU</span>
+<span class="text-xs font-bold text-white">27%</span>
+<div class="w-12 h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
+<div class="bg-emerald-400 h-full w-[27%]"></div>
+</div>
+</div>
+</div>
+<!-- RAM -->
+<div class="bg-slate-900/80 border border-slate-700/60 rounded-xl p-2.5 flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M4 6h16M4 10h16M4 14h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] text-slate-400 font-bold uppercase">RAM</span>
+<span class="text-xs font-bold text-white">62%</span>
+<div class="w-12 h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
+<div class="bg-blue-500 h-full w-[62%]"></div>
+</div>
+</div>
+</div>
+<!-- Ổ ĐĨA -->
+<div class="bg-slate-900/80 border border-slate-700/60 rounded-xl p-2.5 flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] text-slate-400 font-bold uppercase">Ổ ĐĨA</span>
+<span class="text-xs font-bold text-white">85%</span>
+<div class="w-12 h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
+<div class="bg-amber-500 h-full w-[85%]"></div>
+</div>
+</div>
+</div>
+<!-- CHIP AI -->
+<div class="bg-slate-900/80 border border-slate-700/60 rounded-xl p-2.5 flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] text-slate-400 font-bold uppercase">CHIP AI</span>
+<span class="text-xs font-bold text-white">38%</span>
+<div class="w-12 h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
+<div class="bg-fuchsia-500 h-full w-[38%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Progress Bars (Temperature & Battery) -->
+<div class="space-y-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800/80 mb-3.5">
+<!-- System Temp -->
+<div class="flex items-center justify-between text-xs gap-4">
+<span class="text-slate-400 w-32 flex-shrink-0">Nhiệt độ hệ thống</span>
+<div class="flex-1 h-2 rounded-full temp-gauge-bar relative overflow-hidden">
+<div class="absolute right-0 top-0 bottom-0 bg-slate-900/70 w-[45%]"></div>
+</div>
+<span class="text-white font-mono text-xs w-10 text-right">47°C</span>
+</div>
+<!-- Power / Battery -->
+<div class="flex items-center justify-between text-xs gap-4">
+<span class="text-slate-400 w-32 flex-shrink-0">Nguồn (pin dự phòng)</span>
+<div class="flex-1 h-2 rounded-full bg-slate-800 relative overflow-hidden">
+<div class="bg-cyan-400 h-full w-[85%] rounded-full shadow-[0_0_8px_rgba(6,182,212,0.6)]"></div>
+</div>
+<span class="text-white font-mono text-xs w-10 text-right">85%</span>
+</div>
+</div>
+<!-- Detailed Telemetry Specs Bar -->
+<div class="grid grid-cols-4 gap-2 pt-1 border-t border-slate-800/80 text-[11px]">
+<div>
+<span class="text-slate-500 block text-[10px] uppercase">ĐIỆN ÁP VÀO</span>
+<span class="font-bold text-white">5.6 V</span>
+</div>
+<div>
+<span class="text-slate-500 block text-[10px] uppercase">QUẠT TẢN</span>
+<span class="font-bold text-white">2.070 rpm</span>
+</div>
+<div>
+<span class="text-slate-500 block text-[10px] uppercase">THỜI GIAN CHẠY</span>
+<span class="font-bold text-white">4h 18m</span>
+</div>
+<div>
+<span class="text-slate-500 block text-[10px] uppercase">TRẠNG THÁI</span>
+<span class="font-bold text-emerald-400 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Vali sẵn sàng
+              </span>
+</div>
+</div>
+</div>
+<!-- Right: Cell Blocks (Danh sách buồng giam) -->
+<div class="tactical-card rounded-2xl p-4 lg:col-span-5 flex flex-col justify-between">
+<div class="flex items-center justify-between mb-2">
+<h3 class="font-semibold text-white text-sm">Danh sách buồng giam</h3>
+<a class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium" href="#">
+              Quản lý →
+            </a>
+</div>
+<!-- Table Content -->
+<div class="overflow-x-auto">
+<table class="w-full text-left text-xs">
+<thead>
+<tr class="text-[10px] text-slate-400 border-b border-slate-800 uppercase tracking-wider">
+<th class="py-2 pl-2">#</th>
+<th class="py-2">MÃ BUỒNG</th>
+<th class="py-2">TÊN BUỒNG</th>
+<th class="py-2">SỐ HỒ SƠ</th>
+<th class="py-2">TRẠNG THÁI</th>
+<th class="py-2 pr-2"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-800/60 font-medium">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-800/40 transition">
+<td class="py-2 pl-2 text-slate-400">1</td>
+<td class="py-2 text-white font-mono font-semibold">B01</td>
+<td class="py-2 text-slate-300">Buồng 01</td>
+<td class="py-2 text-slate-400 font-mono">0/255</td>
+<td class="py-2">
+<span class="text-emerald-400 flex items-center gap-1 text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Bình thường
+                    </span>
+</td>
+<td class="py-2 pr-2 text-right text-slate-500">›</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-800/40 transition">
+<td class="py-2 pl-2 text-slate-400">2</td>
+<td class="py-2 text-white font-mono font-semibold">B02</td>
+<td class="py-2 text-slate-300">Buồng 02</td>
+<td class="py-2 text-slate-400 font-mono">0/255</td>
+<td class="py-2">
+<span class="text-emerald-400 flex items-center gap-1 text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Bình thường
+                    </span>
+</td>
+<td class="py-2 pr-2 text-right text-slate-500">›</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-800/40 transition">
+<td class="py-2 pl-2 text-slate-400">3</td>
+<td class="py-2 text-white font-mono font-semibold">B101</td>
+<td class="py-2 text-slate-300">Buồng 101</td>
+<td class="py-2 text-slate-400 font-mono">0/255</td>
+<td class="py-2">
+<span class="text-emerald-400 flex items-center gap-1 text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Bình thường
+                    </span>
+</td>
+<td class="py-2 pr-2 text-right text-slate-500">›</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-slate-800/40 transition">
+<td class="py-2 pl-2 text-slate-400">4</td>
+<td class="py-2 text-white font-mono font-semibold">B102</td>
+<td class="py-2 text-slate-300">Buồng 102</td>
+<td class="py-2 text-slate-400 font-mono">0/255</td>
+<td class="py-2">
+<span class="text-emerald-400 flex items-center gap-1 text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Bình thường
+                    </span>
+</td>
+<td class="py-2 pr-2 text-right text-slate-500">›</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- END: Telemetry & Cells Row -->
+<!-- BEGIN: Recent Sessions & Audit Log Row -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-3.5" data-purpose="sessions-and-audit-row">
+<!-- Left: 5 Recent Sessions -->
+<div class="tactical-card rounded-2xl p-4 lg:col-span-6 flex flex-col justify-between">
+<div class="flex items-center justify-between mb-2">
+<h3 class="font-semibold text-white text-sm">5 phiên gần nhất</h3>
+<a class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium" href="#">
+              Xem tất cả →
+            </a>
+</div>
+<div class="space-y-2.5 mt-1">
+<!-- Session 1 (Active) -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition">
+<div class="flex items-center gap-3">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-bold text-white text-xs font-mono">S20260918-0002</span>
+<span class="text-slate-400 text-xs">Nguyễn Ngọc Hải</span>
+</div>
+<span class="text-[11px] text-slate-500 block">nhập 0 hồ sơ · 18/09/2026 01:56</span>
+</div>
+</div>
+<span class="px-2.5 py-1 bg-emerald-950/50 border border-emerald-500/40 text-emerald-400 rounded-md text-[11px] font-medium">
+                Đang mở
+              </span>
+</div>
+<!-- Session 2 (Closed) -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition">
+<div class="flex items-center gap-3">
+<span class="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-bold text-slate-300 text-xs font-mono">S20260917-0001</span>
+<span class="text-slate-400 text-xs">Nguyễn Ngọc Hải</span>
+</div>
+<span class="text-[11px] text-slate-500 block">nhập 0 hồ sơ · 17/09/2026 04:00</span>
+</div>
+</div>
+<span class="px-2.5 py-1 bg-slate-800 border border-slate-700 text-slate-400 rounded-md text-[11px] font-medium">
+                Đã đóng
+              </span>
+</div>
+</div>
+</div>
+<!-- Right: Activity Logs (Nhật ký hoạt động) -->
+<div class="tactical-card rounded-2xl p-4 lg:col-span-6 flex flex-col justify-between">
+<div class="flex items-center justify-between mb-2">
+<h3 class="font-semibold text-white text-sm">Nhật ký hoạt động</h3>
+<a class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium" href="#">
+              Xem báo cáo →
+            </a>
+</div>
+<!-- Timeline List -->
+<div class="relative pl-6 space-y-3.5 my-1 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-blue-600/30">
+<!-- Log Entry 1 -->
+<div class="relative flex flex-col text-xs leading-tight">
+<span class="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-[#090e18]"></span>
+<span class="text-slate-200">
+<strong class="font-semibold text-white">Nguyễn Ngọc Hải</strong> đã đăng nhập auth
+              </span>
+<span class="text-[10px] text-slate-500 mt-0.5">18/09/2026 03:37</span>
+</div>
+<!-- Log Entry 2 -->
+<div class="relative flex flex-col text-xs leading-tight">
+<span class="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-[#090e18]"></span>
+<span class="text-slate-200">
+<strong class="font-semibold text-white">Nguyễn Ngọc Hải</strong> đã tạo <span class="text-blue-400 font-mono">S20260918-0002</span>
+</span>
+<span class="text-[10px] text-slate-500 mt-0.5">18/09/2026 01:56</span>
+</div>
+<!-- Log Entry 3 -->
+<div class="relative flex flex-col text-xs leading-tight">
+<span class="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-[#090e18]"></span>
+<span class="text-slate-200">
+<strong class="font-semibold text-white">Nguyễn Ngọc Hải</strong> đã xóa <span class="text-blue-400 font-mono">S20260918-0001</span>
+</span>
+<span class="text-[10px] text-slate-500 mt-0.5">18/09/2026 01:56</span>
+</div>
+<!-- Log Entry 4 -->
+<div class="relative flex flex-col text-xs leading-tight">
+<span class="absolute -left-6 top-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-[#090e18]"></span>
+<span class="text-slate-200">
+<strong class="font-semibold text-white">Nguyễn Ngọc Hải</strong> đã xóa cp01
+              </span>
+<span class="text-[10px] text-slate-500 mt-0.5">18/09/2026 01:56</span>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Recent Sessions & Audit Log Row -->
+</main>
+<!-- END: DashboardBody -->
+</div>
+</body></html>

@@ -1,0 +1,1942 @@
+/* ============================================================================
+ * dashboardHome.css — theme sáng/tối cho RIÊNG màn hình dashboard.
+ *
+ * SCOPE GUARD: thuộc tính `data-dash-theme` chỉ được Dashboard.jsx gắn lên `.app`
+ * khi `page === "dashboard"`. Mọi rule trong file này hoặc là class `.dh-*`, hoặc
+ * bị khoá theo `.app[data-dash-theme="light"]`. Không trang nào khác có thuộc tính
+ * đó, nên file này KHÔNG THỂ ảnh hưởng trang khác.
+ *
+ * dashboard.css và styles.css KHÔNG bị sửa bởi tính năng này.
+ *
+ * Hai cái bẫy của dashboard.css phải nhớ:
+ *   1. `dashboard.css:12-19` có rule toàn cục
+ *      `svg { width:20px; height:20px; fill:none; stroke:currentColor }`.
+ *      → mọi SVG mới phải tự set width/height, và `<text>` phải tự set `fill`
+ *        (vì `fill:none` kế thừa vào text → nhãn trục vô hình).
+ *   2. `dashboard.css:4556-4685` là block `!important` khoá chrome
+ *      (.app/.header/.sidebar/.nav-item…). Rule thường KHÔNG THỂ thắng
+ *      `!important`, nên phần override chrome bên dưới buộc phải có `!important`.
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * 1. TOKEN — dark là MẶC ĐỊNH, light là override.
+ *
+ * Cố ý bất đối xứng: không có block `[data-dash-theme="dark"]`. Nếu hook lỗi
+ * hoặc attribute bị mất, trang vẫn render đúng tông tối thay vì vỡ.
+ * ------------------------------------------------------------------------- */
+.dh-page {
+  --dh-page-bg: #070b13;
+
+  --dh-panel-bg: linear-gradient(180deg, rgba(16, 24, 43, .85) 0%, rgba(10, 16, 29, .95) 100%);
+  --dh-panel-border: rgba(255, 255, 255, .07);
+  --dh-panel-radius: 16px;
+  --dh-panel-shadow: none;
+  /* Bóng đậm hơn cho panel biểu đồ 14 ngày (theo yêu cầu). */
+  --dh-panel-shadow-strong: 0 10px 28px rgba(0, 0, 0, .45);
+  --dh-panel-blur: blur(12px);
+  --dh-panel-hover-border: rgba(59, 130, 246, .3);
+
+  --dh-inset-bg: rgba(15, 23, 42, .8);
+  --dh-inset-border: rgba(51, 65, 85, .6);
+
+  --dh-ink: #ffffff;
+  --dh-ink-2: #cbd5e1;
+  --dh-ink-3: #94a3b8;
+  /* slate-500 trên nền #070b13 chỉ đạt ~4.1:1 → nhích lên cho đủ AA (5.2:1). */
+  --dh-ink-4: #7c8aa0;
+  --dh-track: rgba(30, 41, 59, .9);
+  --dh-grid-col: rgba(30, 41, 59, .55);
+
+  --dh-blue: #3b82f6;
+  --dh-blue-ink: #60a5fa;
+  --dh-blue-soft: rgba(59, 130, 246, .10);
+  --dh-blue-line: rgba(59, 130, 246, .30);
+
+  --dh-emerald: #10b981;
+  --dh-emerald-ink: #34d399;
+  --dh-emerald-soft: rgba(16, 185, 129, .10);
+  --dh-emerald-line: rgba(16, 185, 129, .30);
+
+  --dh-amber: #f59e0b;
+  --dh-amber-ink: #fbbf24;
+  --dh-amber-soft: rgba(245, 158, 11, .10);
+
+  --dh-purple: #8b5cf6;
+  --dh-purple-ink: #a78bfa;
+  --dh-purple-soft: rgba(139, 92, 246, .10);
+
+  --dh-fuchsia: #d946ef;
+  --dh-fuchsia-soft: rgba(217, 70, 239, .10);
+
+  --dh-pink: #ec4899;
+
+  --dh-cyan: #22d3ee;
+  --dh-cyan-glow: 0 0 8px rgba(6, 182, 212, .6);
+
+  /* Cỡ chữ: dark 13px, light 12px. */
+  --dh-fs-body: 13px;
+  --dh-fs-label: 11px;
+  --dh-fs-note: 11px;
+  --dh-fs-value: 20px;
+  --dh-fs-title: 14px;
+  --dh-fs-hero: 20px;
+  --dh-fs-meta: 11px;
+
+  /* Chỉ số hình học khác nhau giữa 2 theme. */
+  --dh-gap: 8px;               /* khoảng cách giữa các hàng — mockup: 9-10px */
+  --dh-stat-accent-w: 4px;      /* light: 0 — thẻ light không có viền trái */
+  --dh-tile: 58px;              /* ô icon trong stat card (mockup: 58px) */
+  --dh-tile-radius: 16px;
+  --dh-gauge-bar: block;        /* thanh mini dưới giá trị — bật ở cả 2 theme */
+  --dh-gauge-track-bg: rgba(30, 41, 59, .9);
+  /* Đo từ mockup: vòng ngoài ~105-110px, bề dày ~15px. `--dh-donut-w` là
+     stroke-width trong viewBox 100 → 14 ≈ 15px thật. */
+  --dh-donut-size: 106px;
+  --dh-donut-w: 14;
+  --dh-donut-foot: none;                             /* light: flex — mockup tối không có dòng chân */
+  /* Track của vành khuyên: xanh navy đậm (mockup tối), không phải màu xám. */
+  --dh-donut-border: rgba(37, 99, 235, .35);
+  --dh-chart-fill: .35;
+  --dh-chart-stroke: 2.5;
+  --dh-chart-grid: rgba(51, 65, 85, .9);
+
+  --dh-meter-track-bg: #1e293b;
+  --dh-temp-gradient: linear-gradient(90deg, #00d2ff 0%, #10b981 40%, #eab308 75%, #ef4444 100%);
+
+  /* Banner kính mờ — dark: navy rất tối, sáng dần ở giữa (mockup đo được
+     #020814 ở mép và ~#091d3e quanh x=500). */
+  --dh-hero-bg:
+    radial-gradient(58% 220% at 38% 45%, rgba(30, 90, 200, .30) 0%, rgba(30, 90, 200, 0) 68%),
+    linear-gradient(180deg, #02060f 0%, #040c1c 100%);
+  --dh-hero-wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 80' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%233b82f6' stop-opacity='0'/%3E%3Cstop offset='.3' stop-color='%233b82f6' stop-opacity='.55'/%3E%3Cstop offset='.68' stop-color='%2360a5fa' stop-opacity='.75'/%3E%3Cstop offset='1' stop-color='%2338bdf8' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 58C90 12 190 6 300 34s180 62 300 34 200-52 400-24' fill='none' stroke='url(%23w)' stroke-width='1.6' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M0 70C110 34 200 30 320 54s170 44 290 22 210-40 390-16' fill='none' stroke='url(%23w)' stroke-width='1.1' opacity='.55' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --dh-hero-border: rgba(6, 182, 212, .2);
+  --dh-hero-shadow: 0 10px 15px -3px rgba(0, 0, 0, .3);
+  --dh-hero-blur: blur(24px);
+  /* `screen` làm các rèm cộng sáng vào nhau → chỗ chồng lên nhau rực lên như
+     cực quang thật. Trên nền sáng thì screen -> gần trắng (mất màu) nên light
+     để `normal`. */
+  --dh-aurora-blend: screen;
+}
+
+/* --- Theme sáng ---------------------------------------------------------
+ * Ba giá trị dưới đây CỐ Ý khác mockup light, vì mockup không đạt WCAG AA:
+ *   - nhãn/ghi chú 10-11px: mockup #94a3b8 = 2.56:1 trên #fff  → FAIL (cần 4.5:1)
+ *                            dùng    #64748b = 4.76:1 trên #fff  → PASS
+ *   - chữ "Bình thường"/"Vali sẵn sàng"/pill ↑0%: mockup #059669 = 3.58:1 trên #ecfdf5 → FAIL
+ *                            dùng    #047857 = 5.20:1 trên #ecfdf5 → PASS
+ *   - ô Ổ ĐĨA: mockup light dùng indigo #4f46e5, chỉ cách RAM #2563eb ΔE 6.7
+ *     (ngưỡng phân biệt 15) nên nhìn như cùng màu → dùng purple như bản dark.
+ * Cùng house style với styles.css:9551-9560 (đã sửa đúng lỗi này một lần).
+ * ---------------------------------------------------------------------- */
+.app[data-dash-theme="light"] .dh-page {
+  --dh-page-bg: #f3f6fb;
+
+  --dh-panel-bg: #ffffff;
+  --dh-panel-border: rgba(226, 232, 240, .8);
+  --dh-panel-radius: 12px;
+  --dh-panel-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+  --dh-panel-shadow-strong: 0 10px 24px rgba(15, 23, 42, .14);
+  --dh-panel-blur: none;
+  --dh-panel-hover-border: rgba(203, 213, 225, .9);
+
+  --dh-inset-bg: #f8fafc;
+  --dh-inset-border: #f1f5f9;
+
+  --dh-ink: #0f172a;
+  --dh-ink-2: #334155;
+  /* Mockup light dùng slate-400 (#94a3b8) cho nhãn 10-11px = 2.56:1 → trượt AA.
+     Hạ xuống slate-600 / slate-500: 7.5:1 và 4.76:1 trên nền trắng, vẫn giữ
+     được hai cấp phân biệt. */
+  --dh-ink-3: #475569;
+  --dh-ink-4: #64748b;
+  --dh-track: #f1f5f9;
+  --dh-grid-col: #f4f7fb;
+
+  --dh-blue: #2563eb;
+  --dh-blue-ink: #2563eb;
+  --dh-blue-soft: #eff6ff;
+  --dh-blue-line: #dbeafe;
+
+  --dh-emerald: #10b981;
+  --dh-emerald-ink: #047857;
+  --dh-emerald-soft: #ecfdf5;
+  --dh-emerald-line: #a7f3d0;
+
+  --dh-amber: #d97706;
+  --dh-amber-ink: #b45309;
+  --dh-amber-soft: #fffbeb;
+
+  --dh-purple: #9333ea;
+  --dh-purple-ink: #9333ea;
+  --dh-purple-soft: #faf5ff;
+
+  --dh-fuchsia: #c026d3;
+  --dh-fuchsia-soft: #fdf4ff;
+
+  --dh-pink: #db2777;
+
+  --dh-cyan: #06b6d4;
+  --dh-cyan-glow: none;
+
+  --dh-fs-body: 12px;
+  --dh-fs-label: 10px;
+  --dh-fs-note: 10.5px;
+  --dh-fs-value: 20px;
+  --dh-fs-title: 14px;
+  --dh-fs-hero: 18px;
+  --dh-fs-meta: 11px;
+
+  --dh-gap: 8px;
+  --dh-stat-accent-w: 0;
+  --dh-tile: 58px;
+  --dh-tile-radius: 16px;
+  --dh-gauge-bar: block;
+  /* Nền track riêng cho light: tile ở đây là nền trắng đục nên #f1f5f9 (màu
+     track dùng chỗ khác) gần như chìm hẳn, phải đậm hơn mới thấy được. */
+  --dh-gauge-track-bg: #e2e8f0;
+  --dh-donut-size: 106px;
+  --dh-donut-w: 14;
+  /* `grid` chứ không phải `flex`: hàng tiêu đề dùng subgrid của
+     `.dh-donut__side` để thẳng cột với các con số — flex thì subgrid vô hiệu. */
+  --dh-donut-foot: grid;
+  /* Track = blue-300. Mockup light vẽ vòng ngoài bằng xanh nhạt, cung dữ liệu
+     (Nam) đè lên bằng xanh đậm hơn hẳn nên vẫn phân biệt được. */
+  --dh-donut-border: #93c5fd;
+  --dh-chart-fill: .35;
+  --dh-chart-stroke: 2.2;
+  --dh-chart-grid: #e3ebf7;
+
+  --dh-meter-track-bg: #f1f5f9;
+  /* Mốc màu đặt theo % của CẢ thanh: mask che từ 72% (47°C/65°C) trở đi, nên
+     đỏ phải nằm ngay dưới mốc đó mới thấy được. */
+  --dh-temp-gradient: linear-gradient(90deg, #2563eb 0%, #22c55e 30%, #eab308 52%, #f97316 63%, #ef4444 72%, #ef4444 100%);
+
+  /* Banner kính mờ — light: gần trắng, chỉ hơi ngả xanh ở khoảng 60% bề ngang
+     (mockup: #f5faff ở trái, #deeefb quanh x=600-700). */
+  --dh-hero-bg:
+    linear-gradient(90deg, #ffffff 0%, #f5faff 28%, #e2eefc 62%, #f7fbff 100%);
+  --dh-hero-wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 80' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%231d4ed8' stop-opacity='0'/%3E%3Cstop offset='.32' stop-color='%232563eb' stop-opacity='.35'/%3E%3Cstop offset='.7' stop-color='%233b82f6' stop-opacity='.45'/%3E%3Cstop offset='1' stop-color='%2360a5fa' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 58C90 12 190 6 300 34s180 62 300 34 200-52 400-24' fill='none' stroke='url(%23w)' stroke-width='1.6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --dh-hero-border: rgba(255, 255, 255, .4);
+  --dh-hero-shadow: 0 10px 15px -3px rgba(14, 165, 233, .05);
+  --dh-hero-blur: blur(24px);
+  --dh-aurora-blend: normal;
+}
+
+/* ---------------------------------------------------------------------------
+ * 2. CHROME (header + sidebar + body) theo theme.
+ * ------------------------------------------------------------------------- */
+
+/* --- Nền app khi đang ở dashboard ---------------------------------------
+ * `.dh-page` chỉ tô được vùng nội dung của nó, còn `.content` có padding 16px,
+ * gutter scrollbar và mép phải vẫn lộ nền gradient xanh navy của `.app` → thành
+ * một khung viền lệch màu quanh dashboard. Phủ luôn nền `.app` bằng đúng màu
+ * nền trang để cả cửa sổ liền một khối.
+ *
+ * Luật này là MẶC ĐỊNH TỐI (chỉ cần thuộc tính `data-dash-theme` có mặt), theme
+ * sáng ghi đè ngay bên dưới — cùng specificity nên luật đứng sau thắng.
+ * ---------------------------------------------------------------------- */
+.app[data-dash-theme] {
+  background: #070b13 !important;
+}
+
+body:has(.app[data-dash-theme]) {
+  background: #070b13;
+}
+
+.app[data-dash-theme] .content::-webkit-scrollbar-track {
+  background: #070b13;
+}
+
+.app[data-dash-theme] .content::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+
+/* --- Chrome theme sáng --------------------------------------------------
+ * Cơ chế (a): re-point các token trung tính. Việc này tự động lật ~20 rule
+ * chrome KHÔNG dùng !important (.device-chip, .lang-switch, .notif-panel,
+ * .user-box, .brand-title, .panel…). KHÔNG đụng --primary/--primary-2/--primary-hi
+ * vì chúng nằm trong rule !important → sẽ half-flip trông rất lỗi.
+ * ---------------------------------------------------------------------- */
+.app[data-dash-theme="light"] {
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --bg: #ffffff;
+  --bg-deep: #f3f6fb;
+  --bg-panel: #ffffff;
+  --surface-hi: #ffffff;
+  --shadow: 0 1px 2px rgba(15, 23, 42, .06);
+}
+
+/* `body` là TỔ TIÊN của `.app` nên không thể với tới bằng descendant selector.
+   `:has()` đã có tiền lệ trong repo (dashboard.css:2715) và Electron 33 dùng
+   Chromium 130 nên hỗ trợ tốt. */
+body:has(.app[data-dash-theme="light"]) {
+  background: #f3f6fb;
+}
+
+/* Cơ chế (b): !important cho những chỗ hardcode màu tối hoặc bản thân đã
+   !important trong dashboard.css:4556-4685. */
+/* Phẳng đúng bằng màu nền trang: gradient nhạt của app làm vùng đệm 16px quanh
+   `.dh-page` sáng hơn nền trang một chút → thành vệt khung. */
+.app[data-dash-theme="light"] {
+  background: #f3f6fb !important;
+}
+
+.app[data-dash-theme="light"] .header {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e8edf5 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .05) !important;
+}
+
+.app[data-dash-theme="light"] .sidebar {
+  background: #ffffff !important;
+  border-right: 1px solid #e8edf5 !important;
+  color: #0f172a !important;
+}
+
+.app[data-dash-theme="light"] .nav-item {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: #94a3b8 !important;
+}
+
+.app[data-dash-theme="light"] .nav-item:hover {
+  background: #eff6ff !important;
+  border-color: transparent !important;
+  color: #2563eb !important;
+}
+
+.app[data-dash-theme="light"] .nav-item.active {
+  background: #2563eb !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, .28) !important;
+}
+
+.app[data-dash-theme="light"] .nav-icon {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+.app[data-dash-theme="light"] .nav-item.active .nav-icon {
+  background: transparent !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.app[data-dash-theme="light"] .security-card {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #64748b !important;
+}
+
+.app[data-dash-theme="light"] .security-icon {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+}
+
+.app[data-dash-theme="light"] .brand-subtitle {
+  color: #64748b !important;
+}
+
+.app[data-dash-theme="light"] .user-info span {
+  color: #64748b !important;
+}
+
+.app[data-dash-theme="light"] .icon-button {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Các khối header còn lại: chúng hardcode màu cyan/navy của theme tối (không
+   dùng token) nên re-point token KHÔNG chạm tới — phải ghi đè tường minh.
+   Selector đều có tiền tố `.app[data-dash-theme="light"]` nên chỉ áp khi đang
+   ở dashboard; specificity (0,4,0)+ thắng rule gốc (0,1,0)/(0,2,0). */
+
+/* Cụm chip thiết bị (Camera / Vân tay).
+   Mockup để nền TRUNG TÍNH cho cả chip hỏng lẫn chip chạy — chỉ icon đổi màu
+   (xanh/đỏ), không tô nền. Chữ dùng --dh-ink-2 (7.5:1 trên #f8fafc) chứ không
+   phải #64748b như bản tô nền trước đây. */
+.app[data-dash-theme="light"] .device-chips {
+  background: transparent;
+}
+
+.app[data-dash-theme="light"] .device-chip {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+.app[data-dash-theme="light"] .device-chip.online { color: #059669; }
+.app[data-dash-theme="light"] .device-chip.offline { color: #64748b; }
+
+/* Ô đổi ngôn ngữ */
+.app[data-dash-theme="light"] .header-actions .lang-switch {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.app[data-dash-theme="light"] .header-actions .lang-switch-globe { color: #64748b; }
+.app[data-dash-theme="light"] .header-actions .lang-switch-sep { color: #cbd5e1; }
+
+.app[data-dash-theme="light"] .header-actions .lang-switch button {
+  color: #475569;
+}
+
+.app[data-dash-theme="light"] .header-actions .lang-switch button:hover {
+  color: #0f172a;
+  background: rgba(15, 23, 42, .06);
+}
+
+/* Nút đăng xuất */
+.app[data-dash-theme="light"] .logout-button {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+.app[data-dash-theme="light"] .logout-button:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Panel thông báo (dropdown của chuông) */
+.app[data-dash-theme="light"] .notif-panel {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .12);
+}
+
+.app[data-dash-theme="light"] .notif-item {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.app[data-dash-theme="light"] .notif-item:hover { background: #f1f5f9; }
+
+.app[data-dash-theme="light"] .notif-item-cta-edit {
+  background: #eff6ff;
+  border-color: #dbeafe;
+  color: #2563eb;
+}
+
+.app[data-dash-theme="light"] .notif-item-cta-edit:hover {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+/* Scrollbar: mockup light đổi sang thumb xám nhạt. Phải gắn trực tiếp vào phần
+   tử cuộn (.content) — pseudo-element ::-webkit-scrollbar không nhận descendant
+   combinator từ tổ tiên. */
+.app[data-dash-theme="light"] .content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app[data-dash-theme="light"] .content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+/* --- Phóng theo màn hình kiosk ------------------------------------------
+ * Mockup vẽ ở 1280x720; máy kiosk chạy 1920x1080 — CÙNG tỉ lệ 16:9. Bố cục
+ * dashboard vì thế được thiết kế cố định theo 720p, và ở 1080p nó chỉ chiếm
+ * 2/3 trên của cửa sổ, chữ trông nhỏ đi rõ rệt.
+ *
+ * `zoom` (Chromium 128+, Electron 33 dùng Chromium 130) phóng TOÀN BỘ chrome
+ * + nội dung dashboard lên 1.5 lần, trả lại đúng không gian thiết kế
+ * 1280x720. Khác `transform: scale()` ở hai điểm quan trọng: chữ được raster
+ * hoá ở cỡ thật (không bị mờ) và `position: fixed` của modal/toast vẫn neo
+ * đúng viewport.
+ *
+ * Khoá theo `data-dash-theme` nên các trang khác không bị phóng. Mốc 1600px
+ * để màn 1280/1440 giữ nguyên tỉ lệ 1:1. */
+@media (min-width: 1600px) {
+  .app[data-dash-theme] {
+    zoom: 1.5;
+    /* HAI ĐƠN VỊ XỬ SỰ KHÁC NHAU — đừng "sửa" cho giống nhau:
+       - `%` được Chromium chia sẵn theo zoom: `100%` ở đây = 1920/1.5 = 1280,
+         đúng bằng bề ngang thiết kế. Chia thêm lần nữa là còn 853px và toàn bộ
+         chữ trong thẻ bị xuống dòng.
+       - `dvh` thì KHÔNG chia: `100dvh` = 1080, phóng lên thành 1620 → tràn mất
+         540px. Nên vế chiều cao phải tự chia. */
+    width: 100%;
+    height: calc(100dvh / 1.5);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 2b. HEADER GỌN — CHỈ DASHBOARD
+ *
+ * Mockup vẽ header thấp hơn và gọn hơn bản mặc định của app: cao 50px (thay vì
+ * 55), tiêu đề 17px nằm MỘT dòng, ô ngôn ngữ chỉ còn "VI | EN", nút đăng xuất
+ * chỉ còn icon. Ở khổ 1280px bản mặc định làm tiêu đề xuống 2 dòng.
+ *
+ * Toàn bộ khối này khoá theo `.app[data-dash-theme]` — các trang khác giữ
+ * nguyên header cũ (quyết định có chủ ý, xem [[dashboard-theme-scope]]).
+ * ------------------------------------------------------------------------- */
+
+.app[data-dash-theme] {
+  /* dashboard.css:30 đặt 55px; specificity (0,2,0) > (0,1,0) nên thắng. */
+  grid-template-rows: 50px minmax(0, 1fr);
+}
+
+/* --- Brand: logo nhỏ lại, tiêu đề 1 dòng --------------------------------- */
+.app[data-dash-theme] .header {
+  padding: 0 14px 0 8px;
+}
+
+.app[data-dash-theme] .brand { gap: 28px; }
+
+.app[data-dash-theme] .brand-logo {
+  width: 36px;
+  height: 36px;
+}
+
+/* nowrap là điểm mấu chốt: ở 20px tiêu đề dài 558px, cộng cụm phải ~525px và
+   sidebar 56px là tràn 1280px → rơi xuống 2 dòng. 17px cho ra ~406px, đúng
+   bằng mockup. */
+.app[data-dash-theme] .brand-title {
+  font-size: 17px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.app[data-dash-theme] .brand-subtitle {
+  margin-top: 2px;
+  font-size: 11.5px;
+}
+
+.app[data-dash-theme] .header-actions { gap: 10px; }
+
+/* --- Chip thiết bị: bỏ khung ngoài, mỗi chip tự có viền ------------------- */
+.app[data-dash-theme] .device-chips {
+  gap: 8px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.app[data-dash-theme] .device-chip {
+  gap: 7px;
+  height: 32px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--dh-ink-2);
+  background: var(--dh-inset-bg);
+  border: 1px solid var(--dh-panel-border);
+}
+
+/* Mockup vẽ ICON thiết bị (máy ảnh / vân tay) thay cho chấm tròn. Vẽ bằng
+   mask-image để không phải nhét SVG vào markup dùng chung của Header.jsx —
+   markup đó còn phục vụ mọi trang khác. Màu icon lấy theo currentColor của
+   chip (đỏ khi mất kết nối, xanh khi online). */
+.app[data-dash-theme] .device-chip-dot { display: none; }
+
+.app[data-dash-theme] .device-chip::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  -webkit-mask: var(--dh-chip-icon) center / contain no-repeat;
+  mask: var(--dh-chip-icon) center / contain no-repeat;
+}
+
+.app[data-dash-theme] .device-chip--camera {
+  --dh-chip-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h2l1.2-2h7.6L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Ccircle cx='12' cy='12.5' r='3.2'/%3E%3C/svg%3E");
+}
+
+.app[data-dash-theme] .device-chip--fp {
+  --dh-chip-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4.5a6.5 6.5 0 0 0-6.5 6.5v2.2M12 4.5A6.5 6.5 0 0 1 18.5 11v3.5M12 8a3 3 0 0 0-3 3v4.5M12 8a3 3 0 0 1 3 3v5M12 11.5v6M7 17v2M17 17.5v3'/%3E%3C/svg%3E");
+}
+
+/* Chip online: chỉ đổi màu icon, KHÔNG tô nền như bản cũ — mockup để nền
+   trung tính cho cả hai chip. */
+.app[data-dash-theme] .device-chip.online { color: var(--dh-emerald); }
+.app[data-dash-theme] .device-chip.offline { color: var(--dh-ink-4); }
+
+/* --- Ô ngôn ngữ: chỉ còn VI | EN, bỏ quả địa cầu và nhãn dài -------------- */
+.app[data-dash-theme] .header-actions .lang-switch {
+  height: 32px;
+  padding: 3px;
+  border-radius: 999px;
+}
+
+.app[data-dash-theme] .header-actions .lang-switch-globe,
+.app[data-dash-theme] .header-actions .lang-switch-sep,
+.app[data-dash-theme] .header-actions .lang-switch-flag { display: none; }
+
+.app[data-dash-theme] .header-actions .lang-switch .lang-switch-label { display: none; }
+.app[data-dash-theme] .header-actions .lang-switch .lang-switch-short { display: inline; }
+
+.app[data-dash-theme] .header-actions .lang-switch button {
+  height: 26px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app[data-dash-theme] .header-actions .lang-switch button.active {
+  box-shadow: none;
+}
+
+/* --- Chuông: bỏ nền khối, chỉ còn icon ----------------------------------- */
+.app[data-dash-theme] .header-actions .icon-button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+}
+
+.app[data-dash-theme] .header-actions .icon-button:hover { background: var(--dh-blue-soft); }
+
+/* --- Khối người dùng: avatar 28px, tên 1 dòng ---------------------------- */
+.app[data-dash-theme] .user-box { gap: 9px; }
+
+.app[data-dash-theme] .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.app[data-dash-theme] .user-info { min-width: 0; gap: 1px; }
+.app[data-dash-theme] .user-info strong { font-size: 13px; white-space: nowrap; }
+.app[data-dash-theme] .user-info span { font-size: 11px; margin-top: 0; }
+
+/* --- Đăng xuất: chỉ còn icon trong ô vuông 32px -------------------------- */
+.app[data-dash-theme] .logout-button {
+  gap: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.app[data-dash-theme] .logout-button .logout-button__label { display: none; }
+.app[data-dash-theme] .logout-button svg { width: 16px; height: 16px; }
+
+/* --- Sidebar: ô nav 40px (mockup) thay vì 44px, bỏ hộp lồng trong icon --- */
+.app[data-dash-theme] .sidebar { padding: 4px 8px; }
+.app[data-dash-theme] .nav { gap: 6px; }
+
+.app[data-dash-theme] .nav-item {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+}
+
+/* Mockup đặt icon trực tiếp trong ô vuông, không có hộp 34px lồng bên trong. */
+.app[data-dash-theme] .nav-icon {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+}
+
+.app[data-dash-theme] .nav-item .nav-icon svg { width: 20px; height: 20px; }
+
+/* ---------------------------------------------------------------------------
+ * 3. TRANG DASHBOARD
+ * ------------------------------------------------------------------------- */
+.content:has(.dh-page) {
+  padding: 8px 16px 8px 20px;
+}
+
+/* Chỉ ghi đè gap, padding và màu. Bố cục full màn hình đã có sẵn ở `.page`
+   (dashboard.css:588: max-width:none; margin:0; height:100%; flex column) —
+   project đã cố ý bỏ giới hạn bề rộng, nên ĐỪNG đặt lại max-width ở đây.
+   `padding: 0` đè `styles.css:900` (.page: 20px 24px 40px) — gutter đã do
+   `.content:has(.dh-page)` lo, cộng thêm ở đây là lề đôi. */
+.dh-page {
+  padding: 0;
+  gap: var(--dh-gap);
+  font-size: var(--dh-fs-body);
+  color: var(--dh-ink-2);
+}
+
+.dh-row {
+  display: grid;
+  gap: var(--dh-gap);
+}
+
+/* Tỉ lệ cột ĐO TỪ MOCKUP: panel trái 636px, panel phải 541px (khe 11px) trên
+   tổng 1188px. Không phải 7:5 (686/491) như bản trước — 7:5 làm cột phải hẹp
+   hơn mockup 50px nên bảng buồng giam và vành khuyên bị bó. */
+.dh-row--7-5 { grid-template-columns: 636fr 541fr; }
+.dh-row--4   { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (max-width: 1100px) {
+  .dh-row--7-5 { grid-template-columns: minmax(0, 1fr); }
+  .dh-row--4   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dh-panel,
+  .dh-pulse,
+  .dh-hero__aurora,
+  .dh-donut__ring.is-loading .dh-donut__svg {
+    animation: none !important;
+    transition: none !important;
+  }
+  .dh-pulse { opacity: 1; }
+  /* Cung loading đứng yên vẫn đọc được là "đang tải", chỉ là không quay. */
+}
+
+/* ---------------------------------------------------------------------------
+ * 4. COMPONENT
+ *
+ * Lớp này KHÔNG được biết theme nào đang bật — mọi khác biệt đã nằm ở token.
+ * Không có selector [data-dash-theme] nào dưới đây.
+ * ------------------------------------------------------------------------- */
+
+/* Bẫy: dashboard.css:12-19 ép mọi <svg> thành 20x20. Đặt mặc định 20px cho icon
+   rồi ghi đè riêng cho chart/donut. */
+.dh-page svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dh-page .dh-chart__svg,
+.dh-page .dh-donut__svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Nền trang theo theme. */
+.dh-page {
+  background: var(--dh-page-bg);
+}
+
+/* --- Hero ---------------------------------------------------------------- */
+/* Banner kính mờ (glassmorphism) + các dải aurora + ảnh vali phía sau.
+   Chiều cao do thẻ phiên bên phải quyết định (mockup: 76px), không đặt
+   min-height — nếu đặt, hero sẽ cao hơn thẻ và lệch khỏi mockup. */
+.dh-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dh-gap);
+  flex-wrap: wrap;
+  padding: 4px 20px 4px 18px;
+  border-radius: var(--dh-panel-radius);
+  border: 1px solid var(--dh-hero-border);
+  background: var(--dh-hero-bg);
+  box-shadow: var(--dh-hero-shadow);
+  /* KHÔNG thêm dòng -webkit-backdrop-filter song song: minifier gộp hai khai
+     báo cùng giá trị và CHỈ giữ bản -webkit-, làm mất hiệu ứng. */
+  backdrop-filter: var(--dh-hero-blur);
+}
+
+/* Ảnh vali: bám mép TRÊN của khung rồi bị `.dh-hero__bg` cắt ở đáy — đúng như
+   mockup (chỉ thấy nửa trên của vali). Toạ độ lấy theo mockup: rộng 28.5% khung,
+   cách mép phải 15%. */
+.dh-hero__photo {
+  position: absolute;
+  top: 0;
+  right: 15%;
+  width: 28.5%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Nội dung phải nổi LÊN TRÊN hai quầng aurora. */
+.dh-hero > .dh-hero__greet,
+.dh-hero > .dh-hero__side {
+  position: relative;
+  z-index: 1;
+}
+
+/* Lớp cắt: phủ đúng khung hero, bo góc theo, và cắt 2 quầng to hơn khung
+   (600x256 / 384x192) để chúng không tràn khắp trang. */
+.dh-hero__bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Đường sóng xanh vắt ngang nửa trái hero — chi tiết đặc trưng của CẢ HAI
+   mockup (bản tối thấy rõ nhất: một nét cong mảnh, mờ dần ở hai đầu). Vẽ bằng
+   `::after` + SVG nền nên không phải thêm phần tử vào JSX.
+   `vector-effect: non-scaling-stroke` giữ nét mảnh đều dù SVG bị kéo giãn. */
+.dh-hero__bg::after {
+  content: "";
+  position: absolute;
+  left: 2%;
+  right: 30%;
+  top: 50%;
+  height: 74px;
+  transform: translateY(-50%);
+  background: var(--dh-hero-wave) center / 100% 100% no-repeat;
+}
+
+/* Bốn dải aurora của bản thiết kế trước bị mockup thay bằng nền phẳng + sóng.
+   Giữ chúng ở mức rất nhạt để nền không chết cứng, nhưng alpha phải thấp —
+   để nguyên thì trên nền trắng chúng thành vệt cyan đậm trông như lỗi render.
+   Chọn `span` (không phải `img`) để KHÔNG làm mờ ảnh vali nằm cùng lớp. */
+.dh-hero__bg > span { opacity: .22; }
+
+.app[data-dash-theme="light"] .dh-hero__bg > span { opacity: .12; }
+
+/* Ba DẢI LỤA aurora.
+ * Chìa khoá để ra "lụa" chứ không phải "quầng mờ": dùng ellipse RẤT DÀI (cao
+ * gấp ~2.4 lần khung) và blur vừa phải (24-32px). Blur lớn như bản trước (64px)
+ * làm dải tan thành một vệt mờ đều, mất hẳn hình dải.
+ * Ba dải lệch pha + lệch tốc độ nên chuyển động không trùng nhau. */
+/* Bốn DẢI LỤA (streak cực quang).
+ *
+ * Chìa khoá để ra "dải" chứ không phải "mảng màu":
+ *   1. DẢI PHẢI HẸP VÀ DÀI — width 70-190px, height 240-320% khung. Khối bè
+ *      ngang (như bản trước, 380-560px) + blur sẽ thành một mảng màu.
+ *   2. Gradient chạy theo CHIỀU DỌC dải, mờ ở hai đầu, rực ở giữa → thành vệt
+ *      sáng có đuôi tan, giống ánh sáng trên trời.
+ *   3. Xoay mỗi dải một góc khác nhau (9°-26°) để chúng cắt nhau thành hình
+ *      rèm bay, không song song cứng.
+ *   4. Blur vừa (14-22px) — đủ mềm nhưng không xoá mất thân dải.
+ */
+.dh-hero__aurora,
+.dh-hero__aurora--alt,
+.dh-hero__aurora--wide,
+.dh-hero__aurora--thin {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: var(--dh-aurora-blend);
+}
+
+/* Dải chính: to nhất, cyan -> trắng xanh, nằm ngoài cùng bên phải. */
+.dh-hero__aurora {
+  right: 10px;
+  top: -80%;
+  width: 170px;
+  height: 300%;
+  --rot: 17deg;
+  transform: rotate(var(--rot));
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(34, 211, 238, .10) 16%,
+    rgba(34, 211, 238, .55) 42%,
+    rgba(186, 230, 253, .72) 56%,
+    rgba(14, 165, 233, .30) 78%,
+    transparent 100%);
+  filter: blur(22px) saturate(140%);
+  animation: dh-aurora-flow 13s ease-in-out infinite alternate;
+}
+
+/* Dải 2: mảnh và nghiêng hơn, lệch phải. */
+.dh-hero__aurora--alt {
+  right: 170px;
+  top: -70%;
+  width: 95px;
+  height: 280%;
+  --rot: 24deg;
+  transform: rotate(var(--rot));
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(94, 234, 212, .48) 30%,
+    rgba(186, 230, 253, .62) 50%,
+    rgba(6, 182, 212, .26) 76%,
+    transparent 100%);
+  filter: blur(20px) saturate(150%);
+  animation: dh-aurora-flow 9s ease-in-out infinite alternate-reverse;
+}
+
+/* Dải 3: rộng hơn, mờ hơn, làm nền loang phía sau. */
+.dh-hero__aurora--wide {
+  right: 250px;
+  top: -60%;
+  width: 190px;
+  height: 260%;
+  --rot: 9deg;
+  transform: rotate(var(--rot));
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(56, 189, 248, .34) 38%,
+    rgba(37, 99, 235, .22) 64%,
+    transparent 100%);
+  filter: blur(28px) saturate(130%);
+  animation: dh-aurora-flow 17s ease-in-out infinite alternate;
+}
+
+/* Dải 4: vệt sáng mảnh, ngắn, tạo điểm nhấn. */
+.dh-hero__aurora--thin {
+  right: 330px;
+  top: -30%;
+  width: 60px;
+  height: 200%;
+  --rot: 28deg;
+  transform: rotate(var(--rot));
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(125, 211, 252, .60) 45%,
+    rgba(34, 211, 238, .28) 72%,
+    transparent 100%);
+  filter: blur(20px) saturate(150%);
+  animation: dh-aurora-flow 11s ease-in-out infinite alternate-reverse;
+}
+
+/* Uốn lượn: xoay + co giãn + trôi.
+ * Góc xoay lấy từ `--rot` của từng dải (xem `transform: rotate(17deg)` ở trên)
+ * rồi cộng/trừ đi — nếu hardcode góc trong keyframes thì animation sẽ GHI ĐÈ
+ * `transform` và mọi dải đều nghiêng cùng một góc. */
+@keyframes dh-aurora-flow {
+  0%   { transform: rotate(calc(var(--rot) - 6deg)) scale(.95) translate(0, 0); }
+  50%  { transform: rotate(calc(var(--rot) + 5deg)) scale(1.06) translate(-22px, 12px); }
+  100% { transform: rotate(calc(var(--rot) - 2deg)) scale(1.01) translate(14px, -12px); }
+}
+
+.dh-hero__greet { min-width: 0; }
+
+.dh-hero__title {
+  margin: 0;
+  font-size: var(--dh-fs-hero);
+  font-weight: 700;
+  color: var(--dh-ink);
+  letter-spacing: .01em;
+}
+
+.dh-hero__time {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--dh-fs-meta);
+  color: var(--dh-ink-3);
+}
+
+.dh-hero__dot { opacity: .6; }
+
+/* position: relative để ảnh vali absolute neo vào mép trái cụm này. */
+.dh-hero__side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dh-hero__device {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--dh-panel-bg);
+  border: 1px solid var(--dh-panel-border);
+  box-shadow: var(--dh-panel-shadow);
+}
+
+.dh-hero__info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dh-hero__open {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+  color: var(--dh-emerald-ink);
+}
+
+.dh-hero__open--idle { color: var(--dh-ink-3); }
+
+.dh-hero__pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dh-emerald);
+  animation: dh-pulse 2s cubic-bezier(.4, 0, .6, 1) infinite;
+}
+
+@keyframes dh-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+
+/* 12.5px: mockup vẽ mã phiên rộng 96px cho 14 ký tự; ở 18px monospace nó
+   rộng 151px, đẩy thẻ rộng thêm 45px và lấn vào ảnh vali. */
+.dh-hero__code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--dh-ink);
+}
+
+.dh-hero__count {
+  font-size: var(--dh-fs-note);
+  color: var(--dh-ink-3);
+}
+
+.dh-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  background: var(--dh-blue);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, .28);
+}
+
+.dh-cta:hover { filter: brightness(1.08); }
+
+.dh-cta__icon { display: inline-flex; }
+
+/* Nút đổi theme — nay nằm trong SIDEBAR (menu dọc), tức NGOÀI `.dh-page`, nên
+   KHÔNG dùng được token `--dh-*` (chúng chỉ định nghĩa trong `.dh-page`).
+   Dùng token của app và bám kích thước `.security-card` (44px) cho đồng bộ. */
+.dh-theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  padding: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  color: var(--primary-2);
+  background: rgba(53, 216, 255, .06);
+  border: 1px solid rgba(53, 216, 255, .16);
+}
+
+.dh-theme-toggle:hover {
+  background: rgba(53, 216, 255, .14);
+  color: var(--text);
+}
+
+/* Light: bỏ tông cyan, dùng xám trung tính cho hợp nền sáng. */
+.app[data-dash-theme="light"] .dh-theme-toggle {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+.app[data-dash-theme="light"] .dh-theme-toggle:hover {
+  background: #e2e8f0;
+  color: #2563eb;
+}
+
+/* --- Panel --------------------------------------------------------------- */
+.dh-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px 12px 10px;
+  border-radius: var(--dh-panel-radius);
+  border: 1px solid var(--dh-panel-border);
+  background: var(--dh-panel-bg);
+  box-shadow: var(--dh-panel-shadow);
+  backdrop-filter: var(--dh-panel-blur);
+}
+
+/* Panel biểu đồ 14 ngày: bỏ viền đáy (nhìn như một đường kẻ thừa) và nhấn bóng
+   đổ để panel nổi lên khỏi nền. */
+.dh-panel--chart {
+  border-bottom: 0;
+  box-shadow: var(--dh-panel-shadow-strong);
+}
+
+.dh-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.dh-panel__title {
+  margin: 0;
+  font-size: var(--dh-fs-title);
+  font-weight: 700;
+  color: var(--dh-ink);
+}
+
+.dh-panel__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dh-panel__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dh-blue-ink);
+  background: transparent;
+}
+
+.dh-panel__action:hover { background: var(--dh-blue-soft); }
+.dh-panel__action-icon { display: inline-flex; }
+.dh-panel__action-icon svg { width: 14px; height: 14px; }
+
+/* --- Stat card ----------------------------------------------------------- */
+.dh-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  font-family: inherit;
+  border-radius: 12px;
+  cursor: default;
+  border: 1px solid var(--dh-panel-border);
+  /* Viền nhấn bên trái chỉ có ở theme tối — light đặt token này bằng 0. */
+  border-left: var(--dh-stat-accent-w) solid var(--dh-stat-accent, transparent);
+  background: var(--dh-panel-bg);
+  box-shadow: var(--dh-panel-shadow);
+  backdrop-filter: var(--dh-panel-blur);
+}
+
+.dh-stat--clickable { cursor: pointer; }
+.dh-stat--clickable:hover { border-color: var(--dh-panel-hover-border); }
+
+.dh-stat--emerald { --dh-stat-accent: var(--dh-emerald); --dh-stat-tone: var(--dh-emerald-ink); --dh-stat-soft: var(--dh-emerald-soft); }
+.dh-stat--blue    { --dh-stat-accent: var(--dh-blue);    --dh-stat-tone: var(--dh-blue-ink);    --dh-stat-soft: var(--dh-blue-soft); }
+.dh-stat--purple  { --dh-stat-accent: var(--dh-purple);  --dh-stat-tone: var(--dh-purple-ink);  --dh-stat-soft: var(--dh-purple-soft); }
+.dh-stat--amber   { --dh-stat-accent: var(--dh-amber);   --dh-stat-tone: var(--dh-amber-ink);   --dh-stat-soft: var(--dh-amber-soft); }
+
+.dh-stat__main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dh-stat__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--dh-tile);
+  height: var(--dh-tile);
+  border-radius: var(--dh-tile-radius);
+  color: var(--dh-stat-tone);
+  background: var(--dh-stat-soft);
+  /* Không viền: mockup để ô icon là một khối màu phẳng, viền 1px làm nó trông
+     như một cái thẻ lồng trong thẻ. */
+  border: 0;
+}
+
+.dh-stat__icon svg { width: 25px; height: 25px; }
+
+.dh-stat__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dh-stat__label {
+  font-size: var(--dh-fs-label);
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--dh-ink-3);
+}
+
+.dh-stat__value {
+  font-size: var(--dh-fs-value);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--dh-ink);
+}
+
+.dh-stat__note {
+  font-size: var(--dh-fs-note);
+  color: var(--dh-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dh-stat__trail { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; }
+.dh-stat__chev { display: inline-flex; color: var(--dh-ink-4); }
+.dh-stat__chev svg { width: 16px; height: 16px; }
+
+.dh-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Không viền: mockup chỉ tô nền xanh rất nhạt, viền 1px làm pill nổi khối
+   thừa so với phần còn lại của thẻ. */
+.dh-pill--emerald {
+  color: var(--dh-emerald-ink);
+  background: var(--dh-emerald-soft);
+  border: 0;
+}
+
+/* --- Select -------------------------------------------------------------- */
+.dh-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dh-select select {
+  appearance: none;
+  padding: 5px 26px 5px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--dh-ink-2);
+  background: var(--dh-inset-bg);
+  border: 1px solid var(--dh-inset-border);
+}
+
+.dh-select__chevron {
+  position: absolute;
+  right: 7px;
+  display: inline-flex;
+  pointer-events: none;
+  color: var(--dh-ink-3);
+}
+
+.dh-select__chevron svg { width: 14px; height: 14px; }
+
+/* --- Line chart ---------------------------------------------------------- */
+.dh-chart {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cao 70px theo mockup (176px cũ làm panel biểu đồ cao gần gấp đôi, đẩy các
+   hàng dưới tràn khỏi màn 720p). */
+.dh-chart__plot {
+  position: relative;
+  height: 70px;
+  width: 100%;
+}
+
+/* Trục y: nhãn là HTML đặt tuyệt đối (không phải <text> trong SVG — xem
+   DashLineChart.jsx). Cột nhãn nằm đúng khoảng trống bên trái mà viewBox dành
+   cho nó: X0=30 trên tổng 650 ≈ 4.6% bề ngang. */
+.dh-chart__yaxis {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 4.6%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.dh-chart__yaxis span {
+  position: absolute;
+  right: 5px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--dh-ink-3);
+  white-space: nowrap;
+}
+
+/* Opacity của vùng tô đặt ở CSS: Chromium không resolve var() trong
+   presentation attribute của SVG. */
+.dh-chart__stop { stop-opacity: var(--dh-chart-fill); }
+
+/* Chấm dữ liệu: lớp HTML phủ lên vùng vẽ, toạ độ theo % nên khớp đúng vị trí
+   điểm. CSS chỉ lo hình dáng — mọi chấm đều tròn tuyệt đối. */
+.dh-chart__points {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.dh-chart__dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--dh-blue-ink);
+  border: 1.6px solid var(--dh-blue);
+}
+
+.dh-chart__dot.is-peak {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: var(--dh-blue-ink);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, .18);
+}
+
+/* Lưới ô: nét LIỀN (trước đây là nét đứt) để các ô khép kín thành bảng.
+   Hàng ngang theo giá trị đậm hơn cột dọc theo ngày một chút để vẫn phân cấp
+   được khi nhìn. */
+.dh-chart__grid line {
+  stroke: var(--dh-chart-grid);
+  stroke-width: 1;
+}
+
+.dh-chart__grid .dh-chart__col { stroke: var(--dh-chart-grid); }
+
+.dh-chart__grid .dh-chart__col {
+  stroke: var(--dh-grid-col);
+}
+
+/* `stroke: none` là BẮT BUỘC: rule `svg { stroke: currentColor }` toàn cục
+   (dashboard.css:12-19) kế thừa vào path này, vẽ một đường đen dọc đáy vùng tô
+   — nhìn như "viền dưới" của biểu đồ. */
+.dh-chart__area {
+  stroke: none;
+}
+
+.dh-chart__line {
+  fill: none;
+  stroke: var(--dh-blue);
+  stroke-width: var(--dh-chart-stroke);
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* Nhãn trục x đặt tuyệt đối theo % để khớp đúng vị trí điểm dữ liệu
+   (mockup dùng flex justify-between nên bị lệch). */
+.dh-chart__xaxis {
+  position: relative;
+  height: 15px;
+  margin-top: 4px;
+}
+
+.dh-chart__xaxis span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--dh-ink-3);
+  white-space: nowrap;
+}
+
+.dh-chart__xaxis span.is-active {
+  font-weight: 700;
+  color: var(--dh-blue-ink);
+}
+
+/* --- Donut --------------------------------------------------------------- */
+/* Cao 86px = chiều cao vùng nội dung của mockup (panel 144 - 2*8 padding - 34
+   head). Vòng 106px bên trong VẪN ĐƯỢC VẼ ĐẦY: mockup cố ý để nó tràn xuống
+   dưới — đo được vòng ở y268..377 trong panel y235..379. */
+.dh-donut {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 92px;
+  flex: 0 0 auto;
+}
+
+/* Nền trong suốt — chỉ còn vòng viền xanh. */
+.dh-donut__ring {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--dh-donut-size);
+  height: var(--dh-donut-size);
+  background: transparent;
+}
+
+.dh-donut__svg { transform: rotate(0deg); }
+
+.dh-donut__track,
+.dh-donut__arc {
+  fill: none;
+  stroke-width: var(--dh-donut-w);
+}
+
+/* Vòng track (viền donut) dùng màu xanh thương hiệu thay vì màu track xám. */
+.dh-donut__track { stroke: var(--dh-donut-border); }
+
+/* --- Trạng thái loading -------------------------------------------------
+ * Cung xanh đậm hơn track, quay quanh tâm. Cho CẢ <svg> quay chứ không quay
+ * riêng cung: các phần tử còn lại trong svg đều là hình tròn đối xứng nên xoay
+ * không đổi hình, mà lại tránh phải set transform-origin theo hệ toạ độ SVG. */
+.dh-donut__spinner {
+  fill: none;
+  stroke: var(--dh-blue);
+  stroke-width: var(--dh-donut-w);
+  stroke-linecap: round;
+}
+
+@keyframes dh-spin {
+  to { transform: rotate(360deg); }
+}
+
+.dh-donut__ring.is-loading .dh-donut__svg {
+  animation: dh-spin .9s linear infinite;
+}
+
+/* Nhãn chỉ dành cho trình đọc màn hình (báo "đang tải"). */
+.dh-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* butt (không round): với 2 phần trở lên, đầu tròn làm mỗi phần trông to hơn
+   giá trị thật — sai lệch số liệu. */
+.dh-donut__arc { stroke-linecap: butt; }
+
+.dh-donut__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.dh-donut__value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--dh-ink);
+}
+
+.dh-donut__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--dh-ink-3);
+}
+
+/* Lưới 3 cột dùng chung cho CẢ hàng tiêu đề lẫn các hàng số liệu. `display:
+   contents` cho .dh-legend để 3 ô con của nó rơi thẳng vào lưới này — nhờ vậy
+   cột "Số lượng"/"Tỷ lệ" thẳng hàng mà không phải lồng thêm wrapper. */
+.dh-donut__side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dh-legend { display: contents; }
+
+.dh-legend__name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--dh-ink-2);
+}
+
+.dh-legend__dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dh-legend__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dh-legend__value {
+  min-width: 56px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  color: var(--dh-ink);
+}
+
+.dh-legend__pct {
+  min-width: 46px;
+  font-size: 13px;
+  text-align: right;
+  color: var(--dh-ink-3);
+}
+
+/* Hàng tiêu đề cột (Số lượng / Tỷ lệ) — chỉ theme sáng có (token
+   --dh-donut-foot = none ở theme tối). Lặp lại đúng template của
+   `.dh-donut__side` để hai cột số thẳng hàng; `grid-column: 1/-1` cho hàng này
+   trải hết bề ngang lưới cha. */
+.dh-donut__foot {
+  display: var(--dh-donut-foot);
+  grid-column: 1 / -1;
+  /* Fallback cho trình duyệt chưa có subgrid. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  font-size: 10.5px;
+  text-align: right;
+  color: var(--dh-ink-3);
+}
+
+/* subgrid: hàng tiêu đề dùng CHÍNH các track của `.dh-donut__side`, nếu không
+   thì cột "Số lượng/Tỷ lệ" tính theo bề rộng chữ của chính nó (rộng hơn "0"/"0%")
+   và lệch hẳn sang trái so với các con số. */
+@supports (grid-template-columns: subgrid) {
+  .dh-donut__foot { grid-template-columns: subgrid; }
+}
+
+/* --- Telemetry ----------------------------------------------------------- */
+.dh-telemetry {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dh-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dh-gauge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--dh-inset-bg);
+  border: 1px solid var(--dh-inset-border);
+}
+
+.dh-gauge--emerald { --dh-tone: var(--dh-emerald); --dh-tone-ink: var(--dh-emerald-ink); }
+.dh-gauge--blue    { --dh-tone: var(--dh-blue);    --dh-tone-ink: var(--dh-blue-ink); }
+.dh-gauge--purple  { --dh-tone: var(--dh-purple);  --dh-tone-ink: var(--dh-purple-ink); }
+.dh-gauge--fuchsia { --dh-tone: var(--dh-fuchsia); --dh-tone-ink: var(--dh-fuchsia); }
+
+.dh-gauge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  color: var(--dh-tone-ink);
+  background: color-mix(in srgb, var(--dh-tone) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dh-tone) 28%, transparent);
+}
+
+.dh-gauge__icon svg { width: 20px; height: 20px; }
+
+.dh-gauge__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.dh-gauge__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--dh-ink-3);
+}
+
+.dh-gauge__value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dh-ink);
+}
+
+.dh-gauge__track {
+  display: var(--dh-gauge-bar);
+  align-self: stretch;
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--dh-gauge-track-bg);
+}
+
+.dh-gauge__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--dh-tone);
+}
+
+/* Không khung: bỏ viền và nền. Bỏ luôn padding để hai hàng thanh thẳng hàng
+   với lưới ô phía trên thay vì bị thụt vào 12px. */
+.dh-meter-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 8px;
+}
+
+.dh-meter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 15px;
+}
+
+.dh-meter__label {
+  flex: 0 0 auto;
+  width: 122px;
+  /* Không cho xuống dòng: "Nguồn (pin dự phòng)" ở 13px dài ~125px, chỉ hơn
+     cột 3px — xuống dòng sẽ làm hàng cao gấp đôi và đẩy panel vỡ bố cục. */
+  white-space: nowrap;
+  font-size: var(--dh-fs-body);
+  color: var(--dh-ink-3);
+}
+
+.dh-meter__track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--dh-meter-track-bg);
+}
+
+.dh-meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--dh-emerald);
+  box-shadow: none;
+}
+
+/* Thanh nhiệt độ: gradient trải hết cả thanh, phần vượt quá giá trị bị che,
+   nên MÀU luôn ứng với giá trị tuyệt đối. */
+.dh-meter__gradient {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--dh-temp-gradient);
+}
+
+.dh-meter__mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--dh-meter-track-bg);
+}
+
+.dh-meter__value {
+  flex: 0 0 auto;
+  width: 52px;
+  text-align: right;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: var(--dh-fs-body);
+  font-weight: 700;
+  color: var(--dh-ink);
+}
+
+.dh-specs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--dh-inset-border);
+}
+
+.dh-spec {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dh-spec__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--dh-ink-4);
+}
+
+.dh-spec__value {
+  font-size: var(--dh-fs-meta);
+  font-weight: 700;
+  color: var(--dh-ink);
+}
+
+.dh-spec__value--ok { color: var(--dh-emerald-ink); }
+
+.dh-spec__ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dh-spec__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dh-emerald);
+}
+
+/* --- Cells table --------------------------------------------------------- */
+.dh-table-wrap { overflow-x: auto; }
+
+.dh-table {
+  width: 100%;
+  /* dashboard.css:1940 đặt `table { min-width: 920px }` cho MỌI bảng trong app
+     → phải ghi đè, nếu không bảng này tràn ngang và sinh thanh cuộn. */
+  min-width: 0;
+  border-collapse: collapse;
+  font-size: var(--dh-fs-body);
+  text-align: left;
+  color: var(--dh-ink-2);
+}
+
+.dh-table th {
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  /* dashboard.css:4640 khoá cả `background` lẫn `color` của th bằng !important. */
+  color: var(--dh-ink-3) !important;
+  border-bottom: 1px solid var(--dh-inset-border);
+  background: transparent !important;
+}
+
+.dh-table td {
+  padding: 4px 8px;
+  font-size: var(--dh-fs-body);
+  color: var(--dh-ink-2);
+  border-bottom: 1px solid var(--dh-inset-border);
+}
+
+.dh-table tbody tr:last-child td { border-bottom: 0; }
+.dh-table tbody tr.is-clickable { cursor: pointer; }
+/* dashboard.css:4641 khoá `tbody tr:hover` bằng !important. */
+.dh-table tbody tr.is-clickable:hover { background: var(--dh-inset-bg) !important; }
+
+.dh-table__idx { width: 32px; color: var(--dh-ink-4); }
+
+.dh-table__code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-weight: 700;
+  color: var(--dh-ink);
+}
+
+.dh-table__name { color: var(--dh-ink-2); }
+
+.dh-table__count {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  color: var(--dh-ink-3);
+}
+
+.dh-table__chev { width: 24px; text-align: right; color: var(--dh-ink-4); }
+.dh-table__chev svg { width: 14px; height: 14px; }
+
+.dh-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+}
+
+.dh-status.is-ok { color: var(--dh-emerald-ink); }
+.dh-status.is-warn { color: var(--dh-amber-ink); }
+
+.dh-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* --- Sessions ------------------------------------------------------------
+ * Mockup KHÔNG vẽ mỗi phiên thành một thẻ: chúng là các dòng phẳng, ngăn nhau
+ * bằng đường kẻ 1px (nền + viền + bo góc như bản cũ làm mỗi dòng cao 56px,
+ * không nhét được 2 dòng vào panel cao 130px của mockup). */
+.dh-sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.dh-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-radius: 0;
+  background: none;
+  border: 0;
+  /* Kẻ TRÊN chứ không phải dưới: đường kẻ của dòng đầu chính là vạch ngăn
+     cách với tiêu đề panel (mockup có vạch này, không phải viền của head). */
+  border-top: 1px solid var(--dh-inset-border);
+}
+
+.dh-session.is-clickable { cursor: pointer; }
+.dh-session.is-clickable:hover .dh-session__code { color: var(--dh-blue-ink); }
+
+/* Đường kẻ dưới tiêu đề panel danh sách (mockup có, các panel khác không). */
+/* Không padding đáy: mockup kết thúc panel đúng ở dòng cuối (item log cuối
+   chạm đáy). Hàng grid vẫn cao bằng panel cao nhất (bảng log 130px), panel
+   phiên thấp hơn sẽ tự giãn ra theo hàng. */
+.dh-panel--list { padding-bottom: 0; }
+
+.dh-session__dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dh-ink-4);
+}
+
+.dh-session__dot.dh-pulse { background: var(--dh-emerald); }
+
+.dh-session__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dh-session__line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dh-session__code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dh-ink);
+}
+
+.dh-session__name {
+  font-size: 11px;
+  color: var(--dh-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dh-session__meta {
+  font-size: var(--dh-fs-note);
+  color: var(--dh-ink-4);
+}
+
+.dh-badge {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dh-badge.is-open {
+  color: var(--dh-emerald-ink);
+  background: var(--dh-emerald-soft);
+  border: 1px solid var(--dh-emerald-line);
+}
+
+.dh-badge.is-closed {
+  color: var(--dh-ink-3);
+  background: var(--dh-inset-bg);
+  border: 1px solid var(--dh-inset-border);
+}
+
+/* --- Activity feed ------------------------------------------------------- */
+.dh-feed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 22px;
+}
+
+/* Rail dọc nối các chấm. */
+.dh-feed::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--dh-blue-line);
+}
+
+.dh-feed__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dh-feed__dot {
+  position: absolute;
+  left: -21px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dh-blue);
+  box-shadow: 0 0 0 3px var(--dh-page-bg);
+}
+
+.dh-feed__text {
+  font-size: 12px;
+  color: var(--dh-ink-2);
+  line-height: 1;
+}
+
+.dh-feed__actor { color: var(--dh-ink); font-weight: 600; }
+.dh-feed__ref { color: var(--dh-blue-ink); font-weight: 600; }
+
+.dh-feed__time {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--dh-ink-4);
+}
+
+/* --- misc ---------------------------------------------------------------- */
+.dh-empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-size: var(--dh-fs-body);
+  color: var(--dh-ink-3);
+}
