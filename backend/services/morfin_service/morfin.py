@@ -17,6 +17,9 @@ def _find_sdk_dir():
     """
     env = os.getenv("MORFIN_SDK_DIR", "").strip()
     cands = [Path(env)] if env else []
+    appdata = os.getenv("LOCALAPPDATA", "")
+    if appdata:
+        cands.append(Path(appdata) / "Programs" / "AppCCCD" / "resources" / "backend" / "services" / "morfin_service" / "runtime")
     cands += [_HERE / "runtime", _HERE,
               _HERE.parent / "sample" / "x64" / "Release"]
     for cand in cands:

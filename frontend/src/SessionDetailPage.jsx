@@ -5,6 +5,7 @@ import { useI18n } from "./i18n";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { toast } from "./Toast";
 import SessionSheetsPrinter from "./SessionSheetsPrinter";
+import SessionSheetsPdfExporter from "./SessionSheetsPdfExporter";
 
 // Số hồ sơ hiển thị mỗi trang trong bảng "Hồ sơ trong phiên".
 // Vừa đủ 12 dòng để không phải cuộn trên màn hình kiosk.
@@ -83,6 +84,9 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
   // In toàn bộ Chỉ bản/Danh bản khi phiên đã đóng.
   const [printBusy, setPrintBusy] = useState(false);
   const [printDetainees, setPrintDetainees] = useState(null);
+  // Xuất file PDF Chỉ bản/Danh bản của toàn bộ phiên.
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfDetainees, setPdfDetainees] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -181,6 +185,26 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
     }
   };
 
+  // Xuất toàn bộ Chỉ bản + Danh bản thành file PDF (chỉ khi phiên đã đóng).
+  const doDownloadSheetsPdf = async () => {
+    if (!session || pdfBusy) return;
+    setPdfBusy(true);
+    setErr("");
+    try {
+      const data = await api.getSessionSheets(sessionId);
+      const list = data.detainees || [];
+      if (list.length === 0) {
+        toast.warning(t("session.detail.empty_closed"));
+        return;
+      }
+      setPdfDetainees(list);
+    } catch (ex) {
+      toast.error(ex.message || t("session.detail.err.sheets"));
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const removeDetainee = (d) => setConfirmDelRow(d);
   const runRemoveDetainee = async () => {
     const d = confirmDelRow;
@@ -276,6 +300,9 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
               <button className="btn-primary" onClick={doDownload}>{t("session.detail.download_report")}</button>
               <button className="btn-primary" onClick={doPrintSheets} disabled={printBusy}>
                 {printBusy ? t("session.detail.printing") : t("session.detail.print_sheets")}
+              </button>
+              <button className="btn-primary" onClick={doDownloadSheetsPdf} disabled={pdfBusy}>
+                {pdfBusy ? t("session.detail.exporting_pdf") : t("session.detail.download_sheets_pdf")}
               </button>
             </>
           )}
@@ -423,6 +450,16 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
           detainees={printDetainees}
           unitName={session.location || ""}
           onDone={() => setPrintDetainees(null)}
+        />
+      )}
+
+      {pdfDetainees && (
+        <SessionSheetsPdfExporter
+          detainees={pdfDetainees}
+          session={session}
+          unitName={session.location || ""}
+          pickDrive={pickDrive}
+          onDone={() => setPdfDetainees(null)}
         />
       )}
     </div>

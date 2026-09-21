@@ -1,66 +1,111 @@
-# Hệ thống Quản lý dự án CCCD (mini)
+# Hệ thống Vali Thu nhận Thông tin & Quản lý Hồ sơ Can phạm (Version 5.6.4.0)
 
-Web quản lý phân công công việc dự án CCCD lưu động: 1 tài khoản admin, đăng nhập vào dashboard, tick/thêm/xoá task theo từng thành viên.
+Hệ thống phần mềm chuyên dụng tích hợp trong thiết bị Vali di động phục vụ công tác thu nhận thông tin, quản lý hồ sơ đối tượng can phạm, thu thập sinh trắc học (ảnh chân dung 3 góc, vân tay 10 ngón lăn + 3 chùm vân phẳng), bóc tách hồ sơ giấy (OCR) và kết xuất in ấn tờ Chỉ bản (Mẫu 205/295), Danh bản (Mẫu 204/208) theo quy chuẩn nghiệp vụ Bộ Công an.
 
-- **Backend:** FastAPI + MongoDB (motor async)
-- **Frontend:** React (Vite)
-- **Giao diện:** phong cách cổng dịch vụ công (banner đỏ + dải vàng, sub-nav xanh)
+---
 
-## Cấu trúc
+## 🛠 Kiến trúc & Công nghệ
 
-```
+- **Backend:** Python 3.10+, FastAPI, MongoDB (Motor async driver), Uvicorn.
+- **Frontend:** React 18, Vite, Electron (chế độ ứng dụng Desktop).
+- **Phần cứng & Ngoại vi:**
+  - **Dịch vụ Vân tay:** Morfin Service (Port `8765`) — Thu nhận 10 ngón vân lăn, 3 cụm vân phẳng (4-4-2), đánh giá chất lượng NFIQ/Score.
+  - **Dịch vụ Bản quyền:** USB Dongle Service (Port `8766`) — Bảo vệ bản quyền phần cứng thời gian thực.
+  - **Dịch vụ OCR Hồ sơ:** ScanSnap Service / OCR Watcher — Tự động nhận diện và bóc tách 23 trường thông tin từ file scan PDF.
+- **Giao diện:** Chuẩn nghiệp vụ, hỗ trợ Song ngữ (Tiếng Việt / English), thiết kế tối ưu cho màn hình cảm ứng của Vali di động.
+
+---
+
+## 📁 Cấu trúc Thư mục
+
+```text
 app_cccd/
-├── backend/
-│   ├── main.py                  # FastAPI monolith (auth, detainees, sessions, cccd, weight, face)
-│   ├── cccd_watcher.py          # Session-queue cho CccdService push
-│   ├── person_detect.py         # YOLO person detection
-│   ├── face_recognition_service.py  # InsightFace
-│   ├── weight_hub.py            # WebSocket hub cho cân
-│   ├── tests/
-│   └── services/                # Các service phần cứng (xem services/README.md)
-│       ├── usb_service/         # USB dongle (:8766)
-│       └── morfin_service/      # Vân tay Morfin (:8765)
-├── frontend/                    # React + Vite (:5173)
-├── run.ps1 / stop.ps1           # Deploy 1 lệnh
-└── start-services.ps1           # Start usb + fingerprint
+├── backend/                         # FastAPI Backend
+│   ├── main.py                      # FastAPI App entrypoint
+│   ├── auth.py                      # Xác thực JWT & phân quyền RBAC
+│   ├── database.py                  # Kết nối MongoDB motor async
+│   ├── scan_inbox.py                # Hàng đợi tiếp nhận OCR từ máy Scan
+│   ├── routers/                     # Các module API
+│   │   ├── auth.py                  # API Đăng nhập, thông tin tài khoản
+│   │   ├── detainees.py             # API Quản lý hồ sơ can phạm, đối soát trùng
+│   │   ├── sessions.py              # API Quản lý phiên ca trực, xuất Excel
+│   │   ├── cells.py                 # API Quản lý Cơ sở giam giữ / Phân trại / Buồng
+│   │   ├── scan.py                  # API Tiếp nhận dữ liệu OCR
+│   │   └── users.py                 # API Quản trị người dùng
+│   └── services/                    # Dịch vụ điều khiển ngoại vi
+│       ├── morfin_service/          # Service máy quét vân tay (:8765)
+│       └── usb_service/             # Service xác thực khóa USB Dongle (:8766)
+├── frontend/                        # Ứng dụng Giao diện React
+│   ├── src/
+│   │   ├── DataCapturePage.jsx      # Màn hình thu nhận thông tin can phạm
+│   │   ├── SessionDetailPage.jsx    # Màn hình chi tiết phiên làm việc
+│   │   ├── NameSheetPreview.jsx     # Xem trước Danh bản (Mẫu 204/208)
+│   │   ├── FpSheetPreview.jsx       # Xem trước Chỉ bản (Mẫu 205/295)
+│   │   ├── SessionSheetsPdfExporter.jsx # Xuất gói PDF toàn phiên & ghi USB
+│   │   ├── SessionSheetsPrinter.jsx # Module in ấn trực tiếp hàng loạt
+│   │   ├── IncompleteConfirmModal.jsx # Hộp thoại kiểm tra trường thiếu
+│   │   ├── DuplicateWarnModal.jsx   # Hộp thoại đối chiếu hồ sơ trùng lặp
+│   │   └── locales/                 # Tệp đa ngôn ngữ (vi.json, en.json)
+│   └── package.json
+├── electron/                        # Vỏ ứng dụng Desktop Electron
+├── docs/                            # Tài liệu kỹ thuật kiến trúc
+├── run-electron.ps1                 # Script khởi động toàn diện kèm giao diện Electron
+├── run.ps1                          # Script khởi động Backend & Frontend Web
+├── start-services.ps1               # Script khởi động các service ngoại vi (Vân tay + Dongle)
+└── stop.ps1                         # Script dừng an toàn toàn bộ tiến trình
 ```
 
-## Chạy
+---
 
-Xem `../RUN.md`. Tóm tắt: tạo `.env`, cài deps, `.\run.ps1`.
+## 🚀 Hướng dẫn Khởi chạy Hệ thống
 
-## Đăng nhập
-
-- Tài khoản: `admin`
-- Mật khẩu: `admin123`
-
-Có thể đổi mặc định trong `backend/main.py` (`ADMIN_USERNAME`, `ADMIN_PASSWORD`) — nhưng vì admin đã được tạo trong DB nên nếu muốn đổi mật khẩu sau này thì:
-```bash
-mongosh app_cccd --eval 'db.users.deleteOne({username:"admin"})'
+### 1. Khởi động ứng dụng Vali (Electron Desktop + Backend + Services)
+Chạy lệnh PowerShell (với quyền thông thường hoặc Admin):
+```powershell
+.\run-electron.ps1
 ```
-rồi restart backend, nó sẽ tạo lại admin với mật khẩu trong code.
+*Script sẽ tự động khởi động MongoDB, Backend FastAPI (:8000), Dịch vụ Vân tay (:8765), Dịch vụ Dongle (:8766) và mở giao diện ứng dụng Desktop.*
 
-## Dashboard làm được gì
+### 2. Khởi động chế độ Web Dev
+```powershell
+.\run.ps1
+```
+Truy cập trình duyệt: `http://localhost:5173`
 
-- Xem toàn bộ task chia theo 8 nhóm (Tuấn Anh AI, Hải BE, Hải FE, Hoàng Anh khảo sát/tích hợp, Linh Đan mua sắm/QA, Thiết bị cần mua)
-- Tick / bỏ tick task, cập nhật realtime tiến độ %
-- Lọc theo thành viên (Tuấn Anh, Hải, Hoàng Anh, Linh Đan, Chung)
-- Tìm kiếm nhanh theo tên
-- Thêm task mới vào từng nhóm
-- Xoá task (hover vào để hiện nút ×)
-- Hiển thị 4 chỉ số: tổng công việc, đã hoàn thành, chưa hoàn thành, % tiến độ
+### 3. Dừng hệ thống
+```powershell
+.\stop.ps1
+```
 
-## API
+---
 
-Tất cả API dưới `/api/*`, đều yêu cầu header `Authorization: Bearer <token>` trừ `login` và `health`.
+## 🔑 Tài khoản Đăng nhập Mặc định
 
-| Method | Path | Mô tả |
-|---|---|---|
-| POST | `/api/auth/login` | Đăng nhập (form: username, password) |
-| GET | `/api/auth/me` | Lấy user hiện tại |
-| GET | `/api/tasks` | Danh sách toàn bộ task |
-| POST | `/api/tasks` | Tạo task (title, category, member, note) |
-| PATCH | `/api/tasks/{id}` | Cập nhật (done, title, note) |
-| DELETE | `/api/tasks/{id}` | Xoá |
-| GET | `/api/stats` | Thống kê tổng, theo category, theo member |
-| GET | `/api/health` | Kiểm tra kết nối Mongo |
+- **Tài khoản:** `admin`
+- **Mật khẩu:** `admin123`
+*(Cán bộ quản trị có thể tạo thêm tài khoản cán bộ nghiệp vụ `officer` trong mục Quản trị người dùng).*
+
+---
+
+## 📑 Các Phân hệ Nghiệp vụ Chính
+
+1. **Quản lý Hồ sơ & Biểu mẫu:**
+   - Đăng ký linh hoạt: Cho phép lưu hồ sơ khi đủ CCCD & Mã hồ sơ, cảnh báo danh sách trường thiếu có phân nhóm tag.
+   - Nhập liệu 16 trường nhân thân, thông tin vụ án, 4 vị trí cán bộ thụ lý và 7 trường đặc điểm nhận dạng.
+   - Đối soát tự động phát hiện hồ sơ can phạm trùng lặp.
+   - Quản lý cây cấu trúc Cơ sở giam giữ — Phân trại — Buồng giam.
+
+2. **Thu nhận Ngoại vi & Sinh trắc học:**
+   - Tự động nhận diện hồ sơ giấy (OCR) từ máy quét ScanSnap, bóc tách 23 trường và xóa file scan an toàn.
+   - Chụp ảnh chân dung nhận dạng 3 góc (Chính diện, Nghiêng trái, Nghiêng phải).
+   - Thu nhận 10 ngón vân lăn và 3 cụm vân chùm phẳng (4-4-2) theo chuẩn nghiệp vụ C06.
+
+3. **Báo cáo, Biểu mẫu & In ấn:**
+   - Xem trước và in trực tiếp tờ Danh bản (Mẫu 204/208), Chỉ bản (Mẫu 205/295).
+   - Xuất gói PDF tổng hợp Chỉ bản/Danh bản toàn bộ hồ sơ trong ca trực, tự động sao lưu vào ổ USB ngoài.
+   - Xuất báo cáo tổng kết ca trực ra file Excel (.xlsx).
+
+4. **Quản trị & Bảo mật:**
+   - Khóa bản quyền phần cứng bằng USB Dongle.
+   - Phân quyền người dùng (RBAC), quản lý vòng đời ca trực (Mở/Đóng phiên), khóa dữ liệu phiên đã đóng.
+   - Giao diện Song ngữ (Việt - Anh) chuẩn hóa Version **`5.6.4.0`**.

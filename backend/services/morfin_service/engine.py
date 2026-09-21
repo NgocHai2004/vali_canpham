@@ -196,6 +196,7 @@ class CaptureEngine:
         # Doi FLAT <-> ROLL bat buoc UninitDevice roi init lai. Truoc day day
         # hard-code FingerType.FLAT mot lan cho ca phien nen khong can bien nay.
         self._finger_type: Optional[FingerType] = None
+        self._current_done: Optional[threading.Event] = None
         # Trang thai live cua lan capture dang chay, cho endpoint /api/live doc.
         self._live: dict = {"active": False, "fingers": [], "message": "", "frames": 0}
         self._live_lock = threading.Lock()
@@ -344,6 +345,7 @@ class CaptureEngine:
                 if hasattr(exceptions, fld):
                     setattr(exceptions, fld, True)
         done = threading.Event()
+        self._current_done = done
         # Quality chi lay tu ImageParams cua complete callback (state["final"]),
         # la gia tri SDK CHOT luc ket thuc capture. Frame preview chi dung de
         # hien thi live, KHONG dung de tinh quality: max qua preview la mot phep
@@ -556,6 +558,7 @@ class CaptureEngine:
         """
         sdk = self.ensure_open(FingerType.ROLL)
         done = threading.Event()
+        self._current_done = done
         # preview_calls dem callback THO: tang o DONG DAU TIEN cua on_preview, truoc
         # moi thao tac parse. Phai co rieng no vi "frames" chi tang o gan CUOI khoi
         # try, nen mot exception giua duong (hoac code<0) lam frames dung yen o 0 -
@@ -759,9 +762,16 @@ class CaptureEngine:
 
     def stop(self) -> int:
         sdk = self._sdk
-        if sdk is None:
-            return M.SUCCESS
-        return sdk.stop_capture()
+        res = M.SUCCESS
+        if sdk is not None:
+            try:
+                res = sdk.stop_capture()
+            except Exception:
+                pass
+        d = self._current_done
+        if d is not None:
+            d.set()
+        return res
 
     # ---------- match ----------
     def match(self, t1: bytes, t2: bytes) -> int:

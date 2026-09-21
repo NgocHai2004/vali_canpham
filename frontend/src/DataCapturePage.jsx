@@ -1,7 +1,8 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DuplicateWarnModal from "./DuplicateWarnModal";
+import IncompleteConfirmModal from "./IncompleteConfirmModal";
 import { toast } from "./Toast";
-import { api, fpApi, scanApi, b64PngToFile } from "./api";
+import { api, fpApi, scanApi } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
 import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FINGER_STEP_OF, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_ROLL_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_LAYERS_BY_STEP, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
@@ -9,10 +10,10 @@ import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
 import { SectionPortraits } from "./capture/sections/SectionPortraits";
 import { SectionIdentify } from "./capture/sections/SectionIdentify";
-import { EMPTY_FORM, normalizeInitial, toDobInput } from "./capture/formSchema";
+import { EMPTY_FORM, normalizeInitial } from "./capture/formSchema";
 import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
 import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
-import { useI18n, apiT } from "./i18n";
+import { useI18n } from "./i18n";
 import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
@@ -198,6 +199,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [nameSheetOpen, setNameSheetOpen] = useState(false);
 
   const [dupModal, setDupModal] = useState({ open: false, matches: [] });  // cảnh báo trùng lúc Lưu
+  const [incompleteModal, setIncompleteModal] = useState({ open: false, items: [] }); // cảnh báo thiếu thông tin lúc Lưu
   const [checkingDup, setCheckingDup] = useState(false);   // đang gộp check khi bấm Lưu
 
   // Cảnh báo "đối tượng đã có trong danh sách" → đẩy vào chuông thông báo header.
@@ -741,33 +743,14 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       }
       // Buoc nay DA CO ANH roi => bo qua, sang buoc ke tiep. Day la yeu cau
       // "ngon nao da thu co du lieu roi thi bo qua, thu ngon tiep".
-      //
-      // Doi chieu photosRef (anh THAT) chu khong phai trang thai done cua service:
-      // mo lai ho so cu de sua thi anh da co san nhung session moi coi la chua
-      // ngon nao xong => tin service se thu lai ca 10 ngon da co anh.
-      //
-      // KHONG bo qua buoc vua bi chen ngang yeu cau (jumpTarget): double-click la
-      // lenh THU LAI co y cua can bo, o do dang co anh la chuyen binh thuong -
-      // bo qua no thi double-click thanh vo tac dung.
       if (step.step !== jumpTarget
           && fpStepHasData(step, photosRef.current, fpNoneCodesRef.current)) {
         step = fpStepAfter(step.step);
         continue;
       }
-      jumpTarget = null;
       setFpNextCode(step.codes[0]);
-      // Buoc LAN co dung 1 ma trong codes => nhap nhay DUNG MOT o. Buoc CHUM co
-      // 4 (hoac 2) ma => ca cum nhay cung luc, vi may chup ca cum trong 1 lan.
-      // Cung mot dong lenh lo ca hai: khac biet nam o do dai step.codes do
-      // service quyet dinh, khong phai o day.
       setFpActiveCodes(step.codes);
-      // Buoc CHUM ("left_hand"/"thumbs"/"right_hand") => o van chum tuong ung nhay
-      // bbox. Buoc LAN ("roll_<ma>") khong khop slot.step nao nen 3 o chum dung yen.
       setFpActiveStep(step.step);
-      // PHAI set o day. Day la vong thu CHINH - moi buoc lan deu di qua dong nay.
-      // Thieu no thi fpActiveRoll giu nguyen false ca vong, va dieu kien
-      // `fpRunning && fpActiveRoll` o luoi 10 o khong bao gio dung => o dang lan
-      // KHONG nhay vien lam nua (mat hoan toan bao hieu "may dang doi ngon nay").
       setFpActiveRoll(!!step.roll);
       setFpStatus(t("fpenroll.status.reading_step", { step: t(`fpenroll.step.${step.step}`) }));
       let capRes;
@@ -775,151 +758,93 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         capRes = await fpApi.capture(sid, step.step);
       } catch (e) {
         if (fpAbortRef.current) break;
-        // LOI NAY DO TA CAT, khong phai may loi => quay lai dau vong NGAY.
-        //
-        // fpStopExpectedRef truoc day duoc SET o hai cho (fpRequestJump,
-        // fpToggleNone) ma KHONG CHO NAO DOC - co chet. Hau qua: bam vao o de thu
-        // ngon khac thi stopCapture() lam capture() dang do nem loi, roi khoi duoi
-        // day chay `fails++` + sleepFp(600ms * fails, tran 5s) TRUOC KHI vong quay
-        // lai dau doc fpJumpRef => moi cu bam phai cho them ngan ay moi thay may
-        // chuyen ngon. Con toast mot loi ma chinh ta gay ra.
-        // Doc va tat co ngay tai day: khong toast, khong cong fails, khong ngu.
         if (fpStopExpectedRef.current) {
           fpStopExpectedRef.current = false;
           continue;
         }
-        // KHONG dung vong vi loi. Truoc day het 15 lan la break => vong thu chet
-        // giua duong, va startFpCollect (finally) da set fpAutoStoppedRef = true
-        // nen auto-start KHONG BAO GIO chay lai => man hinh dung han, cac cum sau
-        // khong bao gio duoc chup. Moi lan 408 mat ~20s (timeout SDK) nen 15 lan
-        // la chi ~5 phut: can bo dang chinh cach ap tay thi may tu bo cuoc.
-        //
-        // Chi co 2 duong dung: can bo bam Khoa/Dung (fpAbortRef), hoac chup xong.
-        // May phai kien nhan hon nguoi - khong tu quyet dinh la "het cuu".
         if (/dang co lenh chup khac/i.test(e.message || "")) {
-          // 409: lan chup truoc con giu thiet bi, tu nha sau vai giay. Chi bao
-          // moi FP_MAX_BUSY lan de khong toast moi giay.
+          // 409: lan chup truoc con giu thiet bi, thu lai nhanh sau 200ms
           if (++busy % FP_MAX_BUSY === 0) setFpError(t("capture.err.fp_device_busy"));
           setFpStatus(t("capture.status.fp_waiting_device"));
-          await sleepFp(1000);
+          await sleepFp(200);
           continue;
         }
-        // Toast moi lan de can bo biet may VAN dang thu va thu vi sao that bai.
         setFpError(e.message);
-        // Backoff cho loi bung ngay lap tuc (500 MorfinError, mat mang): 408 da
-        // mat 20s nen khong can cho, nhung loi tuc thi ma chi cho 600ms se quay
-        // vong ~100 lan/phut, dot log va spam toast. Tran o 5s.
         fails++;
-        await sleepFp(Math.min(600 * fails, 5000));
+        await sleepFp(Math.min(300 * fails, 3000));
         continue;
       }
       fails = 0;
+      jumpTarget = null;
       if (fpAbortRef.current) break;
 
-      // Quality tung ngon de hien % de len anh trong luoi 10 o. CHI buoc LAN:
-      // ca fpQuality lan fpMinQ deu khoa theo MA NGON, ma buoc chum tra ve dung
-      // cac ma do => khong chan thi so % tren 10 o lan bi thay bang % cua anh
-      // chum, va nguong mau (fpMinQ) cung doi theo. O van hien anh lan cu nhung
-      // % ben tren la cua lan chup khac - sai lech kho thay nhat trong ba cho.
+      // Quality tung ngon de hien % de len anh trong luoi 10 o.
       if (step.roll) {
         setFpQuality((prev) => {
           const nx = { ...prev };
           for (const c of capRes.captured || []) nx[c.code] = c.quality;
           return nx;
         });
-        // Nguong rieng tung ngon do service tra ve (ngon ut thap hon).
         if (capRes.min_quality_by_code) {
           setFpMinQ((prev) => ({ ...prev, ...capRes.min_quality_by_code }));
         }
       }
+
       // ANH CA BAN TAY cua buoc chum -> 3 o fp_plain_* (hang "Van tay chum").
-      //
-      // Ba o do da co san trong JSX tu truoc (FP_PLAIN_SLOTS, doc photos[slot.key])
-      // nhung KHONG CHO NAO trong ca frontend lan backend ghi vao 3 key ay: grep
-      // "fp_plain" chi ra dung 3 dong dinh nghia trong constants.js. Nen ca 3 o
-      // luon rong, hien dau "—", trong nhu may chua chup xong. Service thi da tra
-      // slap_thumb_b64 tu lau.
-      //
-      // Chi lam voi buoc CHUM. Buoc lan cung tra slap_thumb_b64 nhung do la anh
-      // MOT ngon, da nam o o ngon trong luoi 10 o - day vao day se thanh anh
-      // trung lap va con ghi de len anh chum vua chup.
       const plainKey = FP_SHEET_KEY_BY_STEP[step.step];
       if (plainKey && !step.roll && capRes.slap_thumb_b64) {
-        try {
-          const f = await b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`);
-          const up = await api.uploadPhoto(f);
-          setPhotos((p) => ({ ...p, [plainKey]: up.url }));
-        } catch (e) {
-          setFpError(t("capture.err.save_photo", { message: e.message }));
-        }
+        const dataUrl = capRes.slap_thumb_b64.startsWith("data:")
+          ? capRes.slap_thumb_b64 : `data:image/png;base64,${capRes.slap_thumb_b64}`;
+        setPhotos((p) => ({ ...p, [plainKey]: dataUrl }));
+        b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`).then((f) => {
+          api.uploadPhoto(f).then((up) => {
+            setPhotos((p) => ({ ...p, [plainKey]: up.url }));
+          }).catch(() => { /* giu dataUrl fallback */ });
+        }).catch(() => { /* noop */ });
       }
-      // So % dat DUNG VI TRI tung ngon tren anh chum vua chup (service tinh x_pct
-      // tren anh GOC, xem _mark_x_pct). Dat NGOAI try/catch upload o tren: upload
-      // anh loi thi van con so de can bo doc, va nguoc lai.
-      //
-      // KHONG vao `photos`, KHONG vao payload luu ho so - xem comment o fpPlainMarks.
+
       if (plainKey && !step.roll && capRes.slap_marks) {
         setFpPlainMarks((p) => ({ ...p, [plainKey]: capRes.slap_marks }));
       }
-      // O NGON CAI hien HAI LAYER - mot layer moi ngon cai, moi layer la anh RIENG
-      // cua ngon do (captured[].image_b64 - SDK tach san tung ngon trong cung lan
-      // chup chum). Van la MOT lan chup: da thu tach thanh 2 lan chup 1 ngon va
-      // thiet bi tu choi (-2019, count=4) - xem SLAP_STEPS trong api.py.
-      //
-      // Layer luu vao photos theo key rieng (fp_plain_left_thumb /
-      // fp_plain_right_thumb) nen ho so co ca anh tung ngon cai, khong chi anh chum.
+
       const layers = FP_PLAIN_LAYERS_BY_STEP[step.step];
       if (layers && !step.roll) {
         for (const ly of layers) {
           const c = (capRes.captured || []).find((x) => x.code === ly.code);
           if (!c?.image_b64) continue;
-          try {
-            const f = await b64PngToFile(c.image_b64, `${ly.key}.png`);
-            const up = await api.uploadPhoto(f);
-            setPhotos((p) => ({ ...p, [ly.key]: up.url }));
-          } catch (e) {
-            setFpError(t("capture.err.save_photo", { message: e.message }));
-          }
+          const dataUrl = c.image_b64.startsWith("data:")
+            ? c.image_b64 : `data:image/png;base64,${c.image_b64}`;
+          setPhotos((p) => ({ ...p, [ly.key]: dataUrl }));
+          b64PngToFile(c.image_b64, `${ly.key}.png`).then((f) => {
+            api.uploadPhoto(f).then((up) => {
+              setPhotos((p) => ({ ...p, [ly.key]: up.url }));
+            }).catch(() => { /* giu dataUrl */ });
+          }).catch(() => { /* noop */ });
         }
       }
+
       // CHI buoc LAN duoc ghi vao 10 o fp_l1..fp_r5 (va fp_templates).
-      //
-      // Buoc CHUM cung tra `captured` voi DUNG 10 ma ngon do - vi service cat 4
-      // (hoac 2) ngon ra tu anh ca ban tay. Truoc day khoi nay chay cho ca hai
-      // loai buoc, nen thu tu ROLL_STEPS -> SLAP_STEPS lam anh cat tu cum GHI DE
-      // sach 10 anh lan vua thu xong: can bo lan du 10 ngon, den 3 lan chup cum
-      // la mat het, con lai la 10 mieng cat tu anh chum (net kem hon han anh lan).
-      // fp_templates cung bi thay => matchFingerprint so bang template cum.
-      //
-      // Vi vay hai loai buoc GHI HAI CHO KHAC NHAU, khong dung chung key:
-      //   lan  -> fp_l1..fp_r5 + fp_templates
-      //   chum -> fp_plain_left / fp_plain_thumbs / fp_plain_right (o tren)
-      // Anh tung ngon cat ra tu buoc chum BO HAN: 3 anh ca ban tay da la ban ghi
-      // chinh thuc cua van chum, khong can luu ban cat le.
       if (step.roll) {
         for (const c of capRes.captured || []) {
           const key = FP_CODE_TO_KEY[c.code];
           if (!key) continue;
-          try {
-            const file = await b64PngToFile(c.image_b64, `${key}.png`);
-            const up = await api.uploadPhoto(file);
-            setPhotos((p) => {
-              const np = { ...p, [key]: up.url };
-              if (c.template_b64) {
-                np.fp_templates = { ...(p.fp_templates || {}), [c.code]: c.template_b64 };
-              }
-              return np;
-            });
-          } catch (e) {
-            setFpError(t("capture.err.save_photo", { message: e.message }));
-          }
+          const dataUrl = c.image_b64.startsWith("data:")
+            ? c.image_b64 : `data:image/png;base64,${c.image_b64}`;
+          setPhotos((p) => {
+            const np = { ...p, [key]: dataUrl };
+            if (c.template_b64) {
+              np.fp_templates = { ...(p.fp_templates || {}), [c.code]: c.template_b64 };
+            }
+            return np;
+          });
+          b64PngToFile(c.image_b64, `${key}.png`).then((file) => {
+            api.uploadPhoto(file).then((up) => {
+              setPhotos((p) => ({ ...p, [key]: up.url }));
+            }).catch(() => { /* giu dataUrl */ });
+          }).catch(() => { /* noop */ });
         }
       }
 
-      // MOI cum deu dung o day cho can bo xac nhan, ke ca khi ca 4 ngon vuot
-      // nguong: anh da hien len luoi 10 o (setPhotos o tren), can bo xem roi bam
-      // Xac nhan (sang cum sau) hoac Chup lai. KHONG advance step tu day - cum
-      // chua confirm thi service van tra next_step la chinh no.
       if (capRes.needs_confirm) {
         setFpStatus(capRes.message || "");
         setFpConfirm({
@@ -1152,7 +1077,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       full_name: d.full_name || f.full_name,
       alias: d.alias || f.alias,
       gender: d.gender || f.gender,
-      dob: d.dob || f.dob,
+      dob: toDobInput(d.dob) || f.dob,
       cccd_number: d.cccd_number || f.cccd_number,
       nationality: d.nationality || f.nationality,
       religion: d.religion || f.religion,
@@ -1166,15 +1091,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       mother_name: d.mother_name || f.mother_name,
       spouse_name: d.spouse_name || f.spouse_name,
       spouse_residence: d.spouse_residence || f.spouse_residence,
-      issued_date: d.issued_date || f.issued_date,
+      issued_date: toDobInput(d.issued_date) || f.issued_date,
       issued_place: d.issued_place || f.issued_place,
       case_about: d.case_about || f.case_about,
       fp_formula: d.fp_formula || f.fp_formula,
-      arrest_date: d.arrest_date || f.arrest_date,
+      arrest_date: toDobInput(d.arrest_date) || f.arrest_date,
       arrest_agency: d.arrest_agency || f.arrest_agency,
       record_sheet_no: d.record_sheet_no || f.record_sheet_no,
       fp_sheet_no: d.fp_sheet_no || f.fp_sheet_no,
-      record_date: d.record_date || f.record_date,
+      record_date: toDobInput(d.record_date) || f.record_date,
       record_scope: d.record_scope || f.record_scope,
       ak_no: d.ak_no || f.ak_no,
       face_shape: d.face_shape || f.face_shape,
@@ -1487,11 +1412,138 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     }
   };
 
-  // Bam Luu: doi chieu ho so trung bang check-duplicate (ho ten + ngay sinh + gioi
-  // tinh). Neu phat hien trung -> mo modal xac nhan (officer tu quyet). Khong trung
-  // -> luu luon. KHONG con tra cuu theo so CCCD.
-  const submit = async () => {
-    if (!allRequiredValid) return;
+  // Helper kiểm tra ĐẦY ĐỦ tất cả các trường còn thiếu trên form khi đã đủ 2 trường bắt buộc (mã hồ sơ & số CCCD)
+  const getMissingFields = useCallback(() => {
+    const missing = [];
+
+    // ---- Thanh thông tin hồ sơ ----
+    if (!form.record_sheet_no?.trim()) {
+      missing.push({ section: "Hồ sơ", key: "record_sheet_no", label: t("capture.summary.record_sheet_no") || "Số danh bản" });
+    }
+    if (!form.fp_sheet_no?.trim()) {
+      missing.push({ section: "Hồ sơ", key: "fp_sheet_no", label: t("capture.summary.fp_sheet_no") || "Số chỉ bản" });
+    }
+    if (!form.record_date?.trim()) {
+      missing.push({ section: "Hồ sơ", key: "record_date", label: t("capture.summary.record_date") || "Ngày lập danh bản" });
+    }
+    if (!form.ak_no?.trim()) {
+      missing.push({ section: "Hồ sơ", key: "ak_no", label: t("capture.summary.ak_no") || "Số hồ sơ AK" });
+    }
+    if (!form.record_scope?.trim()) {
+      missing.push({ section: "Hồ sơ", key: "record_scope", label: t("capture.summary.record_scope") || "Phạm vi lập biểu (ĐP/TW)" });
+    }
+
+    // ---- I. Thông tin nhân thân ----
+    if (!form.full_name?.trim()) {
+      missing.push({ section: "Nhân thân", key: "full_name", label: t("detainee.field.full_name") || "Họ và tên" });
+    }
+    if (!form.dob?.trim()) {
+      missing.push({ section: "Nhân thân", key: "dob", label: t("capture.personal.dob") || "Ngày sinh" });
+    }
+    if (!form.nationality?.trim()) {
+      missing.push({ section: "Nhân thân", key: "nationality", label: t("detainee.field.nationality") || "Quốc tịch" });
+    }
+    if (!form.ethnicity?.trim()) {
+      missing.push({ section: "Nhân thân", key: "ethnicity", label: t("detainee.field.ethnicity") || "Dân tộc" });
+    }
+    if (!form.occupation?.trim()) {
+      missing.push({ section: "Nhân thân", key: "occupation", label: t("detainee.field.occupation") || "Nghề nghiệp" });
+    }
+    if (!form.hometown?.trim()) {
+      missing.push({ section: "Nhân thân", key: "hometown", label: t("detainee.field.hometown") || "Quê quán" });
+    }
+    if (!form.address?.trim()) {
+      missing.push({ section: "Nhân thân", key: "address", label: t("detainee.field.address") || "Nơi thường trú" });
+    }
+    if (!form.temp_address?.trim()) {
+      missing.push({ section: "Nhân thân", key: "temp_address", label: t("detainee.field.temp_address") || "Nơi tạm trú" });
+    }
+    if (!form.current_address?.trim()) {
+      missing.push({ section: "Nhân thân", key: "current_address", label: t("detainee.field.current_address") || "Nơi ở hiện nay" });
+    }
+    if (!form.father_name?.trim()) {
+      missing.push({ section: "Nhân thân", key: "father_name", label: t("detainee.field.father_name") || "Họ tên cha" });
+    }
+    if (!form.mother_name?.trim()) {
+      missing.push({ section: "Nhân thân", key: "mother_name", label: t("detainee.field.mother_name") || "Họ tên mẹ" });
+    }
+
+    // ---- II. Thông tin vụ việc & Cán bộ ----
+    if (!form.arrest_date?.trim()) {
+      missing.push({ section: "Vụ việc", key: "arrest_date", label: t("capture.case.arrest_date") || "Bắt ngày" });
+    }
+    if (!form.arrest_agency?.trim()) {
+      missing.push({ section: "Vụ việc", key: "arrest_agency", label: t("capture.case.arrest_unit") || "Đơn vị bắt" });
+    }
+    if (!form.case_about?.trim()) {
+      missing.push({ section: "Vụ việc", key: "case_about", label: t("capture.case.about") || "Lập về việc / Tội danh" });
+    }
+    if (!form.fp_formula?.trim()) {
+      missing.push({ section: "Vụ việc", key: "fp_formula", label: t("namesheet.field.fp_formula") || "Công thức vân tay (C/T)" });
+    }
+    if (!form.officer_name?.trim()) {
+      missing.push({ section: "Cán bộ", key: "officer_name", label: t("fpsheet.officer.maker") || "Cán bộ lập hồ sơ" });
+    }
+    if (!form.officer_sorter?.trim()) {
+      missing.push({ section: "Cán bộ", key: "officer_sorter", label: t("fpsheet.officer.sorter") || "Cán bộ sắp xếp" });
+    }
+    if (!form.officer_classifier?.trim()) {
+      missing.push({ section: "Cán bộ", key: "officer_classifier", label: t("fpsheet.officer.classifier") || "Cán bộ phân loại" });
+    }
+    if (!form.officer_class_checker?.trim()) {
+      missing.push({ section: "Cán bộ", key: "officer_class_checker", label: t("fpsheet.officer.checker") || "Cán bộ KT phân loại" });
+    }
+
+    // ---- III. Đặc điểm nhận dạng ----
+    if (!form.height_cm) {
+      missing.push({ section: "Nhận dạng", key: "height_cm", label: t("detainee.field.height_cm") || "Chiều cao (cm)" });
+    }
+    if (!form.face_shape?.trim()) {
+      missing.push({ section: "Nhận dạng", key: "face_shape", label: t("capture.identify.face") || "Khuôn mặt" });
+    }
+    if (!form.nose?.trim()) {
+      missing.push({ section: "Nhận dạng", key: "nose", label: t("capture.identify.nose") || "Sống mũi" });
+    }
+    if (!form.ear_features?.trim()) {
+      missing.push({ section: "Nhận dạng", key: "ear_features", label: t("capture.identify.ear_fold") || "Nếp tai dưới" });
+    }
+    if (!form.earlobe?.trim()) {
+      missing.push({ section: "Nhận dạng", key: "earlobe", label: t("capture.identify.earlobe") || "Dái tai" });
+    }
+    if (!form.scars?.trim()) {
+      missing.push({ section: "Nhận dạng", key: "scars", label: t("capture.identify.marks") || "Dấu vết riêng" });
+    }
+    if (!form.physical_abnormalities?.trim()) {
+      missing.push({ section: "Nhận dạng", key: "physical_abnormalities", label: t("capture.identify.abnormal") || "Dị hình" });
+    }
+
+    // ---- IV. Ảnh nhận dạng (3 góc) ----
+    if (portraitCount < 3) {
+      const missingPortraits = [];
+      if (!photos.portrait_front) missingPortraits.push("Chính diện");
+      if (!photos.portrait_left) missingPortraits.push("Nghiêng trái 2/3");
+      if (!photos.portrait_right) missingPortraits.push("Nghiêng phải 2/3");
+      missing.push({
+        section: "Ảnh chân dung",
+        key: "portrait",
+        label: t("capture.missing.portrait_detail", { missing: missingPortraits.join(", ") }) || `Ảnh nhận dạng 3 góc (thiếu: ${missingPortraits.join(", ")})`,
+      });
+    }
+
+    // ---- V. Chỉ bản vân tay (10 ngón) ----
+    if (fpCount < 10) {
+      missing.push({
+        section: "Vân tay",
+        key: "fp",
+        label: t("capture.missing.fp_detail", { count: fpCount, remain: 10 - fpCount }) || `Chỉ bản vân tay (mới có ${fpCount}/10 ngón, thiếu ${10 - fpCount} ngón)`,
+      });
+    }
+
+    return missing;
+  }, [form, photos, portraitCount, fpCount, t]);
+
+  // Tiến hành đối chiếu trùng & lưu hồ sơ vào hệ thống
+  const proceedCheckDuplicateAndSave = async () => {
     const cccd = (form.cccd_number || "").replace(/\D/g, "");
     const dupBody = {
       full_name: form.full_name.trim(),
@@ -1501,9 +1553,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setCheckingDup(true);
     setErr("");
     try {
-      // BO tra cuu theo so CCCD. Chi con doi chieu ho ten + ngay sinh + gioi tinh
-      // (checkDuplicate). Truoc day con goi api.checkCccd(cccd) song song va coi
-      // trung so CCCD la mot "match" chan luu.
+      // BỎ tra cứu theo số CCCD. Chỉ còn đối chiếu họ tên + ngày sinh + giới tính
       const [dupRes] = await Promise.allSettled([
         api.checkDuplicate(dupBody),
       ]);
@@ -1523,9 +1573,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         dupRes.value.duplicates.forEach((d) => pushMatch(d, "info"));
       }
 
-      // Check loi mang -> khong chan officer vi loi ha tang, cho luu luon.
+      // Check lỗi mạng -> không chặn officer vì lỗi hạ tầng, cho lưu luôn.
       if (dupRes.status === "rejected") {
-        console.error("[dup-check] API loi:", dupRes.reason);
+        console.error("[dup-check] API lỗi:", dupRes.reason);
       }
 
       if (matches.length > 0) {
@@ -1539,6 +1589,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     } finally {
       setCheckingDup(false);
     }
+  };
+
+  // Bấm Lưu: nếu còn thiếu một số thông tin (ngoài 2 trường bắt buộc) -> hiện modal hỏi xác nhận.
+  // Đủ thông tin -> chuyển thẳng sang bước kiểm tra trùng & lưu.
+  const submit = async () => {
+    if (!allRequiredValid) return;
+    const missing = getMissingFields();
+    if (missing.length > 0) {
+      setIncompleteModal({ open: true, items: missing });
+      return;
+    }
+    await proceedCheckDuplicateAndSave();
+  };
+
+  const onIncompleteProceed = () => {
+    setIncompleteModal({ open: false, items: [] });
+    proceedCheckDuplicateAndSave();
+  };
+
+  const onIncompleteCancel = () => {
+    setIncompleteModal({ open: false, items: [] });
   };
 
   const onDupProceed = () => {
@@ -2157,6 +2228,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           onClose={() => setFpSheetOpen(false)}
         />
       )}
+
+      <IncompleteConfirmModal
+        open={incompleteModal.open}
+        items={incompleteModal.items}
+        onProceed={onIncompleteProceed}
+        onCancel={onIncompleteCancel}
+      />
 
       <DuplicateWarnModal
         open={dupModal.open}

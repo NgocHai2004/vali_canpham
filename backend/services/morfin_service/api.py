@@ -477,13 +477,10 @@ _lock = threading.Lock()
 _capture_lock = threading.Lock()
 # Thoi gian toi da /api/capture/stop cho luong chup cu nha _capture_lock.
 # Dai hon mot nhip SDK thoat khoi cho, nhung khong de request treo vo han.
-# /api/capture/stop cho luong chup cu nha _capture_lock. Phai LON HON thoi gian
-# cho toi da cua engine (ROLL_TIMEOUT 30 + 10 = 40s) — dat 8s nhu truoc la bo cho
-# truoc khi lock duoc nha, tra ve som va client tuong thiet bi ranh.
-STOP_LOCK_TIMEOUT = 45.0
+STOP_LOCK_TIMEOUT = 5.0
 # capture() cho bao lau sau khi engine.stop() de giat thiet bi tu lan chup cu.
-# engine.stop() cat cho ngay nen luong cu thoat trong ~1s; 12s la du du.
-PREEMPT_TIMEOUT = 12.0
+# engine.stop() cat cho ngay nen luong cu thoat trong ~1s; 5s la du du.
+PREEMPT_TIMEOUT = 5.0
 
 app = FastAPI(title="Morfin Slap Enroll")
 
