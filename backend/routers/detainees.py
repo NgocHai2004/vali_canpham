@@ -7,7 +7,6 @@ from typing import Optional
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-import face_recognition_service
 from config import DETAINEES_UPLOAD_DIR
 from models import DetaineeIn, TransferBody
 from auth import get_current_user
@@ -28,26 +27,8 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 async def _compute_face_embedding(portrait_url: str) -> list[float] | None:
-    """Tính embedding 512d từ ảnh portrait_front (URL local /uploads/...).
-
-    Trả None nếu model chưa ready / không detect mặt / URL ngoài. Không raise.
-    """
-    if not portrait_url or not face_recognition_service.is_ready():
-        return None
-    path = resolve_upload_path(portrait_url)
-    if not path:
-        return None
-    try:
-        with open(path, "rb") as f:
-            img_bytes = f.read()
-        emb, _n, _m = await anyio.to_thread.run_sync(
-            face_recognition_service.get_embedding, img_bytes
-        )
-        if emb is None:
-            return None
-        return [float(x) for x in emb.tolist()]
-    except Exception:  # noqa: BLE001
-        return None
+    """Tính embedding 512d từ ảnh portrait_front. Trả None khi không dùng AI nhận diện."""
+    return None
 
 
 # ---------------------------------------------------------------------------

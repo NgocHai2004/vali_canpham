@@ -26,7 +26,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-import face_recognition_service
 import config
 from config import UPLOAD_DIR
 from auth import get_current_user
@@ -59,8 +58,6 @@ async def lifespan(app: FastAPI):
     # thể chưa kịp bật, và nó tự respawn nên phải đồng bộ lại mỗi lần backend
     # start. Không await để không block app ready.
     asyncio.create_task(push_fp_quality_safe())
-    # Load InsightFace (buffalo_sc) o background cho nhan dien khuon mat
-    threading.Thread(target=face_recognition_service.load_blocking, daemon=True, name="face-load").start()
     yield
     # Shutdown
     await database.close_db()
