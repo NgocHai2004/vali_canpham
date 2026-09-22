@@ -292,8 +292,9 @@ def capture_end(sid: str) -> None:
 
 def capture_count() -> int:
     with _lock:
-        _gc_locked(_now())
-        return len(_sessions)
+        now = _now()
+        _gc_locked(now)
+        return len(_dang_mo_locked(now))
 
 
 def push(payload: dict) -> dict:

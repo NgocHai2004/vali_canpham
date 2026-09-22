@@ -100,10 +100,15 @@ export const FpSheetPreviewContent = forwardRef(function FpSheetPreviewContent(
   // dien ngay/thang/nam, khong thi de net ke de viet tay. Chap nhan ca dang
   // ISO (YYYY-MM-DD) va dang da hien thi (DD/MM/YYYY).
   const dobRaw = String(form.dob || "").trim();
-  const dobIso = dobRaw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-  const dobParts = dobIso
-    ? [dobIso[3], dobIso[2], dobIso[1]]
-    : dobRaw.split(/[^\d]+/).filter(Boolean);
+  const dobParts = !dobRaw
+    ? ["", "", ""]
+    : /^\d{4}$/.test(dobRaw)
+      ? ["", "", dobRaw]
+      : dobRaw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/)
+        ? [RegExp.$3.padStart(2, "0"), RegExp.$2.padStart(2, "0"), RegExp.$1]
+        : dobRaw.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/)
+          ? [RegExp.$1.padStart(2, "0"), RegExp.$2.padStart(2, "0"), RegExp.$3]
+          : dobRaw.split(/[^\d]+/).filter(Boolean);
   const dobDay = dobParts[0] || "";
   const dobMonth = dobParts[1] || "";
   const dobYear = dobParts[2] || "";

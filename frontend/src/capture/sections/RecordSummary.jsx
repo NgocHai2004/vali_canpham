@@ -1,5 +1,6 @@
 import { useI18n } from "../../i18n";
 import { fieldState } from "../components/fields";
+import { isValidDateStr, toDobInput } from "../formSchema";
 
 // Thanh tom tat ho so — dai ngang, nhan nho + gia tri dam. KHONG phai the lon:
 // day la vung nhan dang ho so, khong phai dashboard, nen moi o chi cao 1 dong.
@@ -9,7 +10,7 @@ import { fieldState } from "../components/fields";
 // BBOX xanh/do: dung chung fieldState() voi cac muc I/II/III de mot quy tac chay
 // ca trang (o * con thieu -> do, o da dien -> xanh, o khong bat buoc con trong ->
 // giu nguyen). Chi "Ma ho so" mang `required`; 5 o text con lai deu tuy y.
-function SumText({ label, value, onChange, placeholder, disabled, wide = false, required = false, isValid }) {
+function SumText({ label, value, onChange, onBlur, placeholder, disabled, wide = false, required = false, isValid }) {
   const st = fieldState({ value, required, isValid });
   return (
     <label className={"rec-sum-item" + (wide ? " rec-sum-item--wide" : "") + (st ? " " + st : "")}>
@@ -20,6 +21,7 @@ function SumText({ label, value, onChange, placeholder, disabled, wide = false, 
         placeholder={placeholder || "—"}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onBlur && onBlur(e.target.value)}
       />
     </label>
   );
@@ -56,7 +58,12 @@ export function RecordSummary({
       <SumText label={t("capture.summary.fp_sheet_no")} value={form.fp_sheet_no}
         onChange={(v) => setField("fp_sheet_no", v)} disabled={disabled} />
       <SumText label={t("capture.summary.record_date")} value={form.record_date}
+        isValid={form.record_date ? isValidDateStr(form.record_date, false) : undefined}
         onChange={(v) => setField("record_date", v)}
+        onBlur={(v) => {
+          const norm = toDobInput(v);
+          if (norm !== v) setField("record_date", norm);
+        }}
         placeholder={t("capture.form.date_ph")} disabled={disabled} />
       <SumText label={t("capture.summary.ak_no")} value={form.ak_no}
         onChange={(v) => setField("ak_no", v)} disabled={disabled} />

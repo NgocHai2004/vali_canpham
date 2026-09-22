@@ -93,18 +93,78 @@ export function getTodayDateStr() {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+export function isValidDateStr(val, allowYearOnly = true) {
+  if (!val) return false;
+  const s = String(val).trim();
+  if (!s) return false;
+
+  // 1. 4-digit year only
+  if (allowYearOnly && /^\d{4}$/.test(s)) {
+    const y = parseInt(s, 10);
+    return y >= 1900 && y <= 2100;
+  }
+
+  // 2. DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const mDmy = /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/.exec(s);
+  if (mDmy) {
+    const d = parseInt(mDmy[1], 10);
+    const m = parseInt(mDmy[2], 10);
+    const y = parseInt(mDmy[3], 10);
+    if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    return d <= daysInMonth;
+  }
+
+  // 3. YYYY-MM-DD or YYYY/MM/DD
+  const mYmd = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(s);
+  if (mYmd) {
+    const y = parseInt(mYmd[1], 10);
+    const m = parseInt(mYmd[2], 10);
+    const d = parseInt(mYmd[3], 10);
+    if (y < 1900 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    return d <= daysInMonth;
+  }
+
+  return false;
+}
+
 export function toDobInput(v) {
   if (!v) return "";
-  const s = String(v);
-  if (s.includes("/")) return s;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    return `${dd}/${mm}/${d.getFullYear()}`;
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return "";
+    const dd = String(v.getDate()).padStart(2, "0");
+    const mm = String(v.getMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${v.getFullYear()}`;
   }
+  const s = String(v).trim();
+  if (!s) return "";
+
+  // 4-digit year only
+  if (/^\d{4}$/.test(s)) return s;
+
+  // 8 continuous digits DDMMYYYY
+  if (/^\d{8}$/.test(s)) {
+    const d = parseInt(s.slice(0, 2), 10);
+    const m = parseInt(s.slice(2, 4), 10);
+    const y = parseInt(s.slice(4, 8), 10);
+    if (y >= 1900 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${s.slice(0, 2)}/${s.slice(2, 4)}/${s.slice(4, 8)}`;
+    }
+  }
+
+  // YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD
+  const mYmd = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(s);
+  if (mYmd) {
+    return `${mYmd[3].padStart(2, "0")}/${mYmd[2].padStart(2, "0")}/${mYmd[1]}`;
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const mDmy = /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/.exec(s);
+  if (mDmy) {
+    return `${mDmy[1].padStart(2, "0")}/${mDmy[2].padStart(2, "0")}/${mDmy[3]}`;
+  }
+
   return s;
 }
 

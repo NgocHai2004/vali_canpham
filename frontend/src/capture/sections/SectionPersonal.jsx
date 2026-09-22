@@ -1,5 +1,6 @@
 import { useI18n } from "../../i18n";
 import { InfoField } from "../components/fields";
+import { isValidDateStr, toDobInput } from "../formSchema";
 
 // I. THONG TIN NHAN THAN — 16 truong, chia doi tron 8 hang.
 //
@@ -36,10 +37,15 @@ export function SectionPersonal({ form, setField, disabled = false }) {
       </InfoField>
       {/* Sinh ngay di cap voi so giay to: ca hai cung do dau doc the dien ra,
           nen can bo doi chieu mot luot ngay hang dau. */}
-      <InfoField label={t("capture.personal.dob")} value={form.dob}>
+      <InfoField label={t("capture.personal.dob")} value={form.dob}
+        isValid={form.dob ? isValidDateStr(form.dob) : undefined}>
         <input className="control control-sm" value={form.dob} disabled={disabled}
           placeholder={t("capture.form.date_ph")}
-          onChange={(e) => setField("dob", e.target.value)} />
+          onChange={(e) => setField("dob", e.target.value)}
+          onBlur={(e) => {
+            const norm = toDobInput(e.target.value);
+            if (norm !== e.target.value) setField("dob", norm);
+          }} />
       </InfoField>
 
       {/* ==== 2. HO TEN: Ho ten + Ten goi khac GHEP MOT HANG (moi o nua hang) ====

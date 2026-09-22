@@ -391,9 +391,10 @@ export const scanApi = {
 
 
 
-// base64 PNG (không kèm data:image/png;base64,) → File
+// base64 PNG (hỗ trợ cả có và không kèm data:image/png;base64,) → File
 export async function b64PngToFile(b64, filename) {
-  const bin = atob(b64);
+  const cleanB64 = (b64 || "").replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, "");
+  const bin = atob(cleanB64);
   const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
   const blob = new Blob([buf], { type: "image/png" });

@@ -2228,14 +2228,17 @@
   .modal {
     width: min(920px, 100%);
     max-height: 90vh;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: auto;
     border-radius: 17px;
     background: var(--bg-panel);
     box-shadow: 0 30px 80px rgba(0,0,0,.28);
   }
   /* Dat CA width va max-width: styles.css co .small-modal { max-width: 480px }
      se bop lai neu o day chi khai bao width. */
-  .small-modal {
+  .small-modal,
+  .cells-modal {
     width: min(640px, 100%);
     max-width: min(640px, 100%);
     /* Tat 2 thanh scroll trang (phai + duoi):
@@ -2277,7 +2280,8 @@
      border-radius 17px + box-shadow rieng, nen no thanh vien THU HAI lech ra
      ngoai 1px (nhin nhu "nhay layer"). Va 1px tran ra do chinh la thu sinh
      scrollbar ca hai truc trong hop overflow:auto. Bo han cho form nhap. */
-  .small-modal::before { display: none; }
+  .small-modal::before,
+  .cells-modal::before { display: none; }
 
   .sync-diff-modal {
     width: min(720px, 100%);

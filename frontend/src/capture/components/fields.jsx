@@ -8,8 +8,13 @@
 // chu so (backend main.py rang buoc ^\d{12}$) nen go duoc 5 so van la thieu,
 // van do cho den khi dung. Khong truyen `isValid` thi chi can khac rong.
 export function fieldState({ value, required = false, isValid }) {
-  const ok = isValid === undefined ? String(value ?? "").trim() !== "" : !!isValid;
-  if (ok) return "f-ok";
+  const hasValue = String(value ?? "").trim() !== "";
+  if (isValid !== undefined) {
+    if (isValid) return "f-ok";
+    if (hasValue || required) return "f-bad";
+    return "";
+  }
+  if (hasValue) return "f-ok";
   return required ? "f-bad" : "";
 }
 

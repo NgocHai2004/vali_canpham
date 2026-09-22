@@ -33,6 +33,14 @@ def _require_scan_key(request: Request) -> None:
         raise HTTPException(401, "Sai X-Scan-Key")
 
 
+@router.get("/api/scan/status")
+async def scan_status():
+    """Tra ve trang thai hop thu scan: so luong form dang mo."""
+    _require_scan_ocr()
+    count = _scan_capture_count()
+    return {"ok": True, "active_forms": count, "ready": count == 1}
+
+
 @router.post("/api/scan/capture/start")
 async def scan_capture_start(user: dict = Depends(get_current_user)):
     """Mo session cap nhat-form — frontend goi luc form dang ky MOI hiện lên."""

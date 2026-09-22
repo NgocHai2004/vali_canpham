@@ -41,8 +41,12 @@ function heightAfter1m(v) {
 // du lieu thi de net ke de can bo viet tay.
 function dateParts(v) {
   const raw = String(v ?? "").trim();
+  if (!raw) return ["", "", ""];
+  if (/^\d{4}$/.test(raw)) return ["", "", raw];
   const iso = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-  if (iso) return [iso[3], iso[2], iso[1]];
+  if (iso) return [iso[3].padStart(2, "0"), iso[2].padStart(2, "0"), iso[1]];
+  const dmy = raw.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) return [dmy[1].padStart(2, "0"), dmy[2].padStart(2, "0"), dmy[3]];
   const parts = raw.split(/[^\d]+/).filter(Boolean);
   return [parts[0] || "", parts[1] || "", parts[2] || ""];
 }

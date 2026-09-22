@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "r
 import DuplicateWarnModal from "./DuplicateWarnModal";
 import IncompleteConfirmModal from "./IncompleteConfirmModal";
 import { toast } from "./Toast";
-import { api, fpApi, scanApi } from "./api";
+import { api, fpApi, scanApi, b64PngToFile } from "./api";
 import { HandGlyph } from "./capture/components/HandGlyph";
 import { FINGERS, LEFT_HAND, RIGHT_HAND, FP_CODE_TO_KEY, FP_CLUSTERS, FINGER_STEP_OF, FP_ROLL_ORDER, FP_ROLL_CODE_BY_STEP, FP_ROLL_STEP, FP_SHEET_NO, FP_MAX_FAILS, FP_MAX_BUSY, sleepFp, PORTRAITS, FP_PLAIN_SLOTS, FP_PLAIN_LAYERS_BY_STEP, FP_SHEET_KEY_BY_STEP } from "./capture/constants";
 import { RecordSummary } from "./capture/sections/RecordSummary";
@@ -10,7 +10,7 @@ import { SectionCase } from "./capture/sections/SectionCase";
 import { SectionPersonal } from "./capture/sections/SectionPersonal";
 import { SectionPortraits } from "./capture/sections/SectionPortraits";
 import { SectionIdentify } from "./capture/sections/SectionIdentify";
-import { EMPTY_FORM, normalizeInitial } from "./capture/formSchema";
+import { EMPTY_FORM, normalizeInitial, toDobInput } from "./capture/formSchema";
 import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
 import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
 import { useI18n } from "./i18n";
@@ -201,6 +201,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
   const [dupModal, setDupModal] = useState({ open: false, matches: [] });  // cảnh báo trùng lúc Lưu
   const [incompleteModal, setIncompleteModal] = useState({ open: false, items: [] }); // cảnh báo thiếu thông tin lúc Lưu
   const [checkingDup, setCheckingDup] = useState(false);   // đang gộp check khi bấm Lưu
+  const [duplicateCccdMatch, setDuplicateCccdMatch] = useState(null); // cảnh báo trùng CCCD trên màn hình
 
   // Cảnh báo "đối tượng đã có trong danh sách" → đẩy vào chuông thông báo header.
   // Click thông báo (kind:"match") sẽ mở hồ sơ đối tượng đã đăng ký.
@@ -266,7 +267,42 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setPhotos(seed.photos);
     setErr("");
     setOk("");
+    setDuplicateCccdMatch(null);
   }, [seed]);
+
+  // Tra cứu trùng CCCD thời gian thực khi người dùng điền đủ 12 chữ số
+  useEffect(() => {
+    const cccd = (form.cccd_number || "").replace(/\D/g, "");
+    if (cccd.length !== 12) {
+      setDuplicateCccdMatch(null);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.checkCccd(cccd);
+        if (!active) return;
+        if (res?.matched && res.detainee) {
+          const did = res.detainee.id || res.detainee._id;
+          if (isEdit && initial?.id && did === initial.id) {
+            setDuplicateCccdMatch(null);
+            return;
+          }
+          setDuplicateCccdMatch(res.detainee);
+          raiseAlert({ source: "cccd", detainee: res.detainee });
+        } else {
+          setDuplicateCccdMatch(null);
+        }
+      } catch (e) {
+        if (active) setDuplicateCccdMatch(null);
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [form.cccd_number, isEdit, initial, raiseAlert]);
 
   // cells chi con dung cho ProfilePreviewContent (in ra ten buong cua ho so CU).
   // Trang thu nhan khong con o chon dien giam giu / co so / phan trai / buong,
@@ -489,20 +525,24 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         for (const c of capRes.captured || []) {
           const key = FP_CODE_TO_KEY[c.code];
           if (!key) continue;
-          const file = await b64PngToFile(c.image_b64, `${key}.png`);
-          const up = await api.uploadPhoto(file);
+          const dataUrl = c.image_b64.startsWith("data:")
+            ? c.image_b64 : `data:image/png;base64,${c.image_b64}`;
+          photosRef.current = { ...photosRef.current, [key]: dataUrl };
           setPhotos((p) => {
-            const next = { ...p, [key]: up.url };
+            const next = { ...p, [key]: dataUrl };
             if (c.template_b64) {
               next.fp_templates = { ...(p.fp_templates || {}), [c.code]: c.template_b64 };
             }
             return next;
           });
+          b64PngToFile(c.image_b64, `${key}.png`).then((file) => {
+            api.uploadPhoto(file).then((up) => {
+              setPhotos((p) => ({ ...p, [key]: up.url }));
+            }).catch(() => { /* giu dataUrl */ });
+          }).catch(() => { /* noop */ });
         }
         setFpStatus(t("capture.status.retook", { name: groupName }));
         setOk(t("capture.status.updated", { name: groupName }));
-        // (Đã bỏ tra cứu ngay sau thu lại — BE cần đủ 10 ngón. Tra cứu chỉ
-        //  chạy sau khi thu đủ 10 ngón ở vòng tự động.)
       } catch (e) {
         setFpError(t("capture.err.save_photo", { message: e.message }));
       }
@@ -630,13 +670,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       // ANH CA BAN TAY -> o chum. Day la ban ghi chinh thuc cua van chum.
       const plainKey = FP_SHEET_KEY_BY_STEP[group.step];
       if (plainKey && capRes.slap_thumb_b64) {
-        try {
-          const f = await b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`);
-          const up = await api.uploadPhoto(f);
-          setPhotos((p) => ({ ...p, [plainKey]: up.url }));
-        } catch (e) {
-          setFpError(t("capture.err.save_photo", { message: e.message }));
-        }
+        const dataUrl = capRes.slap_thumb_b64.startsWith("data:")
+          ? capRes.slap_thumb_b64 : `data:image/png;base64,${capRes.slap_thumb_b64}`;
+        photosRef.current = { ...photosRef.current, [plainKey]: dataUrl };
+        setPhotos((p) => ({ ...p, [plainKey]: dataUrl }));
+        b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`).then((f) => {
+          api.uploadPhoto(f).then((up) => {
+            setPhotos((p) => ({ ...p, [plainKey]: up.url }));
+          }).catch(() => { /* giu dataUrl fallback */ });
+        }).catch(() => { /* noop */ });
       }
       // % tung ngon dat dung vi tri tren anh chum. Ngoai try/catch upload: upload
       // loi thi van con so de can bo doc, va nguoc lai.
@@ -650,13 +692,15 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         for (const ly of layers) {
           const c = (capRes.captured || []).find((x) => x.code === ly.code);
           if (!c?.image_b64) continue;
-          try {
-            const f = await b64PngToFile(c.image_b64, `${ly.key}.png`);
-            const up = await api.uploadPhoto(f);
-            setPhotos((p) => ({ ...p, [ly.key]: up.url }));
-          } catch (e) {
-            setFpError(t("capture.err.save_photo", { message: e.message }));
-          }
+          const dataUrl = c.image_b64.startsWith("data:")
+            ? c.image_b64 : `data:image/png;base64,${c.image_b64}`;
+          photosRef.current = { ...photosRef.current, [ly.key]: dataUrl };
+          setPhotos((p) => ({ ...p, [ly.key]: dataUrl }));
+          b64PngToFile(c.image_b64, `${ly.key}.png`).then((f) => {
+            api.uploadPhoto(f).then((up) => {
+              setPhotos((p) => ({ ...p, [ly.key]: up.url }));
+            }).catch(() => { /* giu dataUrl */ });
+          }).catch(() => { /* noop */ });
         }
       }
       // CO Y KHONG ghi `captured` vao fp_l1..fp_r5, fp_templates hay fpQuality.
@@ -795,6 +839,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
       if (plainKey && !step.roll && capRes.slap_thumb_b64) {
         const dataUrl = capRes.slap_thumb_b64.startsWith("data:")
           ? capRes.slap_thumb_b64 : `data:image/png;base64,${capRes.slap_thumb_b64}`;
+        photosRef.current = { ...photosRef.current, [plainKey]: dataUrl };
         setPhotos((p) => ({ ...p, [plainKey]: dataUrl }));
         b64PngToFile(capRes.slap_thumb_b64, `${plainKey}.png`).then((f) => {
           api.uploadPhoto(f).then((up) => {
@@ -814,6 +859,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           if (!c?.image_b64) continue;
           const dataUrl = c.image_b64.startsWith("data:")
             ? c.image_b64 : `data:image/png;base64,${c.image_b64}`;
+          photosRef.current = { ...photosRef.current, [ly.key]: dataUrl };
           setPhotos((p) => ({ ...p, [ly.key]: dataUrl }));
           b64PngToFile(c.image_b64, `${ly.key}.png`).then((f) => {
             api.uploadPhoto(f).then((up) => {
@@ -830,6 +876,7 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
           if (!key) continue;
           const dataUrl = c.image_b64.startsWith("data:")
             ? c.image_b64 : `data:image/png;base64,${c.image_b64}`;
+          photosRef.current = { ...photosRef.current, [key]: dataUrl };
           setPhotos((p) => {
             const np = { ...p, [key]: dataUrl };
             if (c.template_b64) {
@@ -859,6 +906,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
       setFpStatus(capRes.message || "");
       step = capRes.next_step;
+      if (step) {
+        await sleepFp(400);
+      }
     }
 
     // Chua pause cho xac nhan => vong ket thuc do xong / het lan / abort. Kiem
@@ -1553,10 +1603,13 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
     setCheckingDup(true);
     setErr("");
     try {
-      // BỎ tra cứu theo số CCCD. Chỉ còn đối chiếu họ tên + ngày sinh + giới tính
-      const [dupRes] = await Promise.allSettled([
-        api.checkDuplicate(dupBody),
-      ]);
+      const checks = [api.checkDuplicate(dupBody)];
+      if (cccd.length === 12) {
+        checks.push(api.checkCccd(cccd));
+      }
+      const results = await Promise.allSettled(checks);
+      const dupRes = results[0];
+      const cccdRes = results[1];
 
       const matches = [];
       const seen = new Set();
@@ -1569,18 +1622,22 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         matches.push({ source, detainee });
       };
 
-      if (dupRes.status === "fulfilled" && Array.isArray(dupRes.value?.duplicates)) {
+      if (cccdRes && cccdRes.status === "fulfilled" && cccdRes.value?.matched && cccdRes.value?.detainee) {
+        pushMatch(cccdRes.value.detainee, "cccd");
+      }
+
+      if (dupRes && dupRes.status === "fulfilled" && Array.isArray(dupRes.value?.duplicates)) {
         dupRes.value.duplicates.forEach((d) => pushMatch(d, "info"));
       }
 
       // Check lỗi mạng -> không chặn officer vì lỗi hạ tầng, cho lưu luôn.
-      if (dupRes.status === "rejected") {
+      if (dupRes?.status === "rejected") {
         console.error("[dup-check] API lỗi:", dupRes.reason);
       }
 
       if (matches.length > 0) {
         setDupModal({ open: true, matches });
-        return;   // chờ officer quyết định trong modal
+        return;   // chờ officer quyết định trong modal: Tiếp tục đăng ký hay Hủy đăng ký
       }
       await doSave();
     } catch (e) {
@@ -1724,6 +1781,45 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {duplicateCccdMatch && (
+        <div className="capture-banner" style={{ margin: "0 0 12px 0" }}>
+          <div className="error-box" role="alert" style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            background: "rgba(239, 68, 68, 0.16)",
+            border: "1px solid var(--danger, #ef4444)",
+            color: "#fff",
+            padding: "10px 16px",
+            borderRadius: "8px"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "20px" }}>⚠️</span>
+              <div>
+                <strong style={{ color: "var(--danger, #ef4444)" }}>{t("capture.alert.badge_cccd")}:</strong>{" "}
+                {t("capture.alert.cccd_exists", {
+                  cccd: duplicateCccdMatch.cccd_number || form.cccd_number,
+                  name: duplicateCccdMatch.full_name || "—"
+                })}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+              {onEditProfile && (
+                <button
+                  type="button"
+                  className="button secondary button-sm"
+                  style={{ whiteSpace: "nowrap" }}
+                  onClick={() => onEditProfile(duplicateCccdMatch)}
+                >
+                  {t("capture.dup_modal.open_profile")}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

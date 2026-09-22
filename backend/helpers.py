@@ -69,18 +69,30 @@ def serialize_user(u: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def parse_dob(s: Optional[str]) -> Optional[str]:
-    """Parse ngày sinh / ngày cấp / ngày hết hạn → chuẩn hoá string YYYY-MM-DD."""
+    """Parse ngày sinh / ngày cấp / ngày hết hạn → chuẩn hoá string YYYY-MM-DD hoặc YYYY."""
     if not s:
         return None
     s = str(s).strip()
     if not s:
         return None
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+    # 4-digit year
+    if re.match(r"^\d{4}$", s):
+        y = int(s)
+        if 1900 <= y <= 2100:
+            return s
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y/%m/%d"):
         try:
             return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except Exception:
             continue
-    return None
+    m = re.match(r"^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$", s)
+    if m:
+        d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return datetime(y, mth, d).strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    return s
 
 
 def parse_dt(s: Optional[str]) -> Optional[datetime]:

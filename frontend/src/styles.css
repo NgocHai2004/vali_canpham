@@ -2016,12 +2016,10 @@ textarea.input {
    place-items: center => ket qua bi ghim sat dinh viewport thay vi can giua.
    Doi lai center: form Ho so ca nhan se dich nhe khi mo them o doi mat khau,
    con form tai khoan cao co dinh nen dung yen. */
-.modal-backdrop:has(.small-modal) {
+.modal-backdrop:has(.small-modal),
+.modal-backdrop:has(.cells-modal) {
   align-items: center;
 }
-/* Chua cho thanh cuon san: khong co dong nay thi luc noi dung vuot max-height,
-   thanh cuon xuat hien va bop chieu ngang noi dung => giat ngang. */
-.modal { scrollbar-gutter: stable; }
 
 .modal {
   position: relative;
@@ -2034,7 +2032,9 @@ textarea.input {
   box-shadow: 0 20px 60px rgba(2, 8, 23, 0.6), 0 12px 34px -14px rgba(22, 139, 255, 0.18);
   width: 100%;
   max-height: calc(100vh - 40px);
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: auto;
   animation: slideUp 0.2s ease;
 }
 
@@ -5071,7 +5071,15 @@ textarea.input {
    (chi cap phan trai/buong) loai tru nhau san, nen cho hai cai dung CHUNG mot
    vung cao co dinh - khong cong don chieu cao, va doi cap thi vung do khong doi. */
 .cells-modal {
-  max-width: 640px;
+  width: min(640px, 100%);
+  max-width: min(640px, 100%);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: auto;
+}
+
+.cells-modal::before {
+  display: none;
 }
 
 .cells-form {

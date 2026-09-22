@@ -1,5 +1,6 @@
 import { useI18n } from "../../i18n";
 import { InfoField } from "../components/fields";
+import { isValidDateStr, toDobInput } from "../formSchema";
 
 // II. THONG TIN VU VIEC — gom 3 nhom vao mot muc:
 //   a) Vu viec: bat ngay, don vi bat, lap ve viec, C/T van tay
@@ -31,10 +32,15 @@ export function SectionCase({ form, setField, disabled = false }) {
   const { t } = useI18n();
   return (
     <div className="cap-grid cap-grid--case">
-      <InfoField label={t("capture.case.arrest_date")} value={form.arrest_date}>
+      <InfoField label={t("capture.case.arrest_date")} value={form.arrest_date}
+        isValid={form.arrest_date ? isValidDateStr(form.arrest_date) : undefined}>
         <input className="control control-sm" value={form.arrest_date} disabled={disabled}
           placeholder={t("capture.form.date_ph")}
-          onChange={(e) => setField("arrest_date", e.target.value)} />
+          onChange={(e) => setField("arrest_date", e.target.value)}
+          onBlur={(e) => {
+            const norm = toDobInput(e.target.value);
+            if (norm !== e.target.value) setField("arrest_date", norm);
+          }} />
       </InfoField>
       {/* Don vi bat thuong dai ("Cong an phuong ... quan ...") nen o nua hang bi
           cat chu khi o trong — noi dung go vao van cuon trong o. */}
