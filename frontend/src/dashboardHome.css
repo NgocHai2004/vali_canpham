@@ -1,10 +1,18 @@
 /* ============================================================================
- * dashboardHome.css — theme sáng/tối cho RIÊNG màn hình dashboard.
+ * dashboardHome.css — theme sáng/tối + bố cục cho dashboard và các màn danh sách.
  *
- * SCOPE GUARD: thuộc tính `data-dash-theme` chỉ được Dashboard.jsx gắn lên `.app`
- * khi `page === "dashboard"`. Mọi rule trong file này hoặc là class `.dh-*`, hoặc
- * bị khoá theo `.app[data-dash-theme="light"]`. Không trang nào khác có thuộc tính
- * đó, nên file này KHÔNG THỂ ảnh hưởng trang khác.
+ * HAI THUỘC TÍNH, HAI VAI TRÒ (Dashboard.jsx gắn lên `.app`) — đừng gộp lại:
+ *
+ *   data-dash-theme="dark|light"  MÀU SẮC. Luôn có mặt ở mọi trang, nên nút đổi
+ *     theme trong sidebar áp cho cả app. Rule màu hoặc là class `.dh-*`, hoặc
+ *     khoá theo `.app[data-dash-theme="light"]`.
+ *
+ *   data-dash-zoom="on"           HÌNH HỌC: `zoom: 1.5` ở >=1600px và header gọn
+ *     50px. CHỈ có ở các trang trong `DH_PAGES` (Dashboard.jsx) — tức các trang
+ *     đã port sang primitive `.dh-*` và thiết kế theo bề ngang 1280 của mockup.
+ *     Trang chưa port (Nhập liệu, Cài đặt, Đồng bộ, Chi tiết phiên) được thiết kế
+ *     theo 1920 thật: phóng 1.5 lần là tràn ngang. ĐỪNG re-key mấy block đó về
+ *     `data-dash-theme`.
  *
  * dashboard.css và styles.css KHÔNG bị sửa bởi tính năng này.
  *
@@ -449,10 +457,10 @@ body:has(.app[data-dash-theme="light"]) {
  * hoá ở cỡ thật (không bị mờ) và `position: fixed` của modal/toast vẫn neo
  * đúng viewport.
  *
- * Khoá theo `data-dash-theme` nên các trang khác không bị phóng. Mốc 1600px
+ * Khoá theo `data-dash-zoom` nên các trang khác không bị phóng. Mốc 1600px
  * để màn 1280/1440 giữ nguyên tỉ lệ 1:1. */
 @media (min-width: 1600px) {
-  .app[data-dash-theme] {
+  .app[data-dash-zoom] {
     zoom: 1.5;
     /* HAI ĐƠN VỊ XỬ SỰ KHÁC NHAU — đừng "sửa" cho giống nhau:
        - `%` được Chromium chia sẵn theo zoom: `100%` ở đây = 1920/1.5 = 1280,
@@ -472,23 +480,23 @@ body:has(.app[data-dash-theme="light"]) {
  * 55), tiêu đề 17px nằm MỘT dòng, ô ngôn ngữ chỉ còn "VI | EN", nút đăng xuất
  * chỉ còn icon. Ở khổ 1280px bản mặc định làm tiêu đề xuống 2 dòng.
  *
- * Toàn bộ khối này khoá theo `.app[data-dash-theme]` — các trang khác giữ
+ * Toàn bộ khối này khoá theo `.app[data-dash-zoom]` — các trang khác giữ
  * nguyên header cũ (quyết định có chủ ý, xem [[dashboard-theme-scope]]).
  * ------------------------------------------------------------------------- */
 
-.app[data-dash-theme] {
+.app[data-dash-zoom] {
   /* dashboard.css:30 đặt 55px; specificity (0,2,0) > (0,1,0) nên thắng. */
   grid-template-rows: 50px minmax(0, 1fr);
 }
 
 /* --- Brand: logo nhỏ lại, tiêu đề 1 dòng --------------------------------- */
-.app[data-dash-theme] .header {
+.app[data-dash-zoom] .header {
   padding: 0 14px 0 8px;
 }
 
-.app[data-dash-theme] .brand { gap: 28px; }
+.app[data-dash-zoom] .brand { gap: 28px; }
 
-.app[data-dash-theme] .brand-logo {
+.app[data-dash-zoom] .brand-logo {
   width: 36px;
   height: 36px;
 }
@@ -496,21 +504,21 @@ body:has(.app[data-dash-theme="light"]) {
 /* nowrap là điểm mấu chốt: ở 20px tiêu đề dài 558px, cộng cụm phải ~525px và
    sidebar 56px là tràn 1280px → rơi xuống 2 dòng. 17px cho ra ~406px, đúng
    bằng mockup. */
-.app[data-dash-theme] .brand-title {
+.app[data-dash-zoom] .brand-title {
   font-size: 17px;
   letter-spacing: 0;
   white-space: nowrap;
 }
 
-.app[data-dash-theme] .brand-subtitle {
+.app[data-dash-zoom] .brand-subtitle {
   margin-top: 2px;
   font-size: 11.5px;
 }
 
-.app[data-dash-theme] .header-actions { gap: 10px; }
+.app[data-dash-zoom] .header-actions { gap: 10px; }
 
 /* --- Chip thiết bị: bỏ khung ngoài, mỗi chip tự có viền ------------------- */
-.app[data-dash-theme] .device-chips {
+.app[data-dash-zoom] .device-chips {
   gap: 8px;
   height: auto;
   padding: 0;
@@ -518,7 +526,7 @@ body:has(.app[data-dash-theme="light"]) {
   background: transparent;
 }
 
-.app[data-dash-theme] .device-chip {
+.app[data-dash-zoom] .device-chip {
   gap: 7px;
   height: 32px;
   padding: 0 11px;
@@ -533,9 +541,9 @@ body:has(.app[data-dash-theme="light"]) {
    mask-image để không phải nhét SVG vào markup dùng chung của Header.jsx —
    markup đó còn phục vụ mọi trang khác. Màu icon lấy theo currentColor của
    chip (đỏ khi mất kết nối, xanh khi online). */
-.app[data-dash-theme] .device-chip-dot { display: none; }
+.app[data-dash-zoom] .device-chip-dot { display: none; }
 
-.app[data-dash-theme] .device-chip::before {
+.app[data-dash-zoom] .device-chip::before {
   content: "";
   flex: 0 0 auto;
   width: 16px;
@@ -545,34 +553,34 @@ body:has(.app[data-dash-theme="light"]) {
   mask: var(--dh-chip-icon) center / contain no-repeat;
 }
 
-.app[data-dash-theme] .device-chip--camera {
+.app[data-dash-zoom] .device-chip--camera {
   --dh-chip-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h2l1.2-2h7.6L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Ccircle cx='12' cy='12.5' r='3.2'/%3E%3C/svg%3E");
 }
 
-.app[data-dash-theme] .device-chip--fp {
+.app[data-dash-zoom] .device-chip--fp {
   --dh-chip-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4.5a6.5 6.5 0 0 0-6.5 6.5v2.2M12 4.5A6.5 6.5 0 0 1 18.5 11v3.5M12 8a3 3 0 0 0-3 3v4.5M12 8a3 3 0 0 1 3 3v5M12 11.5v6M7 17v2M17 17.5v3'/%3E%3C/svg%3E");
 }
 
 /* Chip online: chỉ đổi màu icon, KHÔNG tô nền như bản cũ — mockup để nền
    trung tính cho cả hai chip. */
-.app[data-dash-theme] .device-chip.online { color: var(--dh-emerald); }
-.app[data-dash-theme] .device-chip.offline { color: var(--dh-ink-4); }
+.app[data-dash-zoom] .device-chip.online { color: var(--dh-emerald); }
+.app[data-dash-zoom] .device-chip.offline { color: var(--dh-ink-4); }
 
 /* --- Ô ngôn ngữ: chỉ còn VI | EN, bỏ quả địa cầu và nhãn dài -------------- */
-.app[data-dash-theme] .header-actions .lang-switch {
+.app[data-dash-zoom] .header-actions .lang-switch {
   height: 32px;
   padding: 3px;
   border-radius: 999px;
 }
 
-.app[data-dash-theme] .header-actions .lang-switch-globe,
-.app[data-dash-theme] .header-actions .lang-switch-sep,
-.app[data-dash-theme] .header-actions .lang-switch-flag { display: none; }
+.app[data-dash-zoom] .header-actions .lang-switch-globe,
+.app[data-dash-zoom] .header-actions .lang-switch-sep,
+.app[data-dash-zoom] .header-actions .lang-switch-flag { display: none; }
 
-.app[data-dash-theme] .header-actions .lang-switch .lang-switch-label { display: none; }
-.app[data-dash-theme] .header-actions .lang-switch .lang-switch-short { display: inline; }
+.app[data-dash-zoom] .header-actions .lang-switch .lang-switch-label { display: none; }
+.app[data-dash-zoom] .header-actions .lang-switch .lang-switch-short { display: inline; }
 
-.app[data-dash-theme] .header-actions .lang-switch button {
+.app[data-dash-zoom] .header-actions .lang-switch button {
   height: 26px;
   padding: 0 14px;
   border-radius: 999px;
@@ -580,36 +588,36 @@ body:has(.app[data-dash-theme="light"]) {
   font-weight: 700;
 }
 
-.app[data-dash-theme] .header-actions .lang-switch button.active {
+.app[data-dash-zoom] .header-actions .lang-switch button.active {
   box-shadow: none;
 }
 
 /* --- Chuông: bỏ nền khối, chỉ còn icon ----------------------------------- */
-.app[data-dash-theme] .header-actions .icon-button {
+.app[data-dash-zoom] .header-actions .icon-button {
   width: 32px;
   height: 32px;
   border: 0;
   background: transparent;
 }
 
-.app[data-dash-theme] .header-actions .icon-button:hover { background: var(--dh-blue-soft); }
+.app[data-dash-zoom] .header-actions .icon-button:hover { background: var(--dh-blue-soft); }
 
 /* --- Khối người dùng: avatar 28px, tên 1 dòng ---------------------------- */
-.app[data-dash-theme] .user-box { gap: 9px; }
+.app[data-dash-zoom] .user-box { gap: 9px; }
 
-.app[data-dash-theme] .avatar {
+.app[data-dash-zoom] .avatar {
   width: 28px;
   height: 28px;
   font-size: 12px;
   box-shadow: none;
 }
 
-.app[data-dash-theme] .user-info { min-width: 0; gap: 1px; }
-.app[data-dash-theme] .user-info strong { font-size: 13px; white-space: nowrap; }
-.app[data-dash-theme] .user-info span { font-size: 11px; margin-top: 0; }
+.app[data-dash-zoom] .user-info { min-width: 0; gap: 1px; }
+.app[data-dash-zoom] .user-info strong { font-size: 13px; white-space: nowrap; }
+.app[data-dash-zoom] .user-info span { font-size: 11px; margin-top: 0; }
 
 /* --- Đăng xuất: chỉ còn icon trong ô vuông 32px -------------------------- */
-.app[data-dash-theme] .logout-button {
+.app[data-dash-zoom] .logout-button {
   gap: 0;
   width: 32px;
   height: 32px;
@@ -618,27 +626,27 @@ body:has(.app[data-dash-theme="light"]) {
   border-radius: 10px;
 }
 
-.app[data-dash-theme] .logout-button .logout-button__label { display: none; }
-.app[data-dash-theme] .logout-button svg { width: 16px; height: 16px; }
+.app[data-dash-zoom] .logout-button .logout-button__label { display: none; }
+.app[data-dash-zoom] .logout-button svg { width: 16px; height: 16px; }
 
 /* --- Sidebar: ô nav 40px (mockup) thay vì 44px, bỏ hộp lồng trong icon --- */
-.app[data-dash-theme] .sidebar { padding: 4px 8px; }
-.app[data-dash-theme] .nav { gap: 6px; }
+.app[data-dash-zoom] .sidebar { padding: 4px 8px; }
+.app[data-dash-zoom] .nav { gap: 6px; }
 
-.app[data-dash-theme] .nav-item {
+.app[data-dash-zoom] .nav-item {
   width: 40px;
   height: 40px;
   border-radius: 11px;
 }
 
 /* Mockup đặt icon trực tiếp trong ô vuông, không có hộp 34px lồng bên trong. */
-.app[data-dash-theme] .nav-icon {
+.app[data-dash-zoom] .nav-icon {
   width: auto;
   height: auto;
   border-radius: 0;
 }
 
-.app[data-dash-theme] .nav-item .nav-icon svg { width: 20px; height: 20px; }
+.app[data-dash-zoom] .nav-item .nav-icon svg { width: 20px; height: 20px; }
 
 /* ---------------------------------------------------------------------------
  * 3. TRANG DASHBOARD
@@ -1939,4 +1947,426 @@ body:has(.app[data-dash-theme="light"]) {
   text-align: center;
   font-size: var(--dh-fs-body);
   color: var(--dh-ink-3);
+}
+
+/* ===========================================================================
+ * 5. MÀN DẠNG DANH SÁCH
+ *
+ * Dùng cho Danh sách can phạm, Cơ sở giam giữ, Phiên, Lịch sử, Nhật ký, Người
+ * dùng — các trang này thêm class `dh-page` để lấy token, nên mọi rule dưới đây
+ * tự đổi tông theo `data-dash-theme` mà không cần viết riêng bản sáng.
+ *
+ * Ba chỗ buộc phải `!important` (không phải cho gọn tay — rule thường KHÔNG thắng
+ * được):
+ *   - `th { background/color }`  — dashboard.css:4640 đã !important
+ *   - `tbody tr:hover`           — dashboard.css:4641 đã !important
+ *   - `min-width` của bảng       — dashboard.css:1944 đặt 920px cho MỌI <table>
+ * ========================================================================= */
+
+/* --- Tiêu đề trang ------------------------------------------------------- */
+.dh-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 2px 0 4px;
+}
+
+.dh-page-head__title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--dh-ink);
+}
+
+.dh-page-head__sub {
+  margin: 3px 0 0;
+  font-size: var(--dh-fs-meta);
+  color: var(--dh-ink-3);
+}
+
+.dh-page-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* --- Thanh filter -------------------------------------------------------- */
+.dh-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--dh-panel-border);
+  border-radius: var(--dh-panel-radius);
+  background: var(--dh-panel-bg);
+  box-shadow: var(--dh-panel-shadow);
+  backdrop-filter: var(--dh-panel-blur);
+}
+
+/* Ô tìm kiếm chiếm hết chỗ còn lại; các select giữ bề rộng cố định. */
+.dh-filter__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+.dh-filter__search-icon {
+  position: absolute;
+  left: 10px;
+  display: inline-flex;
+  color: var(--dh-ink-4);
+  pointer-events: none;
+}
+
+/* Ghi đè mặc định 20px của `.dh-page svg` cho riêng icon kính lúp. */
+.dh-filter__search-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.dh-filter__input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px 0 31px;
+  border: 1px solid var(--dh-inset-border);
+  border-radius: 8px;
+  background: var(--dh-inset-bg);
+  color: var(--dh-ink);
+  font-size: var(--dh-fs-body);
+  font-family: inherit;
+}
+
+.dh-filter__input::placeholder { color: var(--dh-ink-4); }
+
+.dh-filter__input:focus-visible {
+  outline: none;
+  border-color: var(--dh-blue);
+  box-shadow: 0 0 0 3px var(--dh-blue-soft);
+}
+
+/* Nút xoá mặc định của `input[type=search]` trên Chromium là hình chữ X tối màu,
+   ở theme tối gần như vô hình — ẩn đi, người dùng xoá bằng bàn phím. */
+.dh-filter__input::-webkit-search-cancel-button { appearance: none; }
+
+.dh-filter__select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.dh-filter__select-label {
+  font-size: var(--dh-fs-label);
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--dh-ink-4);
+}
+
+.dh-filter__select select {
+  height: 34px;
+  min-width: 120px;
+  padding: 0 8px;
+  border: 1px solid var(--dh-inset-border);
+  border-radius: 8px;
+  background: var(--dh-inset-bg);
+  color: var(--dh-ink-2);
+  font-size: var(--dh-fs-body);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* Control tự do trong thanh filter (DashFilterField) — cùng hình dáng với select
+   để thanh filter thẳng hàng. `datetime-local` cần min-width lớn hơn vì Chromium
+   vẽ cả ngày + giờ trong một ô. */
+.dh-filter__select input {
+  height: 34px;
+  min-width: 168px;
+  padding: 0 8px;
+  border: 1px solid var(--dh-inset-border);
+  border-radius: 8px;
+  background: var(--dh-inset-bg);
+  color: var(--dh-ink-2);
+  font-size: var(--dh-fs-body);
+  font-family: inherit;
+}
+
+/* Icon lịch của Chromium mặc định gần như đen → vô hình trên nền tối. */
+.dh-filter__select input::-webkit-calendar-picker-indicator {
+  filter: invert(0.75);
+  cursor: pointer;
+}
+
+.app[data-dash-theme="light"] .dh-filter__select input::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
+/* Checkbox trong thanh filter (ô "Của tôi" ở màn Phiên làm việc). Cao 34px cho
+   bằng select để thanh filter không lệch hàng; ô tick tự vẽ theo accent-color vì
+   checkbox mặc định của Chromium gần như trắng, chìm mất trên nền tối. */
+.dh-filter__chk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--dh-inset-border);
+  border-radius: 8px;
+  background: var(--dh-inset-bg);
+  color: var(--dh-ink-2);
+  font-size: var(--dh-fs-body);
+  cursor: pointer;
+  flex: 0 0 auto;
+  user-select: none;
+}
+
+.dh-filter__chk input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--dh-blue);
+  cursor: pointer;
+}
+
+/* role !== "admin" thì ô bị disabled (cán bộ chỉ xem phiên của mình) → làm mờ cả
+   nhãn để rõ là không bấm được, không phải chỉ ô tick. */
+.dh-filter__chk:has(input:disabled) {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.dh-filter__chk input:disabled { cursor: not-allowed; }
+
+.dh-filter__submit {
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--dh-blue);
+  color: #ffffff;
+  font-size: var(--dh-fs-body);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter .15s;
+}
+
+.dh-filter__submit:hover:not(:disabled) { filter: brightness(1.08); }
+.dh-filter__submit:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Hàng thẻ số liệu ở đầu các màn danh sách. Khác `.dh-row--4` của dashboard:
+   ở đây số thẻ thay đổi theo trang (Nhật ký 1 thẻ, Lịch sử 3 thẻ) nên dùng
+   auto-fit + max 320px để 1 thẻ không bị kéo dài hết bề ngang. */
+.dh-statline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 320px));
+  gap: var(--dh-gap);
+  margin-bottom: var(--dh-gap);
+}
+
+/* Nhiều status-badge trong một ô bảng (ví dụ kết quả đồng bộ). */
+.dh-badge-wrap {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+/* --- Bảng dữ liệu -------------------------------------------------------- */
+.dh-datatable {
+  display: flex;
+  flex-direction: column;
+  /* Chiếm hết chiều cao còn lại của `.page` (flex column) để footer phân trang
+     luôn dính đáy thay vì trôi lên giữa trang khi ít dòng. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--dh-panel-border);
+  border-radius: var(--dh-panel-radius);
+  background: var(--dh-panel-bg);
+  box-shadow: var(--dh-panel-shadow);
+  backdrop-filter: var(--dh-panel-blur);
+}
+
+.dh-datatable__scroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.dh-datatable__table {
+  width: 100%;
+  /* `colgroup` chỉ có tác dụng chia đều khi bảng ở chế độ fixed; auto thì trình
+     duyệt vẫn co theo nội dung và cột họ tên ăn hết chỗ. */
+  table-layout: fixed;
+  border-collapse: collapse;
+  /* dashboard.css:1944 đặt `table { min-width: 920px }` → không ghi đè là bảng
+     tràn ngang ở khổ 1280 và sinh thanh cuộn. */
+  min-width: 0 !important;
+}
+
+.dh-datatable__table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: var(--dh-fs-label);
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--dh-ink-3) !important;
+  background: var(--dh-panel-bg) !important;
+  border-bottom: 1px solid var(--dh-inset-border) !important;
+}
+
+.dh-datatable__table td {
+  padding: 8px 12px;
+  font-size: var(--dh-fs-body);
+  color: var(--dh-ink-2);
+  border-bottom: 1px solid var(--dh-inset-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.dh-datatable__table tbody tr:last-child td { border-bottom: 0; }
+.dh-datatable__table tbody tr.is-clickable { cursor: pointer; }
+
+.dh-datatable__table tbody tr:hover {
+  background: var(--dh-inset-bg) !important;
+}
+
+.dh-datatable__state {
+  padding: 28px 12px;
+  text-align: center;
+  font-size: var(--dh-fs-body);
+  color: var(--dh-ink-3);
+}
+
+.dh-datatable__state.is-error { color: #ef4444; }
+
+/* --- Phân trang ---------------------------------------------------------- */
+.dh-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* `margin-top: auto` đẩy xuống đáy; `flex: 0 0 auto` để không bị co khi bảng dài. */
+  margin-top: auto;
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border-top: 1px solid var(--dh-inset-border);
+}
+
+.dh-pager__total {
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+  color: var(--dh-ink-3);
+}
+
+.dh-pager__nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dh-pager__pos {
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+  color: var(--dh-ink-2);
+}
+
+.dh-pager__nav button {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--dh-inset-border);
+  border-radius: 7px;
+  background: var(--dh-inset-bg);
+  color: var(--dh-ink-2);
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.dh-pager__nav button:hover:not(:disabled) {
+  border-color: var(--dh-blue);
+  color: var(--dh-blue-ink);
+}
+
+.dh-pager__nav button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* --- Ô trong dòng -------------------------------------------------------- */
+.dh-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--dh-blue-soft);
+  color: var(--dh-blue-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dh-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.dh-cell-strong { color: var(--dh-ink); font-weight: 600; }
+
+.dh-cell-mono {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  color: var(--dh-ink);
+  font-weight: 600;
+}
+
+/* Ô "không có gì" (— hoặc -): nhạt hơn để mắt bỏ qua khi quét bảng. */
+.dh-cell-dim { color: var(--dh-ink-4); }
+
+/* Số can phạm đang ở trong buồng > 0 — nhấn để thấy buồng nào đang có người. */
+.dh-cell-hot { color: var(--dh-blue-ink); }
+
+.dh-rowbtns {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.dh-rowbtn {
+  padding: 4px 9px;
+  border: 1px solid var(--dh-inset-border);
+  border-radius: 6px;
+  background: var(--dh-inset-bg);
+  color: var(--dh-ink-2);
+  font-size: var(--dh-fs-note);
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dh-rowbtn:hover {
+  border-color: var(--dh-blue);
+  color: var(--dh-blue-ink);
+}
+
+.dh-rowbtn.is-danger { color: #ef4444; }
+
+.dh-rowbtn.is-danger:hover {
+  border-color: rgba(239, 68, 68, .45);
+  background: rgba(239, 68, 68, .1);
+  color: #ef4444;
 }

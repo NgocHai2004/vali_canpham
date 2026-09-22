@@ -6,6 +6,10 @@ import { CellForm } from "./Dashboard";
 import UsbDrivePickerModal from "./UsbDrivePickerModal";
 import { toast } from "./Toast";
 import { useI18n } from "./i18n";
+import DashPageHeader from "./components/dashboard/DashPageHeader";
+import DashStatCard from "./components/dashboard/DashStatCard";
+import DashFilterBar, { DashFilterSelect, DashFilterField } from "./components/dashboard/DashFilterBar";
+import DashDataTable from "./components/dashboard/DashDataTable";
 
 const STAT_ICONS = {
   blue: (
@@ -29,19 +33,6 @@ const STAT_ICONS = {
     </svg>
   ),
 };
-
-function StatCard({ tone, label, value, note }) {
-  return (
-    <div className={`report-stat ${tone}`}>
-      <div className="report-stat-icon">{STAT_ICONS[tone]}</div>
-      <div className="report-stat-body">
-        <span className="report-stat-label">{label}</span>
-        <strong className="report-stat-value">{value}</strong>
-        <small className="report-stat-note">{note}</small>
-      </div>
-    </div>
-  );
-}
 
 export default function SessionListPage({ role, username, fullName, onOpenSession }) {
   const { t, formatDateTime } = useI18n();
@@ -162,25 +153,126 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
     }
   };
 
+  // Tổng % = 100 cho `table-layout: fixed`.
+  const columns = [
+    {
+      key: "status",
+      label: t("session.status"),
+      width: "9%",
+      render: (s) => (s.status === "open"
+        ? <span className="badge badge-open">{t("session.status.open_dot")}</span>
+        : <span className="badge badge-closed">{t("session.status.closed_dot")}</span>),
+    },
+    { key: "code", label: t("session.col.code"), width: "14%", className: "dh-cell-mono" },
+    {
+      key: "officer",
+      label: t("session.col.officer"),
+      width: "16%",
+      render: (s) => s.officer_full_name || s.officer,
+    },
+    {
+      key: "opened_at",
+      label: t("session.col.opened_at"),
+      width: "14%",
+      render: (s) => formatDateTime(s.opened_at),
+    },
+    {
+      key: "closed_at",
+      label: t("session.col.closed_at"),
+      width: "14%",
+      render: (s) => formatDateTime(s.closed_at),
+    },
+    {
+      key: "location",
+      label: t("session.col.location"),
+      width: "13%",
+      render: (s) => s.location || "—",
+    },
+    {
+      key: "detainee_count",
+      label: t("session.col.detainees"),
+      width: "8%",
+      align: "right",
+      render: (s) => s.detainee_count || 0,
+    },
+    {
+      key: "actions",
+      label: "",
+      width: "12%",
+      align: "right",
+      // stopPropagation: cả dòng là nút mở phiên (onRowClick), nếu không chặn thì
+      // bấm Xoá/Xuất cũng nhảy vào phiên.
+      render: (s) => (
+        <span className="dh-rowbtns">
+          {(role === "admin" || s.officer === username) && (
+            <button
+              type="button"
+              className="dh-rowbtn is-danger"
+              disabled={deletingId === s.id}
+              onClick={(e) => { e.stopPropagation(); removeSession(s); }}
+              title={s.detainee_count
+                ? t("session.delete.title", { n: s.detainee_count })
+                : t("session.delete.title_simple")}
+            >
+              {deletingId === s.id ? t("common.deleting") : t("session.delete.title_simple")}
+            </button>
+          )}
+          <button
+            type="button"
+            className="dh-rowbtn"
+            disabled={exportingId === s.id}
+            onClick={(e) => { e.stopPropagation(); downloadReport(s); }}
+            title={t("session.export.title")}
+          >
+            {exportingId === s.id ? t("session.exporting") : t("session.export")}
+          </button>
+        </span>
+      ),
+    },
+  ];
   return (
-    <div className="session-list-page">
-      <div className="report-stat-grid session-list-stats">
-        <StatCard tone="blue" label={t("session.stat.create")} value={stats.create} note={t("session.stat.create_note")} />
-        <StatCard tone="orange" label={t("session.stat.update")} value={stats.update} note={t("session.stat.update_note")} />
-        <StatCard tone="purple" label={t("session.stat.delete")} value={stats.delete} note={t("session.stat.delete_note")} />
-        <StatCard tone="green" label={t("session.stat.import")} value={stats.import} note={t("session.stat.import_note")} />
+    <div className="page dh-page">
+      <DashPageHeader title={t("session.title")} subtitle={t("common.total", { n: total })}>
+        <button
+          type="button"
+          className="dh-rowbtn"
+          onClick={() => setCellFormOpen(true)}
+          title={t("session.open.add_cell_hint")}
+        >
+          {t("session.open.add_cell")}
+        </button>
+        {/* Admin không mở phiên (backend cũng chặn) → không hiện nút này. */}
+        {!isAdmin && (
+          <span title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}>
+            <button
+              type="button"
+              className="dh-filter__submit"
+              onClick={openNew}
+              disabled={hasOpenSession}
+            >
+              {t("session.new")}
+            </button>
+          </span>
+        )}
+      </DashPageHeader>
+
+      <div className="dh-statline">
+        <DashStatCard tone="blue" icon={STAT_ICONS.blue} label={t("session.stat.create")} value={stats.create} note={t("session.stat.create_note")} />
+        <DashStatCard tone="amber" icon={STAT_ICONS.orange} label={t("session.stat.update")} value={stats.update} note={t("session.stat.update_note")} />
+        <DashStatCard tone="purple" icon={STAT_ICONS.purple} label={t("session.stat.delete")} value={stats.delete} note={t("session.stat.delete_note")} />
+        <DashStatCard tone="emerald" icon={STAT_ICONS.green} label={t("session.stat.import")} value={stats.import} note={t("session.stat.import_note")} />
       </div>
 
       {current && (
         <div className="session-list-current neon-active">
           <span className="badge badge-open">{t("session.status.open_dot")}</span>
-          <span className="mono">{current.code}</span>
-          <span style={{ color: "var(--muted)", fontSize: 13 }}>
+          <span className="dh-cell-mono">{current.code}</span>
+          <span className="dh-cell-dim">
             {t("session.banner.current", { officer: current.officer_full_name || current.officer, n: current.detainee_count || 0 })}
           </span>
           <button
             type="button"
-            className="btn-link"
+            className="dh-rowbtn"
             style={{ marginLeft: "auto" }}
             onClick={() => onOpenSession && onOpenSession(current.id)}
           >
@@ -189,46 +281,19 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
         </div>
       )}
 
-      <div className="session-list-head">
-        <h2>{t("session.title")}</h2>
-        <div className="session-list-head-actions">
-          <button
-            type="button"
-            className="btn-add-cell"
-            onClick={() => setCellFormOpen(true)}
-            title={t("session.open.add_cell_hint")}
-          >
-            {t("session.open.add_cell")}
-          </button>
-          {/* Admin không mở phiên (backend cũng chặn) → không hiện nút này. */}
-          {!isAdmin && (
-            <div
-              className="session-list-newwrap"
-              title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
-            >
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={openNew}
-                disabled={hasOpenSession}
-              >
-                {t("session.new")}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="session-list-filters">
-        <label>
-          {t("session.status")}
-          <select className="control" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">{t("common.all")}</option>
-            <option value="open">{t("session.status.open")}</option>
-            <option value="closed">{t("session.status.closed")}</option>
-          </select>
-        </label>
-        <label className="chk">
+      {/* Không có ô tìm kiếm: backend /api/work-sessions không nhận `q`. */}
+      <DashFilterBar onSubmit={load} submitLabel={t("common.refresh")} busy={loading}>
+        <DashFilterSelect
+          label={t("session.status")}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: "", label: t("common.all") },
+            { value: "open", label: t("session.status.open") },
+            { value: "closed", label: t("session.status.closed") },
+          ]}
+        />
+        <label className="dh-filter__chk">
           <input
             type="checkbox"
             checked={mineOnly}
@@ -237,96 +302,30 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           />
           {t("session.filter.mine")}
         </label>
-        <label>
-          {t("common.from")}
-          <input type="date" className="control" value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)} />
-        </label>
-        <label>
-          {t("common.to")}
-          <input type="date" className="control" value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)} />
-        </label>
-        <button type="button" className="btn-secondary" onClick={load}>{t("common.refresh")}</button>
-      </div>
+        <DashFilterField label={t("common.from")}>
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </DashFilterField>
+        <DashFilterField label={t("common.to")}>
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </DashFilterField>
+      </DashFilterBar>
 
-      {err && <div className="error-box">{err}</div>}
-
-      <div className="session-list-table-wrap">
-        <table className="session-list-table">
-          <thead>
-            <tr>
-              <th>{t("session.status")}</th>
-              <th>{t("session.col.code")}</th>
-              <th>{t("session.col.officer")}</th>
-              <th>{t("session.col.opened_at")}</th>
-              <th>{t("session.col.closed_at")}</th>
-              <th>{t("session.col.location")}</th>
-              <th style={{ textAlign: "right" }}>{t("session.col.detainees")}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={8} className="session-list-empty">{t("common.loading")}</td></tr>
-            )}
-            {!loading && items.length === 0 && (
-              <tr><td colSpan={8} className="session-list-empty">{t("session.empty")}</td></tr>
-            )}
-            {!loading && items.map((s) => {
-              const canDelete = role === "admin" || s.officer === username;
-              const exporting = exportingId === s.id;
-              return (
-                <tr key={s.id} onClick={() => onOpenSession && onOpenSession(s.id)} className="session-list-row">
-                  <td>
-                    {s.status === "open"
-                      ? <span className="badge badge-open">{t("session.status.open_dot")}</span>
-                      : <span className="badge badge-closed">{t("session.status.closed_dot")}</span>}
-                  </td>
-                  <td className="mono">{s.code}</td>
-                  <td>{s.officer_full_name || s.officer}</td>
-                  <td>{formatDateTime(s.opened_at)}</td>
-                  <td>{formatDateTime(s.closed_at)}</td>
-                  <td>{s.location || "—"}</td>
-                  <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
-                  <td style={{ textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
-                      {canDelete && (
-                        <button
-                          type="button"
-                          className="btn-link btn-link-danger"
-                          disabled={deletingId === s.id}
-                          onClick={(e) => { e.stopPropagation(); removeSession(s); }}
-                          title={s.detainee_count ? t("session.delete.title", { n: s.detainee_count }) : t("session.delete.title_simple")}
-                        >
-                          {deletingId === s.id ? t("common.deleting") : t("session.delete.title_simple")}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="btn-link"
-                        disabled={exporting}
-                        onClick={(e) => { e.stopPropagation(); downloadReport(s); }}
-                        title={t("session.export.title")}
-                      >
-                        {exporting ? t("session.exporting") : t("session.export")}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="session-list-toolbar">
-          <div className="session-list-total">{t("common.total", { n: total })}</div>
-          <div className="pagination">
-            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t("common.prev")}</button>
-            <span>{t("common.page_of", { page, total: totalPages })}</span>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t("common.next")}</button>
-          </div>
-        </div>
-      </div>
+      <DashDataTable
+        columns={columns}
+        rows={items}
+        rowKey={(s) => s.id}
+        onRowClick={(s) => onOpenSession && onOpenSession(s.id)}
+        loading={loading}
+        error={err}
+        empty={t("session.empty")}
+        pager={{
+          page,
+          totalPages,
+          total,
+          onPrev: () => setPage((p) => Math.max(1, p - 1)),
+          onNext: () => setPage((p) => Math.min(totalPages, p + 1)),
+        }}
+      />
 
       {modalOpen && (
         <SessionOpenModal

@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 
 /**
- * Theme sáng/tối cho RIÊNG màn hình dashboard.
+ * Theme sáng/tối cho toàn app.
  *
- * Phạm vi: hook này chỉ điều khiển thuộc tính `data-dash-theme` mà
- * `Dashboard.jsx` gắn lên `.app` khi đang ở trang dashboard. Các trang khác
- * không có thuộc tính đó nên luôn giữ theme tối mặc định của app.
+ * Phạm vi: hook này điều khiển thuộc tính `data-dash-theme` mà `Dashboard.jsx`
+ * gắn lên `.app` ở MỌI trang, nên nút đổi theme trong sidebar áp cho cả app.
+ * Thuộc tính thứ hai `data-dash-zoom` (bố cục 1280 + zoom 1.5) do `DH_PAGES`
+ * trong `Dashboard.jsx` quyết định, KHÔNG liên quan tới hook này.
  *
  * Mặc định là "dark" và KHÔNG tự theo `prefers-color-scheme`: đây là thiết bị
  * kiosk, lựa chọn của người dùng phải thắng cài đặt hệ điều hành. Đừng "sửa"

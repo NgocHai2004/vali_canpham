@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import api from "../api";
 import { useI18n } from "../i18n";
-import { Icon } from "../components/Icons";
 import { FieldRow } from "../components/FieldRow";
-import { PageHeader, StateBox } from "../components/CommonUI";
+import DashPageHeader from "../components/dashboard/DashPageHeader";
+import DashDataTable from "../components/dashboard/DashDataTable";
 
 function UsersPage({ currentUser }) {
   const { t, formatDateTime } = useI18n();
@@ -55,85 +55,97 @@ function UsersPage({ currentUser }) {
     }
   };
 
+  const columns = [
+    {
+      key: "photo",
+      label: t("users.col.photo"),
+      width: "13%",
+      render: (u) => {
+        const initials = ((u.full_name || u.username || "?").trim()[0] || "?").toUpperCase();
+        return (
+          <div className="users-avatar-cell">
+            {u.avatar_url
+              ? <img className="officer-avatar" src={u.avatar_url} alt="" />
+              : <span className="officer-avatar officer-avatar-fallback">{initials}</span>}
+            <label className="avatar-upload-btn" title={t("users.avatar_title")}>
+              {t("users.change")}
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(e) => onUploadAvatar(u, e.target.files?.[0])}
+              />
+            </label>
+          </div>
+        );
+      },
+    },
+    { key: "username", label: t("users.col.username"), width: "16%", className: "dh-cell-strong" },
+    {
+      key: "full_name",
+      label: t("users.col.full_name"),
+      width: "23%",
+      render: (u) => u.full_name || "-",
+    },
+    {
+      key: "role",
+      label: t("users.col.role"),
+      width: "13%",
+      render: (u) => (
+        <span className={`status-badge ${u.role === "admin" ? "delete" : "create"}`}>
+          {u.role === "admin" ? t("common.role.admin") : t("common.role.officer")}
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      label: t("users.col.created"),
+      width: "18%",
+      render: (u) => (u.created_at ? formatDateTime(u.created_at) : "-"),
+    },
+    {
+      key: "actions",
+      label: t("users.col.actions"),
+      width: "17%",
+      align: "right",
+      render: (u) => (
+        <span className="dh-rowbtns">
+          <button
+            type="button"
+            className="dh-rowbtn"
+            onClick={() => { setEditing(u); setShowForm(true); }}
+          >{t("common.edit")}</button>
+          <button
+            type="button"
+            className="dh-rowbtn is-danger"
+            disabled={u.username === "admin" || u.username === currentUser}
+            onClick={() => onDelete(u)}
+            title={u.username === "admin"
+              ? t("users.cannot_delete_admin")
+              : u.username === currentUser ? t("users.cannot_delete_self") : ""}
+          >{t("common.delete")}</button>
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <div className="page">
-      <PageHeader title={t("users.title")} subtitle={t("users.subtitle", { n: users.length })}>
-        <button className="button primary" onClick={() => { setEditing(null); setShowForm(true); }}>
-          {Icon.plus}
+    <div className="page dh-page">
+      <DashPageHeader title={t("users.title")} subtitle={t("users.subtitle", { n: users.length })}>
+        <button className="dh-filter__submit" onClick={() => { setEditing(null); setShowForm(true); }}>
           {t("users.add")}
         </button>
-      </PageHeader>
+      </DashPageHeader>
 
-      {error && <StateBox type="error">{error}</StateBox>}
       {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
 
-      <div className="table-card">
-        {loading ? <StateBox>{t("common.loading")}</StateBox> : (
-          <table>
-            <thead>
-              <tr>
-                <th>{t("users.col.photo")}</th>
-                <th>{t("users.col.username")}</th>
-                <th>{t("users.col.full_name")}</th>
-                <th>{t("users.col.role")}</th>
-                <th>{t("users.col.created")}</th>
-                <th>{t("users.col.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const initials = ((u.full_name || u.username || "?").trim()[0] || "?").toUpperCase();
-                return (
-                <tr key={u.id}>
-                  <td>
-                    <div className="users-avatar-cell">
-                      {u.avatar_url ? (
-                        <img className="officer-avatar" src={u.avatar_url} alt="" />
-                      ) : (
-                        <span className="officer-avatar officer-avatar-fallback">{initials}</span>
-                      )}
-                      <label className="avatar-upload-btn" title={t("users.avatar_title")}>
-                        {t("users.change")}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          onChange={(e) => onUploadAvatar(u, e.target.files?.[0])}
-                        />
-                      </label>
-                    </div>
-                  </td>
-                  <td><strong>{u.username}</strong></td>
-                  <td>{u.full_name || "-"}</td>
-                  <td>
-                    <span className={`status-badge ${u.role === "admin" ? "delete" : "create"}`}>
-                      {u.role === "admin" ? t("common.role.admin") : t("common.role.officer")}
-                    </span>
-                  </td>
-                  <td>{u.created_at ? formatDateTime(u.created_at) : "-"}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button onClick={() => { setEditing(u); setShowForm(true); }}>{t("common.edit")}</button>
-                      <button
-                        className="danger-text"
-                        disabled={u.username === "admin" || u.username === currentUser}
-                        onClick={() => onDelete(u)}
-                        title={u.username === "admin" ? t("users.cannot_delete_admin") : u.username === currentUser ? t("users.cannot_delete_self") : ""}
-                      >
-                        {t("common.delete")}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                );
-              })}
-              {!users.length && (
-                <tr><td colSpan={6}><div className="empty">{t("users.empty")}</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <DashDataTable
+        columns={columns}
+        rows={users}
+        loading={loading}
+        error={error}
+        empty={t("users.empty")}
+      />
 
       {showForm && (
         <UserForm

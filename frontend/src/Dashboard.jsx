@@ -15,7 +15,6 @@ import SessionDetailPage from "./SessionDetailPage";
 import DashboardHome from "./pages/DashboardHome";
 import DetaineesPage from "./pages/DetaineesPage";
 import CellsPage, { CellForm } from "./pages/CellsPage";
-import SearchPage from "./pages/SearchPage";
 import DetaineeHistoryPage from "./pages/DetaineeHistoryPage";
 import SyncPage from "./pages/SyncPage";
 import LogsPage from "./pages/LogsPage";
@@ -36,7 +35,6 @@ const NAV_BASE = [
   { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
   { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
-  { key: "search", labelKey: "nav.search", icon: Icon.search },
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
   { key: "sync", labelKey: "nav.sync", icon: Icon.sync },
   { key: "logs", labelKey: "nav.logs", icon: Icon.clipboard },
@@ -46,6 +44,24 @@ const NAV_ADMIN = [
   { key: "users", labelKey: "nav.users", icon: Icon.users },
   { key: "settings", labelKey: "nav.settings", icon: Icon.gear },
 ];
+
+/**
+ * Các trang đã chuyển sang bố cục `dh-*` (thiết kế theo mockup 1280x720).
+ *
+ * Danh sách này điều khiển `data-dash-zoom` — tức `zoom: 1.5` và header gọn 50px
+ * ở dashboardHome.css. CHỈ thêm trang vào đây sau khi đã port sang primitive
+ * `dh-*`: trang chưa port (Nhập liệu, Cài đặt, Đồng bộ…) được thiết kế theo bề
+ * ngang 1920 thật, bị phóng 1.5 lần là tràn ngang.
+ */
+const DH_PAGES = new Set([
+  "dashboard",
+  "detainees",
+  "cells",
+  "sessions",
+  "detainee_history",
+  "logs",
+  "users",
+]);
 
 export default function Dashboard({
   username = "admin",
@@ -164,10 +180,17 @@ export default function Dashboard({
   };
 
   return (
-    // data-dash-theme CHỈ có khi đang ở dashboard: mọi override theme sáng trong
-    // dashboardHome.css đều khoá theo thuộc tính này, nên các trang khác không
-    // thể bị ảnh hưởng. React bỏ hẳn attribute khi giá trị là undefined.
-    <div className="app" data-dash-theme={page === "dashboard" ? dashTheme.theme : undefined}>
+    // HAI thuộc tính, HAI vai trò — đừng gộp lại:
+    //   data-dash-theme: MÀU SẮC, luôn có → mọi trang đổi tông theo nút sáng/tối.
+    //   data-dash-zoom:  HÌNH HỌC (zoom 1.5 + header gọn 50px), chỉ các trang đã
+    //     port sang bố cục dh-* (DH_PAGES). Trang chưa port được thiết kế theo bề
+    //     ngang 1920 thật, bị phóng 1.5 lần là tràn ngang.
+    // React bỏ hẳn attribute khi giá trị là undefined.
+    <div
+      className="app"
+      data-dash-theme={dashTheme.theme}
+      data-dash-zoom={DH_PAGES.has(page) ? "on" : undefined}
+    >
       <Header
         username={username}
         fullName={fullName}
@@ -209,12 +232,10 @@ export default function Dashboard({
           ))}
         </nav>
 
-        {/* Nút đổi theme nằm trong menu dọc, ngay trên thẻ bảo mật. Chỉ hiện khi
-            ở dashboard vì theme chỉ áp cho trang này — sang trang khác bấm sẽ
-            không thấy gì đổi. */}
-        {page === "dashboard" && (
-          <DashThemeToggle theme={dashTheme.theme} onToggle={dashTheme.toggle} />
-        )}
+        {/* Nút đổi theme nằm trong menu dọc, ngay trên thẻ bảo mật. Luôn hiện:
+            `data-dash-theme` áp cho mọi trang nên bấm ở đâu cũng thấy đổi tông
+            (trước đây chỉ hiện ở dashboard vì theme chỉ áp cho trang đó). */}
+        <DashThemeToggle theme={dashTheme.theme} onToggle={dashTheme.toggle} />
 
         <div
           className="security-card"
@@ -261,7 +282,6 @@ export default function Dashboard({
             onEditProfile={editDetainee}
           />
         )}
-        {page === "search" && <SearchPage />}
         {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
         {page === "sync" && <SyncPage />}
         {page === "logs" && <LogsPage />}
