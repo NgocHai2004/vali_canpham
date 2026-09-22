@@ -1,17 +1,55 @@
 import React from "react";
 
+/**
+ * Chuẩn hoá cỡ NÉT VẼ của icon — `fit(<bề rộng nét đo được>, <children>)`.
+ *
+ * Mọi icon đều dùng viewBox 24x24 và CSS cho `<svg>` một khung cố định (18px ở
+ * sidebar, `dashboard.css:543`), nhưng phần nét THỰC TẾ của từng icon chiếm
+ * phần canvas khác nhau. Số đo `getBBox()` trên app thật:
+ *
+ *   dashboard / clipboard / folder / log  18      (nhóm đa số)
+ *   sync                                  16.47
+ *   users / shield                         20
+ *   gear                                   22
+ *
+ * Cùng khung 18px, gear vẽ to hơn clipboard 22%. Sidebar chỉ có icon, không có
+ * chữ, nên chênh lệch này rất lộ.
+ *
+ * Cách làm: phóng/thu phần nét quanh tâm (12,12) cho về đúng 18 đơn vị. Mọi
+ * bbox đo được đều đối xứng quanh (12,12) nên scale quanh tâm khớp tuyệt đối,
+ * không làm icon lệch khỏi ô.
+ *
+ * `strokeWidth` PHẢI chia lại cho `s`: `transform` kéo theo cả độ dày nét, không
+ * bù thì gear (s = 0.82) sẽ mảnh hơn hẳn phần còn lại — vẫn lệch, chỉ lệch theo
+ * kiểu khác. Đặt thành presentation attribute trên `<g>` nên nó thắng giá trị
+ * 1.9 thừa hưởng từ `svg` ở `dashboard.css:17`: khai báo nằm trên chính element
+ * luôn thắng giá trị kế thừa từ cha, không cần !important.
+ */
+const fit = (drawn, children) => {
+  const s = 18 / drawn;
+  if (Math.abs(s - 1) < 0.005) return children;
+  return (
+    <g
+      transform={`translate(12 12) scale(${s.toFixed(4)}) translate(-12 -12)`}
+      strokeWidth={(1.9 / s).toFixed(3)}
+    >
+      {children}
+    </g>
+  );
+};
+
 export const Icon = {
   dashboard: (
     <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
   ),
   users: (
-    <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+    <svg viewBox="0 0 24 24">{fit(20, <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>)}</svg>
   ),
   building: (
     <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1" /></svg>
   ),
   file: (
-    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></svg>
+    <svg viewBox="0 0 24 24">{fit(20, <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></>)}</svg>
   ),
   folder: (
     <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
@@ -20,7 +58,7 @@ export const Icon = {
     <svg viewBox="0 0 24 24"><path d="M17 18a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.34 8.05 4.5 4.5 0 0 0 7 18" /><path d="m8 14 4-4 4 4M12 10v9" /></svg>
   ),
   sync: (
-    <svg viewBox="0 0 24 24"><path d="M20 6v5h-5M4 18v-5h5" /><path d="M6.1 9A7 7 0 0 1 18 6l2 5M4 13l2 5a7 7 0 0 0 11.9-3" /></svg>
+    <svg viewBox="0 0 24 24">{fit(16.47, <><path d="M20 6v5h-5M4 18v-5h5" /><path d="M6.1 9A7 7 0 0 1 18 6l2 5M4 13l2 5a7 7 0 0 0 11.9-3" /></>)}</svg>
   ),
   search: (
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
@@ -38,13 +76,13 @@ export const Icon = {
     <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
   ),
   refresh: (
-    <svg viewBox="0 0 24 24"><path d="M20 6v5h-5M4 18v-5h5" /><path d="M6.1 9A7 7 0 0 1 18 6l2 5M4 13l2 5a7 7 0 0 0 11.9-3" /></svg>
+    <svg viewBox="0 0 24 24">{fit(16.47, <><path d="M20 6v5h-5M4 18v-5h5" /><path d="M6.1 9A7 7 0 0 1 18 6l2 5M4 13l2 5a7 7 0 0 0 11.9-3" /></>)}</svg>
   ),
   chart: (
     <svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3" /></svg>
   ),
   shield: (
-    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
+    <svg viewBox="0 0 24 24">{fit(20, <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></>)}</svg>
   ),
   server: (
     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2" /><rect x="3" y="14" width="18" height="6" rx="2" /><path d="M7 7h.01M7 17h.01" /></svg>
@@ -56,7 +94,7 @@ export const Icon = {
     <svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1" /><path d="M6 7h12v14H6z" /><path d="M9 12h6M9 16h4" /></svg>
   ),
   gear: (
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+    <svg viewBox="0 0 24 24">{fit(22, <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></>)}</svg>
   ),
 };
 

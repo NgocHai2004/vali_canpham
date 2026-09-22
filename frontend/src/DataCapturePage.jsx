@@ -17,7 +17,7 @@ import { useI18n } from "./i18n";
 import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
-export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
+export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile, onBack }) {
   const { t, formatDateLong } = useI18n();
   const features = useFeatures();
   const isEdit = Boolean(initial && initial.id);
@@ -1711,6 +1711,18 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
   return (
     <div className="page capture-page cap-flat">
+      {/* Trước đây chỉ có đường ra qua banner "Xem danh sách" sau khi lưu thành
+          công, hoặc nút Lưu ở cuối trang → vào form rồi muốn thoát mà không lưu
+          thì phải bấm lại menu. `onBack` do Dashboard cấp, trả về đúng trang đã
+          vào từ đó (danh sách can phạm / chi tiết phiên). */}
+      {onBack && (
+        <div className="cap-backbar">
+          <button type="button" className="cap-backbtn" onClick={onBack}>
+            {t("common.back")}
+          </button>
+        </div>
+      )}
+
       {(err || ok) && (
         <div className="capture-banner">
           {/* role=alert cho loi (chen ngang), aria-live=polite cho thanh cong

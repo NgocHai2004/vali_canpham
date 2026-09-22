@@ -333,6 +333,25 @@ body:has(.app[data-dash-theme="light"]) {
   box-shadow: none !important;
 }
 
+/* Tooltip của icon sidebar (dashboard.css:420-466). Base đặt nền navy tối +
+   `color: var(--text)`, mà theme sáng re-point `--text` thành #0f172a → chữ gần
+   đen trên nền gần đen, đọc không ra. Lật cả nền + viền + mũi nhọn sang thẻ
+   trắng. Không cần !important: base không có !important nên (0,4,0) đủ thắng. */
+.app[data-dash-theme="light"] .nav-item[data-tip]::before,
+.app[data-dash-theme="light"] .security-card[data-tip]::before {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 10px 26px -12px rgba(15, 23, 42, .28);
+  color: #0f172a;
+}
+
+.app[data-dash-theme="light"] .nav-item[data-tip]::after,
+.app[data-dash-theme="light"] .security-card[data-tip]::after {
+  background: #ffffff;
+  border-left-color: #e2e8f0;
+  border-bottom-color: #e2e8f0;
+}
+
 .app[data-dash-theme="light"] .security-card {
   background: #f8fafc !important;
   border-color: #e2e8f0 !important;
@@ -471,6 +490,102 @@ body:has(.app[data-dash-theme="light"]) {
     width: 100%;
     height: calc(100dvh / 1.5);
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * 1b. NÚT QUAY LẠI CỦA MÀN THU NHẬN
+ *
+ * Đọc qua `--cf-*` nên tự lật theo theme cùng khối 1c bên dưới, không cần viết
+ * hai bản sáng/tối.
+ * ------------------------------------------------------------------------- */
+
+.cap-flat .cap-backbar {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.cap-flat .cap-backbtn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--cf-edge);
+  border-radius: 8px;
+  background: var(--cf-surface);
+  color: var(--cf-text);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.cap-flat .cap-backbtn:hover {
+  border-color: var(--cf-edge-hi);
+  background: var(--cf-surface-2);
+}
+
+/* ---------------------------------------------------------------------------
+ * 1c. MÀN THU NHẬN / SỬA HỒ SƠ Ở THEME SÁNG
+ *
+ * `.capture-page.cap-flat` (styles.css:10595) có bộ token RIÊNG `--cf-*` và nền
+ * `linear-gradient(navy .82/.78) over var(--bg-deep)`. Theme sáng re-point
+ * `--bg-deep` thành #f3f6fb nhưng lớp gradient navy vẫn vẽ đè → nền vẫn tối,
+ * trong khi `--text` của chrome đã lật sang #0f172a. Kết quả đo được: nền
+ * rgb(243,246,251) mà chữ vẫn #eaf2ff.
+ *
+ * Màn này KHÔNG nằm trong phạm vi port (giữ nguyên markup) nên lật bằng cơ chế
+ * (a): re-point `--cf-*`, vì mọi rule của `.cap-flat` đều đọc qua token. Giữ
+ * `--cf-blue/-ok/-warn/-danger` vì màu nhấn dùng được trên cả hai nền.
+ *
+ * Viền CONTROL bám theo lập luận WCAG 1.4.11 đã ghi ở styles.css:10605-10613,
+ * tính lại trên nền trắng: --cf-edge #7b8ba1 ≈ 3.2:1 (đạt 3:1), --cf-edge-hi
+ * #475569 ≈ 7:1 (hover phải đậm hơn rõ). --cf-line/--cf-field chỉ là vạch chia
+ * trang trí nên để nhạt.
+ * ------------------------------------------------------------------------- */
+
+.app[data-dash-theme="light"] .capture-page.cap-flat {
+  --cf-head: #2563eb;
+  --cf-text: #0f172a;
+  --cf-muted: #64748b;
+  --cf-dim: #64748b;
+  --cf-line: #e2e8f0;
+  --cf-line-hi: #cbd5e1;
+  --cf-field: #e2e8f0;
+  --cf-edge: #7b8ba1;
+  --cf-edge-hi: #475569;
+  --cf-surface: #ffffff;
+  --cf-surface-2: #f8fafc;
+  background: #f3f6fb;
+  color: var(--cf-text);
+}
+
+/* ---------------------------------------------------------------------------
+ * 2a. HEADER TRANG CHƯA PORT — chặn tràn DỌC
+ *
+ * `.app` chia hàng 55px cho header (dashboard.css:30) nhưng không chặn wrap:
+ * tiêu đề brand xuống 2 dòng (45px) + phụ đề (16px) = 66px → chữ bị cắt cả trên
+ * lẫn dưới, tên người dùng và nút Đăng xuất cũng vỡ 2 dòng. Đo được ở
+ * Cài đặt / Đồng bộ / Nhập liệu.
+ *
+ * Khoá theo `:not([data-dash-zoom])` để KHÔNG đụng 6 màn đã port — ở đó khối
+ * "HEADER GỌN" bên dưới đã thu nhỏ chữ cho khổ 1280 của mockup (đo lại: header
+ * 50px, tràn dọc = 0). Header không có đoạn văn nào nên chặn wrap cả cụm là an
+ * toàn; thêm ellipsis để khi cửa sổ quá hẹp thì cắt chữ chứ không đè lên nhau.
+ * ------------------------------------------------------------------------- */
+
+.app[data-dash-theme]:not([data-dash-zoom]) .header * {
+  white-space: nowrap;
+}
+
+.app[data-dash-theme]:not([data-dash-zoom]) .brand,
+.app[data-dash-theme]:not([data-dash-zoom]) .brand > div,
+.app[data-dash-theme]:not([data-dash-zoom]) .user-info {
+  min-width: 0;
+}
+
+.app[data-dash-theme]:not([data-dash-zoom]) .brand-title,
+.app[data-dash-theme]:not([data-dash-zoom]) .brand-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------------------------------------------------------------------------
@@ -2369,4 +2484,24 @@ body:has(.app[data-dash-theme="light"]) {
   border-color: rgba(239, 68, 68, .45);
   background: rgba(239, 68, 68, .1);
   color: #ef4444;
+}
+
+/* ===========================================================================
+ * 6. MODAL CHI TIẾT — BỎ MÁNG CUỘN CHỪA SẴN (lỗi "2 viền" ở cạnh phải)
+ *
+ * `styles.css:2024` đặt `.modal { scrollbar-gutter: stable }` để form dài không
+ * giật ngang khi thanh cuộn xuất hiện. Nhưng `.detail-modal-v2`
+ * (`dashboard.css:2441`) là `overflow: hidden` + flex cột — nó KHÔNG bao giờ
+ * cuộn, mà `stable` vẫn chừa máng vì `overflow: hidden` cũng là scroll
+ * container theo spec. Số đo trên app thật (modal 768.5px, viền 1px mỗi bên):
+ *   clientWidth 751  ⟶  thiếu 15.45px so với lòng 766.45px
+ *   .detail-header right = 1136  ⟶  viền modal right = 1151
+ * Dải 15px đó nằm NGOÀI vùng nội dung nhưng TRONG bo góc 18px, nên mắt đọc
+ * thành một đường dọc thứ hai chạy song song viền modal.
+ *
+ * `auto` = chỉ chừa chỗ khi thật sự có thanh cuộn (ở đây là không bao giờ).
+ * Cùng cách `.small-modal` đã vá ở `dashboard.css:2244-2249`.
+ * Không cần !important: base `.modal` là (0,1,0), rule này (0,4,0). */
+.app[data-dash-theme] .modal.detail-modal-v2 {
+  scrollbar-gutter: auto;
 }

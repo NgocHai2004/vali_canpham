@@ -34,10 +34,14 @@ const NAV_BASE = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: Icon.dashboard },
   { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
-  { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
+  // Sidebar chỉ có icon, KHÔNG có chữ → hai mục dùng chung một icon là không
+  // phân biệt được. Trước đây `cells` dùng Icon.sync (trùng `sync`) và `logs`
+  // dùng Icon.clipboard (trùng `sessions`). Đổi sang icon đúng nghĩa hơn:
+  // Cơ sở giam giữ = toà nhà, Nhật ký = trang tài liệu.
+  { key: "cells", labelKey: "nav.cells", icon: Icon.building },
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
   { key: "sync", labelKey: "nav.sync", icon: Icon.sync },
-  { key: "logs", labelKey: "nav.logs", icon: Icon.clipboard },
+  { key: "logs", labelKey: "nav.logs", icon: Icon.file },
 ];
 
 const NAV_ADMIN = [
@@ -79,6 +83,9 @@ export default function Dashboard({
   const [editingDetainee, setEditingDetainee] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [sessionCtx, setSessionCtx] = useState(null);
+  // Trang đã đứng trước khi vào form thu nhận, để nút Quay lại trả về đúng chỗ:
+  // vào từ Danh sách can phạm thì về danh sách, vào từ chi tiết phiên thì về phiên.
+  const [captureFrom, setCaptureFrom] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const isAdmin = role === "admin";
@@ -104,6 +111,24 @@ export default function Dashboard({
     setPage(key);
   };
 
+  // Vào form thu nhận: ghi lại trang hiện tại trước khi đổi để nút Quay lại của
+  // form biết đường về. `page` lúc này vẫn là trang xuất phát.
+  const goCapture = () => {
+    setCaptureFrom(page);
+    setPage("session_capture");
+  };
+
+  // Rời form thu nhận mà KHÔNG lưu. Về đúng trang đã vào từ đó; mặc định về
+  // danh sách phiên như hành vi cũ nếu không rõ nguồn.
+  const leaveCapture = () => {
+    setEditingDetainee(null);
+    setSessionCtx(null);
+    const back = captureFrom && captureFrom !== "session_capture" ? captureFrom : "sessions";
+    if (back !== "sessions_detail") setActiveSessionId(null);
+    setCaptureFrom(null);
+    setPage(back);
+  };
+
   const editDetainee = async (detainee) => {
     // Admin không có phiên của riêng mình nên getCurrentSession() luôn 404.
     // Vẫn giữ quyền SỬA hồ sơ → mở form trực tiếp, không gắn phiên.
@@ -116,7 +141,7 @@ export default function Dashboard({
       const cur = await api.getCurrentSession();
       setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
       setActiveSessionId(cur.id);
-      setPage("session_capture");
+      goCapture();
     } catch (ex) {
       alert(t("session.open.err.officer_required_alt") || t("session.open.err.officer_required"));
       setEditingDetainee(null);
@@ -134,7 +159,24 @@ export default function Dashboard({
     setEditingDetainee(full);
     setSessionCtx(null);
     setActiveSessionId(null);
-    setPage("session_capture");
+    goCapture();
+  };
+
+  // Đăng ký can phạm từ màn danh sách. Thu nhận hồ sơ PHẢI gắn vào một phiên
+  // đang mở (backend gắn detainee vào session), nên đây chỉ là đường tắt: tìm
+  // phiên hiện tại của cán bộ rồi vào thẳng form thu nhận, không có thì đẩy về
+  // màn Phiên làm việc để mở phiên trước. Cùng cách xử lý với `editDetainee`.
+  const registerDetainee = async () => {
+    setEditingDetainee(null);
+    try {
+      const cur = await api.getCurrentSession();
+      setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
+      setActiveSessionId(cur.id);
+      goCapture();
+    } catch {
+      alert(t("session.open.err.officer_required_alt") || t("session.open.err.officer_required"));
+      setPage("sessions");
+    }
   };
 
   const openSession = (sessionId) => {
@@ -151,7 +193,7 @@ export default function Dashboard({
   const addDetaineeToSession = (sessionId) => {
     setEditingDetainee(null);
     setSessionCtx({ sessionId, sessionCode: null, sessionReadOnly: false });
-    setPage("session_capture");
+    goCapture();
   };
 
   const editDetaineeInSession = (detainee, session) => {
@@ -161,7 +203,7 @@ export default function Dashboard({
       sessionCode: session.code,
       sessionReadOnly: session.status !== "open",
     });
-    setPage("session_capture");
+    goCapture();
   };
 
   const doneSessionCapture = () => {
@@ -250,7 +292,9 @@ export default function Dashboard({
         {page === "dashboard" && (
           <DashboardHome go={goPage} fullName={fullName} />
         )}
-        {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
+        {page === "detainees" && (
+          <DetaineesPage onEdit={editDetainee} onRegister={registerDetainee} isAdmin={isAdmin} />
+        )}
         {page === "cells" && <CellsPage />}
         {page === "sessions" && (
           <SessionListPage
@@ -280,6 +324,7 @@ export default function Dashboard({
             sessionReadOnly={sessionCtx?.sessionReadOnly}
             onSavedInSession={doneSessionCapture}
             onEditProfile={editDetainee}
+            onBack={leaveCapture}
           />
         )}
         {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
