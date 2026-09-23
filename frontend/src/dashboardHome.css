@@ -7,14 +7,21 @@
  *     theme trong sidebar áp cho cả app. Rule màu hoặc là class `.dh-*`, hoặc
  *     khoá theo `.app[data-dash-theme="light"]`.
  *
- *   data-dash-zoom="on"           HÌNH HỌC: `zoom: 1.5` ở >=1600px và header gọn
- *     50px. CHỈ có ở các trang trong `DH_PAGES` (Dashboard.jsx) — tức các trang
- *     đã port sang primitive `.dh-*` và thiết kế theo bề ngang 1280 của mockup.
- *     Trang chưa port (Nhập liệu, Cài đặt, Đồng bộ, Chi tiết phiên) được thiết kế
- *     theo 1920 thật: phóng 1.5 lần là tràn ngang. ĐỪNG re-key mấy block đó về
+ *   data-dash-zoom="on"           ĐỘ PHÓNG: `zoom: 1.5` ở >=1600px. CHỈ có ở các
+ *     trang trong `DH_PAGES` (Dashboard.jsx) — tức các trang đã port sang
+ *     primitive `.dh-*` và thiết kế theo bề ngang 1280 của mockup. Trang chưa
+ *     port (Nhập liệu, Cài đặt, Đồng bộ, Chi tiết phiên) được thiết kế theo 1920
+ *     thật: phóng 1.5 lần là tràn ngang. ĐỪNG re-key mấy block đó về
  *     `data-dash-theme`.
  *
- * dashboard.css và styles.css KHÔNG bị sửa bởi tính năng này.
+ *     Thuộc tính này KHÔNG còn điều khiển hình học (header 50px, logo 36px, ô
+ *     nav 40px…): hình học đó nay áp cho mọi trang, vì thanh header và sidebar
+ *     phải giống nhau khi chuyển màn. Xem mục 2b.
+ *
+ * CẢ BA file CSS đều dùng rem (1rem = 16px, `html` không set font-size) để mọi
+ * màn cùng tỉ lệ khi cửa sổ đổi cỡ chữ. `dashboard.css` và `styles.css` chỉ bị
+ * đổi đơn vị, không đổi giá trị; file này thêm phần hình học header/sidebar
+ * dùng chung và các rule `.dh-*`.
  *
  * Hai cái bẫy của dashboard.css phải nhớ:
  *   1. `dashboard.css:12-19` có rule toàn cục
@@ -37,7 +44,7 @@
 
   --dh-panel-bg: linear-gradient(180deg, rgba(16, 24, 43, .85) 0%, rgba(10, 16, 29, .95) 100%);
   --dh-panel-border: rgba(255, 255, 255, .07);
-  --dh-panel-radius: 16px;
+  --dh-panel-radius: 1rem;
   --dh-panel-shadow: none;
   /* Bóng đậm hơn cho panel biểu đồ 14 ngày (theo yêu cầu). */
   --dh-panel-shadow-strong: 0 10px 28px rgba(0, 0, 0, .45);
@@ -82,24 +89,24 @@
   --dh-cyan-glow: 0 0 8px rgba(6, 182, 212, .6);
 
   /* Cỡ chữ: dark 13px, light 12px. */
-  --dh-fs-body: 13px;
-  --dh-fs-label: 11px;
-  --dh-fs-note: 11px;
-  --dh-fs-value: 20px;
-  --dh-fs-title: 14px;
-  --dh-fs-hero: 20px;
-  --dh-fs-meta: 11px;
+  --dh-fs-body: 0.8125rem;
+  --dh-fs-label: 0.6875rem;
+  --dh-fs-note: 0.6875rem;
+  --dh-fs-value: 1.25rem;
+  --dh-fs-title: 0.875rem;
+  --dh-fs-hero: 1.25rem;
+  --dh-fs-meta: 0.6875rem;
 
   /* Chỉ số hình học khác nhau giữa 2 theme. */
-  --dh-gap: 8px;               /* khoảng cách giữa các hàng — mockup: 9-10px */
-  --dh-stat-accent-w: 4px;      /* light: 0 — thẻ light không có viền trái */
-  --dh-tile: 58px;              /* ô icon trong stat card (mockup: 58px) */
-  --dh-tile-radius: 16px;
+  --dh-gap: 0.5rem;               /* khoảng cách giữa các hàng — mockup: 9-10px */
+  --dh-stat-accent-w: 0.25rem;      /* light: 0 — thẻ light không có viền trái */
+  --dh-tile: 3.625rem;              /* ô icon trong stat card (mockup: 58px) */
+  --dh-tile-radius: 1rem;
   --dh-gauge-bar: block;        /* thanh mini dưới giá trị — bật ở cả 2 theme */
   --dh-gauge-track-bg: rgba(30, 41, 59, .9);
   /* Đo từ mockup: vòng ngoài ~105-110px, bề dày ~15px. `--dh-donut-w` là
      stroke-width trong viewBox 100 → 14 ≈ 15px thật. */
-  --dh-donut-size: 106px;
+  --dh-donut-size: 6.625rem;
   --dh-donut-w: 14;
   --dh-donut-foot: none;                             /* light: flex — mockup tối không có dòng chân */
   /* Track của vành khuyên: xanh navy đậm (mockup tối), không phải màu xám. */
@@ -141,7 +148,7 @@
 
   --dh-panel-bg: #ffffff;
   --dh-panel-border: rgba(226, 232, 240, .8);
-  --dh-panel-radius: 12px;
+  --dh-panel-radius: 0.75rem;
   --dh-panel-shadow: 0 1px 2px rgba(15, 23, 42, .06);
   --dh-panel-shadow-strong: 0 10px 24px rgba(15, 23, 42, .14);
   --dh-panel-blur: none;
@@ -186,23 +193,23 @@
   --dh-cyan: #06b6d4;
   --dh-cyan-glow: none;
 
-  --dh-fs-body: 12px;
-  --dh-fs-label: 10px;
-  --dh-fs-note: 10.5px;
-  --dh-fs-value: 20px;
-  --dh-fs-title: 14px;
-  --dh-fs-hero: 18px;
-  --dh-fs-meta: 11px;
+  --dh-fs-body: 0.75rem;
+  --dh-fs-label: 0.625rem;
+  --dh-fs-note: 0.65625rem;
+  --dh-fs-value: 1.25rem;
+  --dh-fs-title: 0.875rem;
+  --dh-fs-hero: 1.125rem;
+  --dh-fs-meta: 0.6875rem;
 
-  --dh-gap: 8px;
+  --dh-gap: 0.5rem;
   --dh-stat-accent-w: 0;
-  --dh-tile: 58px;
-  --dh-tile-radius: 16px;
+  --dh-tile: 3.625rem;
+  --dh-tile-radius: 1rem;
   --dh-gauge-bar: block;
   /* Nền track riêng cho light: tile ở đây là nền trắng đục nên #f1f5f9 (màu
      track dùng chỗ khác) gần như chìm hẳn, phải đậm hơn mới thấy được. */
   --dh-gauge-track-bg: #e2e8f0;
-  --dh-donut-size: 106px;
+  --dh-donut-size: 6.625rem;
   --dh-donut-w: 14;
   /* `grid` chứ không phải `flex`: hàng tiêu đề dùng subgrid của
      `.dh-donut__side` để thẳng cột với các con số — flex thì subgrid vô hiệu. */
@@ -501,17 +508,17 @@ body:has(.app[data-dash-theme="light"]) {
 
 .cap-flat .cap-backbar {
   display: flex;
-  margin-bottom: 10px;
+  margin-bottom: 0.625rem;
 }
 
 .cap-flat .cap-backbtn {
-  height: 32px;
-  padding: 0 14px;
+  height: 2rem;
+  padding: 0 0.875rem;
   border: 1px solid var(--cf-edge);
   border-radius: 8px;
   background: var(--cf-surface);
   color: var(--cf-text);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -589,63 +596,72 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 /* ---------------------------------------------------------------------------
- * 2b. HEADER GỌN — CHỈ DASHBOARD
+ * 2b. HEADER GỌN — MỌI TRANG
  *
  * Mockup vẽ header thấp hơn và gọn hơn bản mặc định của app: cao 50px (thay vì
  * 55), tiêu đề 17px nằm MỘT dòng, ô ngôn ngữ chỉ còn "VI | EN", nút đăng xuất
  * chỉ còn icon. Ở khổ 1280px bản mặc định làm tiêu đề xuống 2 dòng.
  *
- * Toàn bộ khối này khoá theo `.app[data-dash-zoom]` — các trang khác giữ
- * nguyên header cũ (quyết định có chủ ý, xem [[dashboard-theme-scope]]).
+ * TRƯỚC ĐÂY khối này khoá theo `.app[data-dash-zoom]` (chỉ 7 màn đã port), nên
+ * vào Đồng bộ / Cài đặt / Nhập liệu thì logo và chữ ở header to hơn hẳn: logo
+ * 48px thay vì 36, tiêu đề 20px thay vì 17, header 55px thay vì 50. Cùng một
+ * thanh header mà đổi cỡ khi chuyển màn. Nay bỏ điều kiện đó — hình học của
+ * header giống nhau ở mọi trang, đúng như đã làm với sidebar bên dưới.
+ *
+ * `data-dash-zoom` từ đây chỉ còn nghĩa `zoom: 1.5` (mục 2c), không điều khiển
+ * hình học nữa.
  * ------------------------------------------------------------------------- */
 
-.app[data-dash-zoom] {
-  /* dashboard.css:30 đặt 55px; specificity (0,2,0) > (0,1,0) nên thắng. */
-  grid-template-rows: 50px minmax(0, 1fr);
+/* Header 3.125rem (50px) cho MỌI trang. dashboard.css:22 đặt 55px; rule này
+   đứng sau trong thứ tự nạp (main.jsx: dashboard.css -> dashboardHome.css) nên
+   thắng khi cùng specificity. Trước đây khoá `[data-dash-zoom]` nên trang Đồng
+   bộ vẫn 55px trong khi mọi màn khác 50px. */
+.app {
+  grid-template-rows: 3.125rem minmax(0, 1fr);
 }
 
 /* --- Brand: logo nhỏ lại, tiêu đề 1 dòng --------------------------------- */
-.app[data-dash-zoom] .header {
-  padding: 0 14px 0 8px;
+.app .header {
+  padding: 0 0.875rem 0 0.5rem;
 }
 
-.app[data-dash-zoom] .brand { gap: 28px; }
+.app .brand { gap: 1.75rem; }
 
-.app[data-dash-zoom] .brand-logo {
-  width: 36px;
-  height: 36px;
+.app .brand-logo {
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 /* nowrap là điểm mấu chốt: ở 20px tiêu đề dài 558px, cộng cụm phải ~525px và
    sidebar 56px là tràn 1280px → rơi xuống 2 dòng. 17px cho ra ~406px, đúng
    bằng mockup. */
-.app[data-dash-zoom] .brand-title {
-  font-size: 17px;
+.app .brand-title {
+  font-size: 1.0625rem;
   letter-spacing: 0;
   white-space: nowrap;
 }
 
-.app[data-dash-zoom] .brand-subtitle {
-  margin-top: 2px;
-  font-size: 11.5px;
+.app .brand-subtitle {
+  margin-top: 0.125rem;
+  font-size: 0.71875rem;
 }
 
-.app[data-dash-zoom] .header-actions { gap: 10px; }
+.app .header-actions { gap: 0.625rem; }
 
 /* --- Chip thiết bị: bỏ khung ngoài, mỗi chip tự có viền ------------------- */
-.app[data-dash-zoom] .device-chips {
-  gap: 8px;
+.app .device-chips {
+  gap: 0.5rem;
   height: auto;
   padding: 0;
   border: 0;
   background: transparent;
 }
 
-.app[data-dash-zoom] .device-chip {
-  gap: 7px;
-  height: 32px;
-  padding: 0 11px;
-  font-size: 12.5px;
+.app .device-chip {
+  gap: 0.4375rem;
+  height: 2rem;
+  padding: 0 0.6875rem;
+  font-size: 0.78125rem;
   font-weight: 700;
   color: var(--dh-ink-2);
   background: var(--dh-inset-bg);
@@ -656,118 +672,122 @@ body:has(.app[data-dash-theme="light"]) {
    mask-image để không phải nhét SVG vào markup dùng chung của Header.jsx —
    markup đó còn phục vụ mọi trang khác. Màu icon lấy theo currentColor của
    chip (đỏ khi mất kết nối, xanh khi online). */
-.app[data-dash-zoom] .device-chip-dot { display: none; }
+.app .device-chip-dot { display: none; }
 
-.app[data-dash-zoom] .device-chip::before {
+.app .device-chip::before {
   content: "";
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   background: currentColor;
   -webkit-mask: var(--dh-chip-icon) center / contain no-repeat;
   mask: var(--dh-chip-icon) center / contain no-repeat;
 }
 
-.app[data-dash-zoom] .device-chip--camera {
+.app .device-chip--camera {
   --dh-chip-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8a2 2 0 0 1 2-2h2l1.2-2h7.6L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Ccircle cx='12' cy='12.5' r='3.2'/%3E%3C/svg%3E");
 }
 
-.app[data-dash-zoom] .device-chip--fp {
+.app .device-chip--fp {
   --dh-chip-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4.5a6.5 6.5 0 0 0-6.5 6.5v2.2M12 4.5A6.5 6.5 0 0 1 18.5 11v3.5M12 8a3 3 0 0 0-3 3v4.5M12 8a3 3 0 0 1 3 3v5M12 11.5v6M7 17v2M17 17.5v3'/%3E%3C/svg%3E");
 }
 
 /* Chip online: chỉ đổi màu icon, KHÔNG tô nền như bản cũ — mockup để nền
    trung tính cho cả hai chip. */
-.app[data-dash-zoom] .device-chip.online { color: var(--dh-emerald); }
-.app[data-dash-zoom] .device-chip.offline { color: var(--dh-ink-4); }
+.app .device-chip.online { color: var(--dh-emerald); }
+.app .device-chip.offline { color: var(--dh-ink-4); }
 
 /* --- Ô ngôn ngữ: chỉ còn VI | EN, bỏ quả địa cầu và nhãn dài -------------- */
-.app[data-dash-zoom] .header-actions .lang-switch {
-  height: 32px;
-  padding: 3px;
+.app .header-actions .lang-switch {
+  height: 2rem;
+  padding: 0.1875rem;
   border-radius: 999px;
 }
 
-.app[data-dash-zoom] .header-actions .lang-switch-globe,
-.app[data-dash-zoom] .header-actions .lang-switch-sep,
-.app[data-dash-zoom] .header-actions .lang-switch-flag { display: none; }
+.app .header-actions .lang-switch-globe,
+.app .header-actions .lang-switch-sep,
+.app .header-actions .lang-switch-flag { display: none; }
 
-.app[data-dash-zoom] .header-actions .lang-switch .lang-switch-label { display: none; }
-.app[data-dash-zoom] .header-actions .lang-switch .lang-switch-short { display: inline; }
+.app .header-actions .lang-switch .lang-switch-label { display: none; }
+.app .header-actions .lang-switch .lang-switch-short { display: inline; }
 
-.app[data-dash-zoom] .header-actions .lang-switch button {
-  height: 26px;
-  padding: 0 14px;
+.app .header-actions .lang-switch button {
+  height: 1.625rem;
+  padding: 0 0.875rem;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
-.app[data-dash-zoom] .header-actions .lang-switch button.active {
+.app .header-actions .lang-switch button.active {
   box-shadow: none;
 }
 
 /* --- Chuông: bỏ nền khối, chỉ còn icon ----------------------------------- */
-.app[data-dash-zoom] .header-actions .icon-button {
-  width: 32px;
-  height: 32px;
+.app .header-actions .icon-button {
+  width: 2rem;
+  height: 2rem;
   border: 0;
   background: transparent;
 }
 
-.app[data-dash-zoom] .header-actions .icon-button:hover { background: var(--dh-blue-soft); }
+.app .header-actions .icon-button:hover { background: var(--dh-blue-soft); }
 
 /* --- Khối người dùng: avatar 28px, tên 1 dòng ---------------------------- */
-.app[data-dash-zoom] .user-box { gap: 9px; }
+.app .user-box { gap: 0.5625rem; }
 
-.app[data-dash-zoom] .avatar {
-  width: 28px;
-  height: 28px;
-  font-size: 12px;
+.app .avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.75rem;
   box-shadow: none;
 }
 
-.app[data-dash-zoom] .user-info { min-width: 0; gap: 1px; }
-.app[data-dash-zoom] .user-info strong { font-size: 13px; white-space: nowrap; }
-.app[data-dash-zoom] .user-info span { font-size: 11px; margin-top: 0; }
+.app .user-info { min-width: 0; gap: 0.0625rem; }
+.app .user-info strong { font-size: 0.8125rem; white-space: nowrap; }
+.app .user-info span { font-size: 0.6875rem; margin-top: 0; }
 
 /* --- Đăng xuất: chỉ còn icon trong ô vuông 32px -------------------------- */
-.app[data-dash-zoom] .logout-button {
+.app .logout-button {
   gap: 0;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   padding: 0;
   justify-content: center;
   border-radius: 10px;
 }
 
-.app[data-dash-zoom] .logout-button .logout-button__label { display: none; }
-.app[data-dash-zoom] .logout-button svg { width: 16px; height: 16px; }
+.app .logout-button .logout-button__label { display: none; }
+.app .logout-button svg { width: 1rem; height: 1rem; }
 
-/* --- Sidebar: ô nav 40px (mockup) thay vì 44px, bỏ hộp lồng trong icon --- */
-.app[data-dash-zoom] .sidebar { padding: 4px 8px; }
-.app[data-dash-zoom] .nav { gap: 6px; }
+/* --- Sidebar: ô nav 40px (mockup) thay vì 44px, bỏ hộp lồng trong icon ---
+   Áp cho MỌI trang (không khoá `data-dash-zoom`): đây là hình học của thanh
+   menu, đổi cỡ khi chuyển màn là lỗi thấy được ngay. Bản 44px/18px ở
+   dashboard.css:479 và :543 vẫn còn nguyên làm mặc định nếu `DH_PAGES` bị bỏ
+   hẳn sau này. */
+.app .sidebar { padding: 0.25rem 0.5rem; }
+.app .nav { gap: 0.375rem; }
 
-.app[data-dash-zoom] .nav-item {
-  width: 40px;
-  height: 40px;
+.app .nav-item {
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 11px;
 }
 
 /* Mockup đặt icon trực tiếp trong ô vuông, không có hộp 34px lồng bên trong. */
-.app[data-dash-zoom] .nav-icon {
+.app .nav-icon {
   width: auto;
   height: auto;
   border-radius: 0;
 }
 
-.app[data-dash-zoom] .nav-item .nav-icon svg { width: 20px; height: 20px; }
+.app .nav-item .nav-icon svg { width: 1.25rem; height: 1.25rem; }
 
 /* ---------------------------------------------------------------------------
  * 3. TRANG DASHBOARD
  * ------------------------------------------------------------------------- */
 .content:has(.dh-page) {
-  padding: 8px 16px 8px 20px;
+  padding: 0.5rem 1rem 0.5rem 1.25rem;
 }
 
 /* Chỉ ghi đè gap, padding và màu. Bố cục full màn hình đã có sẵn ở `.page`
@@ -837,8 +857,8 @@ body:has(.app[data-dash-theme="light"]) {
 /* Bẫy: dashboard.css:12-19 ép mọi <svg> thành 20x20. Đặt mặc định 20px cho icon
    rồi ghi đè riêng cho chart/donut. */
 .dh-page svg {
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .dh-page .dh-chart__svg,
@@ -863,7 +883,7 @@ body:has(.app[data-dash-theme="light"]) {
   justify-content: space-between;
   gap: var(--dh-gap);
   flex-wrap: wrap;
-  padding: 4px 20px 4px 18px;
+  padding: 0.25rem 1.25rem 0.25rem 1.125rem;
   border-radius: var(--dh-panel-radius);
   border: 1px solid var(--dh-hero-border);
   background: var(--dh-hero-bg);
@@ -914,7 +934,7 @@ body:has(.app[data-dash-theme="light"]) {
   left: 2%;
   right: 30%;
   top: 50%;
-  height: 74px;
+  height: 4.625rem;
   transform: translateY(-50%);
   background: var(--dh-hero-wave) center / 100% 100% no-repeat;
 }
@@ -955,9 +975,9 @@ body:has(.app[data-dash-theme="light"]) {
 
 /* Dải chính: to nhất, cyan -> trắng xanh, nằm ngoài cùng bên phải. */
 .dh-hero__aurora {
-  right: 10px;
+  right: 0.625rem;
   top: -80%;
-  width: 170px;
+  width: 10.625rem;
   height: 300%;
   --rot: 17deg;
   transform: rotate(var(--rot));
@@ -974,9 +994,9 @@ body:has(.app[data-dash-theme="light"]) {
 
 /* Dải 2: mảnh và nghiêng hơn, lệch phải. */
 .dh-hero__aurora--alt {
-  right: 170px;
+  right: 10.625rem;
   top: -70%;
-  width: 95px;
+  width: 5.9375rem;
   height: 280%;
   --rot: 24deg;
   transform: rotate(var(--rot));
@@ -992,9 +1012,9 @@ body:has(.app[data-dash-theme="light"]) {
 
 /* Dải 3: rộng hơn, mờ hơn, làm nền loang phía sau. */
 .dh-hero__aurora--wide {
-  right: 250px;
+  right: 15.625rem;
   top: -60%;
-  width: 190px;
+  width: 11.875rem;
   height: 260%;
   --rot: 9deg;
   transform: rotate(var(--rot));
@@ -1009,9 +1029,9 @@ body:has(.app[data-dash-theme="light"]) {
 
 /* Dải 4: vệt sáng mảnh, ngắn, tạo điểm nhấn. */
 .dh-hero__aurora--thin {
-  right: 330px;
+  right: 20.625rem;
   top: -30%;
-  width: 60px;
+  width: 3.75rem;
   height: 200%;
   --rot: 28deg;
   transform: rotate(var(--rot));
@@ -1030,8 +1050,8 @@ body:has(.app[data-dash-theme="light"]) {
  * `transform` và mọi dải đều nghiêng cùng một góc. */
 @keyframes dh-aurora-flow {
   0%   { transform: rotate(calc(var(--rot) - 6deg)) scale(.95) translate(0, 0); }
-  50%  { transform: rotate(calc(var(--rot) + 5deg)) scale(1.06) translate(-22px, 12px); }
-  100% { transform: rotate(calc(var(--rot) - 2deg)) scale(1.01) translate(14px, -12px); }
+  50%  { transform: rotate(calc(var(--rot) + 5deg)) scale(1.06) translate(-1.375rem, 0.75rem); }
+  100% { transform: rotate(calc(var(--rot) - 2deg)) scale(1.01) translate(0.875rem, -0.75rem); }
 }
 
 .dh-hero__greet { min-width: 0; }
@@ -1045,10 +1065,10 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-hero__time {
-  margin: 4px 0 0;
+  margin: 0.25rem 0 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   font-size: var(--dh-fs-meta);
   color: var(--dh-ink-3);
 }
@@ -1059,14 +1079,14 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-hero__side {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .dh-hero__device {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 8px 12px;
+  gap: 0.875rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 14px;
   background: var(--dh-panel-bg);
   border: 1px solid var(--dh-panel-border);
@@ -1076,14 +1096,14 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-hero__info {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0.0625rem;
   min-width: 0;
 }
 
 .dh-hero__open {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3125rem;
   font-size: var(--dh-fs-note);
   font-weight: 600;
   color: var(--dh-emerald-ink);
@@ -1092,8 +1112,8 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-hero__open--idle { color: var(--dh-ink-3); }
 
 .dh-hero__pulse {
-  width: 7px;
-  height: 7px;
+  width: 0.4375rem;
+  height: 0.4375rem;
   border-radius: 50%;
   background: var(--dh-emerald);
   animation: dh-pulse 2s cubic-bezier(.4, 0, .6, 1) infinite;
@@ -1108,7 +1128,7 @@ body:has(.app[data-dash-theme="light"]) {
    rộng 151px, đẩy thẻ rộng thêm 45px và lấn vào ảnh vali. */
 .dh-hero__code {
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   font-weight: 700;
   letter-spacing: -.01em;
   color: var(--dh-ink);
@@ -1122,12 +1142,12 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-cta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 11px 18px;
+  gap: 0.5rem;
+  padding: 0.6875rem 1.125rem;
   border: 0;
   border-radius: 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   font-family: inherit;
   color: #fff;
@@ -1145,9 +1165,9 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-theme-toggle {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 6px;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 0.375rem;
   padding: 0;
   border-radius: 12px;
   cursor: pointer;
@@ -1178,7 +1198,7 @@ body:has(.app[data-dash-theme="light"]) {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 8px 12px 10px;
+  padding: 0.5rem 0.75rem 0.625rem;
   border-radius: var(--dh-panel-radius);
   border: 1px solid var(--dh-panel-border);
   background: var(--dh-panel-bg);
@@ -1197,8 +1217,8 @@ body:has(.app[data-dash-theme="light"]) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
+  gap: 0.625rem;
+  margin-bottom: 0.375rem;
 }
 
 .dh-panel__title {
@@ -1211,19 +1231,19 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-panel__right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .dh-panel__action {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
+  gap: 0.25rem;
+  padding: 0.25rem 0.375rem;
   border: 0;
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--dh-blue-ink);
   background: transparent;
@@ -1231,16 +1251,16 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-panel__action:hover { background: var(--dh-blue-soft); }
 .dh-panel__action-icon { display: inline-flex; }
-.dh-panel__action-icon svg { width: 14px; height: 14px; }
+.dh-panel__action-icon svg { width: 0.875rem; height: 0.875rem; }
 
 /* --- Stat card ----------------------------------------------------------- */
 .dh-stat {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 0.625rem;
   width: 100%;
-  padding: 12px;
+  padding: 0.75rem;
   text-align: left;
   font-family: inherit;
   border-radius: 12px;
@@ -1264,7 +1284,7 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-stat__main {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   min-width: 0;
 }
 
@@ -1283,12 +1303,12 @@ body:has(.app[data-dash-theme="light"]) {
   border: 0;
 }
 
-.dh-stat__icon svg { width: 25px; height: 25px; }
+.dh-stat__icon svg { width: 1.5625rem; height: 1.5625rem; }
 
 .dh-stat__text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0.0625rem;
   min-width: 0;
 }
 
@@ -1315,14 +1335,14 @@ body:has(.app[data-dash-theme="light"]) {
   text-overflow: ellipsis;
 }
 
-.dh-stat__trail { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; }
+.dh-stat__trail { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 0.5rem; }
 .dh-stat__chev { display: inline-flex; color: var(--dh-ink-4); }
-.dh-stat__chev svg { width: 16px; height: 16px; }
+.dh-stat__chev svg { width: 1rem; height: 1rem; }
 
 .dh-pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 0.125rem 0.5rem;
   border-radius: 999px;
   font-size: var(--dh-fs-note);
   font-weight: 600;
@@ -1346,10 +1366,10 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-select select {
   appearance: none;
-  padding: 5px 26px 5px 10px;
+  padding: 0.3125rem 1.625rem 0.3125rem 0.625rem;
   border-radius: 8px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   color: var(--dh-ink-2);
@@ -1359,13 +1379,13 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-select__chevron {
   position: absolute;
-  right: 7px;
+  right: 0.4375rem;
   display: inline-flex;
   pointer-events: none;
   color: var(--dh-ink-3);
 }
 
-.dh-select__chevron svg { width: 14px; height: 14px; }
+.dh-select__chevron svg { width: 0.875rem; height: 0.875rem; }
 
 /* --- Line chart ---------------------------------------------------------- */
 .dh-chart {
@@ -1377,7 +1397,7 @@ body:has(.app[data-dash-theme="light"]) {
    hàng dưới tràn khỏi màn 720p). */
 .dh-chart__plot {
   position: relative;
-  height: 70px;
+  height: 4.375rem;
   width: 100%;
 }
 
@@ -1395,9 +1415,9 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-chart__yaxis span {
   position: absolute;
-  right: 5px;
+  right: 0.3125rem;
   transform: translateY(-50%);
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 1;
   color: var(--dh-ink-3);
   white-space: nowrap;
@@ -1417,18 +1437,18 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-chart__dot {
   position: absolute;
-  width: 7px;
-  height: 7px;
-  margin: -3.5px 0 0 -3.5px;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  margin: -0.21875rem 0 0 -0.21875rem;
   border-radius: 50%;
   background: var(--dh-blue-ink);
   border: 1.6px solid var(--dh-blue);
 }
 
 .dh-chart__dot.is-peak {
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin: -0.3125rem 0 0 -0.3125rem;
   background: var(--dh-blue-ink);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, .18);
 }
@@ -1466,14 +1486,14 @@ body:has(.app[data-dash-theme="light"]) {
    (mockup dùng flex justify-between nên bị lệch). */
 .dh-chart__xaxis {
   position: relative;
-  height: 15px;
-  margin-top: 4px;
+  height: 0.9375rem;
+  margin-top: 0.25rem;
 }
 
 .dh-chart__xaxis span {
   position: absolute;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--dh-ink-3);
   white-space: nowrap;
 }
@@ -1490,8 +1510,8 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-donut {
   display: flex;
   align-items: center;
-  gap: 24px;
-  height: 92px;
+  gap: 1.5rem;
+  height: 5.75rem;
   flex: 0 0 auto;
 }
 
@@ -1537,10 +1557,10 @@ body:has(.app[data-dash-theme="light"]) {
 /* Nhãn chỉ dành cho trình đọc màn hình (báo "đang tải"). */
 .dh-sr-only {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: 0.0625rem;
+  height: 0.0625rem;
   padding: 0;
-  margin: -1px;
+  margin: -0.0625rem;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -1558,19 +1578,19 @@ body:has(.app[data-dash-theme="light"]) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 0.125rem;
   pointer-events: none;
 }
 
 .dh-donut__value {
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
   line-height: 1.1;
   color: var(--dh-ink);
 }
 
 .dh-donut__label {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -1584,7 +1604,7 @@ body:has(.app[data-dash-theme="light"]) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 12px 14px;
+  gap: 0.75rem 0.875rem;
   flex: 1;
   min-width: 0;
 }
@@ -1594,16 +1614,16 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-legend__name {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 0.5625rem;
   min-width: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--dh-ink-2);
 }
 
 .dh-legend__dot {
   flex: 0 0 auto;
-  width: 10px;
-  height: 10px;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
 }
 
@@ -1614,16 +1634,16 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-legend__value {
-  min-width: 56px;
-  font-size: 13px;
+  min-width: 3.5rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   text-align: right;
   color: var(--dh-ink);
 }
 
 .dh-legend__pct {
-  min-width: 46px;
-  font-size: 13px;
+  min-width: 2.875rem;
+  font-size: 0.8125rem;
   text-align: right;
   color: var(--dh-ink-3);
 }
@@ -1637,8 +1657,8 @@ body:has(.app[data-dash-theme="light"]) {
   grid-column: 1 / -1;
   /* Fallback cho trình duyệt chưa có subgrid. */
   grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 14px;
-  font-size: 10.5px;
+  gap: 0.875rem;
+  font-size: 0.65625rem;
   text-align: right;
   color: var(--dh-ink-3);
 }
@@ -1660,16 +1680,16 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-gauge-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .dh-gauge {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   min-width: 0;
-  padding: 8px;
+  padding: 0.5rem;
   border-radius: 10px;
   background: var(--dh-inset-bg);
   border: 1px solid var(--dh-inset-border);
@@ -1685,15 +1705,15 @@ body:has(.app[data-dash-theme="light"]) {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 8px;
   color: var(--dh-tone-ink);
   background: color-mix(in srgb, var(--dh-tone) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--dh-tone) 28%, transparent);
 }
 
-.dh-gauge__icon svg { width: 20px; height: 20px; }
+.dh-gauge__icon svg { width: 1.25rem; height: 1.25rem; }
 
 .dh-gauge__text {
   display: flex;
@@ -1703,7 +1723,7 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-gauge__label {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -1711,7 +1731,7 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-gauge__value {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--dh-ink);
 }
@@ -1719,8 +1739,8 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-gauge__track {
   display: var(--dh-gauge-bar);
   align-self: stretch;
-  height: 4px;
-  margin-top: 4px;
+  height: 0.25rem;
+  margin-top: 0.25rem;
   border-radius: 999px;
   overflow: hidden;
   background: var(--dh-gauge-track-bg);
@@ -1739,19 +1759,19 @@ body:has(.app[data-dash-theme="light"]) {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .dh-meter {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 15px;
+  gap: 0.75rem;
+  height: 0.9375rem;
 }
 
 .dh-meter__label {
   flex: 0 0 auto;
-  width: 122px;
+  width: 7.625rem;
   /* Không cho xuống dòng: "Nguồn (pin dự phòng)" ở 13px dài ~125px, chỉ hơn
      cột 3px — xuống dòng sẽ làm hàng cao gấp đôi và đẩy panel vỡ bố cục. */
   white-space: nowrap;
@@ -1762,7 +1782,7 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-meter__track {
   position: relative;
   flex: 1;
-  height: 8px;
+  height: 0.5rem;
   border-radius: 999px;
   overflow: hidden;
   background: var(--dh-meter-track-bg);
@@ -1795,7 +1815,7 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-meter__value {
   flex: 0 0 auto;
-  width: 52px;
+  width: 3.25rem;
   text-align: right;
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   font-size: var(--dh-fs-body);
@@ -1806,20 +1826,20 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-specs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  padding-top: 8px;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
   border-top: 1px solid var(--dh-inset-border);
 }
 
 .dh-spec {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0.0625rem;
   min-width: 0;
 }
 
 .dh-spec__label {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -1837,12 +1857,12 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-spec__ready {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3125rem;
 }
 
 .dh-spec__dot {
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
   background: var(--dh-emerald);
 }
@@ -1862,8 +1882,8 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-table th {
-  padding: 6px 8px;
-  font-size: 10px;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -1874,7 +1894,7 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-table td {
-  padding: 4px 8px;
+  padding: 0.25rem 0.5rem;
   font-size: var(--dh-fs-body);
   color: var(--dh-ink-2);
   border-bottom: 1px solid var(--dh-inset-border);
@@ -1885,7 +1905,7 @@ body:has(.app[data-dash-theme="light"]) {
 /* dashboard.css:4641 khoá `tbody tr:hover` bằng !important. */
 .dh-table tbody tr.is-clickable:hover { background: var(--dh-inset-bg) !important; }
 
-.dh-table__idx { width: 32px; color: var(--dh-ink-4); }
+.dh-table__idx { width: 2rem; color: var(--dh-ink-4); }
 
 .dh-table__code {
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
@@ -1900,13 +1920,13 @@ body:has(.app[data-dash-theme="light"]) {
   color: var(--dh-ink-3);
 }
 
-.dh-table__chev { width: 24px; text-align: right; color: var(--dh-ink-4); }
-.dh-table__chev svg { width: 14px; height: 14px; }
+.dh-table__chev { width: 1.5rem; text-align: right; color: var(--dh-ink-4); }
+.dh-table__chev svg { width: 0.875rem; height: 0.875rem; }
 
 .dh-status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3125rem;
   font-size: var(--dh-fs-note);
   font-weight: 600;
 }
@@ -1915,8 +1935,8 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-status.is-warn { color: var(--dh-amber-ink); }
 
 .dh-status__dot {
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
   background: currentColor;
 }
@@ -1934,8 +1954,8 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-session {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 7px 0;
+  gap: 0.75rem;
+  padding: 0.4375rem 0;
   border-radius: 0;
   background: none;
   border: 0;
@@ -1955,8 +1975,8 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-session__dot {
   flex: 0 0 auto;
-  width: 10px;
-  height: 10px;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
   background: var(--dh-ink-4);
 }
@@ -1966,7 +1986,7 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-session__main {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   flex: 1;
   min-width: 0;
 }
@@ -1974,19 +1994,19 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-session__line {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 0.5rem;
   min-width: 0;
 }
 
 .dh-session__code {
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--dh-ink);
 }
 
 .dh-session__name {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--dh-ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2000,7 +2020,7 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-badge {
   flex: 0 0 auto;
-  padding: 7px 14px;
+  padding: 0.4375rem 0.875rem;
   border-radius: 999px;
   font-size: var(--dh-fs-note);
   font-weight: 600;
@@ -2027,17 +2047,17 @@ body:has(.app[data-dash-theme="light"]) {
   /* Khoảng cách giữa các item do padding của .dh-feed__item lo, không dùng gap:
      có gap thì đường rail dọc bị các item chia thành khúc rời. */
   gap: 0;
-  padding-left: 22px;
+  padding-left: 1.375rem;
 }
 
 /* Rail dọc nối các chấm. */
 .dh-feed::before {
   content: "";
   position: absolute;
-  left: 5px;
-  top: 4px;
-  bottom: 4px;
-  width: 2px;
+  left: 0.3125rem;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  width: 0.125rem;
   border-radius: 1px;
   background: var(--dh-blue-line);
 }
@@ -2046,29 +2066,29 @@ body:has(.app[data-dash-theme="light"]) {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   /* Nội dung item chỉ cao 24px (chữ 12 + gap 2 + giờ 10). Padding 6px mỗi chiều
      đưa item lên 36px — 6 item vừa đúng 217px thân panel, cao bằng panel
      "5 phiên gần nhất" cùng hàng nên hàng grid không phình ra. Số item do
      LOG_ROWS trong pages/DashboardHome.jsx giữ. */
-  padding: 6px 0;
+  padding: 0.375rem 0;
 }
 
 .dh-feed__dot {
   position: absolute;
-  left: -21px;
+  left: -1.3125rem;
   /* Item có padding-top 6px nên dòng chữ đầu tụt xuống 6px; chấm phải tụt theo
      đúng 6px (4 -> 10) để giữ nguyên tương quan chấm/chữ như trước. */
-  top: 10px;
-  width: 10px;
-  height: 10px;
+  top: 0.625rem;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
   background: var(--dh-blue);
   box-shadow: 0 0 0 3px var(--dh-page-bg);
 }
 
 .dh-feed__text {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--dh-ink-2);
   line-height: 1;
 }
@@ -2077,14 +2097,14 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-feed__ref { color: var(--dh-blue-ink); font-weight: 600; }
 
 .dh-feed__time {
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 1;
   color: var(--dh-ink-4);
 }
 
 /* --- misc ---------------------------------------------------------------- */
 .dh-empty {
-  padding: 24px 8px;
+  padding: 1.5rem 0.5rem;
   text-align: center;
   font-size: var(--dh-fs-body);
   color: var(--dh-ink-3);
@@ -2109,21 +2129,21 @@ body:has(.app[data-dash-theme="light"]) {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 1rem;
   flex: 0 0 auto;
-  padding: 2px 0 4px;
+  padding: 0.125rem 0 0.25rem;
 }
 
 .dh-page-head__title {
   margin: 0;
-  font-size: 19px;
+  font-size: 1.1875rem;
   font-weight: 700;
   line-height: 1.25;
   color: var(--dh-ink);
 }
 
 .dh-page-head__sub {
-  margin: 3px 0 0;
+  margin: 0.1875rem 0 0;
   font-size: var(--dh-fs-meta);
   color: var(--dh-ink-3);
 }
@@ -2131,7 +2151,7 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-page-head__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   flex: 0 0 auto;
 }
 
@@ -2139,10 +2159,10 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-filter {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   flex: 0 0 auto;
   flex-wrap: wrap;
-  padding: 10px 12px;
+  padding: 0.625rem 0.75rem;
   border: 1px solid var(--dh-panel-border);
   border-radius: var(--dh-panel-radius);
   background: var(--dh-panel-bg);
@@ -2155,13 +2175,13 @@ body:has(.app[data-dash-theme="light"]) {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1 1 260px;
-  min-width: 200px;
+  flex: 1 1 16.25rem;
+  min-width: 12.5rem;
 }
 
 .dh-filter__search-icon {
   position: absolute;
-  left: 10px;
+  left: 0.625rem;
   display: inline-flex;
   color: var(--dh-ink-4);
   pointer-events: none;
@@ -2169,14 +2189,14 @@ body:has(.app[data-dash-theme="light"]) {
 
 /* Ghi đè mặc định 20px của `.dh-page svg` cho riêng icon kính lúp. */
 .dh-filter__search-icon svg {
-  width: 15px;
-  height: 15px;
+  width: 0.9375rem;
+  height: 0.9375rem;
 }
 
 .dh-filter__input {
   width: 100%;
-  height: 34px;
-  padding: 0 10px 0 31px;
+  height: 2.125rem;
+  padding: 0 0.625rem 0 1.9375rem;
   border: 1px solid var(--dh-inset-border);
   border-radius: 8px;
   background: var(--dh-inset-bg);
@@ -2200,7 +2220,7 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-filter__select {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex: 0 0 auto;
 }
 
@@ -2213,9 +2233,9 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-filter__select select {
-  height: 34px;
-  min-width: 120px;
-  padding: 0 8px;
+  height: 2.125rem;
+  min-width: 7.5rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--dh-inset-border);
   border-radius: 8px;
   background: var(--dh-inset-bg);
@@ -2229,9 +2249,9 @@ body:has(.app[data-dash-theme="light"]) {
    để thanh filter thẳng hàng. `datetime-local` cần min-width lớn hơn vì Chromium
    vẽ cả ngày + giờ trong một ô. */
 .dh-filter__select input {
-  height: 34px;
-  min-width: 168px;
-  padding: 0 8px;
+  height: 2.125rem;
+  min-width: 10.5rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--dh-inset-border);
   border-radius: 8px;
   background: var(--dh-inset-bg);
@@ -2256,9 +2276,9 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-filter__chk {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 12px;
+  gap: 0.5rem;
+  height: 2.125rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--dh-inset-border);
   border-radius: 8px;
   background: var(--dh-inset-bg);
@@ -2270,8 +2290,8 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-filter__chk input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
+  width: 0.9375rem;
+  height: 0.9375rem;
   margin: 0;
   accent-color: var(--dh-blue);
   cursor: pointer;
@@ -2287,8 +2307,8 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-filter__chk input:disabled { cursor: not-allowed; }
 
 .dh-filter__submit {
-  height: 34px;
-  padding: 0 16px;
+  height: 2.125rem;
+  padding: 0 1rem;
   border: 1px solid transparent;
   border-radius: 8px;
   background: var(--dh-blue);
@@ -2308,7 +2328,7 @@ body:has(.app[data-dash-theme="light"]) {
    auto-fit + max 320px để 1 thẻ không bị kéo dài hết bề ngang. */
 .dh-statline {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 320px));
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 20rem));
   gap: var(--dh-gap);
   margin-bottom: var(--dh-gap);
 }
@@ -2316,9 +2336,9 @@ body:has(.app[data-dash-theme="light"]) {
 /* Nhiều status-badge trong một ô bảng (ví dụ kết quả đồng bộ). */
 .dh-badge-wrap {
   display: flex;
-  gap: 6px;
+  gap: 0.375rem;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 /* --- Bảng dữ liệu -------------------------------------------------------- */
@@ -2358,7 +2378,7 @@ body:has(.app[data-dash-theme="light"]) {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 9px 12px;
+  padding: 0.5625rem 0.75rem;
   text-align: left;
   font-size: var(--dh-fs-label);
   font-weight: 600;
@@ -2371,7 +2391,7 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-datatable__table td {
-  padding: 8px 12px;
+  padding: 0.5rem 0.75rem;
   font-size: var(--dh-fs-body);
   color: var(--dh-ink-2);
   border-bottom: 1px solid var(--dh-inset-border);
@@ -2400,20 +2420,20 @@ body:has(.app[data-dash-theme="light"]) {
    block ghi đè của dashboard.css; selector này (0,2,1) mạnh hơn (0,1,1) nên thắng
    khi cả hai cùng !important. `td` không cần vì rule gốc không dùng !important. */
 .dh-datatable--roomy .dh-datatable__table th {
-  padding: 12px 16px;
-  font-size: 11.5px;
+  padding: 0.75rem 1rem;
+  font-size: 0.71875rem;
   letter-spacing: .04em;
   color: var(--dh-ink-2) !important;
 }
 
 .dh-datatable--roomy .dh-datatable__table td {
-  padding: 13px 16px;
-  font-size: 13.5px;
+  padding: 0.8125rem 1rem;
+  font-size: 0.84375rem;
   color: var(--dh-ink);
 }
 
 .dh-datatable__state {
-  padding: 28px 12px;
+  padding: 1.75rem 0.75rem;
   text-align: center;
   font-size: var(--dh-fs-body);
   color: var(--dh-ink-3);
@@ -2426,11 +2446,11 @@ body:has(.app[data-dash-theme="light"]) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.75rem;
   /* `margin-top: auto` đẩy xuống đáy; `flex: 0 0 auto` để không bị co khi bảng dài. */
   margin-top: auto;
   flex: 0 0 auto;
-  padding: 9px 12px;
+  padding: 0.5625rem 0.75rem;
   border-top: 1px solid var(--dh-inset-border);
 }
 
@@ -2443,7 +2463,7 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-pager__nav {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .dh-pager__pos {
@@ -2453,8 +2473,8 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-pager__nav button {
-  height: 28px;
-  padding: 0 12px;
+  height: 1.75rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--dh-inset-border);
   border-radius: 7px;
   background: var(--dh-inset-bg);
@@ -2477,13 +2497,13 @@ body:has(.app[data-dash-theme="light"]) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 1.875rem;
+  height: 1.875rem;
   border-radius: 50%;
   overflow: hidden;
   background: var(--dh-blue-soft);
   color: var(--dh-blue-ink);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -2505,13 +2525,13 @@ body:has(.app[data-dash-theme="light"]) {
 
 .dh-rowbtns {
   display: inline-flex;
-  gap: 5px;
+  gap: 0.3125rem;
   align-items: center;
   flex-wrap: nowrap;
 }
 
 .dh-rowbtn {
-  padding: 4px 9px;
+  padding: 0.25rem 0.5625rem;
   border: 1px solid var(--dh-inset-border);
   border-radius: 6px;
   background: var(--dh-inset-bg);
@@ -2536,8 +2556,8 @@ body:has(.app[data-dash-theme="light"]) {
    Không cần bù border: cả hai đều border 1px (bên kia `transparent`) và
    `box-sizing: border-box` (dashboard.css:8), nên cùng height/padding là cùng hộp. */
 .dh-rowbtn--lg {
-  height: 34px;
-  padding: 0 16px;
+  height: 2.125rem;
+  padding: 0 1rem;
   border-radius: 8px;
   font-size: var(--dh-fs-body);
 }
