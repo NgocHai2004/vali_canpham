@@ -6,16 +6,14 @@
  * phải sửa component nào (mọi component đọc đúng tên field thật).
  *
  * ================================ SEAM ================================
- * Khối DUY NHẤT cần thay khi nối API thật là hàm getDashboardData() ở cuối file:
- *
- *   stats    <- api.stats()                       (backend/routers/stats.py)
- *   cells    <- api.listCells()                   (backend/routers/cells.py)
- *   sessions <- api.listSessions({ limit: 5 }).items   (backend/routers/sessions.py)
- *   logs     <- api.listLogs({ limit: 4 }).items       (backend/routers/logs.py)
- *
- * Thay 4 dòng gán trong getDashboardData() bằng 4 lời gọi trên là xong.
+ * ĐÃ NỐI API THẬT: `loadDashboardData()` ở cuối file gọi api.stats() +
+ * api.listCells(). Các hằng mock bên dưới giờ chỉ còn dùng làm:
+ *   - `mockHardware`: CPU/RAM/nhiệt độ — không có API nào cung cấp.
+ *   - phần còn lại: giá trị dự phòng khi API lỗi.
  * ======================================================================
  */
+
+import { api } from "../api";
 
 /** GET /api/stats — tên field lấy nguyên văn từ backend/routers/stats.py */
 export const mockStats = {
@@ -150,23 +148,26 @@ export const EMPTY_HARDWARE = {
 };
 
 /**
- * Nạp dữ liệu dashboard (bất đồng bộ).
+ * Nạp dữ liệu dashboard (bất đồng bộ) — ĐÃ NỐI API THẬT.
  *
- * Đây là HÀM DUY NHẤT cần thay khi nối API thật — DashboardHome đã biết chờ
- * promise này nên trạng thái loading cứ thế hoạt động, không phải sửa component:
+ * `stats` lấy nguyên response /api/stats: nó đã chứa sẵn `recent_sessions` (5
+ * phiên mới nhất) và `recent_activity` (8 bản ghi), nên không cần gọi thêm
+ * /api/sessions hay /api/logs như khối SEAM ở đầu file mô tả.
  *
- *   export async function loadDashboardData() {
- *     const [stats, cells] = await Promise.all([api.stats(), api.listCells()]);
- *     return { stats, cells, hardware: mockHardware };   // hoặc bỏ hẳn hardware
- *   }
+ * `hardware` vẫn là số tĩnh: CPU/RAM/nhiệt độ không có API.
  *
- * Độ trễ 500ms dưới đây là GIẢ LẬP để nhìn thấy được animation loading khi
- * chạy bằng mock — xoá luôn khi nối API thật.
+ * API lỗi thì trả về mock để dashboard vẫn dựng được khung (DashboardHome coi
+ * `data == null` là đang tải, nếu để promise reject thì màn hình treo ở
+ * trạng thái loading vĩnh viễn).
  */
-export function loadDashboardData() {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(getDashboardData()), 500);
-  });
+export async function loadDashboardData() {
+  try {
+    const [stats, cells] = await Promise.all([api.stats(), api.listCells()]);
+    return { stats, cells, hardware: mockHardware };
+  } catch (err) {
+    console.error("[dashboard] khong tai duoc du lieu that, dung mock:", err);
+    return getDashboardData();
+  }
 }
 
 export default getDashboardData;

@@ -235,7 +235,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
       <DashPageHeader title={t("session.title")} subtitle={t("common.total", { n: total })}>
         <button
           type="button"
-          className="dh-rowbtn"
+          className="dh-rowbtn dh-rowbtn--lg"
           onClick={() => setCellFormOpen(true)}
           title={t("session.open.add_cell_hint")}
         >

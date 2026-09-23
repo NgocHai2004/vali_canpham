@@ -2201,6 +2201,50 @@ textarea.input {
 }
 .confirm-del-modal .btn-danger:hover { background: linear-gradient(135deg, #ff8080, #e05555); }
 
+/* ---- Modal ở theme sáng ----
+   `.modal-panel` hardcode gradient navy (rgba(10,26,54,.92) → rgba(6,20,42,.9))
+   nhưng chữ bên trong là `color: var(--text)`, mà ở theme sáng --text = #0f172a.
+   Kết quả: chữ đen trên nền đen — đo được 1.04:1 cho cả thân modal, thanh
+   `.modal-actions` và nút "Huỷ". Hai modal xác nhận Đóng phiên / Xoá phiên dùng
+   chung bộ class này nên sửa một lần là xong cả hai.
+   Vẫn override theo theme thay vì sửa rule gốc để theme tối giữ nguyên diện mạo.
+   Đo sau khi sửa: thân modal 17.85:1, "Huỷ" 17.85:1, tiêu đề #b91c1c trên nền
+   đầu modal hồng nhạt 5.91:1. `.modal-backdrop` để nguyên navy mờ — lớp phủ tối
+   là đúng ở cả hai theme. */
+.app[data-dash-theme="light"] .modal-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, .18), 0 6px 16px rgba(15, 23, 42, .10);
+}
+
+.app[data-dash-theme="light"] .confirm-del-modal .modal-head h3 {
+  color: #b91c1c;
+}
+
+.app[data-dash-theme="light"] .confirm-del-modal .modal-actions {
+  background: #f8fafc;
+}
+
+.app[data-dash-theme="light"] .confirm-del-modal .btn-secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+/* Hover cũ là `rgba(53, 216, 255, .1)` — cyan accent của theme tối. */
+.app[data-dash-theme="light"] .confirm-del-modal .btn-secondary:hover {
+  background: #f1f5f9;
+}
+
+/* Nút xác nhận: chữ trắng trên gradient coral #ff6b6b → #d64545. Ở đầu nhạt của
+   gradient chỉ được 2.76:1, dưới ngưỡng AA cho chữ 13.5px. Đổi sang đỏ đậm hơn:
+   #dc2626 = 4.83:1, #b91c1c = 6.53:1 — cả hai đầu gradient đều đạt. */
+.app[data-dash-theme="light"] .confirm-del-modal .btn-danger {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.app[data-dash-theme="light"] .confirm-del-modal .btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+}
+
 .dup-warn-modal {
   width: min(520px, 100%);
 }
@@ -5695,6 +5739,25 @@ textarea.input {
   font-weight: 600;
 }
 
+/* Ô ghi chú dùng chung class .control với các <input> của modal, mà .control
+   (dashboard.css) khoá `height: 42px` và `padding: 0 13px` — không có padding
+   dọc. Hệ quả: `rows={3}` trên <textarea> bị vô hiệu nên ô chỉ cao 42px như một
+   <input>, và chữ dính sát viền trên/dưới.
+   Bỏ height cố định để ô cao theo rows, chữ to hơn, thêm padding dọc.
+   `font-family: inherit` là bắt buộc: mặc định của trình duyệt cho <textarea> là
+   monospace, và `.control` không set font-family — nên nếu thiếu dòng này thì ô
+   Ghi chú hiện chữ monospace lệch hẳn so với các <input> cùng modal.
+   Độ ưu tiên (0,2,1) thắng `.control` (0,1,0) nên không cần !important. */
+.session-modal-row textarea.control {
+  height: auto;
+  min-height: 78px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
 .session-modal-static {
   padding: 8px 10px;
   background: rgba(22, 139, 255, 0.08);
@@ -5935,13 +5998,21 @@ textarea.input {
   display: block;
 }
 
+/* `color` phải có !important và phải đậm.
+   Bản cũ để `var(--primary-2)` = #35d8ff — cyan dành cho nền tối — nhưng nền ô
+   tiêu đề là xanh rất nhạt (trộn ra #ecf6ff), nên tương phản chỉ 1.55:1: chữ tiêu
+   đề cột gần như không đọc được. Đổi sang `var(--text)` (#0f172a) cho ~16:1.
+   Cần !important vì dashboard.css:4681 đặt `th { color: var(--primary-2)
+   !important }` bằng selector `th` TRẦN, trúng luôn bảng này; selector ở đây
+   (0,1,1) mạnh hơn (0,0,1) nên thắng khi cả hai cùng !important.
+   Ô `td` không phải sửa: đã là `var(--text)`, đạt 17.85:1 — không thể sẫm hơn. */
 .session-list-table th {
   background: rgba(22, 139, 255, 0.1);
   padding: 9px 14px;
   text-align: left;
   font-size: 12px;
   text-transform: uppercase;
-  color: var(--primary-2);
+  color: var(--text) !important;
   font-weight: 600;
   position: sticky;
   top: 0;
@@ -5978,6 +6049,12 @@ textarea.input {
   flex: 0 0 auto;
 }
 
+/* Chân bảng của SessionDetailPage + SyncPage.
+   KHÔNG đặt background ở đây. Bản cũ dùng `rgba(8, 22, 46, .5)` — navy của theme
+   tối — nhưng hai trang này chạy theme sáng (`--bg-panel: #fff`), nên nửa trong
+   suốt đó trộn với trắng thành một dải XÁM ĐỤC cắt ngang đáy bảng, kéo luôn
+   `border-top` (màu --border nhạt) thành vô hình. Để trong suốt là ăn đúng nền
+   panel của `.session-list-table-wrap`, và đường kẻ trên lại thấy được. */
 .session-list-toolbar {
   display: flex;
   justify-content: space-between;
@@ -5985,7 +6062,6 @@ textarea.input {
   gap: 12px;
   flex: 0 0 auto;
   padding: 10px 16px;
-  background: rgba(8, 22, 46, 0.5);
   border-top: 1px solid var(--border);
   margin-top: auto !important;
 }
@@ -5996,18 +6072,29 @@ textarea.input {
   color: var(--muted);
 }
 
+/* `margin-top: 0` là để hủy `margin-top: 16px` mà `.pagination` dùng chung
+   (styles.css:1938) mang sang — cái đó dành cho pager đứng RIÊNG dưới bảng, còn ở
+   đây pager là flex item nằm cùng dòng với "Tổng: N". Không hủy thì lề đẩy cụm nút
+   xuống, tâm dọc của "Tổng" cao hơn tâm cụm nút 10px (trông như bị lệch hàng) và
+   thanh chân bảng phình từ 54px lên 75px. */
 .session-list-toolbar .pagination {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-top: 0;
 }
 
+/* `color` phải có !important: dashboard.css:4684 đặt
+   `.pagination button { color: var(--primary-2) !important }` — --primary-2 là
+   #35d8ff, màu cyan dành cho nền tối. Trên nền nút xanh rất nhạt ở đây nó chỉ đạt
+   tương phản ~1.5:1, chữ "← Trước / Sau →" gần như không đọc được. Selector này
+   (0,3,1) mạnh hơn selector kia (0,1,1) nên thắng khi cả hai cùng !important. */
 .session-list-toolbar .pagination button {
   height: 34px;
   padding: 0 14px;
   border: 1px solid var(--border);
   background: rgba(22, 139, 255, 0.1);
-  color: var(--text);
+  color: var(--text) !important;
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
@@ -6037,9 +6124,21 @@ textarea.input {
   color: #24d777;
 }
 
+/* Chữ --muted (#64748b) trên chính nền chip này (rgba(126,147,184,.16) trộn với
+   trắng ra #eaeef4) chỉ được 4.10:1 — dưới ngưỡng AA 4.5:1, mà đây là chữ 11px
+   in đậm. Đổi sang --text được 15.5:1; nền chip xám nhạt vẫn đủ phân biệt với
+   .badge-open nên không mất ý nghĩa trạng thái. */
 .badge-closed {
   background: rgba(126, 147, 184, 0.16);
-  color: var(--muted);
+  color: var(--text);
+}
+
+/* Cùng lỗi với nút danger: `#24d777` là xanh pha cho nền tối, trên nền chip của
+   chính nó (trộn ra #dcf9e9) chỉ được 1.7:1. Không sửa được bằng token vì không
+   có token success, nên override theo theme — theme tối giữ nguyên.
+   #166534 trên #dcf9e9 = 6.37:1. */
+.app[data-dash-theme="light"] .badge-open {
+  color: #166534;
 }
 
 .mono {
@@ -6077,19 +6176,32 @@ textarea.input {
   display: inline-block;
 }
 
+/* Thứ tự hai dòng border có ý nghĩa: `border` là shorthand nên nó reset cả bốn
+   cạnh. Bản cũ đặt `border-left: 4px` TRƯỚC `border: 1px` → dải màu trạng thái bị
+   ép về 1px, coi như không tồn tại (đo được borderLeftWidth = 1px). Để `border`
+   lên trước thì `border-left` mới ghi đè được cạnh trái như ý định ban đầu. */
 .session-detail-head {
   padding: 14px 18px;
   border-radius: 10px;
   margin-bottom: 14px;
-  border-left: 4px solid var(--primary);
   background: var(--bg-panel);
   border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
   box-shadow: var(--shadow);
 }
 
+/* Nền PHẢI theo token, không hardcode.
+   Bản cũ để `rgba(8, 22, 46, .5)` — navy của theme tối. Ở theme sáng nền trang là
+   trắng nên nửa trong suốt đó trộn ra `rgb(132,139,151)`, một khối xám giữa, trong
+   khi chữ bên trong vẫn là màu dành cho nền sáng → sụp tương phản: badge
+   "✓ Đã đóng" 1.39:1, "@canbo01" 1.39:1, mã phiên tụt từ 17.85 xuống 5.2:1.
+   Dùng `var(--bg-panel)` (giống thẻ đang mở) để chữ giữ nguyên tương phản; tín
+   hiệu "đã đóng" vẫn còn ở viền trái --muted so với --primary của thẻ đang mở.
+   Đừng thay bằng một lớp tint xám: mọi mức alpha đủ để thấy đều đẩy chữ --muted
+   xuống dưới ngưỡng AA 4.5:1 (đo được 4.34:1 ở alpha .10). */
 .session-detail-head.closed {
   border-left-color: var(--muted);
-  background: rgba(8, 22, 46, 0.5);
+  background: var(--bg-panel);
 }
 
 .session-detail-title {
@@ -6174,6 +6286,31 @@ textarea.input {
 
 .btn-link-danger {
   color: #ff6b6b;
+}
+
+/* `#ff6b6b` (cũng là `--danger`) là coral pha cho nền tối — khối light theme ở
+   trên KHÔNG re-point `--danger`, nên nút "Đóng phiên" / "Xoá phiên" giữ nguyên
+   màu tối trên thẻ trắng: chữ coral trên nền tint 8% chỉ đạt 2.55:1, viền
+   rgba(255,107,107,.5) trộn ra hồng nhạt 1.68:1 (ngưỡng viền UI là 3:1) nên
+   gần như không thấy nút.
+   Override theo theme thay vì sửa `.btn-danger-outline` gốc: theme tối vẫn dùng
+   coral như cũ, chỉ theme sáng đổi sang thang đỏ đậm. Cũng không đụng vào token
+   `--danger` vì nó còn ~20 chỗ khác (dot trạng thái, nền badge) chưa kiểm được.
+   Đo sau khi sửa: chữ #b91c1c trên #fef2f2 = 5.98:1, viền #ef4444 trên trắng
+   = 3.76:1. */
+.app[data-dash-theme="light"] .btn-danger-outline {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #ef4444;
+}
+
+.app[data-dash-theme="light"] .btn-danger-outline:hover {
+  background: #fee2e2;
+}
+
+/* Link "Xoá" trong từng dòng bảng — cùng một coral, trên nền trắng chỉ 2.76:1. */
+.app[data-dash-theme="light"] .btn-link-danger {
+  color: #b91c1c;
 }
 
 /* ============ Capture Session Banner ============ */

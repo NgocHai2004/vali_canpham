@@ -222,6 +222,7 @@ function DetaineesPage({ onEdit, onRegister, isAdmin }) {
       </DashFilterBar>
 
       <DashDataTable
+        className="dh-datatable--roomy"
         columns={columns}
         rows={items}
         loading={loading}

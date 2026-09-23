@@ -14,6 +14,26 @@ import DashCellTable from "../components/dashboard/DashCellTable";
 import DashSessionList from "../components/dashboard/DashSessionList";
 import DashActivityFeed from "../components/dashboard/DashActivityFeed";
 
+/**
+ * Số dòng bảng buồng giam hiển thị trên dashboard.
+ *
+ * /api/cells trả về TẤT CẢ buồng (hiện 9). Đổ hết ra thì bảng cao 458px, kéo
+ * cả hàng grid cao theo và panel "Trạng thái vali thu nhận" bên cạnh (nội dung
+ * chỉ 255px) hở ra hơn 200px khoảng trắng. Cắt còn 5 dòng để hai panel cao gần
+ * bằng nhau; xem đầy đủ thì bấm "Quản lý" sang trang buồng giam.
+ */
+const CELL_ROWS = 5;
+
+/**
+ * Số item nhật ký hoạt động hiển thị.
+ *
+ * /api/stats trả 8 bản ghi. Panel chỉ có 217 CSS px cho phần thân (cao bằng
+ * panel "5 phiên gần nhất" cùng hàng), 8 item nhồi vào đó thì mỗi item còn 25px
+ * và không đủ chỗ cho padding. Cắt còn 6 để mỗi item được 36px, đủ thoáng mà
+ * khung panel không cao thêm. Đầy đủ thì bấm "Xem báo cáo".
+ */
+const LOG_ROWS = 6;
+
 /** "2026-09-05" -> "5/9". Tách chuỗi thay vì new Date() để không dính múi giờ. */
 function dayLabel(isoDate) {
   const [, m, d] = String(isoDate).split("-");
@@ -168,7 +188,7 @@ function DashboardHome({ go, fullName = "" }) {
           actionLabel={t("dashboard.panel.manage")}
           onAction={() => go("cells")}
         >
-          <DashCellTable rows={cells} onOpen={() => go("cells")} />
+          <DashCellTable rows={cells.slice(0, CELL_ROWS)} onOpen={() => go("cells")} />
         </DashPanel>
       </div>
 
@@ -193,7 +213,7 @@ function DashboardHome({ go, fullName = "" }) {
           actionLabel={t("dashboard.panel.view_report")}
           onAction={() => go("logs")}
         >
-          <DashActivityFeed items={stats?.recent_activity || []} />
+          <DashActivityFeed items={(stats?.recent_activity || []).slice(0, LOG_ROWS)} />
         </DashPanel>
       </div>
     </div>

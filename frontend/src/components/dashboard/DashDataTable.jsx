@@ -33,6 +33,9 @@ export function DashDataTable({
   error = "",
   empty = "",
   pager,
+  /* Class phụ gắn lên `.dh-datatable` để một trang riêng lẻ chỉnh được cỡ chữ /
+     padding mà không đụng 5 trang khác đang dùng chung component này. */
+  className = "",
 }) {
   const { t } = useI18n();
 
@@ -42,7 +45,7 @@ export function DashDataTable({
   else if (!rows.length) state = <div className="dh-datatable__state">{empty}</div>;
 
   return (
-    <div className="dh-datatable">
+    <div className={"dh-datatable" + (className ? " " + className : "")}>
       <div className="dh-datatable__scroll">
         <table className="dh-datatable__table">
           <colgroup>
