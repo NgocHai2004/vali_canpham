@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from auth import get_current_user
-from helpers import parse_object_id, parse_dt
+from helpers import parse_object_id, parse_dt, make_json_safe
 import database
 
 router = APIRouter()
@@ -108,7 +108,7 @@ async def list_logs(
             l["session_id"] = str(sid)
         l["officer"] = await _resolve_user(l.get("actor"))
         l["detainee"] = await _resolve_detainee(l.get("ref_id"), l.get("ref"))
-        items.append(l)
+        items.append(make_json_safe(l))
 
     counts = {"create": 0, "update": 0, "delete": 0, "login": 0, "import": 0, "sync": 0}
     count_filt = dict(filt)

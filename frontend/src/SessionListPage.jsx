@@ -263,7 +263,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
               <th>{t("session.col.closed_at")}</th>
               <th>{t("session.col.location")}</th>
               <th style={{ textAlign: "right" }}>{t("session.col.detainees")}</th>
-              <th></th>
+              <th style={{ textAlign: "center" }}>{t("session.col.actions") || "Thao tác"}</th>
             </tr>
           </thead>
           <tbody>
@@ -289,8 +289,8 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                   <td>{formatDateTime(s.closed_at)}</td>
                   <td>{s.location || "—"}</td>
                   <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
-                  <td style={{ textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
+                  <td style={{ textAlign: "center" }}>
+                    <div style={{ display: "inline-flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
                       {canDelete && (
                         <button
                           type="button"

@@ -321,7 +321,7 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
               <th>{t("session.col.cell")}</th>
               <th>{t("session.col.time")}</th>
               <th className="col-missing-warn" aria-label="Cảnh báo thiếu thông tin"></th>
-              <th></th>
+              <th style={{ textAlign: "center" }}>{t("session.col.actions") || "Thao tác"}</th>
             </tr>
           </thead>
           <tbody>
@@ -362,7 +362,7 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
                       </span>
                     )}
                   </td>
-                  <td onClick={(e) => e.stopPropagation()}>
+                  <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                     {isOpen && (
                       <button type="button" className="btn-link btn-link-danger" onClick={() => removeDetainee(d)}>{t("common.delete")}</button>
                     )}

@@ -107,7 +107,7 @@ function UsersPage({ currentUser }) {
       key: "actions",
       label: t("users.col.actions"),
       width: "17%",
-      align: "right",
+      align: "center",
       render: (u) => (
         <span className="dh-rowbtns">
           <button

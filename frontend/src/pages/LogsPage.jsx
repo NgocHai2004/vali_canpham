@@ -219,7 +219,7 @@ function LogsPage() {
       key: "actions",
       label: t("logs.col.actions"),
       width: "12%",
-      align: "right",
+      align: "center",
       render: (log) => (
         <span className="dh-rowbtns">
           <button

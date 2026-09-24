@@ -1,5 +1,6 @@
 {
   "__END_MARKER__": "end",
+  "session.col.actions": "Actions",
   "activity.create": "created",
   "activity.delete": "deleted",
   "activity.import": "imported from Excel",
@@ -361,6 +362,7 @@
   "common.role.officer": "Officer",
   "common.save": "Save",
   "common.saving": "Saving...",
+  "common.search": "Search",
   "common.searching": "Searching...",
   "common.select": "-- Select --",
   "common.to": "To",

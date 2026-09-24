@@ -185,7 +185,7 @@ function DetaineeHistoryPage({ onEdit }) {
       key: "actions",
       label: t("logs.col.actions"),
       width: "10%",
-      align: "right",
+      align: "center",
       // Log xoá không còn hồ sơ để mở → không vẽ nút, tránh bấm vào là lỗi 404.
       render: (log) => (isActable(log) ? (
         <span className="dh-rowbtns">

@@ -84,6 +84,8 @@
   --dh-fuchsia-soft: rgba(217, 70, 239, .10);
 
   --dh-pink: #ec4899;
+  --dh-gray: #64748b;
+  --dh-gray-ink: #94a3b8;
 
   --dh-cyan: #22d3ee;
   --dh-cyan-glow: 0 0 8px rgba(6, 182, 212, .6);
@@ -487,16 +489,23 @@ body:has(.app[data-dash-theme="light"]) {
  * để màn 1280/1440 giữ nguyên tỉ lệ 1:1. */
 @media (min-width: 1600px) {
   .app[data-dash-zoom] {
-    zoom: 1.5;
-    /* HAI ĐƠN VỊ XỬ SỰ KHÁC NHAU — đừng "sửa" cho giống nhau:
-       - `%` được Chromium chia sẵn theo zoom: `100%` ở đây = 1920/1.5 = 1280,
-         đúng bằng bề ngang thiết kế. Chia thêm lần nữa là còn 853px và toàn bộ
-         chữ trong thẻ bị xuống dòng.
-       - `dvh` thì KHÔNG chia: `100dvh` = 1080, phóng lên thành 1620 → tràn mất
-         540px. Nên vế chiều cao phải tự chia. */
+    zoom: 1.25;
+    /* Zoom 1.25 giãn đều toàn bộ giao diện lấp đầy không gian màn hình Full HD,
+       không để lại khoảng trống ở đáy. */
     width: 100%;
-    height: calc(100dvh / 1.5);
+    height: calc(100dvh / 1.25);
   }
+}
+
+.app .content,
+.app[data-dash-zoom] .content {
+  overflow: hidden !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.app .content::-webkit-scrollbar,
+.app[data-dash-zoom] .content::-webkit-scrollbar {
+  display: none;
 }
 
 /* ---------------------------------------------------------------------------
@@ -800,23 +809,13 @@ body:has(.app[data-dash-theme="light"]) {
   gap: var(--dh-gap);
   font-size: var(--dh-fs-body);
   color: var(--dh-ink-2);
-}
-
-/* Khoảng thở cuối trang.
-   Nội dung dashboard cao hơn viewport kiosk (~125 CSS px) nên `.content` phải
-   cuộn; không có khoảng này thì hàng cuối dính sát mép dưới khi cuộn hết, trông
-   như bị cắt.
-   PHẢI dùng spacer chứ không dùng `padding-bottom` trên `.dh-page`: `.page` đặt
-   `height: 100%` (dashboard.css:588) nên `.dh-page` cao đúng bằng khung và nội
-   dung TRÀN ra ngoài — padding nằm trong box, không nối thêm vùng cuộn (đã đo:
-   scrollHeight không đổi). `.dh-page` là flex column, nên một `::after` cao
-   16px trở thành flex item cuối và đẩy thật vùng cuộn xuống.
-   16px = 2x --dh-gap: đủ để đọc ra là "hết trang", và khác hẳn khe 8px giữa các
-   hàng nên không bị nhầm là một hàng nữa. */
-.dh-page::after {
-  content: "";
-  flex: 0 0 auto;
-  height: calc(var(--dh-gap) * 2);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden !important;
+  justify-content: space-between;
 }
 
 .dh-row {
@@ -2323,12 +2322,10 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-filter__submit:hover:not(:disabled) { filter: brightness(1.08); }
 .dh-filter__submit:disabled { opacity: .55; cursor: not-allowed; }
 
-/* Hàng thẻ số liệu ở đầu các màn danh sách. Khác `.dh-row--4` của dashboard:
-   ở đây số thẻ thay đổi theo trang (Nhật ký 1 thẻ, Lịch sử 3 thẻ) nên dùng
-   auto-fit + max 320px để 1 thẻ không bị kéo dài hết bề ngang. */
+/* Hàng thẻ số liệu ở đầu các màn danh sách: luôn trải đều trên 1 hàng */
 .dh-statline {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 20rem));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: var(--dh-gap);
   margin-bottom: var(--dh-gap);
 }
@@ -2527,6 +2524,7 @@ body:has(.app[data-dash-theme="light"]) {
   display: inline-flex;
   gap: 0.3125rem;
   align-items: center;
+  justify-content: center;
   flex-wrap: nowrap;
 }
 

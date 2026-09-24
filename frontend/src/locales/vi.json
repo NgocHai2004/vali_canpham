@@ -1,5 +1,6 @@
 {
   "__END_MARKER__": "end",
+  "session.col.actions": "Thao tác",
   "activity.create": "đã tạo",
   "activity.delete": "đã xoá",
   "activity.import": "đã nhập Excel",
@@ -361,6 +362,7 @@
   "common.role.officer": "Cán bộ",
   "common.save": "Lưu",
   "common.saving": "Đang lưu...",
+  "common.search": "Tìm kiếm",
   "common.searching": "Đang tìm...",
   "common.select": "-- Chọn --",
   "common.to": "Đến",
@@ -1083,7 +1085,7 @@
   "settings.title": "Cài đặt",
   "sync.action": "Đồng bộ",
   "sync.action_count": "Đồng bộ ({n})",
-  "sync.col.actions": "Hành động",
+  "sync.col.actions": "Thao tác",
   "sync.col.closed": "Đóng lúc",
   "sync.col.code": "Mã phiên",
   "sync.col.count": "Số HS",

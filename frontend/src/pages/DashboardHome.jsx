@@ -22,17 +22,8 @@ import DashActivityFeed from "../components/dashboard/DashActivityFeed";
  * chỉ 255px) hở ra hơn 200px khoảng trắng. Cắt còn 5 dòng để hai panel cao gần
  * bằng nhau; xem đầy đủ thì bấm "Quản lý" sang trang buồng giam.
  */
-const CELL_ROWS = 5;
-
-/**
- * Số item nhật ký hoạt động hiển thị.
- *
- * /api/stats trả 8 bản ghi. Panel chỉ có 217 CSS px cho phần thân (cao bằng
- * panel "5 phiên gần nhất" cùng hàng), 8 item nhồi vào đó thì mỗi item còn 25px
- * và không đủ chỗ cho padding. Cắt còn 6 để mỗi item được 36px, đủ thoáng mà
- * khung panel không cao thêm. Đầy đủ thì bấm "Xem báo cáo".
- */
-const LOG_ROWS = 6;
+const CELL_ROWS = 6;
+const LOG_ROWS = 7;
 
 /** "2026-09-05" -> "5/9". Tách chuỗi thay vì new Date() để không dính múi giờ. */
 function dayLabel(isoDate) {
@@ -171,8 +162,8 @@ function DashboardHome({ go, fullName = "" }) {
             centerValue={`${malePct}%`}
             centerLabel={t("dashboard.donut.male").toUpperCase()}
             segments={[
-              { key: "male", label: t("dashboard.donut.male"), color: "var(--dh-blue)", value: male, pct: malePct },
-              { key: "female", label: t("dashboard.donut.female"), color: "var(--dh-pink)", value: female, pct: femalePct },
+              { key: "male", label: t("dashboard.donut.male"), color: "var(--dh-blue, #3b82f6)", value: male, pct: malePct },
+              { key: "female", label: t("dashboard.donut.female"), color: "var(--dh-gray, #64748b)", value: female, pct: femalePct },
             ]}
           />
         </DashPanel>

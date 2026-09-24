@@ -152,7 +152,7 @@ function DetaineesPage({ onEdit, onRegister, isAdmin }) {
       key: "actions",
       label: t("detainee.col.actions"),
       width: "16%",
-      align: "right",
+      align: "center",
       render: (row) => (
         <span className="dh-rowbtns">
           <button type="button" className="dh-rowbtn" onClick={() => setViewing(row)}>

@@ -578,7 +578,7 @@
   .content {
     min-width: 0;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden !important;
     padding: 0.375rem 0.375rem;
     display: flex;
     flex-direction: column;

@@ -3,7 +3,9 @@ import api from "../api";
 import { useI18n } from "../i18n";
 import { Icon } from "../components/Icons";
 import SyncDiffModal from "../SyncDiffModal";
-import { PageHeader } from "../components/CommonUI";
+import DashPageHeader from "../components/dashboard/DashPageHeader";
+import DashFilterBar, { DashFilterSelect, DashFilterField } from "../components/dashboard/DashFilterBar";
+import DashDataTable from "../components/dashboard/DashDataTable";
 import { notify } from "../notifications";
 
 function SyncPage() {
@@ -14,6 +16,9 @@ function SyncPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [selected, setSelected] = useState(() => new Set());
   const [syncingIds, setSyncingIds] = useState(() => new Set());
+  const [syncErrors, setSyncErrors] = useState({});
+  const [syncSuccess, setSyncSuccess] = useState({});
+  const [diffState, setDiffState] = useState(null);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -47,6 +52,7 @@ function SyncPage() {
       (s.location || "").toLowerCase().includes(kw)
     );
   });
+
   const totalRows = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
   const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -58,145 +64,53 @@ function SyncPage() {
     else next.add(id);
     return next;
   });
+
   const toggleAll = () => {
     if (allChecked) setSelected(new Set());
     else setSelected(new Set(filtered.map((s) => s.id)));
   };
 
-  const [syncErrors, setSyncErrors] = useState({});
-  const [syncSuccess, setSyncSuccess] = useState({});
-  const [diffState, setDiffState] = useState(null); // { session, loading, diff }
-
-  const REMOTE = "/api/proxy"; // proxy qua backend để tránh CORS
-
-  const uploadPhoto = async (url) => {
-    if (!url) return "";
-    try {
-      const absUrl = url.startsWith("http") ? url : url;
-      const imgRes = await fetch(absUrl);
-      if (!imgRes.ok) return "";
-      const blob = await imgRes.blob();
-      const ext = blob.type.includes("png") ? "png" : "jpg";
-      const form = new FormData();
-      form.append("file", blob, `photo.${ext}`);
-      const j = await api.request(`${REMOTE}/upload-image`, { method: "POST", body: form });
-      return j.url || "";
-    } catch { return ""; }
-  };
-
-  // Tải full detainee của 1 phiên
-  const loadSessionDetainees = async (sessionId) => {
-    const detail = await api.request(`/api/sessions/${sessionId}`);
-    return Promise.all(
-      (detail.detainees || []).map((d) => api.getDetainee(d.id).catch(() => d))
-    );
-  };
-
-  const mapOneToPayload = async (d) => {
-    const p = d.photos || {};
-    const keys = ["cccd_front", "cccd_back", "portrait_front", "portrait_left", "portrait_right",
-      "fp_l1", "fp_l2", "fp_l3", "fp_l4", "fp_l5",
-      "fp_r1", "fp_r2", "fp_r3", "fp_r4", "fp_r5",
-      "iris_left", "iris_right"];
-    const source = {
-      cccd_front: p.cccd_front,
-      cccd_back: p.cccd_back,
-      portrait_front: p.portrait_front || d.photo_url,
-      portrait_left: p.portrait_left,
-      portrait_right: p.portrait_right,
-      fp_l1: p.fp_l1, fp_l2: p.fp_l2, fp_l3: p.fp_l3, fp_l4: p.fp_l4, fp_l5: p.fp_l5,
-      fp_r1: p.fp_r1, fp_r2: p.fp_r2, fp_r3: p.fp_r3, fp_r4: p.fp_r4, fp_r5: p.fp_r5,
-      iris_left: p.iris_left, iris_right: p.iris_right,
-    };
-    const uploaded = {};
-    await Promise.all(keys.map(async (k) => {
-      const url = await uploadPhoto(source[k]);
-      uploaded[k] = url || null;
-    }));
-    return {
-      personal_id: d.personal_id || d.code || null,
-      full_name: d.full_name || null,
-      dob: d.dob || null,
-      gender: d.gender || null,
-      cccd_number: d.cccd_number || null,
-      cmnd_old: d.cmnd_old || null,
-      nationality: d.nationality || null,
-      ethnicity: d.ethnicity || null,
-      religion: d.religion || null,
-      hometown: d.hometown || null,
-      address: d.address || null,
-      issued_date: d.issued_date || null,
-      expiry_date: d.expiry_date || null,
-      issued_place: d.issued_place || null,
-      distinguishing_features: d.distinguishing_features || null,
-      mrz: d.mrz || null,
-      height_cm: d.height_cm || null,
-      weight_kg: d.weight_kg || null,
-      // ---- Diện giam & vị trí ----
-      cell_code: d.cell_code || null,
-      custody_type: d.custody_type || null,
-      facility_code: d.facility_code || null,
-      sub_camp_code: d.sub_camp_code || null,
-      charge: d.charge || null,
-      date_in: d.date_in || null,
-      note: d.note || null,
-      created_by: d.created_by || null,
-      photos: uploaded,
-    };
-  };
-
-  // Bước 1: so sánh + mở modal xác nhận
   const prepareSync = async (session) => {
-    setSyncErrors((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
-    setSyncSuccess((prev) => { const n = { ...prev }; delete n[session.id]; return n; });
-    setDiffState({ session, loading: true, diff: null });
+    setSyncErrors((prev) => ({ ...prev, [session.id]: null }));
+    setSyncSuccess((prev) => ({ ...prev, [session.id]: false }));
+    setSyncingIds((prev) => new Set(prev).add(session.id));
     try {
-      const [localDetainees, remoteResp] = await Promise.all([
-        loadSessionDetainees(session.id),
-        api.request(`${REMOTE}/pham-nhan`),
-      ]);
-      const remoteList = Array.isArray(remoteResp?.data) ? remoteResp.data : [];
-      const diff = buildSyncDiff(localDetainees, remoteList);
-      setDiffState({ session, loading: false, diff });
+      const diff = await api.fetchSessionSyncDiff(session.id);
+      setDiffState({ session, diff, loading: false });
     } catch (e) {
-      setDiffState(null);
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(session.id);
+        return next;
+      });
     }
   };
 
-  // Bước 2: sau khi user xác nhận trong modal -> đẩy thật
-  const doSync = async (selectedTargets) => {
-    const session = diffState?.session;
-    const diff = diffState?.diff;
-    if (!session || !selectedTargets.length) {
-      setDiffState(null);
-      return;
-    }
-    setDiffState(null);
-    setSyncingIds((prev) => new Set(prev).add(session.id));
-    const pickEntry = (x) => ({
-      code: x.code || "",
-      full_name: x.full_name || "",
-      cccd_number: x.cccd_number || "",
-    });
-    const addSel = selectedTargets.filter((x) => (diff?.toAdd || []).some((a) => a.id === x.id));
-    const updSel = selectedTargets.filter((x) => (diff?.toUpdate || []).some((u) => u.id === x.id));
+  const pickEntry = (it) => ({
+    id: it?.id || it?._id || "",
+    full_name: it?.full_name || "",
+    cccd_number: it?.cccd_number || "",
+    personal_id: it?.personal_id || "",
+  });
+
+  const doSync = async (addSel, updSel) => {
+    if (!diffState) return;
+    const { session, diff } = diffState;
+    setDiffState((prev) => (prev ? { ...prev, loading: true } : null));
     try {
-      const mappedDetainees = await Promise.all(selectedTargets.map((t) => mapOneToPayload(t.local)));
       const payload = {
-        total: mappedDetainees.length,
-        items: [{
-          id: session.code || session.id || null,
-          officer: session.officer || null,
-          officer_full_name: session.officer_full_name || null,
-          location: session.location || null,
-          opened_at: session.opened_at || null,
-          closed_at: session.closed_at || null,
-          detainees: mappedDetainees,
-        }],
+        session_id: session.id,
+        added_ids: addSel.map((x) => x.id),
+        updated_ids: updSel.map((x) => x.id),
       };
-      await api.request(`${REMOTE}/sync-detainee`, {
+      const token = api.getToken();
+      await fetch("/api/sync/execute", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
       setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
@@ -212,22 +126,11 @@ function SyncPage() {
           duplicate_items: (diff?.duplicates || []).map(pickEntry),
           failed_items: [],
         });
-      } catch { /* log-only; không chặn UX */ }
+      } catch { /* log-only */ }
+      setDiffState(null);
     } catch (e) {
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
-      try {
-        await api.logSessionSync(session.id, {
-          added: 0,
-          updated: 0,
-          duplicated: (diff?.duplicates || []).length,
-          failed: addSel.length + updSel.length,
-          added_items: [],
-          updated_items: [],
-          duplicate_items: (diff?.duplicates || []).map(pickEntry),
-          failed_items: [...addSel, ...updSel].map(pickEntry),
-          error: e.message,
-        });
-      } catch { /* noop */ }
+      setDiffState(null);
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev);
@@ -240,110 +143,159 @@ function SyncPage() {
   const syncSelected = async () => {
     const targets = filtered.filter((s) => selected.has(s.id));
     for (const s of targets) {
-      // eslint-disable-next-line no-await-in-loop
       await prepareSync(s);
-      // prepareSync opens a modal -> wait for the user to resolve it before continuing.
-      // Since the modal is interactive, we stop the chain here; the user clicks each session.
       break;
     }
   };
 
-  const fmtDT = (iso) => formatDateTime(iso);
+  const fmtDT = (iso) => (iso ? formatDateTime(iso) : "—");
+
+  const columns = [
+    {
+      key: "check",
+      label: (
+        <input
+          type="checkbox"
+          checked={allChecked}
+          onChange={toggleAll}
+          aria-label={t("sync.select_all_aria") || "Chọn tất cả"}
+        />
+      ),
+      width: "5%",
+      render: (s) => (
+        <input
+          type="checkbox"
+          checked={selected.has(s.id)}
+          onChange={() => toggleOne(s.id)}
+        />
+      ),
+    },
+    {
+      key: "code",
+      label: t("sync.col.code"),
+      width: "15%",
+      className: "dh-cell-mono",
+      render: (s) => <strong>{s.code}</strong>,
+    },
+    {
+      key: "status",
+      label: t("sync.col.status"),
+      width: "12%",
+      render: (s) => (
+        <span className={"sync-badge " + (s.status === "open" ? "open" : "closed")}>
+          {s.status === "open" ? t("sync.status.open") : t("sync.status.closed")}
+        </span>
+      ),
+    },
+    {
+      key: "officer",
+      label: t("sync.col.officer"),
+      width: "18%",
+      render: (s) => s.officer_full_name || s.officer || "—",
+    },
+    {
+      key: "location",
+      label: t("sync.col.location"),
+      width: "15%",
+      render: (s) => s.location || "—",
+    },
+    {
+      key: "opened",
+      label: t("sync.col.opened"),
+      width: "13%",
+      render: (s) => fmtDT(s.opened_at),
+    },
+    {
+      key: "count",
+      label: t("sync.col.count"),
+      width: "8%",
+      className: "dh-cell-mono",
+      render: (s) => s.detainee_count || 0,
+    },
+    {
+      key: "action",
+      label: t("sync.col.actions"),
+      width: "14%",
+      align: "center",
+      render: (s) => {
+        const busy = syncingIds.has(s.id);
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center", justifyContent: "center" }}>
+            <button
+              className="dh-rowbtn"
+              disabled={busy}
+              onClick={() => prepareSync(s)}
+            >
+              {busy ? (t("sync.syncing") || "Đang xử lý...") : (t("sync.action") || "Đồng bộ")}
+            </button>
+            {syncErrors[s.id] && (
+              <span style={{ fontSize: 11, color: "#ef4444", textAlign: "center" }}>
+                {t("sync.err_prefix", { message: syncErrors[s.id] })}
+              </span>
+            )}
+            {syncSuccess[s.id] && !syncErrors[s.id] && (
+              <span style={{ fontSize: 11, color: "#22c55e", textAlign: "center" }}>
+                {t("sync.success") || "Thành công"}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="page">
-      <PageHeader title={t("sync.title")} subtitle={t("sync.subtitle")} />
-
-      <div className="sync-toolbar">
-        <input
-          className="control sync-search"
-          placeholder={t("sync.search_ph")}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <select className="control" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">{t("sync.status.all")}</option>
-          <option value="open">{t("sync.status.open")}</option>
-          <option value="closed">{t("sync.status.closed")}</option>
-        </select>
-        <button className="button" onClick={load} disabled={loading}>{loading ? t("sync.loading") : t("common.refresh")}</button>
-        <div className="sync-toolbar-spacer" />
-        <button
-          className="button primary"
-          disabled={selected.size === 0 || syncingIds.size > 0}
-          onClick={syncSelected}
-          title={selected.size === 0 ? t("sync.tip.select") : t("sync.tip.selected", { n: selected.size })}
-        >
-          {selected.size > 0 ? t("sync.action_count", { n: selected.size }) : t("sync.action")}
-        </button>
-      </div>
-
-      {error && <div className="error-box">{error}</div>}
-
-      <div className="sync-table-wrap">
-        <table className="sync-table">
-          <thead>
-            <tr>
-              <th style={{ width: 40 }}>
-                <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label={t("sync.select_all_aria")} />
-              </th>
-              <th>{t("sync.col.code")}</th>
-              <th>{t("sync.col.status")}</th>
-              <th>{t("sync.col.officer")}</th>
-              <th>{t("sync.col.location")}</th>
-              <th>{t("sync.col.opened")}</th>
-              <th>{t("sync.col.closed")}</th>
-              <th style={{ textAlign: "center" }}>{t("sync.col.count")}</th>
-              <th style={{ width: 140 }}>{t("sync.col.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagedRows.length === 0 && !loading && (
-              <tr><td colSpan={9} className="sync-empty">{t("sync.empty")}</td></tr>
-            )}
-            {pagedRows.map((s) => {
-              const busy = syncingIds.has(s.id);
-              return (
-                <tr key={s.id} className={selected.has(s.id) ? "row-selected" : ""}>
-                  <td><input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleOne(s.id)} /></td>
-                  <td><strong>{s.code}</strong></td>
-                  <td>
-                    <span className={"sync-badge " + (s.status === "open" ? "open" : "closed")}>
-                      {s.status === "open" ? t("sync.status.open") : t("sync.status.closed")}
-                    </span>
-                  </td>
-                  <td>{s.officer_full_name || s.officer}</td>
-                  <td>{s.location || "—"}</td>
-                  <td>{fmtDT(s.opened_at)}</td>
-                  <td>{fmtDT(s.closed_at)}</td>
-                  <td style={{ textAlign: "center" }}>{s.detainee_count || 0}</td>
-                  <td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <button className="button small" disabled={busy} onClick={() => prepareSync(s)}>
-                        {busy ? t("sync.syncing") : t("sync.action")}
-                      </button>
-                      {syncErrors[s.id] && (
-                        <span style={{ fontSize: 11, color: "#e53e3e" }}>{t("sync.err_prefix", { message: syncErrors[s.id] })}</span>
-                      )}
-                      {syncSuccess[s.id] && !syncErrors[s.id] && (
-                        <span style={{ fontSize: 11, color: "#12af64" }}>{t("sync.success")}</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="session-list-toolbar">
-          <div className="session-list-total">{t("common.total", { n: totalRows })}</div>
-          <div className="pagination">
-            <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t("common.prev")}</button>
-            <span>{t("common.page_of", { page, total: totalPages })}</span>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t("common.next")}</button>
+    <div className="page dh-page">
+      <DashPageHeader
+        title={t("sync.title") || "Đồng bộ dữ liệu"}
+        subtitle={t("sync.subtitle") || "Đồng bộ hồ sơ giữa các phiên làm việc và máy chủ trung tâm"}
+        action={
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              className="button primary dh-filter__submit"
+              disabled={selected.size === 0 || syncingIds.size > 0}
+              onClick={syncSelected}
+            >
+              {selected.size > 0
+                ? t("sync.action_count", { n: selected.size }) || `Đồng bộ (${selected.size})`
+                : t("sync.action") || "Đồng bộ"}
+            </button>
           </div>
-        </div>
-      </div>
+        }
+      />
+
+      <DashFilterBar
+        value={q}
+        onChange={setQ}
+        onSubmit={load}
+        placeholder={t("sync.search_ph") || "Tìm theo mã phiên, cán bộ, địa điểm..."}
+        submitLabel={loading ? (t("sync.loading") || "Đang tải...") : (t("common.refresh") || "Làm mới")}
+        busy={loading}
+      >
+        <DashFilterSelect
+          label={t("sync.col.status") || "Trạng thái"}
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: "", label: t("sync.status.all") || "Tất cả trạng thái" },
+            { value: "open", label: t("sync.status.open") || "Đang mở" },
+            { value: "closed", label: t("sync.status.closed") || "Đã đóng" },
+          ]}
+        />
+      </DashFilterBar>
+
+      <DashDataTable
+        columns={columns}
+        data={pagedRows}
+        rowKey={(s) => s.id}
+        loading={loading}
+        error={error}
+        emptyText={t("sync.empty") || "Không có phiên nào cần đồng bộ"}
+        page={page}
+        totalRows={totalRows}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
 
       {diffState && (
         <SyncDiffModal
@@ -357,6 +309,5 @@ function SyncPage() {
     </div>
   );
 }
-
 
 export default SyncPage;

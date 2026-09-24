@@ -7,6 +7,8 @@ import Header from "./components/Header";
 import ProfileEditModal from "./components/ProfileEditModal";
 import useDeviceConnections from "./hooks/useDeviceConnections";
 import useNotifState from "./hooks/useNotifState";
+import useDashboardTheme from "./hooks/useDashboardTheme";
+import DashThemeToggle from "./components/dashboard/DashThemeToggle";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
@@ -20,7 +22,10 @@ import LogsPage from "./pages/LogsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
 import { FieldRow } from "./components/FieldRow";
+// Thứ tự nạp: dashboard.css trước, dashboardHome.css sau để các rule dh-* ghi đè
+// đúng độ ưu tiên.
 import "./dashboard.css";
+import "./dashboardHome.css";
 
 // Re-export for components importing from Dashboard
 export { CellForm, FieldRow };
@@ -29,17 +34,31 @@ const NAV_BASE = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: Icon.dashboard },
   { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
-  { key: "cells", labelKey: "nav.cells", icon: Icon.sync },
-  { key: "search", labelKey: "nav.search", icon: Icon.search },
+  { key: "cells", labelKey: "nav.cells", icon: Icon.building },
   { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
   { key: "sync", labelKey: "nav.sync", icon: Icon.sync },
-  { key: "logs", labelKey: "nav.logs", icon: Icon.clipboard },
+  { key: "logs", labelKey: "nav.logs", icon: Icon.file },
 ];
 
 const NAV_ADMIN = [
   { key: "users", labelKey: "nav.users", icon: Icon.users },
   { key: "settings", labelKey: "nav.settings", icon: Icon.gear },
 ];
+
+/**
+ * Các trang đã chuyển sang bố cục `dh-*` (thiết kế theo mockup).
+ */
+const DH_PAGES = new Set([
+  "dashboard",
+  "detainees",
+  "cells",
+  "sessions",
+  "detainee_history",
+  "sync",
+  "logs",
+  "users",
+  "settings",
+]);
 
 export default function Dashboard({
   username = "admin",
@@ -57,17 +76,20 @@ export default function Dashboard({
   const [editingDetainee, setEditingDetainee] = useState(null);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [sessionCtx, setSessionCtx] = useState(null);
+  const [captureFrom, setCaptureFrom] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const isAdmin = role === "admin";
   const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN] : NAV_BASE;
   const deviceStatus = useDeviceConnections();
   const notifState = useNotifState();
+  const dashTheme = useDashboardTheme();
 
   const goPage = async (key, opts = {}) => {
     if (key !== "session_capture") {
       setEditingDetainee(null);
       setSessionCtx(null);
+      setCaptureFrom(null);
     }
     if (key === "sessions") {
       if (opts.openSessionId) {
@@ -81,9 +103,21 @@ export default function Dashboard({
     setPage(key);
   };
 
+  const goCapture = () => {
+    setCaptureFrom(page);
+    setPage("session_capture");
+  };
+
+  const leaveCapture = () => {
+    setEditingDetainee(null);
+    setSessionCtx(null);
+    const back = captureFrom && captureFrom !== "session_capture" ? captureFrom : "sessions";
+    if (back !== "sessions_detail") setActiveSessionId(null);
+    setCaptureFrom(null);
+    setPage(back);
+  };
+
   const editDetainee = async (detainee) => {
-    // Admin không có phiên của riêng mình nên getCurrentSession() luôn 404.
-    // Vẫn giữ quyền SỬA hồ sơ → mở form trực tiếp, không gắn phiên.
     if (isAdmin) {
       await openEditForm(detainee);
       return;
@@ -93,7 +127,7 @@ export default function Dashboard({
       const cur = await api.getCurrentSession();
       setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
       setActiveSessionId(cur.id);
-      setPage("session_capture");
+      goCapture();
     } catch (ex) {
       alert(t("session.open.err.officer_required_alt") || t("session.open.err.officer_required"));
       setEditingDetainee(null);
@@ -106,12 +140,25 @@ export default function Dashboard({
     try {
       if (detainee?.id) full = await api.getDetainee(detainee.id);
     } catch {
-      /* dùng dữ liệu có sẵn nếu không nạp được */
+      /* dùng dữ liệu có sẵn */
     }
     setEditingDetainee(full);
     setSessionCtx(null);
     setActiveSessionId(null);
-    setPage("session_capture");
+    goCapture();
+  };
+
+  const registerDetainee = async () => {
+    setEditingDetainee(null);
+    try {
+      const cur = await api.getCurrentSession();
+      setSessionCtx({ sessionId: cur.id, sessionCode: cur.code, sessionReadOnly: false });
+      setActiveSessionId(cur.id);
+      goCapture();
+    } catch {
+      alert(t("session.open.err.officer_required_alt") || t("session.open.err.officer_required"));
+      setPage("sessions");
+    }
   };
 
   const openSession = (sessionId) => {
@@ -128,7 +175,7 @@ export default function Dashboard({
   const addDetaineeToSession = (sessionId) => {
     setEditingDetainee(null);
     setSessionCtx({ sessionId, sessionCode: null, sessionReadOnly: false });
-    setPage("session_capture");
+    goCapture();
   };
 
   const editDetaineeInSession = (detainee, session) => {
@@ -138,7 +185,7 @@ export default function Dashboard({
       sessionCode: session.code,
       sessionReadOnly: session.status !== "open",
     });
-    setPage("session_capture");
+    goCapture();
   };
 
   const doneSessionCapture = () => {
@@ -157,7 +204,11 @@ export default function Dashboard({
   };
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      data-dash-theme={dashTheme.theme}
+      data-dash-zoom={DH_PAGES.has(page) ? "on" : undefined}
+    >
       <Header
         username={username}
         fullName={fullName}
@@ -180,9 +231,7 @@ export default function Dashboard({
         />
       )}
 
-      {/* Sidebar chỉ còn icon (cột 56px). Nhãn chữ hiện qua tooltip khi hover
-          (data-tip + CSS ::after) — không dùng title= để tránh tooltip hệ thống
-          chậm và lệch tông màu. aria-label giữ cho trình đọc màn hình. */}
+      {/* Sidebar menu bên trái */}
       <aside className="sidebar">
         <nav className="nav">
           {NAV.map((item) => (
@@ -199,6 +248,9 @@ export default function Dashboard({
           ))}
         </nav>
 
+        {/* Nút đổi theme sáng/tối */}
+        <DashThemeToggle theme={dashTheme.theme} onToggle={dashTheme.toggle} />
+
         <div
           className="security-card"
           data-tip={`${t("nav.security_title")} — ${t("nav.security_desc")}`}
@@ -209,9 +261,14 @@ export default function Dashboard({
       </aside>
 
       <main className="content">
-        {page === "dashboard" && <DashboardHome go={goPage} isAdmin={isAdmin} fullName={fullName} />}
-        {page === "detainees" && <DetaineesPage onEdit={editDetainee} />}
+        {page === "dashboard" && (
+          <DashboardHome go={goPage} fullName={fullName} />
+        )}
+        {page === "detainees" && (
+          <DetaineesPage onEdit={editDetainee} onRegister={registerDetainee} isAdmin={isAdmin} />
+        )}
         {page === "cells" && <CellsPage />}
+        {page === "search" && <SearchPage />}
         {page === "sessions" && (
           <SessionListPage
             role={role}
@@ -240,9 +297,9 @@ export default function Dashboard({
             sessionReadOnly={sessionCtx?.sessionReadOnly}
             onSavedInSession={doneSessionCapture}
             onEditProfile={editDetainee}
+            onBack={leaveCapture}
           />
         )}
-        {page === "search" && <SearchPage />}
         {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
         {page === "sync" && <SyncPage />}
         {page === "logs" && <LogsPage />}

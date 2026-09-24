@@ -190,7 +190,7 @@ function CellsPage() {
       key: "actions",
       label: t("cells.col.actions"),
       width: "18%",
-      align: "right",
+      align: "center",
       render: (row) => (
         <span className="dh-rowbtns">
           <button type="button" className="dh-rowbtn" onClick={() => setViewingCell(row)}>
@@ -369,7 +369,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                   <th>{t("cells.transfer.col.name")}</th>
                   <th>{t("cells.transfer.col.gender")}</th>
                   {cell.level !== "cell" && <th>{t("cells.level.cell")}</th>}
-                  <th>{t("cells.transfer.col.action")}</th>
+                  <th style={{ textAlign: "center" }}>{t("cells.transfer.col.action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -379,7 +379,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                     <td>{item.full_name}</td>
                     <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
                     {cell.level !== "cell" && <td><span className="mono">{item.cell_code || "—"}</span></td>}
-                    <td>
+                    <td style={{ textAlign: "center" }}>
                       <select
                         className="control"
                         defaultValue=""

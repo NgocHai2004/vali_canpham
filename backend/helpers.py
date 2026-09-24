@@ -26,17 +26,37 @@ def parse_object_id(s: str) -> ObjectId:
         raise HTTPException(400, "invalid id")
 
 
+def make_json_safe(val):
+    """Chuyển đổi đệ quy ObjectId -> str, datetime -> isoformat cho toàn bộ cấu trúc dict/list."""
+    if val is None:
+        return None
+    if isinstance(val, ObjectId):
+        return str(val)
+    if isinstance(val, datetime):
+        return val.isoformat()
+    if isinstance(val, dict):
+        out = {}
+        for k, v in val.items():
+            if k == "_id":
+                out["id"] = str(v)
+            else:
+                out[k] = make_json_safe(v)
+        return out
+    if isinstance(val, list):
+        return [make_json_safe(v) for v in val]
+    return val
+
+
 def serialize_doc(doc: dict) -> dict:
     """Chuẩn hoá document MongoDB thành dict JSON-safe (detainee và generic docs)."""
     if not doc:
         return doc
-    doc["id"] = str(doc.pop("_id"))
-    if "session_id" in doc and doc["session_id"] is not None:
-        doc["session_id"] = str(doc["session_id"])
-    for k in ("created_at", "updated_at", "dob"):
-        if k in doc and isinstance(doc[k], datetime):
-            doc[k] = doc[k].isoformat()
-    return doc
+    out = dict(doc)
+    if "_id" in out:
+        out["id"] = str(out.pop("_id"))
+    for k in list(out.keys()):
+        out[k] = make_json_safe(out[k])
+    return out
 
 
 def serialize_session(doc: dict) -> dict:
@@ -44,11 +64,10 @@ def serialize_session(doc: dict) -> dict:
     if not doc:
         return doc
     out = dict(doc)
-    out["id"] = str(out.pop("_id"))
-    for k in ("opened_at", "closed_at"):
-        v = out.get(k)
-        if isinstance(v, datetime):
-            out[k] = v.isoformat()
+    if "_id" in out:
+        out["id"] = str(out.pop("_id"))
+    for k in list(out.keys()):
+        out[k] = make_json_safe(out[k])
     return out
 
 

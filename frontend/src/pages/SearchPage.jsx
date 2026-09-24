@@ -306,7 +306,7 @@ function SearchPage() {
                 <th>{t("search.col.dob")}</th>
                 <th>{t("search.col.cccd")}</th>
                 <th>{t("search.col.cell")}</th>
-                <th style={{ textAlign: "right" }}>{t("search.col.actions")}</th>
+                <th style={{ textAlign: "center" }}>{t("search.col.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -323,8 +323,8 @@ function SearchPage() {
                   <td>{item.dob ? formatDate(item.dob) : "-"}</td>
                   <td>{item.cccd_number || "-"}</td>
                   <td>{item.cell_code || "-"}</td>
-                  <td style={{ textAlign: "right" }}>
-                    <div className="row-actions" style={{ justifyContent: "flex-end" }}>
+                  <td style={{ textAlign: "center" }}>
+                    <div className="row-actions" style={{ justifyContent: "center" }}>
                       <button onClick={() => setViewing(item)}>{t("common.view")}</button>
                     </div>
                   </td>

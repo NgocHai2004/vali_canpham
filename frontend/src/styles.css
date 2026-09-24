@@ -9794,37 +9794,20 @@ textarea.input {
   --cf-blue-hi: #0b3aa8;
   --cf-head: #1447cc;
   --cf-text: #16202f;
-  /* #6b7688 chi dat 4.32:1 tren nen thanh tom tat (#f7f8fa) => truot AA cho
-     nhan 10.5px. #636d7b dat 5.24:1 tren trang / 4.94:1 tren #f7f8fa / 4.69:1
-     tren --cf-field, tuc dat AA o CA BA nen dang dung. */
   --cf-muted: #636d7b;
-  /* --cf-line: ke phan cach TRANG TRI (gach chan tieu de muc, vien tren thanh
-     nut). Khong dung cho vien o nhap/nut: WCAG 1.4.11 doi vien la dau hieu
-     duy nhat cua mot control phai dat 3:1, ma #e6e9ef chi duoc 1.22:1.
-     --cf-edge la vien CONTROL: #888f9c = 3.25:1 tren trang, 3.06:1 tren
-     #f7f8fa. Man nay o nhap nen trang tren nen trang nen vien la thu duy nhat
-     cho biet o bat dau va ket thuc o dau. */
   --cf-line: #e6e9ef;
   --cf-edge: #888f9c;
   --cf-field: #f1f2f5;
-  /* #12a150 chi dat 3.07:1 tren --cf-ok-bg => truot AA cho chu.
-     #0b7a3e dat 4.95:1 ma van doc ra la mau xanh "dat". */
   --cf-ok: #0b7a3e;
   --cf-ok-bg: #e9f8ef;
   --cf-danger: #d92d20;
   --cf-danger-bg: #fdeceb;
-  /* .capture-page o tren co san `zoom: 1.25` (dong ~6536, khong phai cua khoi
-     nay). Zoom phong CA trang nen chu cao 9-16px trong khi ban mau chi 7-10px,
-     dong gian ra va trang cao gap doi. Ep ve 1 va dat thang chu/padding ben
-     duoi theo so do lay tu anh mau. */
   zoom: 1;
   background: #fff;
   min-height: 100vh;
-  /* .page o tren dat max-width: 1400px + margin auto (dong ~898). Man may tram
-     >=1920 nen no de lai hai dai trong ~260px moi ben — dung cai ma nguoi dung
-     goi la "2 ben van trong". Man nay la ban khai bao dien kin, khong phai
-     trang doc, nen bo tran va an le cua .page. */
+  /* Tràn full 100% bề ngang, không để khoảng trống thừa 2 bên lề */
   max-width: none;
+  width: 100%;
   margin: 0;
   padding: 0 0 1.125rem;
   color: var(--cf-text);
@@ -9850,6 +9833,7 @@ textarea.input {
 /* ---------------- Luoi 2 cot ---------------- */
 .cap-flat .cap-sheet--split {
   max-width: none;
+  width: 100%;
   margin: 0;
   padding: 0.59375rem 1.25rem 0;
   display: grid;
