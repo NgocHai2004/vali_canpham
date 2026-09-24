@@ -2,8 +2,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import api from "../api";
 import { useI18n } from "../i18n";
 import { Icon } from "../components/Icons";
-import { PageHeader, StateBox, ReportStat } from "../components/CommonUI";
 import DetailModal from "../components/DetailModal";
+import DashPageHeader from "../components/dashboard/DashPageHeader";
+import DashStatCard from "../components/dashboard/DashStatCard";
+import DashFilterBar, { DashFilterSelect, DashFilterField } from "../components/dashboard/DashFilterBar";
+import DashDataTable from "../components/dashboard/DashDataTable";
 
 function DetaineeHistoryPage({ onEdit }) {
   const { t, formatDateTime } = useI18n();
@@ -115,162 +118,163 @@ function DetaineeHistoryPage({ onEdit }) {
 
   const isActable = (log) => (log.ref || log.ref_id) && log.action !== "delete";
 
+  // Tổng % = 100 cho `table-layout: fixed`.
+  const columns = [
+    { key: "at", label: t("logs.col.time"), width: "12%", render: (log) => formatDateTime(log.at) },
+    {
+      key: "session",
+      label: t("logs.col.session"),
+      width: "13%",
+      render: (log) => (log.session ? (
+        <span className="session-code-chip">
+          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
+            {log.session.status === "open" ? "●" : "✓"}
+          </span>
+          <span className="dh-cell-mono">{log.session.code}</span>
+        </span>
+      ) : <span className="dh-cell-dim">—</span>),
+    },
+    {
+      key: "actor",
+      label: t("logs.col.officer"),
+      width: "18%",
+      render: (log) => {
+        const officer = log.officer || {};
+        const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
+        return (
+          <div className="officer-cell">
+            {officer.avatar_url
+              ? <img className="officer-avatar" src={officer.avatar_url} alt="" />
+              : <span className="officer-avatar officer-avatar-fallback">{initials}</span>}
+            <div className="officer-name">
+              <strong>{officer.full_name || log.actor}</strong>
+              {officer.full_name ? <small>@{log.actor}</small> : null}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "action",
+      label: t("logs.col.action"),
+      width: "11%",
+      render: (log) => (
+        <span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span>
+      ),
+    },
+    {
+      key: "ref",
+      label: t("history.col.code"),
+      width: "12%",
+      className: "dh-cell-mono",
+      render: (log) => log.ref || "—",
+    },
+    {
+      key: "name",
+      label: t("logs.col.detainee_name"),
+      width: "12%",
+      render: (log) => log.detainee?.full_name || log.data?.full_name || "—",
+    },
+    {
+      key: "cccd",
+      label: t("logs.col.detainee_cccd"),
+      width: "12%",
+      render: (log) => log.detainee?.cccd_number || "—",
+    },
+    {
+      key: "actions",
+      label: t("logs.col.actions"),
+      width: "10%",
+      align: "right",
+      // Log xoá không còn hồ sơ để mở → không vẽ nút, tránh bấm vào là lỗi 404.
+      render: (log) => (isActable(log) ? (
+        <span className="dh-rowbtns">
+          <button
+            type="button"
+            className="dh-rowbtn"
+            disabled={busyRef === log.id}
+            onClick={() => onView(log)}
+          >{t("common.view")}</button>
+          {onEdit && (
+            <button
+              type="button"
+              className="dh-rowbtn"
+              disabled={busyRef === log.id}
+              onClick={() => onEditLog(log)}
+            >{t("history.open_edit")}</button>
+          )}
+        </span>
+      ) : <span className="dh-cell-dim">-</span>),
+    },
+  ];
+
   return (
-    <div className="page report-page">
-      <div className="report-fixed">
-        <PageHeader
-          title={t("history.title")}
-          subtitle={t("history.subtitle", { n: filtered.length })}
-        >
-          <button className="button secondary" onClick={load} disabled={loading}>
-            {Icon.refresh}
-            {loading ? t("common.loading") : t("common.refresh")}
-          </button>
-        </PageHeader>
+    <div className="page dh-page">
+      <DashPageHeader
+        title={t("history.title")}
+        subtitle={t("history.subtitle", { n: filtered.length })}
+      >
+        <button type="button" className="dh-filter__submit" onClick={load} disabled={loading}>
+          {loading ? t("common.loading") : t("common.refresh")}
+        </button>
+      </DashPageHeader>
 
-        <div className="report-stat-grid">
-          <ReportStat tone="blue" icon={Icon.file} label={t("history.action.create")} value={counts.create || 0} note={t("history.stat.note.create")} />
-          <ReportStat tone="orange" icon={Icon.sync} label={t("session.stat.update")} value={counts.update || 0} note={t("logs.stat.note.update")} />
-          <ReportStat tone="purple" icon={Icon.log} label={t("session.stat.delete")} value={counts.delete || 0} note={t("logs.stat.note.delete")} />
-          <ReportStat tone="green" icon={Icon.cloudUpload} label={t("history.action.import")} value={counts.import || 0} note={t("logs.stat.note.import")} />
-        </div>
-
-        <form
-          className="report-filter"
-          onSubmit={(e) => { e.preventDefault(); load(); }}
-        >
-          <div className="report-filter-head">
-            <span className="report-filter-title">{t("history.filter.title")}</span>
-            <span className="report-filter-hint">{t("history.filter.desc")}</span>
-          </div>
-          <div className="report-filter-grid">
-            <label className="report-field">
-              <span>{t("common.from")}</span>
-              <input className="control" type="datetime-local"
-                value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            </label>
-            <label className="report-field">
-              <span>{t("common.to")}</span>
-              <input className="control" type="datetime-local"
-                value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-            </label>
-            <label className="report-field">
-              <span>{t("logs.field.action")}</span>
-              <select className="control" value={actionFilter}
-                onChange={(e) => setActionFilter(e.target.value)}>
-                <option value="">{t("common.all")}</option>
-                <option value="create">{t("history.action.create")}</option>
-                <option value="update">{t("history.action.update")}</option>
-                <option value="delete">{t("history.action.delete")}</option>
-                <option value="import">{t("history.action.import")}</option>
-              </select>
-            </label>
-            <label className="report-field">
-              <span>{t("common.keyword")}</span>
-              <input
-                className="control"
-                type="text"
-                placeholder={t("history.search_ph")}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-              />
-            </label>
-            <div className="report-filter-actions report-filter-actions-inline">
-              <button type="button" className="button secondary" onClick={clearFilters}>{t("common.clear_filter")}</button>
-              <button type="submit" className="button primary" disabled={loading}>
-                {loading ? t("common.applying") : t("common.apply")}
-              </button>
-            </div>
-          </div>
-        </form>
-
-        {error && <StateBox type="error">{error}</StateBox>}
-        {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
+      <div className="dh-statline">
+        <DashStatCard tone="blue" icon={Icon.file} label={t("history.action.create")} value={counts.create || 0} note={t("history.stat.note.create")} />
+        <DashStatCard tone="amber" icon={Icon.sync} label={t("session.stat.update")} value={counts.update || 0} note={t("logs.stat.note.update")} />
+        <DashStatCard tone="purple" icon={Icon.log} label={t("session.stat.delete")} value={counts.delete || 0} note={t("logs.stat.note.delete")} />
+        <DashStatCard tone="emerald" icon={Icon.cloudUpload} label={t("history.action.import")} value={counts.import || 0} note={t("logs.stat.note.import")} />
       </div>
 
-      <div className="report-scroll">
-        <div className="detainees-table-wrap">
-          <table className="detainees-table">
-            <thead>
-              <tr>
-                <th style={{ width: "12%" }}>{t("logs.col.time")}</th>
-                <th style={{ width: "13%" }}>{t("logs.col.session")}</th>
-                <th style={{ width: "18%" }}>{t("logs.col.officer")}</th>
-                <th style={{ width: "11%" }}>{t("logs.col.action")}</th>
-                <th style={{ width: "12%" }}>{t("history.col.code")}</th>
-                <th style={{ width: "12%" }}>{t("logs.col.detainee_name")}</th>
-                <th style={{ width: "12%" }}>{t("logs.col.detainee_cccd")}</th>
-                <th style={{ width: "10%" }}>{t("logs.col.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedLogs.map((log) => {
-                const busy = busyRef === log.id;
-                const officer = log.officer || {};
-                const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
-                const canAct = isActable(log);
-                return (
-                  <tr key={log.id}>
-                    <td>{formatDateTime(log.at)}</td>
-                    <td>
-                      {log.session ? (
-                        <span className="session-code-chip">
-                          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
-                            {log.session.status === "open" ? "●" : "✓"}
-                          </span>
-                          <span className="mono">{log.session.code}</span>
-                        </span>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="officer-cell">
-                        {officer.avatar_url ? (
-                          <img className="officer-avatar" src={officer.avatar_url} alt="" />
-                        ) : (
-                          <span className="officer-avatar officer-avatar-fallback">{initials}</span>
-                        )}
-                        <div className="officer-name">
-                          <strong>{officer.full_name || log.actor}</strong>
-                          {officer.full_name ? <small>@{log.actor}</small> : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td><span className={`status-badge ${log.action}`}>{labels[log.action] || log.action}</span></td>
-                    <td>{log.ref || "—"}</td>
-                    <td>{log.detainee?.full_name || log.data?.full_name || "—"}</td>
-                    <td>{log.detainee?.cccd_number || "—"}</td>
-                    <td>
-                      {canAct ? (
-                        <div className="row-actions">
-                          <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
-                          {onEdit && (
-                            <button disabled={busy} onClick={() => onEditLog(log)}>{t("history.open_edit")}</button>
-                          )}
-                        </div>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {!pagedLogs.length && (
-                <tr><td colSpan={8}><div className="empty">{t("common.empty")}</div></td></tr>
-              )}
-            </tbody>
-          </table>
-          <div className="session-list-toolbar">
-            <div className="session-list-total">{t("common.total", { n: totalRows })}</div>
-            <div className="pagination">
-              <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>{t("common.prev")}</button>
-              <span>{t("common.page_of", { page, total: totalPages })}</span>
-              <button disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>{t("common.next")}</button>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Ô tìm kiếm lọc ở CLIENT (useMemo trên `logs`) nên gõ là thấy ngay; hai ô
+          ngày và ô hành động là tham số SERVER → phải submit để gọi lại API. */}
+      <DashFilterBar
+        value={q}
+        onChange={setQ}
+        onSubmit={load}
+        placeholder={t("history.search_ph")}
+        submitLabel={loading ? t("common.applying") : t("common.apply")}
+        busy={loading}
+      >
+        <DashFilterField label={t("common.from")}>
+          <input type="datetime-local" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </DashFilterField>
+        <DashFilterField label={t("common.to")}>
+          <input type="datetime-local" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </DashFilterField>
+        <DashFilterSelect
+          label={t("logs.field.action")}
+          value={actionFilter}
+          onChange={setActionFilter}
+          options={[
+            { value: "", label: t("common.all") },
+            { value: "create", label: t("history.action.create") },
+            { value: "update", label: t("history.action.update") },
+            { value: "delete", label: t("history.action.delete") },
+            { value: "import", label: t("history.action.import") },
+          ]}
+        />
+        <button type="button" className="dh-rowbtn" onClick={clearFilters}>
+          {t("common.clear_filter")}
+        </button>
+      </DashFilterBar>
+
+      {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
+
+      <DashDataTable
+        columns={columns}
+        rows={pagedLogs}
+        loading={loading}
+        error={error}
+        empty={t("common.empty")}
+        pager={{
+          page,
+          totalPages,
+          total: totalRows,
+          onPrev: () => setPage((p) => Math.max(1, p - 1)),
+          onNext: () => setPage((p) => Math.min(totalPages, p + 1)),
+        }}
+      />
 
       {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} onEdit={onEdit} />}
     </div>

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, Fragment } from "react";
 import api from "../api";
 import { useI18n } from "../i18n";
-import { Icon } from "../components/Icons";
-import { PageHeader, StateBox } from "../components/CommonUI";
+import { StateBox } from "../components/CommonUI";
+import DashPageHeader from "../components/dashboard/DashPageHeader";
+import DashFilterBar, { DashFilterSelect } from "../components/dashboard/DashFilterBar";
+import DashDataTable from "../components/dashboard/DashDataTable";
 import DetailModal from "../components/DetailModal";
 
 function CellsPage() {
@@ -125,127 +127,140 @@ function CellsPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
+  // Tổng % = 100 cho `table-layout: fixed`.
+  const columns = [
+    {
+      key: "code",
+      label: t("cells.col.code"),
+      width: "13%",
+      className: "dh-cell-mono",
+      // Thụt đầu dòng bằng ký tự (không phải padding) để cây phân cấp vẫn đúng
+      // khi bảng bị cắt chữ bằng ellipsis.
+      render: (row) => {
+        const indent = row.depth === 2 ? "　　└ " : row.depth === 1 ? "└ " : "";
+        return <>{indent}<strong>{row.code}</strong></>;
+      },
+    },
+    {
+      key: "name",
+      label: t("cells.col.name"),
+      width: "17%",
+      render: (row) => (row.level === "facility" ? <strong>{row.name}</strong> : row.name),
+    },
+    {
+      key: "level",
+      label: t("cells.col.level"),
+      width: "11%",
+      render: (row) => <span className="badge-level">{levelLabel(row.level)}</span>,
+    },
+    {
+      key: "custody",
+      label: t("detainee.field.custody_type"),
+      width: "13%",
+      render: (row) => (row.level === "facility"
+        ? <strong>{custodyLabel(custodyOf(row))}</strong>
+        : custodyLabel(custodyOf(row))),
+    },
+    {
+      key: "capacity",
+      label: t("cells.col.capacity"),
+      width: "8%",
+      align: "center",
+      render: (row) => row.capacity || "—",
+    },
+    {
+      key: "current",
+      label: t("cells.col.current"),
+      width: "8%",
+      align: "center",
+      render: (row) => (
+        <strong className={row.current > 0 ? "dh-cell-hot" : undefined}>{row.current || 0}</strong>
+      ),
+    },
+    {
+      key: "note",
+      label: t("cells.col.note"),
+      width: "12%",
+      className: "dh-cell-dim",
+      render: (row) => ((row.note && row.note.trim() !== "-")
+        ? row.note
+        : (row.parent ? (cells.find((c) => c.code === row.parent)?.name || row.name) : row.name)),
+    },
+    {
+      key: "actions",
+      label: t("cells.col.actions"),
+      width: "18%",
+      align: "right",
+      render: (row) => (
+        <span className="dh-rowbtns">
+          <button type="button" className="dh-rowbtn" onClick={() => setViewingCell(row)}>
+            {t("cells.view_detainees")}
+          </button>
+          <button type="button" className="dh-rowbtn" onClick={() => { setEditing(row); setShowForm(true); }}>
+            {t("common.edit")}
+          </button>
+          <button type="button" className="dh-rowbtn is-danger" onClick={() => deleteCell(row)}>
+            {t("common.delete")}
+          </button>
+        </span>
+      ),
+    },
+  ];
   return (
-    <div className="page">
-      <PageHeader title={t("cells.title")} subtitle={t("cells.subtitle", { n: cells.length })}>
+    <div className="page dh-page">
+      <DashPageHeader title={t("cells.title")} subtitle={t("cells.subtitle", { n: cells.length })}>
         <button
-          className="button primary"
+          type="button"
+          className="dh-filter__submit"
           onClick={() => { setEditing(null); setShowForm(true); }}
         >
-          {Icon.plus}
           {t("cells.add")}
         </button>
-      </PageHeader>
+      </DashPageHeader>
 
-      {error && <StateBox type="error">{error}</StateBox>}
+      {/* Không truyền `onChange` → DashFilterBar bỏ ô tìm kiếm: màn này chỉ lọc
+          bằng hai select, cả hai lọc ở client nên không cần nút submit. */}
+      <DashFilterBar>
+        <DashFilterSelect
+          label={t("detainee.field.custody_type")}
+          value={filterCustody}
+          onChange={setFilterCustody}
+          options={[
+            { value: "", label: t("common.all") },
+            { value: "tam_giam", label: t("detainee.custody_type.detention") },
+            { value: "tam_giu", label: t("detainee.custody_type.temporary_hold") },
+          ]}
+        />
+        <DashFilterSelect
+          label={t("cells.col.level")}
+          value={filterLevel}
+          onChange={setFilterLevel}
+          options={[
+            { value: "", label: t("common.all") },
+            { value: "facility", label: t("cells.level.facility") },
+            { value: "sub_camp", label: t("cells.level.sub_camp") },
+            { value: "cell", label: t("cells.level.cell") },
+          ]}
+        />
+      </DashFilterBar>
 
-      {/* Bộ lọc: Diện + Cấp */}
-      <div className="cells-filter">
-        <div className="filter-item">
-          <label className="control-label">{t("detainee.field.custody_type")}</label>
-          <select className="control" value={filterCustody} onChange={(e) => setFilterCustody(e.target.value)}>
-            <option value="">{t("common.all")}</option>
-            <option value="tam_giam">{t("detainee.custody_type.detention")}</option>
-            <option value="tam_giu">{t("detainee.custody_type.temporary_hold")}</option>
-          </select>
-        </div>
-        <div className="filter-item">
-          <label className="control-label">{t("cells.col.level")}</label>
-          <select className="control" value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)}>
-            <option value="">{t("common.all")}</option>
-            <option value="facility">{t("cells.level.facility")}</option>
-            <option value="sub_camp">{t("cells.level.sub_camp")}</option>
-            <option value="cell">{t("cells.level.cell")}</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="table-card detainees-table-wrap">
-        {loading ? (
-          <StateBox>{t("common.loading")}</StateBox>
-        ) : !filtered.length ? (
-          <StateBox>{t("common.empty")}</StateBox>
-        ) : (
-          <table className="cells-table">
-            <thead>
-              <tr>
-                <th style={{ width: "13%", textAlign: "left" }}>{t("cells.col.code")}</th>
-                <th style={{ width: "17%", textAlign: "left" }}>{t("cells.col.name")}</th>
-                <th style={{ width: "11%", textAlign: "left" }}>{t("cells.col.level")}</th>
-                <th style={{ width: "13%", textAlign: "left" }}>{t("detainee.field.custody_type")}</th>
-                <th style={{ width: "8%", textAlign: "center" }}>{t("cells.col.capacity")}</th>
-                <th style={{ width: "8%", textAlign: "center" }}>{t("cells.col.current")}</th>
-                <th style={{ width: "12%", textAlign: "left" }}>{t("cells.col.note")}</th>
-                <th style={{ width: "18%", textAlign: "left" }}>{t("cells.col.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paged.map((row) => {
-                const rowClass = row.level === "facility" ? "row-facility"
-                  : row.level === "sub_camp" ? "row-subcamp" : "row-cell";
-                const indent = row.depth === 2 ? "　　└ " : row.depth === 1 ? "└ " : "";
-                return (
-                  <tr key={row.code} className={rowClass}>
-                    <td className="mono" style={{ whiteSpace: "nowrap", textAlign: "left" }}>
-                      {indent}<strong>{row.code}</strong>
-                    </td>
-                    <td style={{ textAlign: "left" }}>{row.level === "facility" ? <strong>{row.name}</strong> : row.name}</td>
-                    <td style={{ textAlign: "left" }}><span className="badge-level">{levelLabel(row.level)}</span></td>
-                    <td style={{ textAlign: "left" }}>
-                      <span style={{ fontWeight: row.level === "facility" ? 600 : "normal" }}>
-                        {custodyLabel(custodyOf(row))}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: "center" }}>{row.capacity || "—"}</td>
-                    <td style={{ textAlign: "center" }}>
-                      <strong style={{ color: row.current > 0 ? "var(--primary-hi)" : "inherit" }}>
-                        {row.current || 0}
-                      </strong>
-                    </td>
-                    <td style={{ color: "var(--muted)", fontSize: 12, textAlign: "left" }}>
-                      {(row.note && row.note.trim() !== "-") ? row.note : (row.parent ? (cells.find((c) => c.code === row.parent)?.name || row.name) : row.name)}
-                    </td>
-                    <td style={{ textAlign: "left" }}>
-                      <div className="row-actions" style={{ justifyContent: "flex-start", flexWrap: "nowrap" }}>
-                        <button type="button" onClick={() => setViewingCell(row)}>{t("cells.view_detainees")}</button>
-                        <button type="button" onClick={() => { setEditing(row); setShowForm(true); }}>{t("common.edit")}</button>
-                        <button type="button" className="danger-text" onClick={() => deleteCell(row)}>{t("common.delete")}</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-
-        {!loading && filtered.length > 0 && (
-          <div className="session-list-toolbar" style={{ marginTop: "auto" }}>
-            <div className="session-list-total">
-              {t("common.total", { n: filtered.length })}
-            </div>
-            <div className="pagination">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                {t("common.prev")}
-              </button>
-              <span>
-                {t("common.page_of", { page, total: totalPages })}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                {t("common.next")}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <DashDataTable
+        columns={columns}
+        rows={paged}
+        rowKey={(row) => row.code}
+        rowClassName={(row) => (row.level === "facility" ? "row-facility"
+          : row.level === "sub_camp" ? "row-subcamp" : "row-cell")}
+        loading={loading}
+        error={error}
+        empty={t("common.empty")}
+        pager={{
+          page,
+          totalPages,
+          total: filtered.length,
+          onPrev: () => setPage((p) => Math.max(1, p - 1)),
+          onNext: () => setPage((p) => Math.min(totalPages, p + 1)),
+        }}
+      />
 
       {showForm && (
         <CellForm

@@ -3,10 +3,13 @@ import api from "../api";
 import { useI18n } from "../i18n";
 import { Icon } from "../components/Icons";
 import { formatDateTime } from "../lib/formatters";
-import { PageHeader, StateBox, ReportStat } from "../components/CommonUI";
 import { notify } from "../notifications";
 import DetailModal from "../components/DetailModal";
 import DetaineeForm from "../DetaineeForm";
+import DashPageHeader from "../components/dashboard/DashPageHeader";
+import DashStatCard from "../components/dashboard/DashStatCard";
+import DashFilterBar, { DashFilterSelect, DashFilterField } from "../components/dashboard/DashFilterBar";
+import DashDataTable from "../components/dashboard/DashDataTable";
 
 const PAGE_SIZE = 12;
 
@@ -145,176 +148,161 @@ function LogsPage() {
     setActorFilter("");
   };
 
+  // Phân trang ở client: `api.listLogs` trả cả danh sách theo filter (không có
+  // skip/limit như /api/detainees) nên cắt trang tại đây.
+  const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+  const curPage = Math.min(Math.max(1, page), totalPages);
+  const pageRows = logs.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
+
+  // Tổng % = 100 cho `table-layout: fixed`.
+  const columns = [
+    {
+      key: "at",
+      label: t("logs.col.time"),
+      width: "18%",
+      render: (log) => formatDateTime(log.at),
+    },
+    {
+      key: "session",
+      label: t("logs.col.session"),
+      width: "16%",
+      render: (log) => (log.session ? (
+        <span className="session-code-chip">
+          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
+            {log.session.status === "open" ? "●" : "✓"}
+          </span>
+          <span className="dh-cell-mono">{log.session.code}</span>
+        </span>
+      ) : (
+        <span className="dh-cell-mono">{log.ref || "—"}</span>
+      )),
+    },
+    {
+      key: "actor",
+      label: t("logs.col.officer"),
+      width: "22%",
+      render: (log) => {
+        const officer = log.officer || {};
+        const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
+        return (
+          <div className="officer-cell">
+            {officer.avatar_url
+              ? <img className="officer-avatar" src={officer.avatar_url} alt="" />
+              : <span className="officer-avatar officer-avatar-fallback">{initials}</span>}
+            <div className="officer-name">
+              <strong>{officer.full_name || log.actor}</strong>
+              {officer.full_name ? <small>@{log.actor}</small> : null}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "result",
+      label: t("logs.sync.result"),
+      width: "32%",
+      render: (log) => {
+        const d = log.data || {};
+        return (
+          <div className="dh-badge-wrap">
+            <span className="status-badge create">{t("logs.sync.added")}: {d.added || 0}</span>
+            <span className="status-badge update">{t("logs.sync.updated")}: {d.updated || 0}</span>
+            <span className="status-badge delete">{t("logs.sync.duplicated")}: {d.duplicated || 0}</span>
+            {Number(d.failed || 0) > 0 && (
+              <span className="status-badge delete">{t("logs.sync.failed")}: {d.failed}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "actions",
+      label: t("logs.col.actions"),
+      width: "12%",
+      align: "right",
+      render: (log) => (
+        <span className="dh-rowbtns">
+          <button
+            type="button"
+            className="dh-rowbtn"
+            disabled={busyRef === log.id}
+            onClick={() => onView(log)}
+          >{t("common.view")}</button>
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <div className="page report-page">
-      <div className="report-fixed">
-      <PageHeader
+    <div className="page dh-page">
+      <DashPageHeader
         title={t("logs.title_sync")}
         subtitle={t("logs.subtitle_sync", { n: logs.length })}
       >
-        <button className="button secondary" onClick={load} disabled={loading}>
-          {Icon.refresh}
+        <button type="button" className="dh-filter__submit" onClick={load} disabled={loading}>
           {loading ? t("common.loading") : t("common.refresh")}
         </button>
-      </PageHeader>
+      </DashPageHeader>
 
-      <div className="report-stat-grid">
-        <ReportStat tone="orange" icon={Icon.sync} label={t("logs.stat.sync_total")} value={counts.sync || 0} note={t("logs.stat.note.sync")} />
+      <div className="dh-statline">
+        <DashStatCard
+          tone="amber"
+          icon={Icon.sync}
+          label={t("logs.stat.sync_total")}
+          value={counts.sync || 0}
+          note={t("logs.stat.note.sync")}
+        />
       </div>
 
-      <form
-        className="report-filter"
-        onSubmit={(e) => { e.preventDefault(); load(); }}
+      {/* Ô tìm kiếm của thanh filter = mã phiên (tham số `session_code`), hai ô
+          ngày và ô cán bộ là filter phụ — cùng một submit như các màn khác. */}
+      <DashFilterBar
+        value={sessionFilter}
+        onChange={setSessionFilter}
+        onSubmit={load}
+        placeholder={t("logs.field.session_ph")}
+        submitLabel={loading ? t("common.applying") : t("common.apply")}
+        busy={loading}
       >
-        <div className="report-filter-head">
-          <span className="report-filter-title">{t("logs.filter.title")}</span>
-          <span className="report-filter-hint">{t("logs.filter.desc")}</span>
-        </div>
-        <div className="report-filter-grid">
-          <label className="report-field">
-            <span>{t("common.from")}</span>
-            <input
-              className="control"
-              type="datetime-local"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </label>
-          <label className="report-field">
-            <span>{t("common.to")}</span>
-            <input
-              className="control"
-              type="datetime-local"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </label>
-          <label className="report-field">
-            <span>{t("logs.field.session")}</span>
-            <input
-              className="control"
-              type="text"
-              placeholder={t("logs.field.session_ph")}
-              value={sessionFilter}
-              onChange={(e) => setSessionFilter(e.target.value)}
-            />
-          </label>
-          <label className="report-field">
-            <span>{t("logs.field.officer")}</span>
-            <select className="control" value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
-              <option value="">{t("logs.field.officer_all")}</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.username}>
-                  {u.full_name ? `${u.full_name} (@${u.username})` : u.username}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="report-filter-actions report-filter-actions-inline">
-            <button type="button" className="button secondary" onClick={clearFilters}>{t("common.clear_filter")}</button>
-            <button type="submit" className="button primary" disabled={loading}>
-              {loading ? t("common.applying") : t("common.apply")}
-            </button>
-          </div>
-        </div>
-      </form>
+        <DashFilterField label={t("common.from")}>
+          <input type="datetime-local" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </DashFilterField>
+        <DashFilterField label={t("common.to")}>
+          <input type="datetime-local" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </DashFilterField>
+        <DashFilterSelect
+          label={t("logs.field.officer")}
+          value={actorFilter}
+          onChange={setActorFilter}
+          options={[
+            { value: "", label: t("logs.field.officer_all") },
+            ...users.map((u) => ({
+              value: u.username,
+              label: u.full_name ? `${u.full_name} (@${u.username})` : u.username,
+            })),
+          ]}
+        />
+        <button type="button" className="dh-rowbtn" onClick={clearFilters}>
+          {t("common.clear_filter")}
+        </button>
+      </DashFilterBar>
 
-      {error && <StateBox type="error">{error}</StateBox>}
       {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
-      </div>
 
-      <div className="report-scroll">
-      <div className="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th style={{ width: "18%" }}>{t("logs.col.time")}</th>
-              <th style={{ width: "16%" }}>{t("logs.col.session")}</th>
-              <th style={{ width: "22%" }}>{t("logs.col.officer")}</th>
-              <th style={{ width: "32%" }}>{t("logs.sync.result")}</th>
-              <th style={{ width: "12%" }}>{t("logs.col.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
-              const curPage = Math.min(Math.max(1, page), totalPages);
-              const pageRows = logs.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE);
-              return pageRows.map((log) => {
-                const busy = busyRef === log.id;
-                const officer = log.officer || {};
-                const initials = ((officer.full_name || officer.username || log.actor || "?").trim()[0] || "?").toUpperCase();
-                const d = log.data || {};
-                return (
-                  <tr key={log.id}>
-                    <td>{formatDateTime(log.at)}</td>
-                    <td>
-                      {log.session ? (
-                        <span className="session-code-chip">
-                          <span className={`badge ${log.session.status === "open" ? "badge-open" : "badge-closed"}`}>
-                            {log.session.status === "open" ? "●" : "✓"}
-                          </span>
-                          <span className="mono">{log.session.code}</span>
-                        </span>
-                      ) : (
-                        <span className="mono">{log.ref || "—"}</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="officer-cell">
-                        {officer.avatar_url ? (
-                          <img className="officer-avatar" src={officer.avatar_url} alt="" />
-                        ) : (
-                          <span className="officer-avatar officer-avatar-fallback">{initials}</span>
-                        )}
-                        <div className="officer-name">
-                          <strong>{officer.full_name || log.actor}</strong>
-                          {officer.full_name ? <small>@{log.actor}</small> : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
-                        <span className="status-badge create">{t("logs.sync.added")}: {d.added || 0}</span>
-                        <span className="status-badge update">{t("logs.sync.updated")}: {d.updated || 0}</span>
-                        <span className="status-badge delete">{t("logs.sync.duplicated")}: {d.duplicated || 0}</span>
-                        {Number(d.failed || 0) > 0 && (
-                          <span className="status-badge delete">{t("logs.sync.failed")}: {d.failed}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="row-actions">
-                        <button disabled={busy} onClick={() => onView(log)}>{t("common.view")}</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              });
-            })()}
-            {!logs.length && (
-              <tr><td colSpan={5}><div className="empty">{t("common.empty")}</div></td></tr>
-            )}
-          </tbody>
-        </table>
-        <div className="session-list-toolbar">
-          <div className="session-list-total">{t("common.total", { n: logs.length })}</div>
-          <div className="pagination">
-            {(() => {
-              const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
-              const curPage = Math.min(Math.max(1, page), totalPages);
-              return (
-                <>
-                  <button disabled={curPage <= 1 || loading} onClick={() => setPage(Math.max(1, curPage - 1))}>{t("common.prev")}</button>
-                  <span>{t("common.page_of", { page: curPage, total: totalPages })}</span>
-                  <button disabled={curPage >= totalPages || loading} onClick={() => setPage(Math.min(totalPages, curPage + 1))}>{t("common.next")}</button>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-      </div>
-      </div>
+      <DashDataTable
+        columns={columns}
+        rows={pageRows}
+        loading={loading}
+        error={error}
+        empty={t("common.empty")}
+        pager={{
+          page: curPage,
+          totalPages,
+          total: logs.length,
+          onPrev: () => setPage(Math.max(1, curPage - 1)),
+          onNext: () => setPage(Math.min(totalPages, curPage + 1)),
+        }}
+      />
 
       {viewing && <DetailModal detainee={viewing} onClose={() => setViewing(null)} />}
       {syncViewing && <SyncLogDetailModal log={syncViewing} onClose={() => setSyncViewing(null)} />}

@@ -67,7 +67,7 @@ export function Header({ username, fullName, devices, notif, onLogout, isAdmin, 
             return (
               <div
                 key={d.key}
-                className={`device-chip ${ok ? "online" : "offline"}`}
+                className={`device-chip device-chip--${d.key} ${ok ? "online" : "offline"}`}
                 title={`${label}: ${ok ? t("header.device.connected") : t("header.device.disconnected")}`}
               >
                 <span className="device-chip-dot" />
@@ -194,9 +194,9 @@ export function Header({ username, fullName, devices, notif, onLogout, isAdmin, 
           )}
         </div>
 
-        <button className="logout-button" onClick={onLogout}>
+        <button className="logout-button" onClick={onLogout} aria-label={t("header.logout")}>
           {Icon.logout}
-          {t("header.logout")}
+          <span className="logout-button__label">{t("header.logout")}</span>
         </button>
       </div>
       {viewingMatch && (
