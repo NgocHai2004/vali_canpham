@@ -109,10 +109,6 @@ async def get_detainee(det_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/api/detainees")
 async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depends(get_current_user)):
-    # Quản trị hệ thống không đi thu nhận can phạm → không TẠO hồ sơ mới.
-    # Vẫn giữ quyền SỬA/XOÁ hồ sơ để chữa dữ liệu cán bộ nhập sai.
-    if user.get("role") == "admin":
-        raise HTTPException(403, "Tài khoản quản trị hệ thống không thu nhận hồ sơ. Việc này do cán bộ thu nhận thực hiện.")
     if not body.session_id:
         raise HTTPException(400, "Bạn phải mở 1 phiên làm việc trước khi tạo hồ sơ.")
     session_doc = await database.db.work_sessions.find_one({"_id": parse_object_id(body.session_id)})

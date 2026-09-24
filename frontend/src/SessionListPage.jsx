@@ -98,8 +98,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           skip: String((page - 1) * pageSize),
           limit: String(pageSize),
         }),
-        // Admin không có phiên của riêng mình → khỏi gọi API (backend trả 404).
-        isAdmin ? Promise.resolve(null) : api.getCurrentSession().catch(() => null),
+        api.getCurrentSession().catch(() => null),
         api.listLogs({ resource: "detainee" }).catch(() => ({ counts: {} })),
       ]);
       setItems(resp.items || []);
@@ -200,22 +199,19 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           >
             {t("session.open.add_cell")}
           </button>
-          {/* Admin không mở phiên (backend cũng chặn) → không hiện nút này. */}
-          {!isAdmin && (
-            <div
-              className="session-list-newwrap"
-              title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
+          <div
+            className="session-list-newwrap"
+            title={hasOpenSession ? t("session.open_hint", { code: current.code }) : ""}
+          >
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={openNew}
+              disabled={hasOpenSession}
             >
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={openNew}
-                disabled={hasOpenSession}
-              >
-                {t("session.new")}
-              </button>
-            </div>
-          )}
+              {t("session.new")}
+            </button>
+          </div>
         </div>
       </div>
 

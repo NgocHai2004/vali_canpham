@@ -35,30 +35,14 @@ const NAV_BASE = [
   { key: "sessions", labelKey: "nav.sessions", icon: Icon.clipboard },
   { key: "detainees", labelKey: "nav.detainees", icon: Icon.folder },
   { key: "cells", labelKey: "nav.cells", icon: Icon.building },
-  { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
   { key: "sync", labelKey: "nav.sync", icon: Icon.sync },
-  { key: "logs", labelKey: "nav.logs", icon: Icon.file },
+  { key: "detainee_history", labelKey: "nav.detainee_history", icon: Icon.log },
 ];
 
 const NAV_ADMIN = [
   { key: "users", labelKey: "nav.users", icon: Icon.users },
   { key: "settings", labelKey: "nav.settings", icon: Icon.gear },
 ];
-
-/**
- * Các trang đã chuyển sang bố cục `dh-*` (thiết kế theo mockup).
- */
-const DH_PAGES = new Set([
-  "dashboard",
-  "detainees",
-  "cells",
-  "sessions",
-  "detainee_history",
-  "sync",
-  "logs",
-  "users",
-  "settings",
-]);
 
 export default function Dashboard({
   username = "admin",
@@ -203,11 +187,34 @@ export default function Dashboard({
     setPage("sessions");
   };
 
+  const isItemActive = (itemKey) => {
+    if (page === itemKey) return true;
+    if (itemKey === "sessions") {
+      if (page === "sessions_detail") return true;
+      if (
+        page === "session_capture" &&
+        (sessionCtx?.sessionId || activeSessionId || captureFrom === "sessions" || captureFrom === "sessions_detail")
+      ) {
+        return true;
+      }
+    }
+    if (itemKey === "detainees") {
+      if (
+        page === "session_capture" &&
+        !sessionCtx?.sessionId &&
+        !activeSessionId &&
+        (captureFrom === "detainees" || !captureFrom)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   return (
     <div
       className="app"
       data-dash-theme={dashTheme.theme}
-      data-dash-zoom={DH_PAGES.has(page) ? "on" : undefined}
     >
       <Header
         username={username}
@@ -234,18 +241,21 @@ export default function Dashboard({
       {/* Sidebar menu bên trái */}
       <aside className="sidebar">
         <nav className="nav">
-          {NAV.map((item) => (
-            <button
-              key={item.key}
-              className={`nav-item ${page === item.key ? "active" : ""}`}
-              onClick={() => goPage(item.key)}
-              data-tip={t(item.labelKey)}
-              aria-label={t(item.labelKey)}
-              aria-current={page === item.key ? "page" : undefined}
-            >
-              <span className="nav-icon">{item.icon}</span>
-            </button>
-          ))}
+          {NAV.map((item) => {
+            const active = isItemActive(item.key);
+            return (
+              <button
+                key={item.key}
+                className={`nav-item ${active ? "active" : ""}`}
+                onClick={() => goPage(item.key)}
+                data-tip={t(item.labelKey)}
+                aria-label={t(item.labelKey)}
+                aria-current={active ? "page" : undefined}
+              >
+                <span className="nav-icon">{item.icon}</span>
+              </button>
+            );
+          })}
         </nav>
 
         {/* Nút đổi theme sáng/tối */}
@@ -300,9 +310,8 @@ export default function Dashboard({
             onBack={leaveCapture}
           />
         )}
-        {page === "detainee_history" && <DetaineeHistoryPage onEdit={editDetainee} />}
+        {(page === "detainee_history" || page === "logs") && <DetaineeHistoryPage onEdit={editDetainee} />}
         {page === "sync" && <SyncPage />}
-        {page === "logs" && <LogsPage />}
         {page === "users" && isAdmin && <UsersPage currentUser={username} />}
         {page === "settings" && isAdmin && <SettingsPage />}
       </main>

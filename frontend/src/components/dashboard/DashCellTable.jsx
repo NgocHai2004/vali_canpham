@@ -15,7 +15,7 @@ export function DashCellTable({ rows = [], onOpen }) {
 
   return (
     <div className="dh-table-wrap">
-      <table className="dh-table">
+      <table className="dh-table dh-table--cells">
         <thead>
           <tr>
             <th className="dh-table__idx">#</th>
@@ -23,7 +23,7 @@ export function DashCellTable({ rows = [], onOpen }) {
             <th>{t("dashboard.cells.col.name")}</th>
             <th>{t("dashboard.cells.col.count")}</th>
             <th>{t("dashboard.cells.col.status")}</th>
-            <th aria-hidden="true" />
+            <th className="dh-table__chev" aria-hidden="true" />
           </tr>
         </thead>
         <tbody>

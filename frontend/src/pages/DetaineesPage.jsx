@@ -176,21 +176,7 @@ function DetaineesPage({ onEdit, onRegister, isAdmin }) {
         subtitle={filtering
           ? t("detainee.list.subtitle_result", { n: total })
           : t("detainee.list.total", { n: total })}
-      >
-        {/* Đường tắt vào form thu nhận. Admin bị chặn ở backend (không mở phiên,
-            không thu nhận) → hiện nhưng disable kèm lý do, đỡ phải đi tìm. */}
-        {onRegister && (
-          <button
-            type="button"
-            className="dh-filter__submit"
-            onClick={onRegister}
-            disabled={isAdmin}
-            title={isAdmin ? t("detainee.register.hint_admin") : t("detainee.register.hint")}
-          >
-            {t("detainee.register")}
-          </button>
-        )}
-      </DashPageHeader>
+      />
 
       <DashFilterBar
         value={q}

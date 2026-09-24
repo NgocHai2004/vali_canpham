@@ -69,10 +69,7 @@ async def stats(user: dict = Depends(get_current_user)):
             "count": row["count"],
         })
 
-    # Admin quản lý phiên chứ không chạy phiên → không có "phiên đang mở" của riêng mình.
-    open_session_doc = None
-    if user.get("role") != "admin":
-        open_session_doc = await get_open_session_or_none(user["username"])
+    open_session_doc = await get_open_session_or_none(user["username"])
     open_session = serialize_session(open_session_doc) if open_session_doc else None
 
     sess_filt: dict = {}

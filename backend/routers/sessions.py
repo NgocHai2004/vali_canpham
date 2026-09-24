@@ -153,10 +153,6 @@ async def _build_session_report_xlsx(session_doc: dict) -> tuple[str, str]:
 @router.post("/api/sessions")
 async def open_session(body: WorkSessionIn, request: Request, user: dict = Depends(get_current_user)):
     officer_username = user["username"]
-    # Quản trị hệ thống không đi thu nhận can phạm → không mở phiên làm việc.
-    # Admin vẫn xem/đóng/xoá phiên + tải báo cáo của cán bộ (vai giám sát).
-    if user.get("role") == "admin":
-        raise HTTPException(403, "Tài khoản quản trị hệ thống không mở phiên thu nhận. Phiên làm việc do cán bộ thu nhận mở.")
     existing = await get_open_session_or_none(officer_username)
     if existing:
         raise HTTPException(409, f"Bạn đang có 1 phiên đang mở ({existing.get('code','?')}). Đóng phiên đó trước khi mở phiên mới.")
@@ -190,10 +186,6 @@ async def open_session(body: WorkSessionIn, request: Request, user: dict = Depen
 
 @router.get("/api/sessions/current")
 async def get_current_session(user: dict = Depends(get_current_user)):
-    # Admin không chạy phiên → luôn coi như không có phiên đang mở, kể cả khi
-    # dữ liệu cũ còn phiên do admin mở từ trước.
-    if user.get("role") == "admin":
-        raise HTTPException(404, "Tài khoản quản trị hệ thống không có phiên làm việc.")
     doc = await get_open_session_or_none(user["username"])
     if not doc:
         raise HTTPException(404, "Bạn chưa có phiên làm việc nào đang mở.")

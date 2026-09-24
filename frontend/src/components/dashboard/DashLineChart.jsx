@@ -19,16 +19,16 @@ import React from "react";
 export function DashLineChart({
   labels = [],
   values = [],
-  yMax = 50,
-  ticks = [50, 40, 30, 20, 10, 0],
+  yMax = 40,
+  ticks = [40, 30, 20, 10, 0],
   highlightIndex,
 }) {
   const VB_W = 650;
   const VB_H = 140;
   const X0 = 30;      // mép trái vùng vẽ
   const X1 = 630;     // mép phải vùng vẽ
-  const Y_TOP = 10;   // y của yMax
-  const Y_BASE = 135; // y của 0
+  const Y_TOP = 12;   // y của yMax
+  const Y_BASE = 128; // y của 0
 
   const n = values.length;
   if (!n) return <div className="dh-empty">—</div>;

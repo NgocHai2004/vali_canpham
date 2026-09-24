@@ -9,6 +9,7 @@ import DashPanel from "../components/dashboard/DashPanel";
 import DashSelect from "../components/dashboard/DashSelect";
 import DashLineChart from "../components/dashboard/DashLineChart";
 import DashDonut from "../components/dashboard/DashDonut";
+import DashDeviceStatus from "../components/dashboard/DashDeviceStatus";
 import DashTelemetry from "../components/dashboard/DashMeters";
 import DashCellTable from "../components/dashboard/DashCellTable";
 import DashSessionList from "../components/dashboard/DashSessionList";
@@ -16,14 +17,9 @@ import DashActivityFeed from "../components/dashboard/DashActivityFeed";
 
 /**
  * Số dòng bảng buồng giam hiển thị trên dashboard.
- *
- * /api/cells trả về TẤT CẢ buồng (hiện 9). Đổ hết ra thì bảng cao 458px, kéo
- * cả hàng grid cao theo và panel "Trạng thái vali thu nhận" bên cạnh (nội dung
- * chỉ 255px) hở ra hơn 200px khoảng trắng. Cắt còn 5 dòng để hai panel cao gần
- * bằng nhau; xem đầy đủ thì bấm "Quản lý" sang trang buồng giam.
  */
-const CELL_ROWS = 6;
-const LOG_ROWS = 7;
+const CELL_ROWS = 5;
+const LOG_ROWS = 5;
 
 /** "2026-09-05" -> "5/9". Tách chuỗi thay vì new Date() để không dính múi giờ. */
 function dayLabel(isoDate) {
@@ -33,12 +29,6 @@ function dayLabel(isoDate) {
 
 /**
  * Trang chủ dashboard.
- *
- * Toàn bộ số liệu lấy từ `lib/dashboardMock.js` (xem khối SEAM ở đó để nối API
- * thật). Phần cứng (CPU/RAM/nhiệt độ…) vốn không có API nên vẫn là số tĩnh.
- *
- * Theme sáng/tối do `Dashboard.jsx` giữ (thuộc tính `data-dash-theme` nằm trên
- * `.app`, không phải trên trang này); nút đổi theme nằm trong sidebar.
  */
 function DashboardHome({ go, fullName = "" }) {
   const { t, formatNumber } = useI18n();
@@ -51,8 +41,6 @@ function DashboardHome({ go, fullName = "" }) {
     return () => clearInterval(id);
   }, []);
 
-  // Dữ liệu nạp bất đồng bộ để có trạng thái loading thật. `loadDashboardData`
-  // là chỗ duy nhất cần thay khi nối API thật — xem khối SEAM ở lib/dashboardMock.
   const [data, setData] = useState(null);
   useEffect(() => {
     let alive = true;
@@ -130,7 +118,7 @@ function DashboardHome({ go, fullName = "" }) {
         />
       </div>
 
-      <div className="dh-row dh-row--7-5">
+      <div className="dh-row dh-row--3">
         <DashPanel
           title={t("dashboard.panel.activity14")}
           className="dh-panel--chart"
@@ -143,7 +131,7 @@ function DashboardHome({ go, fullName = "" }) {
             />
           }
         >
-          <DashLineChart labels={chartLabels} values={chartValues} yMax={50} />
+          <DashLineChart labels={chartLabels} values={chartValues} yMax={40} />
         </DashPanel>
 
         <DashPanel
@@ -167,9 +155,13 @@ function DashboardHome({ go, fullName = "" }) {
             ]}
           />
         </DashPanel>
+
+        <DashPanel title="Trạng thái thiết bị">
+          <DashDeviceStatus />
+        </DashPanel>
       </div>
 
-      <div className="dh-row dh-row--7-5">
+      <div className="dh-row dh-row--2">
         <DashPanel title={t("dashboard.panel.hardware")}>
           <DashTelemetry hardware={hardware} />
         </DashPanel>
@@ -183,9 +175,7 @@ function DashboardHome({ go, fullName = "" }) {
         </DashPanel>
       </div>
 
-      {/* Dùng chung tỉ lệ 7fr/5fr với hàng "Trạng thái vali thu nhận" để panel
-          "5 phiên gần nhất" rộng ĐÚNG BẰNG panel đó. */}
-      <div className="dh-row dh-row--7-5">
+      <div className="dh-row dh-row--2">
         <DashPanel
           title={t("dashboard.panel.recent_sessions")}
           className="dh-panel--list"
@@ -193,7 +183,7 @@ function DashboardHome({ go, fullName = "" }) {
           onAction={() => go("sessions")}
         >
           <DashSessionList
-            sessions={stats?.recent_sessions || []}
+            sessions={(stats?.recent_sessions || []).slice(0, 5)}
             onOpen={() => go("sessions", { openSessionId: openSession?.id })}
           />
         </DashPanel>
