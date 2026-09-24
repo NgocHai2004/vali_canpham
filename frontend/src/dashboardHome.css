@@ -114,6 +114,14 @@
   --dh-chart-fill: .35;
   --dh-chart-stroke: 2.5;
   --dh-chart-grid: rgba(51, 65, 85, .9);
+  /* Tooltip PHẢI đục: nó nằm trên đường và vùng tô, nền trong suốt thì chữ
+     lẫn vào nét biểu đồ. Nên không dùng lại `--dh-panel-bg`/`--dh-inset-bg`. */
+  --dh-tip-bg: #0f1b33;
+  --dh-tip-border: rgba(255, 255, 255, .14);
+  --dh-tip-shadow: 0 8px 20px rgba(0, 0, 0, .5);
+  /* Đường nối của cây phân cấp. KHÔNG dùng lại `--dh-inset-border`: ở theme
+     sáng token đó là #f1f5f9, kẻ đường nối bằng màu đó thì gần như mất hẳn. */
+  --dh-tree-line: rgba(100, 116, 139, .55);
 
   --dh-meter-track-bg: #1e293b;
   --dh-temp-gradient: linear-gradient(90deg, #00d2ff 0%, #10b981 40%, #eab308 75%, #ef4444 100%);
@@ -220,6 +228,10 @@
   --dh-chart-fill: .35;
   --dh-chart-stroke: 2.2;
   --dh-chart-grid: #e3ebf7;
+  --dh-tip-bg: #ffffff;
+  --dh-tip-border: #dbe3ee;
+  --dh-tip-shadow: 0 8px 20px rgba(15, 23, 42, .16);
+  --dh-tree-line: #cbd5e1;
 
   --dh-meter-track-bg: #f1f5f9;
   /* Mốc màu đặt theo % của CẢ thanh: mask che từ 72% (47°C/65°C) trở đi, nên
@@ -1459,11 +1471,13 @@ body:has(.app[data-dash-theme="light"]) {
   flex-direction: column;
 }
 
-/* Cao 70px theo mockup (176px cũ làm panel biểu đồ cao gần gấp đôi, đẩy các
-   hàng dưới tràn khỏi màn 720p). */
+/* Cao 100px. Mockup để 70px; 176px của bản đầu thì panel biểu đồ cao gần gấp đôi
+   các panel khác. 100px là mức thoáng hơn mà chỉ cộng 30px vào vùng cuộn — trang
+   vốn đã cao hơn viewport kiosk (xem `.dh-page::after`) nên `.content` đã cuộn
+   sẵn, không có hàng nào bị cắt thêm. */
 .dh-chart__plot {
   position: relative;
-  height: 4.375rem;
+  height: 6.25rem;
   width: 100%;
 }
 
@@ -1567,6 +1581,92 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-chart__xaxis span.is-active {
   font-weight: 700;
   color: var(--dh-blue-ink);
+}
+
+/* Nhãn ngày đang trỏ tới: đổi sang màu chữ chính để phân biệt được với nhãn của
+   ngày đỉnh (đang là màu xanh). */
+.dh-chart__xaxis span.is-hover {
+  font-weight: 700;
+  color: var(--dh-ink);
+}
+
+/* --- Hover / tooltip của line chart -------------------------------------- */
+/* `non-scaling-stroke` là BẮT BUỘC: viewBox bị kéo giãn phi tuyến
+   (preserveAspectRatio="none") nên nét dọc 1px bị bóp theo trục x. */
+.dh-chart__cursor {
+  stroke: var(--dh-blue-line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Lớp bắt chuột nằm CUỐI trong DOM để phủ lên đường, chấm và trục — mỗi ngày
+   một dải cao hết vùng vẽ nên không phải trỏ đúng vào chấm. */
+.dh-chart__hit {
+  position: absolute;
+  inset: 0;
+}
+
+.dh-chart__hit span {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+/* Vùng vẽ nhận được focus (đi bằng mũi trái/phải) nên phải có focus ring. */
+.dh-chart__plot:focus-visible {
+  outline: 2px solid var(--dh-blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Khai báo SAU `.is-peak` nên khi ngày đỉnh cũng đang hover thì kiểu này thắng.
+   Để hai trạng thái cùng cỡ, tránh chấm nhảy kích thước khi trỏ vào đỉnh. */
+.dh-chart__dot.is-hover {
+  width: 0.625rem;
+  height: 0.625rem;
+  margin: -0.3125rem 0 0 -0.3125rem;
+  background: var(--dh-ink);
+  border-color: var(--dh-blue);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, .28);
+}
+
+/* Tooltip: gọn nhất có thể — một dòng ngày, một dòng số hồ sơ.
+   `--dh-tip-x/y` cho phép đổi neo qua data-align/data-flip mà chỉ có một
+   `transform` duy nhất (khai báo transform hai lần thì cái sau xoá cái trước). */
+.dh-chart__tip {
+  --dh-tip-x: -50%;
+  --dh-tip-y: calc(-100% - 0.625rem);
+  position: absolute;
+  z-index: 2;
+  transform: translate(var(--dh-tip-x), var(--dh-tip-y));
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--dh-tip-border);
+  border-radius: 8px;
+  background: var(--dh-tip-bg);
+  box-shadow: var(--dh-tip-shadow);
+  white-space: nowrap;
+  /* Không được chắn chuột, nếu không nó tự đẩy hover sang ngày khác rồi nhảy. */
+  pointer-events: none;
+}
+
+.dh-chart__tip[data-align="start"] { --dh-tip-x: 0; }
+.dh-chart__tip[data-align="end"] { --dh-tip-x: -100%; }
+.dh-chart__tip[data-flip="down"] { --dh-tip-y: 0.625rem; }
+
+.dh-chart__tip-day {
+  font-size: var(--dh-fs-label);
+  line-height: 1.2;
+  color: var(--dh-ink-3);
+}
+
+.dh-chart__tip-val {
+  font-size: var(--dh-fs-body);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--dh-ink);
 }
 
 /* --- Donut --------------------------------------------------------------- */
@@ -1972,6 +2072,137 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-table tbody tr.is-clickable:hover { background: var(--dh-inset-bg) !important; }
 
 .dh-table__idx { width: 2rem; color: var(--dh-ink-4); }
+
+/* --- Cây phân cấp trong cột MÃ (trang Cơ sở giam giữ) --------------------- */
+/* Trước đây cây vẽ bằng ký tự: `"　　└ "` cho cấp 3, `"└ "` cho cấp 2. Nhánh rời
+   rạc từng dòng, cấp 3 thụt bằng khoảng trắng full-width nên lệch theo font, và
+   ellipsis của bảng cắt luôn phần thụt. Nay mỗi cấp là một ô có border.
+
+   HAI ĐIỀU KIỆN để các đoạn dọc nối thành MỘT đường, đừng bỏ cái nào:
+
+   1. `.cells-tree` phải cao đúng bằng DÒNG. Dòng cao hơn chữ khá nhiều vì cột
+      thao tác có nút (39px so với 14px), nên nếu ô cây chỉ cao bằng chữ thì mỗi
+      đoạn dọc nổi lơ lửng giữa dòng — cấp 3 trông như một gạch `|` đứng một
+      mình. `height: 100%` KHÔNG dùng được: ô bảng cao tự động nên phần trăm
+      không giải ra được (đo tại chỗ: vẫn 14px, kể cả khi đặt thêm
+      `height: 100%` cho chính ô). Cách chạy được là định vị tuyệt đối theo ô.
+      Cái giá: ô cây không còn góp chiều cao cho dòng — chấp nhận được vì bảng
+      này dòng nào cũng có các cột chữ khác giữ chiều cao.
+      `left/right: 0.75rem` là trả lại padding ngang của ô, vì gốc toạ độ của
+      con tuyệt đối là VIỀN TRONG ô chứ không phải vùng nội dung.
+   2. Cột của ô cấp phải RỘNG BẰNG cột đường nối (1.125rem), ô cấp vẽ ở tâm cột.
+      Có thế thì đường dọc của dòng con mới thẳng hàng với tâm ô cấp của dòng
+      cha; bản đầu để ô cấp rộng 0.5rem nên lệch 0.3rem, đoạn dọc chạy ngay cạnh
+      ô cấp của cha thay vì mọc ra từ nó. */
+.dh-datatable__table td:has(> .cells-tree) {
+  position: relative;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.cells-tree {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* 1.125rem mỗi cấp: đủ để nhánh ngang đọc được mà 3 cấp vẫn không ăn hết cột MÃ
+   (cột này chỉ chiếm 13% bề ngang bảng). */
+.cells-tree__guide,
+.cells-tree__branch,
+.cells-tree__mark {
+  position: relative;
+  flex: 0 0 1.125rem;
+}
+
+/* Đường dọc: của cột tổ tiên còn em phía dưới, và của chính nhánh dòng này.
+   `bottom: -1px` để vượt qua `border-bottom` của ô, nếu không thì mỗi ranh giới
+   dòng lại là một vết đứt. */
+.cells-tree__guide[data-line="on"]::before,
+.cells-tree__branch::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: -1px;
+  border-left: 1px solid var(--dh-tree-line);
+}
+
+/* Con cuối: đường dọc dừng giữa dòng → thành `└` thay vì `├`. */
+.cells-tree__branch[data-last="yes"]::before { bottom: 50%; }
+
+/* Nhánh ngang nối từ đường dọc sang ô cấp. Chạy quá bề ngang cột nhánh (0.875rem
+   so với 1.125rem) vì đích là MÉP TRÁI ô cấp, mà ô cấp lại nằm ở tâm cột sau:
+   0.5625rem (tâm cột nhánh) → 1.125rem + 0.5625rem − 0.25rem. */
+.cells-tree__branch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.875rem;
+  border-top: 1px solid var(--dh-tree-line);
+}
+
+/* Ô cấp: đặc → nửa → rỗng, đọc ra ngay thứ bậc nơi giam giữ / phân trại / buồng.
+   Dùng hình vẽ CSS chứ không dùng emoji như `LEVELS` trong modal: emoji lệch
+   nhau giữa các font và làm dòng bảng cao thêm. */
+.cells-tree__mark::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: -0.25rem 0 0 -0.25rem;
+  border-radius: 2px;
+  border: 1px solid var(--dh-blue);
+  box-sizing: border-box;
+}
+
+/* Đoạn dọc mọc ra từ ĐÁY ô cấp xuống hết dòng, cho dòng có con. Không có nó thì
+   đường của dòng con bắt đầu ở mép dòng, cách tâm ô cấp của cha nửa dòng — đúng
+   cái khe làm đường nối trông rời rạc. Bắt đầu ở `50% + 0.25rem` (đáy ô cấp) để
+   không kẻ đè lên chính ô cấp. */
+.cells-tree__mark[data-kids="yes"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 0.25rem);
+  bottom: -1px;
+  border-left: 1px solid var(--dh-tree-line);
+}
+
+.cells-tree__mark[data-level="facility"]::before { background: var(--dh-blue); }
+
+.cells-tree__mark[data-level="sub_camp"]::before {
+  background: linear-gradient(180deg, var(--dh-blue) 0 50%, transparent 50% 100%);
+}
+
+.cells-tree__mark[data-level="cell"]::before {
+  background: transparent;
+  border-color: var(--dh-ink-4);
+}
+
+/* Mã bị cắt bằng ellipsis ở ĐÂY, không phải ở ô: nếu để ô cắt thì nó cắt luôn
+   cả phần thụt và các đường nối. */
+.cells-tree__code {
+  align-self: center;
+  min-width: 0;
+  padding-left: 0.375rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+/* Buồng giam là cấp lá và đông nhất — hạ một bậc đậm để mắt bắt được cấp trên
+   trước, thay vì cả cột cùng một độ đậm như trước. */
+.cells-tree__code[data-level="cell"] { font-weight: 600; }
 
 .dh-table__code {
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);

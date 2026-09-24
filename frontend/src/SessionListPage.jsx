@@ -197,7 +197,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
     },
     {
       key: "actions",
-      label: "",
+      label: t("session.col.actions"),
       // 17% chứ không phải 12%: đo ở kiosk 1920 thì nhóm 2 nút đã rộng 166px mà ô
       // chỉ còn 149px lòng trong → nút TRÀN 5px qua mép bảng. Thêm nút thứ ba nữa
       // nên phải nới; 5% lấy từ officer/opened_at/closed_at/location ở trên.
