@@ -8,7 +8,6 @@ import ProfileEditModal from "./components/ProfileEditModal";
 import useDeviceConnections from "./hooks/useDeviceConnections";
 import useNotifState from "./hooks/useNotifState";
 import useDashboardTheme from "./hooks/useDashboardTheme";
-import DashThemeToggle from "./components/dashboard/DashThemeToggle";
 import DataCapturePage from "./DataCapturePage";
 import SessionListPage from "./SessionListPage";
 import SessionDetailPage from "./SessionDetailPage";
@@ -242,6 +241,8 @@ export default function Dashboard({
         isAdmin={isAdmin}
         onEditProfile={() => setShowProfileModal(true)}
         onEditDetainee={openEditForm}
+        theme={dashTheme.theme}
+        onToggleTheme={dashTheme.toggle}
       />
       {showProfileModal && (
         <ProfileEditModal
@@ -273,11 +274,6 @@ export default function Dashboard({
             </button>
           ))}
         </nav>
-
-        {/* Nút đổi theme nằm trong menu dọc, ngay trên thẻ bảo mật. Luôn hiện:
-            `data-dash-theme` áp cho mọi trang nên bấm ở đâu cũng thấy đổi tông
-            (trước đây chỉ hiện ở dashboard vì theme chỉ áp cho trang đó). */}
-        <DashThemeToggle theme={dashTheme.theme} onToggle={dashTheme.toggle} />
 
         <div
           className="security-card"

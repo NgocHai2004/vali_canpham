@@ -483,8 +483,14 @@ body:has(.app[data-dash-theme="light"]) {
  * hoá ở cỡ thật (không bị mờ) và `position: fixed` của modal/toast vẫn neo
  * đúng viewport.
  *
- * Khoá theo `data-dash-zoom` nên các trang khác không bị phóng. Mốc 1600px
- * để màn 1280/1440 giữ nguyên tỉ lệ 1:1. */
+ * Khoá theo `data-dash-zoom` nên NỘI DUNG các trang khác không bị phóng. Mốc
+ * 1600px để màn 1280/1440 giữ nguyên tỉ lệ 1:1.
+ *
+ * Nhưng phần KHUNG (header + sidebar) thì phải phóng ở MỌI trang — xem mục 2d
+ * ngay dưới. Trước đây khung cũng khoá theo `data-dash-zoom`, nên ở 1920 (máy
+ * kiosk) vào Đồng bộ phiên / Cài đặt / Nhập liệu thì header thấp còn 50px thay
+ * vì 75, logo 36 thay vì 54, ô menu 40 thay vì 60, icon 20 thay vì 30 — cùng
+ * một thanh mà nhỏ đi 2/3 khi chuyển màn. */
 @media (min-width: 1600px) {
   .app[data-dash-zoom] {
     zoom: 1.5;
@@ -496,6 +502,29 @@ body:has(.app[data-dash-theme="light"]) {
          540px. Nên vế chiều cao phải tự chia. */
     width: 100%;
     height: calc(100dvh / 1.5);
+  }
+
+  /* Trang CHƯA port: vẫn phóng khung, nhưng KHÔNG phóng nội dung.
+     `zoom` áp cho từng phần tử nên tách được: header và sidebar nhân 1.5, còn
+     `.content` để nguyên — đúng thiết kế của các trang đó (dựng theo bề ngang
+     1920 thật, phóng lên là tràn ngang).
+
+     Hai track lưới phải ghi bằng ĐƠN VỊ THẬT (84px/75px = 56x1.5 / 50x1.5),
+     không phải 56px/50px: ở trên, `.app` bị phóng nên track tính trong hệ toạ độ
+     đã chia 1.5; ở đây `.app` không phóng nên track là kích thước thật. Ghi
+     56px là khung teo lại còn 37px.
+
+     Giá phải trả: vùng nội dung hẹp lại 28px (1864 -> 1836) và thấp đi 25px
+     (1030 -> 1005) vì khung đã chiếm chỗ theo cỡ 1.5. Đã đo: không trang nào
+     tràn ngang ở 1836px. */
+  .app:not([data-dash-zoom]) {
+    grid-template-columns: 5.25rem minmax(0, 1fr);
+    grid-template-rows: 4.6875rem minmax(0, 1fr);
+  }
+
+  .app:not([data-dash-zoom]) .header,
+  .app:not([data-dash-zoom]) .sidebar {
+    zoom: 1.5;
   }
 }
 
@@ -554,6 +583,17 @@ body:has(.app[data-dash-theme="light"]) {
   --cf-text: #0f172a;
   --cf-muted: #64748b;
   --cf-dim: #64748b;
+  /* Chữ trong mục V (vân tay): nhãn ngón, số đếm "x / 10", số thứ tự ô — tất cả
+     9.5-11px và nằm NGAY CẠNH ảnh vân tay (ảnh xám đầy chi tiết), nên mắt đọc
+     chúng ở mức tương phản thấp hơn chữ trên nền trơn → #64748b (4.76:1 trên
+     nền #f3f6fb) nhìn ra nhạt. #3f4a5c = 8.26:1 trên nền trang, 8.95:1 trên ô
+     trắng, 7.26:1 trên --cf-field.
+     Token RIÊNG chứ không sửa --cf-muted: token đó còn ~20 chỗ khác ngoài mục V
+     (nhãn body-shot, ô nhập, thanh tóm tắt) đã căn theo bản mẫu.
+     ĐẶT Ở ĐÂY chứ không ở styles.css: hai khối `.capture-page.cap-flat` bên đó
+     đều KHÔNG gate theo theme nên khối nào cũng ăn cả hai theme; chỉ selector
+     `[data-dash-theme="light"]` này mới tách riêng được nền sáng. */
+  --cf-fp-ink: #3f4a5c;
   --cf-line: #e2e8f0;
   --cf-line-hi: #cbd5e1;
   --cf-field: #e2e8f0;
@@ -564,6 +604,32 @@ body:has(.app[data-dash-theme="light"]) {
   background: #f3f6fb;
   color: var(--cf-text);
 }
+
+/* ---- Dải điểm chất lượng dưới mỗi ô vân tay (mục V) ----
+ * Bản gốc (styles.css:9743-9771) dựng cho nền TỐI: dải `rgba(0,0,0,.65)` + chữ
+ * TRẮNG + `text-shadow: 0 1px 2px rgba(0,0,0,.85)`. Trên nền sáng nó thành một
+ * vệt đen nhoè vắt ngang đáy từng ô — chữ trắng buộc phải có bóng mới đọc được,
+ * mà chính cái bóng đó làm chữ 11px nhìn rung.
+ * Đảo lại: chip TRẮNG mờ + chữ đậm + BỎ bóng, đúng khuôn `.fp-cell-no` đã dùng
+ * cho số thứ tự ô ở ngay cạnh (styles.css:10698) nên hai nhãn cùng một ngôn ngữ.
+ * Nền 0.9 alpha là phần đệm cần thiết: chữ nằm ĐÈ lên ảnh vân tay, để trong suốt
+ * thì mực đậm rơi trúng vân đen là mất chữ.
+ * Phải viết lại cả `.low`/`.nq`: rule `.fp-mark` ở đây là (0,4,0), thắng cả
+ * `.fp-mark.low` (0,2,0) bên styles.css, nên nếu không khai lại thì điểm kém mất
+ * màu đỏ cảnh báo. Hai màu cũ chọn cho nền đen: #ff6b7a chỉ 2.6:1 và #c7ceda
+ * 1.6:1 trên chip trắng. Thay bằng #b91c1c (6.47:1, vẫn đọc ra ĐỎ) và #64748b
+ * (4.76:1, cố ý nhạt hơn mực chính vì "SDK không đo được" là tin phụ).
+ * ------------------------------------------------------------------------- */
+.app[data-dash-theme="light"] .capture-page.cap-flat .fp-mark-strip {
+  background: rgba(255, 255, 255, 0.9);
+  border-top: 1px solid #e2e8f0;
+}
+.app[data-dash-theme="light"] .capture-page.cap-flat .fp-mark {
+  color: var(--cf-fp-ink);
+  text-shadow: none;
+}
+.app[data-dash-theme="light"] .capture-page.cap-flat .fp-mark.low { color: #b91c1c; }
+.app[data-dash-theme="light"] .capture-page.cap-flat .fp-mark.nq { color: #64748b; }
 
 /* ---------------------------------------------------------------------------
  * 2a. HEADER TRANG CHƯA PORT — chặn tràn DỌC
@@ -1162,34 +1228,34 @@ body:has(.app[data-dash-theme="light"]) {
 /* Nút đổi theme — nay nằm trong SIDEBAR (menu dọc), tức NGOÀI `.dh-page`, nên
    KHÔNG dùng được token `--dh-*` (chúng chỉ định nghĩa trong `.dh-page`).
    Dùng token của app và bám kích thước `.security-card` (44px) cho đồng bộ. */
+/* Nút sáng/tối nằm trong `.header-actions`, cạnh chuông thông báo. Cỡ và cách
+   trình bày khớp `.icon-button` của header (2rem, không nền khối, không viền) —
+   hai nút icon đứng cạnh nhau mà khác cỡ thì lệch hàng ngay.
+   Trước đây nút ở sidebar nên là 2.75rem có viền; đừng khôi phục cỡ đó ở đây. */
 .dh-theme-toggle {
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  margin-bottom: 0.375rem;
+  width: 2rem;
+  height: 2rem;
   padding: 0;
-  border-radius: 12px;
+  border: 0;
+  border-radius: 10px;
   cursor: pointer;
   color: var(--primary-2);
-  background: rgba(53, 216, 255, .06);
-  border: 1px solid rgba(53, 216, 255, .16);
+  background: transparent;
 }
 
 .dh-theme-toggle:hover {
-  background: rgba(53, 216, 255, .14);
+  background: var(--dh-blue-soft);
   color: var(--text);
 }
 
 /* Light: bỏ tông cyan, dùng xám trung tính cho hợp nền sáng. */
 .app[data-dash-theme="light"] .dh-theme-toggle {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
   color: #64748b;
 }
 
 .app[data-dash-theme="light"] .dh-theme-toggle:hover {
-  background: #e2e8f0;
   color: #2563eb;
 }
 
@@ -2522,6 +2588,12 @@ body:has(.app[data-dash-theme="light"]) {
 
 /* Số can phạm đang ở trong buồng > 0 — nhấn để thấy buồng nào đang có người. */
 .dh-cell-hot { color: var(--dh-blue-ink); }
+
+/* Ô thao tác ở cột cuối: nhóm nút căn phải nên mép nút gần như dính mép bảng
+   (đo ở kiosk 1920 trước khi sửa: nút tràn 5px qua mép). Nới padding-right.
+   Phải qualify `.dh-datatable__table td` (0,2,1) chứ không để class trơ (0,1,0):
+   rule gốc ở dòng ~2422 là (0,1,1) với `padding: 0.5rem 0.75rem` nên sẽ thắng. */
+.dh-datatable__table td.dh-cell-actions { padding-right: 1rem; }
 
 .dh-rowbtns {
   display: inline-flex;

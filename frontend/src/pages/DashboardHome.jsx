@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useI18n } from "../i18n";
 import { Icon, DashIcon } from "../components/Icons";
-import { loadDashboardData, EMPTY_HARDWARE } from "../lib/dashboardMock";
+import { loadDashboardData, getCachedDashboardData, EMPTY_HARDWARE } from "../lib/dashboardMock";
 
 import DashGreetingHero from "../components/dashboard/DashGreetingHero";
 import DashStatCard from "../components/dashboard/DashStatCard";
@@ -62,11 +62,19 @@ function DashboardHome({ go, fullName = "" }) {
 
   // Dữ liệu nạp bất đồng bộ để có trạng thái loading thật. `loadDashboardData`
   // là chỗ duy nhất cần thay khi nối API thật — xem khối SEAM ở lib/dashboardMock.
-  const [data, setData] = useState(null);
+  //
+  // Khởi tạo state TỪ CACHE (truyền hàm để React chỉ gọi ở render đầu): đổi tab
+  // rồi quay lại thì cache còn nóng → `data` khác null ngay, không hiện loading
+  // và không gọi lại API. Cache rỗng mới trả null và chạy xuống effect.
+  const [data, setData] = useState(getCachedDashboardData);
   useEffect(() => {
+    if (data) return;               // cache nóng: không cần nạp gì
     let alive = true;
     loadDashboardData().then((d) => { if (alive) setData(d); });
     return () => { alive = false; };
+    // Chỉ chạy khi mount: `data` cố ý không nằm trong deps, nếu không thì mỗi
+    // lần setData lại chạy effect một vòng nữa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stats = data?.stats;

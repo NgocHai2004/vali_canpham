@@ -4,13 +4,14 @@ import { notify } from "../notifications";
 import { Icon } from "./Icons";
 import { formatDateTime } from "../lib/formatters";
 import DetailModal from "./DetailModal";
+import DashThemeToggle from "./dashboard/DashThemeToggle";
 
 const DEVICE_CHIPS = [
   { key: "camera", labelKey: "header.device.camera" },
   { key: "fp", labelKey: "header.device.fp" },
 ];
 
-export function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee }) {
+export function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee, theme, onToggleTheme }) {
   const { t } = useI18n();
   const chips = DEVICE_CHIPS;
   const [notifOpen, setNotifOpen] = useState(false);
@@ -149,6 +150,13 @@ export function Header({ username, fullName, devices, notif, onLogout, isAdmin, 
             </div>
           )}
         </div>
+
+        {/* Nút sáng/tối đứng cạnh chuông thông báo. Chỉ render khi Dashboard
+            truyền handler xuống — các màn dùng Header mà không có theme (nếu có)
+            sẽ không hiện nút chết. */}
+        {onToggleTheme && (
+          <DashThemeToggle theme={theme} onToggle={onToggleTheme} />
+        )}
 
         <div className="user-box-wrap" ref={userMenuRef} style={{ position: "relative" }}>
           <button

@@ -9798,6 +9798,12 @@ textarea.input {
      nhan 10.5px. #636d7b dat 5.24:1 tren trang / 4.94:1 tren #f7f8fa / 4.69:1
      tren --cf-field, tuc dat AA o CA BA nen dang dung. */
   --cf-muted: #636d7b;
+  /* --cf-fp-ink: mau CHU trong muc V (nhan ngon, so dem "x / 10", so thu tu o).
+     KHONG dat o day. Ca hai khoi `.capture-page.cap-flat` trong file nay deu
+     KHONG bi gate theo theme (xem ghi chu o khoi thu hai, dong ~10750) nen khoi
+     nao dat sau se an ca hai theme. Gia tri cho theme SANG nam o
+     dashboardHome.css, trong `.app[data-dash-theme="light"] .capture-page.cap-flat`
+     — do moi la cho quyet dinh bang mau sang. */
   /* --cf-line: ke phan cach TRANG TRI (gach chan tieu de muc, vien tren thanh
      nut). Khong dung cho vien o nhap/nut: WCAG 1.4.11 doi vien la dau hieu
      duy nhat cua mot control phai dat 3:1, ma #e6e9ef chi duoc 1.22:1.
@@ -9819,7 +9825,12 @@ textarea.input {
      duoi theo so do lay tu anh mau. */
   zoom: 1;
   background: #fff;
-  min-height: 100vh;
+  /* 100% chứ KHÔNG phải 100vh. `.content` = chiều cao màn TRỪ header (50px), nên
+     100vh ép trang cao hơn khung chứa đúng 50px. `.content` lại `overflow: hidden`
+     => tràn ra vẫn cuộn được bằng bàn phím/scroll-anchor nhưng KHÔNG có thanh cuộn
+     để kéo về, nên `.cap-backbar` (nút Quay lại) bị đẩy lên sau header và mất hẳn.
+     Đo lúc lỗi ở 1536x864: .content ch=814 sh=876 scrollTop=62, backbar ở y=-6. */
+  min-height: 100%;
   /* .page o tren dat max-width: 1400px + margin auto (dong ~898). Man may tram
      >=1920 nen no de lai hai dai trong ~260px moi ben — dung cai ma nguoi dung
      goi la "2 ben van trong". Man nay la ban khai bao dien kin, khong phai
@@ -10143,7 +10154,7 @@ textarea.input {
   margin-right: 0.5rem;
   font-size: 0.6875rem;
   font-weight: 650;
-  color: var(--cf-muted);
+  color: var(--cf-fp-ink);
   font-variant-numeric: tabular-nums;
 }
 /* Muc V trai het be ngang => chia noi dung 2 cot: van LAN (10 o) | van CHUM
@@ -10515,7 +10526,7 @@ textarea.input {
    can thu ngon do", khong phai "da thu xong" - y het o lan. Mau lay theo
    currentColor cua .fp-plain-hands (xam) nen ngon danh dau chi DAM hon cac ngon
    con lai, khong doi mau. */
-.cap-flat .fp-plain-label { font-size: 0.6875rem; color: var(--cf-muted); text-align: center; }
+.cap-flat .fp-plain-label { font-size: 0.6875rem; color: var(--cf-fp-ink); text-align: center; }
 .cap-flat .fp-kpi { display: none; }
 
 /* ---------------- Thanh nut cuoi trang ---------------- */
@@ -10699,7 +10710,7 @@ textarea.input {
   padding: 0 0.125rem;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.88);
-  color: var(--cf-muted);
+  color: var(--cf-fp-ink);
   font-size: 0.59375rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -10736,6 +10747,16 @@ textarea.input {
   --cf-head: #35D8FF;
   --cf-text: #EAF2FF;
   --cf-muted: #93A7C6;
+  /* --cf-fp-ink: mau CHU trong muc V (nhan ngon, so dem, so thu tu o).
+     KHOI NAY LA BAN LE, khong phai "khoi theme toi": no cung selector
+     `.capture-page.cap-flat` voi khoi o dong ~9792 va KHONG bi gate theo theme,
+     chi thang nho nam sau. Theme SANG lat lai duoc vi dashboardHome.css dung
+     `.app[data-dash-theme="light"] .capture-page.cap-flat` — specificity cao hon.
+     => Dat gia tri dam cho nen sang O DAY la SAI: no an ca theme toi. Dat o day
+     mac dinh bang --cf-muted (giu y nguyen theme toi), gia tri dam nam ben
+     dashboardHome.css. Da mac dung bay nay mot lan: dat #3f4a5c o khoi tren roi
+     `var(--cf-muted)` o khoi nay thi light bi keo ve #64748b. */
+  --cf-fp-ink: var(--cf-muted);
   --cf-line: rgba(53, 216, 255, 0.18);
   --cf-line-hi: rgba(53, 216, 255, 0.38);
   --cf-field: rgba(53, 216, 255, 0.16);

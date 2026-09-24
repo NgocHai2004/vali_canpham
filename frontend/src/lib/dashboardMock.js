@@ -147,8 +147,50 @@ export const EMPTY_HARDWARE = {
   powerIn: "—", fan: "—", uptime: "—", ready: false,
 };
 
+/* ============================ CACHE THEO PHIÊN ============================
+ * `Dashboard.jsx` render DashboardHome theo `page === "dashboard"`, nên đổi tab
+ * là component UNMOUNT và state mất sạch — không cache thì mỗi lần quay lại
+ * dashboard lại bắn /api/stats + /api/cells. Một phiên làm việc đổi tab vài
+ * chục lần là vài chục lượt request vô ích.
+ *
+ * Cache ở mức module (không phải trong component) nên sống qua unmount.
+ *
+ * `inflight` gộp các lời gọi trùng: React StrictMode mount 2 lần ở dev, và 2
+ * chỗ cùng gọi một lúc cũng chỉ tạo 1 request. Thiếu nó thì cache không chặn
+ * được cặp request song song vì cả hai đều thấy cache rỗng.
+ *
+ * TTL để dữ liệu không đứng yên vĩnh viễn trong phiên dài. Số liệu dashboard
+ * không phải realtime nên 2 phút là đủ.
+ */
+const CACHE_TTL_MS = 120_000;
+let cache = null;        // { data, at }
+let inflight = null;     // Promise đang bay, dùng chung cho mọi caller
+
 /**
- * Nạp dữ liệu dashboard (bất đồng bộ) — ĐÃ NỐI API THẬT.
+ * Dữ liệu đã cache còn hạn, hoặc `null`.
+ *
+ * DashboardHome dùng hàm này làm giá trị KHỞI TẠO của state: cache còn nóng thì
+ * `data` khác null ngay từ render đầu → không hiện loading, không giật bố cục.
+ */
+export function getCachedDashboardData() {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.data;
+  return null;
+}
+
+/**
+ * Xoá cache để lần nạp sau đi thẳng ra API.
+ *
+ * Gọi sau khi ghi dữ liệu làm số liệu dashboard sai (đăng ký can phạm mới,
+ * đóng/mở phiên, sửa buồng giam) — nếu không, người dùng quay lại dashboard sẽ
+ * thấy số cũ tới hết TTL.
+ */
+export function invalidateDashboardCache() {
+  cache = null;
+  inflight = null;
+}
+
+/**
+ * Nạp dữ liệu dashboard (bất đồng bộ) — ĐÃ NỐI API THẬT, CÓ CACHE.
  *
  * `stats` lấy nguyên response /api/stats: nó đã chứa sẵn `recent_sessions` (5
  * phiên mới nhất) và `recent_activity` (8 bản ghi), nên không cần gọi thêm
@@ -158,16 +200,33 @@ export const EMPTY_HARDWARE = {
  *
  * API lỗi thì trả về mock để dashboard vẫn dựng được khung (DashboardHome coi
  * `data == null` là đang tải, nếu để promise reject thì màn hình treo ở
- * trạng thái loading vĩnh viễn).
+ * trạng thái loading vĩnh viễn). Kết quả mock KHÔNG được cache: cache lại thì
+ * một lần mạng lỗi sẽ ghim mock suốt 2 phút, lần quay lại sau không thử lại API.
+ *
+ * @param {{force?: boolean}} opts `force: true` bỏ qua cache (nút làm mới).
  */
-export async function loadDashboardData() {
-  try {
-    const [stats, cells] = await Promise.all([api.stats(), api.listCells()]);
-    return { stats, cells, hardware: mockHardware };
-  } catch (err) {
-    console.error("[dashboard] khong tai duoc du lieu that, dung mock:", err);
-    return getDashboardData();
+export async function loadDashboardData({ force = false } = {}) {
+  if (!force) {
+    const hit = getCachedDashboardData();
+    if (hit) return hit;
+    if (inflight) return inflight;
   }
+
+  inflight = (async () => {
+    try {
+      const [stats, cells] = await Promise.all([api.stats(), api.listCells()]);
+      const data = { stats, cells, hardware: mockHardware };
+      cache = { data, at: Date.now() };
+      return data;
+    } catch (err) {
+      console.error("[dashboard] khong tai duoc du lieu that, dung mock:", err);
+      return getDashboardData();
+    } finally {
+      inflight = null;
+    }
+  })();
+
+  return inflight;
 }
 
 export default getDashboardData;

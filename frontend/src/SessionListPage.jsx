@@ -167,25 +167,25 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
     {
       key: "officer",
       label: t("session.col.officer"),
-      width: "16%",
+      width: "14%",
       render: (s) => s.officer_full_name || s.officer,
     },
     {
       key: "opened_at",
       label: t("session.col.opened_at"),
-      width: "14%",
+      width: "13%",
       render: (s) => formatDateTime(s.opened_at),
     },
     {
       key: "closed_at",
       label: t("session.col.closed_at"),
-      width: "14%",
+      width: "13%",
       render: (s) => formatDateTime(s.closed_at),
     },
     {
       key: "location",
       label: t("session.col.location"),
-      width: "13%",
+      width: "12%",
       render: (s) => s.location || "—",
     },
     {
@@ -198,10 +198,14 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
     {
       key: "actions",
       label: "",
-      width: "12%",
+      // 17% chứ không phải 12%: đo ở kiosk 1920 thì nhóm 2 nút đã rộng 166px mà ô
+      // chỉ còn 149px lòng trong → nút TRÀN 5px qua mép bảng. Thêm nút thứ ba nữa
+      // nên phải nới; 5% lấy từ officer/opened_at/closed_at/location ở trên.
+      width: "17%",
       align: "right",
+      className: "dh-cell-actions",
       // stopPropagation: cả dòng là nút mở phiên (onRowClick), nếu không chặn thì
-      // bấm Xoá/Xuất cũng nhảy vào phiên.
+      // bấm Xem/Xoá/Xuất cũng nhảy vào phiên (double-trigger).
       render: (s) => (
         <span className="dh-rowbtns">
           {(role === "admin" || s.officer === username) && (
@@ -217,6 +221,16 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
               {deletingId === s.id ? t("common.deleting") : t("session.delete.title_simple")}
             </button>
           )}
+          {/* Bấm cả dòng cũng mở phiên, nhưng dòng bảng không có dấu hiệu nào cho
+              thấy nó bấm được — nút này là chỗ bấm tường minh cho hành động đó. */}
+          <button
+            type="button"
+            className="dh-rowbtn"
+            onClick={(e) => { e.stopPropagation(); onOpenSession && onOpenSession(s.id); }}
+            title={t("common.view")}
+          >
+            {t("common.view")}
+          </button>
           <button
             type="button"
             className="dh-rowbtn"
