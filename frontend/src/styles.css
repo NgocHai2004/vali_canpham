@@ -2019,10 +2019,15 @@ textarea.input {
 .modal-backdrop:has(.small-modal) {
   align-items: center;
 }
-/* Chua cho thanh cuon san: khong co dong nay thi luc noi dung vuot max-height,
-   thanh cuon xuat hien va bop chieu ngang noi dung => giat ngang. */
-.modal { scrollbar-gutter: stable; }
-
+/* BO `scrollbar-gutter: stable` (2026-09-24).
+   Dòng cũ giữ chỗ máng cuộn để nội dung khỏi giật ngang lúc vượt max-height.
+   Nhưng cái giá lớn hơn lợi: máng 10px bị trừ khỏi bề ngang nội dung NGAY CẢ KHI
+   modal không cuộn, và vì `.modal-header` chỉ đặt nền + border tới mép nội dung
+   nên vệt 10px ấy lộ ra thành một dải dọc sát mép phải, cộng với viền `.modal`
+   thành hai nét kẻ song song — lỗi thấy được ở modal "Can phạm buồng ...".
+   Đo được: clientWidth 325 / offsetWidth 337; bỏ dòng này thì clientWidth 335
+   (= 337 - 2px viền), tức máng biến mất.
+   Không sợ giật ngang: Chromium ở đây dùng thanh cuộn overlay, không chiếm chỗ. */
 .modal {
   position: relative;
   background:
@@ -2038,13 +2043,21 @@ textarea.input {
   animation: slideUp 0.2s ease;
 }
 
-/* Subtle static conic-gradient border (no rotation) */
+/* Subtle static conic-gradient border (no rotation)
+   `inset: 0` + dày 1px, KHÔNG phải `inset: -1px` như trước. Bản cũ tràn ra ngoài
+   hộp 1px, mà `.modal` là khối cuộn (`overflow-y: auto`) nên phần tràn đó bị
+   tính vào vùng cuộn: scrollHeight 187 so với clientHeight 186. Chỉ 1px thừa ấy
+   đủ để Chromium dựng thanh cuộn cho một modal chẳng có gì để cuộn, và ở modal
+   "Can phạm buồng ..." thanh cuộn hiện ra thành nét kẻ thứ hai sát mép phải,
+   song song với viền modal. Đo lại sau khi đổi: tràn 0, hụt ngang 2px đúng bằng
+   2 viền (trước là 17px). Vòng gradient giờ vẽ đè lên chính viền 1px của
+   `.modal` nên nhìn không khác gì. */
 .modal::before {
   content: "";
   position: absolute;
-  inset: -0.0625rem;
+  inset: 0;
   border-radius: inherit;
-  padding: 0.0625rem;
+  padding: 1px;
   background: conic-gradient(
     from 210deg,
     rgba(53, 216, 255, 0.5),
