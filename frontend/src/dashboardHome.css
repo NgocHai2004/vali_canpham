@@ -113,6 +113,8 @@
   --dh-chart-fill: .35;
   --dh-chart-stroke: 2.5;
   --dh-chart-grid: rgba(51, 65, 85, .9);
+  /* Đường nối của cây phân cấp. */
+  --dh-tree-line: rgba(100, 116, 139, .55);
 
   --dh-meter-track-bg: #1e293b;
   --dh-temp-gradient: linear-gradient(90deg, #00d2ff 0%, #10b981 40%, #eab308 75%, #ef4444 100%);
@@ -143,18 +145,18 @@
  * Cùng house style với styles.css:9551-9560 (đã sửa đúng lỗi này một lần).
  * ---------------------------------------------------------------------- */
 .app[data-dash-theme="light"] .dh-page {
-  --dh-page-bg: #f3f6fb;
+  --dh-page-bg: #EEE5DE;
 
   --dh-panel-bg: #ffffff;
-  --dh-panel-border: rgba(226, 232, 240, .8);
+  --dh-panel-border: #cbd5e1;
   --dh-panel-radius: 0.75rem;
-  --dh-panel-shadow: 0 1px 2px rgba(15, 23, 42, .06);
-  --dh-panel-shadow-strong: 0 10px 24px rgba(15, 23, 42, .14);
+  --dh-panel-shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
+  --dh-panel-shadow-strong: 0 8px 24px -4px rgba(15, 23, 42, .12);
   --dh-panel-blur: none;
-  --dh-panel-hover-border: rgba(203, 213, 225, .9);
+  --dh-panel-hover-border: #94a3b8;
 
-  --dh-inset-bg: #f8fafc;
-  --dh-inset-border: #f1f5f9;
+  --dh-inset-bg: #f1f5f9;
+  --dh-inset-border: #cbd5e1;
 
   --dh-ink: #0f172a;
   --dh-ink-2: #334155;
@@ -164,7 +166,7 @@
   --dh-ink-3: #475569;
   --dh-ink-4: #64748b;
   --dh-track: #f1f5f9;
-  --dh-grid-col: #f4f7fb;
+  --dh-grid-col: #e2e8f0;
 
   --dh-blue: #2563eb;
   --dh-blue-ink: #2563eb;
@@ -218,20 +220,20 @@
   --dh-donut-border: #93c5fd;
   --dh-chart-fill: .35;
   --dh-chart-stroke: 2.2;
-  --dh-chart-grid: #e3ebf7;
+  --dh-chart-grid: #cbd5e1;
+  --dh-tree-line: #94a3b8;
 
   --dh-meter-track-bg: #f1f5f9;
   /* Mốc màu đặt theo % của CẢ thanh: mask che từ 72% (47°C/65°C) trở đi, nên
      đỏ phải nằm ngay dưới mốc đó mới thấy được. */
   --dh-temp-gradient: linear-gradient(90deg, #2563eb 0%, #22c55e 30%, #eab308 52%, #f97316 63%, #ef4444 72%, #ef4444 100%);
 
-  /* Banner kính mờ — light: gần trắng, chỉ hơi ngả xanh ở khoảng 60% bề ngang
-     (mockup: #f5faff ở trái, #deeefb quanh x=600-700). */
+  /* Banner kính mờ — light: êm dịu, dịu mắt với gradient xanh băng nhẹ */
   --dh-hero-bg:
-    linear-gradient(90deg, #ffffff 0%, #f5faff 28%, #e2eefc 62%, #f7fbff 100%);
+    linear-gradient(135deg, #e0edfd 0%, #f0f6ff 50%, #e3f0fe 100%);
   --dh-hero-wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 80' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%231d4ed8' stop-opacity='0'/%3E%3Cstop offset='.32' stop-color='%232563eb' stop-opacity='.35'/%3E%3Cstop offset='.7' stop-color='%233b82f6' stop-opacity='.45'/%3E%3Cstop offset='1' stop-color='%2360a5fa' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0 58C90 12 190 6 300 34s180 62 300 34 200-52 400-24' fill='none' stroke='url(%23w)' stroke-width='1.6' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
-  --dh-hero-border: rgba(255, 255, 255, .4);
-  --dh-hero-shadow: 0 10px 15px -3px rgba(14, 165, 233, .05);
+  --dh-hero-border: #bfdbfe;
+  --dh-hero-shadow: 0 4px 14px rgba(37, 99, 235, .08);
   --dh-hero-blur: blur(24px);
   --dh-aurora-blend: normal;
 }
@@ -274,19 +276,19 @@ body:has(.app[data-dash-theme]) {
 .app[data-dash-theme="light"] {
   --text: #0f172a;
   --muted: #64748b;
-  --border: #e2e8f0;
+  --border: #cbd5e1;
   --bg: #ffffff;
-  --bg-deep: #f3f6fb;
+  --bg-deep: #EEE5DE;
   --bg-panel: #ffffff;
   --surface-hi: #ffffff;
-  --shadow: 0 1px 2px rgba(15, 23, 42, .06);
+  --shadow: 0 1px 3px rgba(15, 23, 42, .08);
 }
 
 /* `body` là TỔ TIÊN của `.app` nên không thể với tới bằng descendant selector.
    `:has()` đã có tiền lệ trong repo (dashboard.css:2715) và Electron 33 dùng
    Chromium 130 nên hỗ trợ tốt. */
 body:has(.app[data-dash-theme="light"]) {
-  background: #f3f6fb;
+  background: #EEE5DE;
 }
 
 /* Cơ chế (b): !important cho những chỗ hardcode màu tối hoặc bản thân đã
@@ -294,18 +296,18 @@ body:has(.app[data-dash-theme="light"]) {
 /* Phẳng đúng bằng màu nền trang: gradient nhạt của app làm vùng đệm 16px quanh
    `.dh-page` sáng hơn nền trang một chút → thành vệt khung. */
 .app[data-dash-theme="light"] {
-  background: #f3f6fb !important;
+  background: #EEE5DE !important;
 }
 
 .app[data-dash-theme="light"] .header {
   background: #ffffff !important;
-  border-bottom: 1px solid #e8edf5 !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, .05) !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .06) !important;
 }
 
 .app[data-dash-theme="light"] .sidebar {
-  background: #ffffff !important;
-  border-right: 1px solid #e8edf5 !important;
+  background: #f8fafc !important;
+  border-right: 1px solid #cbd5e1 !important;
   color: #0f172a !important;
 }
 
@@ -359,8 +361,8 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .app[data-dash-theme="light"] .security-card {
-  background: #f8fafc !important;
-  border-color: #e2e8f0 !important;
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
   color: #64748b !important;
 }
 
@@ -379,7 +381,7 @@ body:has(.app[data-dash-theme="light"]) {
 
 .app[data-dash-theme="light"] .icon-button {
   background: #f1f5f9 !important;
-  border-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
 }
 
 /* Các khối header còn lại: chúng hardcode màu cyan/navy của theme tối (không
@@ -387,17 +389,14 @@ body:has(.app[data-dash-theme="light"]) {
    Selector đều có tiền tố `.app[data-dash-theme="light"]` nên chỉ áp khi đang
    ở dashboard; specificity (0,4,0)+ thắng rule gốc (0,1,0)/(0,2,0). */
 
-/* Cụm chip thiết bị (Camera / Vân tay).
-   Mockup để nền TRUNG TÍNH cho cả chip hỏng lẫn chip chạy — chỉ icon đổi màu
-   (xanh/đỏ), không tô nền. Chữ dùng --dh-ink-2 (7.5:1 trên #f8fafc) chứ không
-   phải #64748b như bản tô nền trước đây. */
+/* Cụm chip thiết bị (Camera / Vân tay). */
 .app[data-dash-theme="light"] .device-chips {
   background: transparent;
 }
 
 .app[data-dash-theme="light"] .device-chip {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
   color: #334155;
 }
 
@@ -407,7 +406,7 @@ body:has(.app[data-dash-theme="light"]) {
 /* Ô đổi ngôn ngữ */
 .app[data-dash-theme="light"] .header-actions .lang-switch {
   background: #f1f5f9;
-  border-color: #e2e8f0;
+  border-color: #cbd5e1;
   color: #0f172a;
 }
 
@@ -426,7 +425,7 @@ body:has(.app[data-dash-theme="light"]) {
 /* Nút đăng xuất */
 .app[data-dash-theme="light"] .logout-button {
   background: #f1f5f9;
-  border-color: #e2e8f0;
+  border-color: #cbd5e1;
   color: #475569;
 }
 
@@ -438,13 +437,13 @@ body:has(.app[data-dash-theme="light"]) {
 /* Panel thông báo (dropdown của chuông) */
 .app[data-dash-theme="light"] .notif-panel {
   background: #ffffff;
-  border-color: #e2e8f0;
+  border-color: #cbd5e1;
   box-shadow: 0 12px 28px rgba(15, 23, 42, .12);
 }
 
 .app[data-dash-theme="light"] .notif-item {
   background: #f8fafc;
-  border-color: #e2e8f0;
+  border-color: #cbd5e1;
 }
 
 .app[data-dash-theme="light"] .notif-item:hover { background: #f1f5f9; }
@@ -554,7 +553,7 @@ body:has(.app[data-dash-theme="light"]) {
   --cf-edge-hi: #475569;
   --cf-surface: #ffffff;
   --cf-surface-2: #f8fafc;
-  background: #f3f6fb;
+  background: #EEE5DE;
   color: var(--cf-text);
 }
 
@@ -1184,7 +1183,6 @@ body:has(.app[data-dash-theme="light"]) {
 /* Panel biểu đồ 14 ngày: bỏ viền đáy (nhìn như một đường kẻ thừa) và nhấn bóng
    đổ để panel nổi lên khỏi nền. */
 .dh-panel--chart {
-  border-bottom: 0;
   box-shadow: var(--dh-panel-shadow-strong);
 }
 
@@ -2576,6 +2574,103 @@ body:has(.app[data-dash-theme="light"]) {
   font-size: 0.84375rem;
   color: var(--dh-ink);
 }
+
+/* --- Tree view buồng giam (CellsPage) ----------------------------------- */
+.dh-datatable__table td:has(> .cells-tree) {
+  position: relative;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.cells-tree {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* 1.125rem mỗi cấp: đủ để nhánh ngang đọc được mà 3 cấp vẫn không ăn hết cột MÃ */
+.cells-tree__guide,
+.cells-tree__branch,
+.cells-tree__mark {
+  position: relative;
+  flex: 0 0 1.125rem;
+}
+
+/* Đường dọc: của cột tổ tiên còn em phía dưới, và của chính nhánh dòng này */
+.cells-tree__guide[data-line="on"]::before,
+.cells-tree__branch::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: -1px;
+  border-left: 1px solid var(--dh-tree-line);
+}
+
+/* Con cuối: đường dọc dừng giữa dòng → thành └ thay vì ├ */
+.cells-tree__branch[data-last="yes"]::before { bottom: 50%; }
+
+/* Nhánh ngang nối từ đường dọc sang ô cấp */
+.cells-tree__branch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.875rem;
+  border-top: 1px solid var(--dh-tree-line);
+}
+
+/* Ô cấp: đặc → nửa → rỗng */
+.cells-tree__mark::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: -0.25rem 0 0 -0.25rem;
+  border-radius: 2px;
+  border: 1px solid var(--dh-blue);
+  box-sizing: border-box;
+}
+
+/* Đoạn dọc mọc ra từ ĐÁY ô cấp xuống hết dòng */
+.cells-tree__mark[data-kids="yes"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 0.25rem);
+  bottom: -1px;
+  border-left: 1px solid var(--dh-tree-line);
+}
+
+.cells-tree__mark[data-level="facility"]::before { background: var(--dh-blue); }
+
+.cells-tree__mark[data-level="sub_camp"]::before {
+  background: linear-gradient(180deg, var(--dh-blue) 0 50%, transparent 50% 100%);
+}
+
+.cells-tree__mark[data-level="cell"]::before {
+  background: transparent;
+  border-color: var(--dh-ink-4);
+}
+
+.cells-tree__code {
+  align-self: center;
+  min-width: 0;
+  padding-left: 0.375rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+.cells-tree__code[data-level="cell"] { font-weight: 600; }
 
 .dh-datatable__state {
   padding: 1.75rem 0.75rem;
