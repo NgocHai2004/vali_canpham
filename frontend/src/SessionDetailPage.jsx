@@ -222,7 +222,7 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
   if (loading) return <div className="session-detail-page"><div>{t("common.loading")}</div></div>;
   if (err && !session) return (
     <div className="session-detail-page">
-      <button className="btn-link" onClick={onBack}>{t("common.back")}</button>
+      <button className="btn-link session-detail-back" onClick={onBack}>{t("common.back")}</button>
       <div className="error-box">{err}</div>
     </div>
   );

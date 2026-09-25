@@ -234,14 +234,12 @@ function CellsPage() {
       key: "capacity",
       label: t("cells.col.capacity"),
       width: "8%",
-      align: "center",
       render: (row) => row.capacity || "—",
     },
     {
       key: "current",
       label: t("cells.col.current"),
       width: "8%",
-      align: "center",
       render: (row) => (
         <strong className={row.current > 0 ? "dh-cell-hot" : undefined}>{row.current || 0}</strong>
       ),
@@ -259,7 +257,6 @@ function CellsPage() {
       key: "actions",
       label: t("cells.col.actions"),
       width: "18%",
-      align: "right",
       render: (row) => (
         <span className="dh-rowbtns">
           <button type="button" className="dh-rowbtn" onClick={() => setViewingCell(row)}>

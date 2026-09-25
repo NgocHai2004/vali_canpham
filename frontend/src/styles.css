@@ -6197,6 +6197,7 @@ textarea.input {
 .session-detail-back {
   margin-bottom: 0.75rem;
   display: inline-block;
+  align-self: flex-start;
 }
 
 /* Thứ tự hai dòng border có ý nghĩa: `border` là shorthand nên nó reset cả bốn

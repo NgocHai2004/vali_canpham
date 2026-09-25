@@ -85,6 +85,9 @@ const STRIP_AFTER_LEFT = ["", "2", "", "1", ""];
 
 // Cat chuoi cho vua MOT dong, them "…" o cuoi. `fits(s)` cho biet s co vua
 // be rong khong. Tim nhi phan so ky tu giu lai.
+// Cat trung giua mot tu thi BO LUON tu do ("… ABCDEF" -> "…", khong ra "… AB…").
+// Ngoai le: tu DAU TIEN da dai hon ca dong (khong co khoang trang de lui ve) thi
+// van cat theo ky tu, khong thi o trong tron.
 export function ellipsize(text, fits) {
   if (fits(text)) return text;
   let lo = 0;
@@ -94,7 +97,12 @@ export function ellipsize(text, fits) {
     if (fits(text.slice(0, mid).trimEnd() + "…")) lo = mid;
     else hi = mid - 1;
   }
-  return text.slice(0, lo).trimEnd() + "…";
+  let cut = text.slice(0, lo);
+  if (/\S/.test(text[lo] || "")) {
+    const sp = cut.search(/\s\S*$/);
+    if (sp > 0) cut = cut.slice(0, sp);
+  }
+  return cut.trimEnd() + "…";
 }
 
 let measureCtx = null;
