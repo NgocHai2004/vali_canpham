@@ -99,22 +99,60 @@ function CellsPage() {
   };
 
   // Danh sách phẳng theo thứ tự cây: facility → sub_camp → cell
+  //
+  // Ba trường chỉ để VẼ đường nối, không phải dữ liệu:
+  //   isLast  — con cuối của cha, nên nhánh là `└` thay vì `├`
+  //   guides  — mỗi phần tử là một cột tổ tiên; true = tổ tiên đó CÒN em phía
+  //             dưới nên phải kẻ đường dọc xuyên qua cột ấy
+  //   hasKids — dòng này có con ngay dưới, nên phải kẻ tiếp đoạn dọc từ ô cấp
+  //             xuống hết dòng. Thiếu nó thì đoạn dọc của dòng con bắt đầu lơ
+  //             lửng ở mép dòng, không dính vào cha.
   const orderedRows = [];
   cells.filter((c) => c.level === "facility").forEach((f) => {
     const fStats = getRollupStats(f);
-    orderedRows.push({ ...f, ...fStats, depth: 0 });
-    cells.filter((s) => s.level === "sub_camp" && s.parent === f.code).forEach((s) => {
+
+    const subCamps = cells.filter((s) => s.level === "sub_camp" && s.parent === f.code);
+    // Buồng gắn trực tiếp facility (Nhà tạm giữ) được đẩy SAU các phân trại, nên
+    // "con cuối của facility" phải tính trên tổng hai nhóm — nếu chỉ xét trong
+    // từng nhóm thì có hai nhánh `└` trong cùng một cấp.
+    const directCells = cells.filter((r) => r.level === "cell" && r.parent === f.code);
+    const childCount = subCamps.length + directCells.length;
+
+    orderedRows.push({
+      ...f, ...fStats, depth: 0, guides: [], isLast: true, hasKids: childCount > 0,
+    });
+
+    subCamps.forEach((s, si) => {
       const sStats = getRollupStats(s);
-      orderedRows.push({ ...s, ...sStats, depth: 1 });
-      cells.filter((r) => r.level === "cell" && r.parent === s.code).forEach((r) => {
+      const sLast = si === childCount - 1;
+      const kids = cells.filter((r) => r.level === "cell" && r.parent === s.code);
+      orderedRows.push({
+        ...s, ...sStats, depth: 1, guides: [], isLast: sLast, hasKids: kids.length > 0,
+      });
+
+      kids.forEach((r, ri) => {
         const rStats = getRollupStats(r);
-        orderedRows.push({ ...r, ...rStats, depth: 2 });
+        orderedRows.push({
+          ...r,
+          ...rStats,
+          depth: 2,
+          guides: [!sLast],
+          isLast: ri === kids.length - 1,
+          hasKids: false,
+        });
       });
     });
-    // Buồng gắn trực tiếp facility (Nhà tạm giữ)
-    cells.filter((r) => r.level === "cell" && r.parent === f.code).forEach((r) => {
+
+    directCells.forEach((r, ri) => {
       const rStats = getRollupStats(r);
-      orderedRows.push({ ...r, ...rStats, depth: 1 });
+      orderedRows.push({
+        ...r,
+        ...rStats,
+        depth: 1,
+        guides: [],
+        isLast: subCamps.length + ri === childCount - 1,
+        hasKids: false,
+      });
     });
   });
 
@@ -134,12 +172,43 @@ function CellsPage() {
       label: t("cells.col.code"),
       width: "13%",
       className: "dh-cell-mono",
-      // Thụt đầu dòng bằng ký tự (không phải padding) để cây phân cấp vẫn đúng
-      // khi bảng bị cắt chữ bằng ellipsis.
-      render: (row) => {
-        const indent = row.depth === 2 ? "　　└ " : row.depth === 1 ? "└ " : "";
-        return <>{indent}<strong>{row.code}</strong></>;
-      },
+      // Cây vẽ bằng các ô có border (trước đây là ký tự `└` + khoảng trắng
+      // full-width): đường nối liền mạch, thụt đều, và không bị ellipsis của
+      // bảng cắt mất phần thụt.
+      //
+      // Khi đang lọc theo cấp thì cha bị ẩn, đường nối sẽ trỏ vào dòng không có
+      // → bỏ cây, vẽ phẳng. Thà không có đường nối còn hơn đường nối sai.
+      render: (row) => (filterLevel ? (
+        <span className="cells-tree">
+          <span className="cells-tree__mark" data-level={row.level} aria-hidden="true" />
+          <span className="cells-tree__code" data-level={row.level}>{row.code}</span>
+        </span>
+      ) : (
+        <span className="cells-tree">
+          {row.guides.map((on, i) => (
+            <span
+              key={`g-${i}`}
+              className="cells-tree__guide"
+              data-line={on ? "on" : "off"}
+              aria-hidden="true"
+            />
+          ))}
+          {row.depth > 0 && (
+            <span
+              className="cells-tree__branch"
+              data-last={row.isLast ? "yes" : "no"}
+              aria-hidden="true"
+            />
+          )}
+          <span
+            className="cells-tree__mark"
+            data-level={row.level}
+            data-kids={row.hasKids ? "yes" : "no"}
+            aria-hidden="true"
+          />
+          <span className="cells-tree__code" data-level={row.level}>{row.code}</span>
+        </span>
+      )),
     },
     {
       key: "name",
@@ -190,7 +259,7 @@ function CellsPage() {
       key: "actions",
       label: t("cells.col.actions"),
       width: "18%",
-      align: "center",
+      align: "right",
       render: (row) => (
         <span className="dh-rowbtns">
           <button type="button" className="dh-rowbtn" onClick={() => setViewingCell(row)}>
@@ -369,7 +438,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                   <th>{t("cells.transfer.col.name")}</th>
                   <th>{t("cells.transfer.col.gender")}</th>
                   {cell.level !== "cell" && <th>{t("cells.level.cell")}</th>}
-                  <th style={{ textAlign: "center" }}>{t("cells.transfer.col.action")}</th>
+                  <th>{t("cells.transfer.col.action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -379,7 +448,7 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
                     <td>{item.full_name}</td>
                     <td>{item.gender === "female" ? t("common.female") : t("common.male")}</td>
                     {cell.level !== "cell" && <td><span className="mono">{item.cell_code || "—"}</span></td>}
-                    <td style={{ textAlign: "center" }}>
+                    <td>
                       <select
                         className="control"
                         defaultValue=""
