@@ -12,7 +12,6 @@ import { SectionPortraits } from "./capture/sections/SectionPortraits";
 import { SectionIdentify } from "./capture/sections/SectionIdentify";
 import { EMPTY_FORM, normalizeInitial, toDobInput } from "./capture/formSchema";
 import { FpSheetPreviewModal } from "./capture/FpSheetPreview";
-import { withFpSheetMock } from "./capture/fpSheetMock";
 import { NameSheetPreviewModal } from "./capture/NameSheetPreview";
 import { useI18n } from "./i18n";
 import { useFeatures } from "./lib/features";
@@ -2319,7 +2318,9 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
 
       {fpSheetOpen && (
         <FpSheetPreviewModal
-          {...withFpSheetMock({ form, photos, unitName })}
+          form={form}
+          photos={photos}
+          unitName={unitName}
           onClose={() => setFpSheetOpen(false)}
         />
       )}
