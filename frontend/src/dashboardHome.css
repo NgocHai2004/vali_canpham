@@ -105,7 +105,7 @@
   --dh-tile-radius: 0.875rem;
   --dh-gauge-bar: block;        /* thanh mini dưới giá trị — bật ở cả 2 theme */
   --dh-gauge-track-bg: rgba(30, 41, 59, .9);
-  --dh-donut-size: 6rem;
+  --dh-donut-size: 8rem;
   --dh-donut-w: 18;
   --dh-donut-foot: none;                             /* light: flex — mockup tối không có dòng chân */
   /* Track của vành khuyên: xanh navy đậm (mockup tối), không phải màu xám. */
@@ -210,7 +210,7 @@
   /* Nền track riêng cho light: tile ở đây là nền trắng đục nên #f1f5f9 (màu
      track dùng chỗ khác) gần như chìm hẳn, phải đậm hơn mới thấy được. */
   --dh-gauge-track-bg: #e2e8f0;
-  --dh-donut-size: 6rem;
+  --dh-donut-size: 8rem;
   --dh-donut-w: 18;
   /* `grid` chứ không phải `flex`: hàng tiêu đề dùng subgrid của
      `.dh-donut__side` để thẳng cột với các con số — flex thì subgrid vô hiệu. */
@@ -573,6 +573,10 @@ body:has(.app[data-dash-theme="light"]) {
 
 .app[data-dash-theme] .header * {
   white-space: nowrap;
+}
+
+.app[data-dash-theme] .header .notif-panel * {
+  white-space: normal;
 }
 
 .app[data-dash-theme] .brand,
@@ -1768,7 +1772,7 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-meter__track {
   position: relative;
   flex: 1;
-  height: 0.5625rem;
+  height: 0.7625rem;
   border-radius: 999px;
   overflow: hidden;
   background: var(--dh-meter-track-bg);
@@ -2173,12 +2177,11 @@ body:has(.app[data-dash-theme="light"]) {
   margin: 0;
 }
 
-/* --- Activity feed (dãn đều 5 mục theo chiều cao) ----------------------- */
+/* --- Activity feed (luôn chia 5 hàng; ít hơn 5 mục thì dồn lên trên) ----- */
 .dh-feed {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  display: grid;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
   flex: 1 1 auto;
   height: 100%;
   min-height: 0;
@@ -2186,13 +2189,14 @@ body:has(.app[data-dash-theme="light"]) {
   padding-left: 1.375rem;
 }
 
-/* Rail dọc nối các chấm. */
-.dh-feed::before {
+/* Rail dọc: mỗi mục (trừ mục cuối) vẽ đoạn từ chấm của nó tới chấm kế tiếp,
+   để rail dừng ở mục cuối thay vì kéo xuống các hàng trống. */
+.dh-feed__item:not(:last-child)::before {
   content: "";
   position: absolute;
-  left: 0.25rem;
-  top: 0.625rem;
-  bottom: 0.625rem;
+  left: -1.125rem;
+  top: 0.35rem;
+  bottom: -0.35rem;
   width: 0.125rem;
   border-radius: 1px;
   background: var(--dh-blue-line);
@@ -2203,7 +2207,6 @@ body:has(.app[data-dash-theme="light"]) {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  flex: 1 1 0;
   min-height: 0;
   gap: 0.125rem;
   padding: 0.15rem 0;

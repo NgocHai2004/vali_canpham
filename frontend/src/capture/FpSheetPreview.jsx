@@ -27,7 +27,7 @@
 //
 // Dung chung ha tang xem truoc voi ho so: .preview-backdrop / .preview-toolbar /
 // .preview-scroll + buildProfilePdfBlob(node) nen xuat PDF ra USB y het.
-import { forwardRef, Fragment, useRef, useState } from "react";
+import { forwardRef, Fragment, useLayoutEffect, useRef, useState } from "react";
 import { FP_CODE_TO_KEY, FP_PLAIN_LAYERS_BY_STEP } from "./constants";
 import { useI18n, apiT } from "../i18n";
 import { toast } from "../Toast";
@@ -83,6 +83,43 @@ const CELL_NUM = {
 const STRIP_AFTER_RIGHT = ["16", "", "8", "", "4"];
 const STRIP_AFTER_LEFT = ["", "2", "", "1", ""];
 
+// Cat chuoi cho vua MOT dong, them "…" o cuoi. `fits(s)` cho biet s co vua
+// be rong khong. Tim nhi phan so ky tu giu lai.
+export function ellipsize(text, fits) {
+  if (fits(text)) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(text.slice(0, mid).trimEnd() + "…")) lo = mid;
+    else hi = mid - 1;
+  }
+  return text.slice(0, lo).trimEnd() + "…";
+}
+
+let measureCtx = null;
+
+// O gia tri 1 dong: dau "…" nam TRONG chuoi (khong chi CSS text-overflow) vi
+// html2canvas 1.4.1 khong ve text-overflow => PDF xuat ra se cat cut khong co
+// "…". CSS .fps-val-clip van giu text-overflow lam luoi do khi in (@media print
+// tang co chu nen chuoi do tren man hinh co the hoi dai).
+function ClipVal({ className, text }) {
+  const ref = useRef(null);
+  const [shown, setShown] = useState(text);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const w = el?.clientWidth;
+    // w = 0: phan tu dang an (vd khung in ca phien chua hien) — de CSS lo.
+    if (!w || !text) { setShown(text); return; }
+    const cs = getComputedStyle(el);
+    measureCtx ||= document.createElement("canvas").getContext("2d");
+    measureCtx.font = cs.font;
+    measureCtx.letterSpacing = cs.letterSpacing;
+    setShown(ellipsize(text, (s) => measureCtx.measureText(s).width <= w));
+  }, [text]);
+  return <span ref={ref} className={className}>{shown}</span>;
+}
+
 export const FpSheetPreviewContent = forwardRef(function FpSheetPreviewContent(
   { form, photos = {}, unitName = "" },
   ref,
@@ -117,12 +154,16 @@ export const FpSheetPreviewContent = forwardRef(function FpSheetPreviewContent(
   // noColon: mot so dong mau giay KHONG co hai cham ("Tại", "ĐP", "TW",
   // "Công thức vân tay") — tat ::after cua .fps-lab.
   // solid: gia tri ke net DUT thay vi net cham (dong "Công thức vân tay").
-  const L = ({ label, value, grow = 1, noColon, solid }) => (
-    <div className="fps-line" style={{ flexGrow: grow }}>
-      <span className={"fps-lab" + (noColon ? " no-colon" : "")}>{label}</span>
-      <span className={"fps-val" + (solid ? " fps-val-solid" : "")}>{value}</span>
-    </div>
-  );
+  // clip: ep MOT dong, qua dai thi cat va them "…" (xem ClipVal).
+  const L = ({ label, value, grow = 1, noColon, solid, clip }) => {
+    const cls = "fps-val" + (solid ? " fps-val-solid" : "") + (clip ? " fps-val-clip" : "");
+    return (
+      <div className="fps-line" style={{ flexGrow: grow }}>
+        <span className={"fps-lab" + (noColon ? " no-colon" : "")}>{label}</span>
+        {clip ? <ClipVal className={cls} text={value} /> : <span className={cls}>{value}</span>}
+      </div>
+    );
+  };
 
   return (
     <div ref={ref} className="preview-a4 preview-a4-portrait fps-sheet">
@@ -170,10 +211,10 @@ export const FpSheetPreviewContent = forwardRef(function FpSheetPreviewContent(
               </span>
             </div>
             <L label={t("fpsheet.field.id_doc")} value={val(form.cccd_number)} />
-            <L label={t("fpsheet.field.address")} value={val(form.address)} />
-            <L label={t("namesheet.field.temp_address")} value={val(form.temp_address)} />
-            <L label={t("fpsheet.field.current_address")} value={val(form.current_address)} />
-            <L label={t("fpsheet.field.case_about")} value={val(form.case_about)} />
+            <L label={t("fpsheet.field.address")} value={val(form.address)} clip />
+            <L label={t("namesheet.field.temp_address")} value={val(form.temp_address)} clip />
+            <L label={t("fpsheet.field.current_address")} value={val(form.current_address)} clip />
+            <L label={t("fpsheet.field.case_about")} value={val(form.case_about)} clip />
           </div>
         </div>
 

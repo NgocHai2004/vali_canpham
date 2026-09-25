@@ -1234,7 +1234,18 @@ a:hover {
   color: var(--muted);
 }
 
-/* Scrollbar */
+/* Scrollbar thống nhất toàn app: mảnh, màu theo theme.
+   - scrollbar-color KẾ THỪA nên đặt ở :root là phủ mọi vùng cuộn, kể cả modal
+     nằm ngoài .app; scrollbar-width KHÔNG kế thừa nên cần `*`.
+   - Specificity 0: vùng nào cố ý ẩn scrollbar (.app .content: scrollbar-width
+     none) vẫn giữ nguyên.
+   - Chromium ≥ 121 (Electron 33) ưu tiên 2 thuộc tính chuẩn này hơn
+     ::-webkit-scrollbar => các rule webkit cũ (.cat .task-list bên dưới,
+     .content trong dashboardHome.css) không còn tác dụng — cố ý, cả app một kiểu. */
+:root { scrollbar-color: rgba(53, 216, 255, .25) transparent; }
+:root:has(.app[data-dash-theme="light"]) { scrollbar-color: #cbd5e1 transparent; }
+* { scrollbar-width: thin; }
+
 .cat .task-list::-webkit-scrollbar {
   width: 0.375rem;
 }
@@ -7920,6 +7931,15 @@ textarea.input {
     *:not(:has(.preview-backdrop)):not(.preview-backdrop):not(.preview-backdrop *) {
     display: none !important;
   }
+  /* Chuỗi tổ tiên còn giữ lại ở trên vẫn mang padding/margin của layout app.
+     Khi in, viewport = bề rộng giấy (~794px) nên @media (max-width: 900px) của
+     dashboard.css bật: .app padding-top 82px (chừa header fixed — header đã ẩn)
+     + .content padding 22px => cả tờ bị đẩy xuống ~26mm. Xoá hết cho mọi tổ
+     tiên, không phụ thuộc tên class. */
+  body:has(.preview-backdrop) *:has(.preview-backdrop) {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
   body * {
     visibility: hidden !important;
   }
@@ -11243,6 +11263,13 @@ textarea.input {
 
 /* Dong "Công thức vân tay": gia tri ke net DUT */
 .fps-sheet .fps-val-solid { border-bottom-style: solid; border-bottom-width: 0.0625rem; }
+/* Ep MOT dong (dia chi, lap ve viec). Chuoi da duoc ClipVal cat san kem "…";
+   text-overflow o day chi la luoi do khi in voi co chu lon hon. */
+.fps-sheet .fps-val-clip {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Dong "Nam/nữ, sinh ngày …/…/…" */
 .fps-sheet .fps-sexdob {
