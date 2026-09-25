@@ -28,14 +28,6 @@ export const auth = {
 let onAuthExpired = null;
 export const setOnAuthExpired = (fn) => { onAuthExpired = fn; };
 
-// Lỗi mạng (fetch throw trước khi có response) — Vite drop / ERR_EMPTY_RESPONSE /
-// reset / timeout. KHÔNG phải HTTP status, không đáng tin để logout.
-const NETWORK_ERR_RE = /Failed to fetch|NetworkError|ERR_|Load failed|networkerror/i;
-export function isNetworkError(e) {
-  const msg = (e?.message || "") + " " + (e?.name || "");
-  return NETWORK_ERR_RE.test(msg);
-}
-
 async function request(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   const token = auth.getToken();
@@ -182,7 +174,6 @@ export const api = {
   },
   me: () => request("/api/auth/me"),
   updateMe: (body) => request("/api/auth/me", { method: "PATCH", body: JSON.stringify(body) }),
-  verifyDongle: () => request("/api/auth/dongle-verify", { skipAuthExpire: true }),
   health: () => fetch("/api/health").then((r) => r.json()).catch(() => ({ ok: false })),
   featureConfig: () => request("/api/config/features"),
   fingerprintConfig: () => request("/api/config/fingerprint"),

@@ -188,13 +188,6 @@ FP_MATCH_FINGER_CODES = [
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.4"))
 
 # ---------------------------------------------------------------------------
-# USB dongle
-# ---------------------------------------------------------------------------
-
-_raw_usb_url = _env_str_from_dotenv("USB_SERVICE_URL") or os.getenv("USB_SERVICE_URL", "http://127.0.0.1:8766")
-USB_SERVICE_URL = "http://127.0.0.1:8766" if "8768" in _raw_usb_url else _raw_usb_url
-
-# ---------------------------------------------------------------------------
 # Scan OCR
 # ---------------------------------------------------------------------------
 
