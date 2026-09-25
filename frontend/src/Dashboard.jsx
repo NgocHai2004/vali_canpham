@@ -225,6 +225,8 @@ export default function Dashboard({
         isAdmin={isAdmin}
         onEditProfile={() => setShowProfileModal(true)}
         onEditDetainee={openEditForm}
+        theme={dashTheme.theme}
+        onToggleTheme={dashTheme.toggle}
       />
       {showProfileModal && (
         <ProfileEditModal
@@ -258,8 +260,9 @@ export default function Dashboard({
           })}
         </nav>
 
-        {/* Nút đổi theme sáng/tối */}
-        <DashThemeToggle theme={dashTheme.theme} onToggle={dashTheme.toggle} />
+        {/* Nút đổi theme sáng/tối đã chuyển lên `.header-actions`, cạnh nút chuông
+            thông báo — xem Header.jsx. Dashboard chỉ còn truyền `theme` +
+            `onToggleTheme` xuống Header ở trên. */}
 
         <div
           className="security-card"

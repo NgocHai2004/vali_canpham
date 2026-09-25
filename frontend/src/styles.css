@@ -9816,7 +9816,22 @@ textarea.input {
   --cf-danger-bg: #fdeceb;
   zoom: 1;
   background: #fff;
-  min-height: 100vh;
+  /* min-height: 0 chứ KHÔNG phải 100vh.
+   *
+   * `.capture-page` đã có `height: 100%` + `flex: 1 1 auto` (dashboard.css:2764)
+   * để vừa khít hộp chứa. Hộp chứa là `.content`, cao = viewport − header 50px
+   * − padding 12px. Đặt `min-height: 100vh` ở đây ép trang cao BẰNG CẢ viewport,
+   * tức dôi ra 62px so với chỗ thật sự có; `.content` thì `overflow: hidden` nên
+   * 62px đó bị cắt mất, không có scroll trang để với tới.
+   *
+   * Hệ quả đo được trước khi sửa (cửa sổ 1536x832): `.capture-page` cao 832 trong
+   * hộp 782, `.case-main` chạm bottom 870 — 38px nằm ngoài đáy màn hình. Cùng loại
+   * lỗi mà dashboard.css:2733 đã cảnh báo với `.content`, chỉ thấp hơn một cấp.
+   *
+   * min-height: 0 là điều kiện để flex con co lại được (mặc định `auto` = không
+   * co dưới kích thước nội dung). Nội dung dài vẫn đọc đủ vì
+   * `.cap-flat .cap-sheet--split` có `overflow: auto` — cuộn bên trong khối. */
+  min-height: 0;
   /* Tràn full 100% bề ngang, không để khoảng trống thừa 2 bên lề */
   max-width: none;
   width: 100%;
@@ -11789,3 +11804,242 @@ textarea.input {
   min-width: 0;
   padding: 1.6mm 2.2mm;
 }
+
+/* ============================================================
+   HANG DAU TRANG THU NHAN: nut quay lai + dai tom tat
+   ------------------------------------------------------------
+   Nut nam CUNG HANG voi `.rec-sum`, khong phai mot hang rieng ben tren: man
+   nay khit viewport (xem ghi chu o `min-height` cua .capture-page.cap-flat),
+   them mot hang ~40px la `.case-main` co lai dung chung do.
+
+   Cung khong nhet nut vao lam con cua `.rec-sum` duoc — khoi do la grid
+   `auto-fit minmax(15.625rem, 1fr)` nen nut se chiem tron mot cot 250px.
+
+   Nen + duong ke duoi chuyen len wrapper, va tat o `.rec-sum` ben trong, de ca
+   hang lien mot dai chu khong bi hai vach ke long nhau.
+
+   Dung token `--cf-*` nen tu dung ca theme sang va toi.
+   ============================================================ */
+.cap-flat .cap-topbar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding-left: 1.25rem;
+  background: var(--cf-surface-2);
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.cap-flat .cap-topbar > .rec-sum {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 0;
+  background: transparent;
+  border-bottom: 0;
+  /* 15rem (240px) chu KHONG phai 15.625rem (250px) nhu ban goc.
+     Nut chiem 93px + gap 12px, con lai cho grid 1319px noi dung. Nguong 5 cot o
+     min 250px la 5*250 + 4*22(khe cot) = 1338px > 1319 => grid tut xuong 4 cot,
+     9 o thanh 3 hang thay vi 2, dai cao them 22px va `.case-main` co lai dung
+     chung do. Ha xuong 240px: 5*240 + 88 = 1288 <= 1319 => giu nguyen 5 cot,
+     dai ve lai 64px. (6 cot can 1550px nen khong co nguy co phinh nguoc.) */
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.cap-flat .cap-back {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--cf-edge);
+  border-radius: 0.375rem;
+  background: var(--cf-surface);
+  color: var(--cf-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cap-flat .cap-back:hover {
+  border-color: var(--cf-edge-hi);
+  background: var(--cf-field);
+}
+
+/* outline chu khong doi mau nen: nut nay nam tren dai --cf-surface-2, doi nen
+   thi o theme sang gan nhu khong thay khac biet. */
+.cap-flat .cap-back:focus-visible {
+  outline: 2px solid var(--cf-blue);
+  outline-offset: 1px;
+}
+
+/* ============================================================
+   LAYOUT HAI HOP THOAI TRANG BUONG GIAM
+   ============================================================ */
+
+/* --- 1. Bang "Xem can pham trong buong" -----------------------------------
+   table-layout: fixed la mau chot. Cot cuoi chua <select>, ma be rong noi tai
+   cua select bi keo theo option DAI NHAT ("B101 - Buong 101 (3/20)"); voi
+   table-layout mac dinh (auto) trinh duyet tinh cot theo be rong do nen bang
+   phinh ra 944px trong khung 903px => cuon ngang, cot cuoi bi cat.
+
+   Layout fixed bo qua be rong noi tai, cot an dung ty le o <colgroup> trong
+   CellsPage.jsx. Phai co ca `width: 100%` — fixed ma khong co width thi be rong
+   bang lay tu width cua chinh no (auto) va van sai.
+
+   `select { width: 100% }` de select co lai vua o thay vi dai ra.
+
+   `min-width: 0` de go `table { min-width: 57.5rem }` (= 920px) o dashboard.css:1944
+   — rule do ap cho MOI <table>, la ly do bang van rong dung 920px trong khung
+   903px du da co `width: 100%`. min-width thang width khi min > width. Bang nay
+   nam trong modal nen khong can san 920px nhu bang danh sach toan trang. */
+.cells-detainees-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.cells-detainees-table select.control {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Hang cao ~85px cho MOT dong chu — ha padding xuong de khung cao 732px hien
+   duoc ~13 nguoi thay vi 9. Chu dai hon o thi cat bang ellipsis, khong xuong
+   dong (xuong dong lai lam hang cao lech nhau). */
+.cells-detainees-table th,
+.cells-detainees-table td {
+  /* Padding doc 2px chu khong phai 6px: chieu cao hang do <select> quyet dinh
+     (42px), nen 6px tren + duoi chi lam hang phinh tu 46 len 55px ma khong them
+     do doc duoc gi. Padding ngang cung ha 10 -> 8px. */
+  padding: 0.125rem 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- 2. Form "Sua co so giam giu" ----------------------------------------
+   `.cells-row-2` la grid 1fr 1fr. Khi cap = Co so thi o "Suc chua" khong
+   render, con lai mot o duy nhat => o "Ten" chi rong nua khung, trong khi
+   "Ghi chu" ben duoi full width. Cho o le loi span ca hai cot. */
+.cells-row-2 > .cells-field:only-child {
+  grid-column: 1 / -1;
+}
+
+/* Tran 1px ngang (scrollWidth 623 > clientWidth 622) — du de trinh duyet ve mot
+   thanh cuon ngang quanh hop thoai. Khong co gi thuc su can cuon ngang o form
+   nay nen tat han truc do; truc doc van `auto` cho form dai.
+
+   Selector phai la `.modal.cells-modal` chu KHONG phai `.cells-modal`: dashboard.css
+   dat `overflow` cho `.modal`, va sheet do nap SAU styles.css (styles.css vao qua
+   main.jsx, dashboard.css vao qua Dashboard.jsx). Cung specificity 1 class thi
+   sheet sau thang, nen `.cells-modal { overflow-x: hidden }` bi shorthand
+   `overflow` cua `.modal` ghi de — do computed van ra `auto`. Them `.modal` vao
+   day len 2 class la an. */
+.modal.cells-modal {
+  overflow-x: hidden;
+}
+
+/* --- 3. Cau truc cuon cua hop thoai "Xem can pham" ------------------------
+   Day la loi UX that, khong phai chuyen 1px o muc (4) duoi.
+
+   `.modal` (styles.css:2026) dat `max-height: calc(100vh - 2.5rem)` +
+   `overflow-y: auto`, tuc CA hop thoai la vung cuon. Bang co 23 hang nen khi
+   cuon thi tieu de + nut × truot mat, va `<thead>` cung truot nen mat luon ten
+   cot — dang dau bang khong con biet o nao la "Gioi tinh", o nao la "Buong giam".
+
+   Dung pattern: modal co dinh, chi THAN cuon, header va thead dinh lai. Repo da
+   lam dung viec nay cho `.sync-diff-modal` (dashboard.css:2282-2288) nen day chi
+   la ap lai cung mot cach. */
+.modal:has(.cells-detainees-table) {
+  display: flex;
+  flex-direction: column;
+  /* hidden chu khong phai auto: vung cuon chuyen xuong .cells-detainees-body.
+     De auto o day la co hai thanh cuon long nhau. */
+  overflow: hidden;
+}
+
+.modal:has(.cells-detainees-table) > .modal-header {
+  flex: 0 0 auto;
+  /* dashboard.css:2421 chot `height: 68px` cho moi .modal-header — qua cao cho mot
+     dong tieu de 15px, an mat 68px trong khung 679px. Ha ve 52px (chuan cho thanh
+     tieu de co nut dong). Chi ghi de trong hop thoai nay, khong doi cac modal khac. */
+  height: 3.25rem;
+  min-height: 3.25rem;
+}
+
+/* Dai chet 15px ben phai: `styles.css:2024` dat `.modal { scrollbar-gutter: stable }`.
+   Gutter van duoc GIU CHO du modal gio la `overflow: hidden`, vi theo spec
+   `overflow: hidden` van la scroll container. Ket qua: bang -> 24px padding ->
+   thanh cuon 15px cua .cells-detainees-body -> 15px gutter chet -> 1px border modal,
+   nhin ra thanh mot vien du ben phai. Modal khong con cuon nen khong can gutter. */
+.modal:has(.cells-detainees-table) {
+  scrollbar-gutter: auto;
+}
+
+.cells-detainees-body {
+  /* padding nay truoc la inline style trong CellsPage.jsx (16px 24px).
+     Bo padding-top: sticky `top: 0` dinh o MEP PADDING chu khong phai mep
+     scrollport, nen con 1rem padding-top la hang dang cuon lo ra trong dai 16px
+     phia tren hang tieu de — dung cai trong thay la "data tran bang". Padding
+     ngang giu nguyen, padding duoi giu de hang cuoi khong dinh day. */
+  padding: 0 1rem 0.75rem;
+  flex: 1 1 auto;
+  /* min-height: 0 la dieu kien de flex con co lai duoc duoi kich thuoc noi dung;
+     thieu no thi khoi nay phinh theo bang va modal lai tran nhu cu. */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.cells-detainees-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* Padding rieng cho hang ten cot, khong dung chung voi td nua. Rule th/td o tren
+     ha padding doc ve 2px — dung cho o du lieu (chieu cao hang do <select> 42px
+     quyet dinh, padding khong them do doc) nhung lam hang ten cot tut con 19px,
+     chat hon muc doc duoc. 8px doc cho hang nay cao ~31px.
+     Padding ngang PHAI giu bang td (8px) de chu ten cot thang hang voi chu o duoi;
+     lech la cot nhin nhu bi so le. Selector nay 2 class + 2 tag nen thang rule
+     th/td o tren, va no o sau trong file. */
+  padding: 0.5rem 0.5rem;
+  /* Nen PHAI duc. `dashboard.css:4681` dat `th { background: rgba(22,139,255,.08)
+     !important }` — trong suot 8%, nen khi hang truot xuong duoi o sticky thi chu
+     cua hang hien xuyen qua hang tieu de: dung cai ma mat thay la "data tran bang".
+     Khong the dua vao token: `--bg-panel` o theme toi la rgba(8,22,46,0.72), cung
+     trong suot.
+     Cach lam: tach thanh hai lop — `background-color` duc lam nen, `background-image`
+     la gradient phang giu dung sac xanh 8% cu. Ca hai can `!important` de thang
+     rule tren; selector nay 2 class + 1 tag nen specificity da cao hon `th`. */
+  background-color: #0a1a36 !important;
+  background-image: linear-gradient(
+    rgba(22, 139, 255, 0.08),
+    rgba(22, 139, 255, 0.08)
+  ) !important;
+  /* Bang co `border-collapse: collapse` (dashboard.css:1944). Voi collapse thi
+     border cua o sticky KHONG dinh theo — no thuoc ve luoi bang chu khong thuoc o.
+     Dung inset box-shadow lam duong ke thay border-bottom de duong ke di cung
+     hang tieu de khi cuon. */
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+/* Nen duc phai doi theo theme, neu khong thi o theme sang hang tieu de thanh mot
+   dai xanh navy den giua bang trang. #0a1a36 o tren la ban theme toi (lay theo
+   gradient cua .modal, styles.css:2028), day la ban theme sang. */
+.app[data-dash-theme="light"] .cells-detainees-table thead th {
+  background-color: #ffffff !important;
+}
+
+/* CON LAI MOT TON TAI, co y de nguyen: thanh cuon DOC 17px van hien o ca hai hop
+   thoai du noi dung vua khit. Do duoc: `max-height` 748.8px con noi dung 704.6px
+   nen khong he bi cap, va form ket thuc DUNG tai day content box (bottom 767.313
+   = inner_bottom 767.313) — khong co gi tran that. Nguyen nhan la Chromium lam
+   tron `clientHeight` xuong 703 nhung `scrollHeight` len 704, nen bat ky chieu cao
+   noi dung le nao cung sinh tran 1px gia.
+   Da thu chot `.cells-level-card` ve 86px cho het so le: rect cua modal ve so
+   nguyen (704.625 -> 705) nhung `scrollHeight` van hon `clientHeight` 1px — so le
+   chi tut xuong sau hon trong cay. Khong chot tiep vi moi `height` co dinh la mot
+   nguy co cat noi dung, va khong dat `overflow-y: hidden` vi form dai hon
+   max-height sau nay se thanh khong cuon toi duoc. Doi lai 1px whitespace bi
+   khoa mat noi dung la khong dang. */

@@ -422,7 +422,12 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
           <button onClick={onClose}>×</button>
         </div>
 
-        <div style={{ padding: "16px 24px" }}>
+        {/* Vùng cuộn phải là khối NÀY, không phải cả `.modal`. `.modal` ở
+            styles.css:2026 có `max-height: calc(100vh - 2.5rem)` + `overflow-y: auto`
+            nên mặc định cả hộp thoại cuộn — kéo bảng 23 hàng là tiêu đề và nút ×
+            trượt mất, `<thead>` cũng trượt nên mất tên cột. Cần class để CSS biến
+            khối này thành vùng cuộn riêng, nên không dùng inline style nữa. */}
+        <div className="cells-detainees-body">
           {notice && <div className={noticeOk ? "success-box" : "error-box"}>{notice}</div>}
           {error && <StateBox type="error">{error}</StateBox>}
 
@@ -431,7 +436,20 @@ function CellDetaineesModal({ cell, allCells, onClose, onChanged }) {
           ) : !items.length ? (
             <StateBox>{t("cells.transfer.empty")}</StateBox>
           ) : (
-            <table>
+            <table className="cells-detainees-table">
+              {/* colgroup + table-layout:fixed (CSS) là cách chặn tràn ngang ở đây.
+                  Cột cuối chứa select, mà bề rộng nội tại của select bị kéo theo
+                  option DÀI NHẤT ("B101 - Buồng 101 (3/20)"), nên với table-layout
+                  mặc định (auto) bảng phình ra 944px trong khung 903px → cuộn ngang
+                  và cột cuối bị cắt. Layout fixed bỏ qua bề rộng nội tại, các cột
+                  ăn đúng tỉ lệ dưới đây. */}
+              <colgroup>
+                <col style={{ width: "16%" }} />
+                <col />
+                <col style={{ width: "10%" }} />
+                {cell.level !== "cell" && <col style={{ width: "13%" }} />}
+                <col style={{ width: "30%" }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>{t("cells.transfer.col.code")}</th>

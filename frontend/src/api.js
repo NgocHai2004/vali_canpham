@@ -1,5 +1,22 @@
 import { apiT } from "./i18n";
 
+/* Cong tac USB dongle (khoa cung chong clone may).
+ * false = BO gate: dang nhap khong can cam dongle, va khong bi tu dong dang xuat.
+ * true  = bat lai nhu ban goc.
+ *
+ * DAT O DAY chu khong o moi file: gate nam o HAI cho doc lap nhau
+ *   - Login.jsx  : chan ngay sau khi /api/auth/login tra token
+ *   - App.jsx    : poll 5s, 3 lan fail lien tiep thi auth.clear() + day ve Login
+ * Bo mot cho thoi thi van dang nhap duoc nhung ~15s sau bi day ra. Mot co dung
+ * cho ca hai de khong bao gio lech trang thai.
+ *
+ * LUU Y AN NINH: day la lop xac thuc phan cung, khong phai tinh nang UI. De false
+ * thi may nao co user/mat khau cung dang nhap duoc. Chi de false khi chay dev
+ * (may dev khong co usb_service :8766 nen gate luon fail) — BAT LAI truoc khi
+ * giao thiet bi that.
+ */
+export const DONGLE_ENFORCED = false;
+
 const TOKEN_KEY = "cccd_token";
 const USER_KEY = "cccd_user";
 const ROLE_KEY = "cccd_role";

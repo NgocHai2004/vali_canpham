@@ -13,7 +13,9 @@
       "PowerShell(docker exec mongo *)",
       "PowerShell(git *)",
       "Bash(npm test *)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(git branch *)",
+      "Bash(git rev-list *)"
     ]
   },
   "enabledPlugins": {}

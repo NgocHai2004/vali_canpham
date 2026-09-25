@@ -145,7 +145,11 @@
  * Cùng house style với styles.css:9551-9560 (đã sửa đúng lỗi này một lần).
  * ---------------------------------------------------------------------- */
 .app[data-dash-theme="light"] .dh-page {
-  --dh-page-bg: #EEE5DE;
+  /* Nền trang theme sáng: TRẮNG. Trước đây là be #EEE5DE.
+     Lưu ý kèm theo: `--dh-panel-bg` ngay dưới cũng là #ffffff, nên panel không
+     còn nổi lên khỏi nền bằng màu nữa — việc tách khối dồn hết sang
+     `--dh-panel-border` (#cbd5e1) và `--dh-panel-shadow`. Đừng bỏ hai thứ đó. */
+  --dh-page-bg: #ffffff;
 
   --dh-panel-bg: #ffffff;
   --dh-panel-border: #cbd5e1;
@@ -278,7 +282,7 @@ body:has(.app[data-dash-theme]) {
   --muted: #64748b;
   --border: #cbd5e1;
   --bg: #ffffff;
-  --bg-deep: #EEE5DE;
+  --bg-deep: #ffffff;
   --bg-panel: #ffffff;
   --surface-hi: #ffffff;
   --shadow: 0 1px 3px rgba(15, 23, 42, .08);
@@ -288,7 +292,7 @@ body:has(.app[data-dash-theme]) {
    `:has()` đã có tiền lệ trong repo (dashboard.css:2715) và Electron 33 dùng
    Chromium 130 nên hỗ trợ tốt. */
 body:has(.app[data-dash-theme="light"]) {
-  background: #EEE5DE;
+  background: #ffffff;
 }
 
 /* Cơ chế (b): !important cho những chỗ hardcode màu tối hoặc bản thân đã
@@ -296,7 +300,7 @@ body:has(.app[data-dash-theme="light"]) {
 /* Phẳng đúng bằng màu nền trang: gradient nhạt của app làm vùng đệm 16px quanh
    `.dh-page` sáng hơn nền trang một chút → thành vệt khung. */
 .app[data-dash-theme="light"] {
-  background: #EEE5DE !important;
+  background: #ffffff !important;
 }
 
 .app[data-dash-theme="light"] .header {
@@ -553,7 +557,7 @@ body:has(.app[data-dash-theme="light"]) {
   --cf-edge-hi: #475569;
   --cf-surface: #ffffff;
   --cf-surface-2: #f8fafc;
-  background: #EEE5DE;
+  background: #ffffff;
   color: var(--cf-text);
 }
 

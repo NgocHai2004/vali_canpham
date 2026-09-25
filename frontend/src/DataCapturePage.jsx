@@ -17,7 +17,7 @@ import { useI18n } from "./i18n";
 import { useFeatures } from "./lib/features";
 import { notify } from "./notifications";
 
-export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile }) {
+export default function DataCapturePage({ go, initial, onDone, sessionId, sessionCode, sessionReadOnly = false, onSavedInSession, onEditProfile, onBack }) {
   const { t, formatDateLong } = useI18n();
   const features = useFeatures();
   const isEdit = Boolean(initial && initial.id);
@@ -1823,14 +1823,27 @@ export default function DataCapturePage({ go, initial, onDone, sessionId, sessio
         </div>
       )}
 
-      <RecordSummary
-        form={form}
-        setField={setField}
-        dateStr={todayStr}
-        unitName={unitName}
-        ready={allRequiredValid}
-        disabled={sessionReadOnly}
-      />
+      {/* Hàng đầu trang = nút quay lại + dải tóm tắt, ĐẶT CÙNG MỘT HÀNG NGANG.
+          Không tách nút ra một hàng riêng bên trên: màn này khít viewport (xem
+          ghi chú ở `min-height` của .capture-page.cap-flat trong styles.css),
+          thêm một hàng ~40px là `.case-main` co lại đúng chừng đó.
+          Cũng không nhét nút vào làm con của `.rec-sum` — khối đó là grid
+          `auto-fit minmax(250px, 1fr)` nên nút sẽ chiếm trọn một cột 250px. */}
+      <div className="cap-topbar">
+        {onBack && (
+          <button type="button" className="cap-back" onClick={onBack}>
+            {t("common.back")}
+          </button>
+        )}
+        <RecordSummary
+          form={form}
+          setField={setField}
+          dateStr={todayStr}
+          unitName={unitName}
+          ready={allRequiredValid}
+          disabled={sessionReadOnly}
+        />
+      </div>
 
       <div className="case-main cap-sheet cap-sheet--split">
         {/* ---- Cot trai: khai bao nhan than / vu viec / dac diem ---- */}

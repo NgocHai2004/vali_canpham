@@ -4,13 +4,14 @@ import { notify } from "../notifications";
 import { Icon } from "./Icons";
 import { formatDateTime } from "../lib/formatters";
 import DetailModal from "./DetailModal";
+import DashThemeToggle from "./dashboard/DashThemeToggle";
 
 const DEVICE_CHIPS = [
   { key: "camera", labelKey: "header.device.camera" },
   { key: "fp", labelKey: "header.device.fp" },
 ];
 
-export function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee }) {
+export function Header({ username, fullName, devices, notif, onLogout, isAdmin, onEditProfile, onEditDetainee, theme, onToggleTheme }) {
   const { t } = useI18n();
   const chips = DEVICE_CHIPS;
   const [notifOpen, setNotifOpen] = useState(false);
@@ -78,6 +79,15 @@ export function Header({ username, fullName, devices, notif, onLogout, isAdmin, 
         </div>
 
         <LanguageSwitch />
+
+        {/* Nút sáng/tối đứng TRƯỚC nút chuông: chuông có badge số đếm tràn ra
+            ngoài góc (`.icon-button b` lệch top/right âm), kẹp nút khác vào bên
+            phải nó là badge đè lên. Để chuông ở cuối hàng thì badge nhô ra chỗ
+            trống. `onToggleTheme` có thể vắng (màn không có theme) → ẩn hẳn nút
+            thay vì vẽ một nút bấm không làm gì. */}
+        {onToggleTheme && (
+          <DashThemeToggle theme={theme} onToggle={onToggleTheme} className="icon-button" />
+        )}
 
         <div className="notif-wrap" ref={notifRef}>
           <button

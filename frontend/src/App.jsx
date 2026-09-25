@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { auth, api, setOnAuthExpired, isNetworkError } from "./api";
+import { auth, api, setOnAuthExpired, isNetworkError, DONGLE_ENFORCED } from "./api";
 import Login from "./Login";
 import Dashboard from "./Dashboard";
 import ToastHost from "./Toast";
@@ -66,6 +66,11 @@ export default function App() {
   // ---------- USB dongle poll: 5s, 3 fail liên tiếp → auto logout ----------
   useEffect(() => {
     if (!user) return;
+    // DONGLE_ENFORCED=false (api.js) => KHONG poll. Phai chan ngay tu day chu khong
+    // phai chi bo nhanh logout ben duoi: usb_service :8766 khong chay thi moi 5s la
+    // mot request fail, vua ban log vua giu dongleOk=false => thanh canh bao do mai
+    // tren dau man hinh. Bo poll thi dongleOk giu nguyen true ban dau, banner khong hien.
+    if (!DONGLE_ENFORCED) return;
     let cancelled = false;
     failCountRef.current = 0;
 
