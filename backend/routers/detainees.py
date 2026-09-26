@@ -137,7 +137,7 @@ async def create_detainee(body: DetaineeIn, request: Request, user: dict = Depen
         doc["photos"] = commit_detainee_photos(doc["photos"], personal_id)
     if doc.get("photo_url"):
         doc["photo_url"] = commit_detainee_file(doc["photo_url"], personal_id)
-    elif doc.get("photos", {}).get("portrait_front"):
+    elif (doc.get("photos") or {}).get("portrait_front"):
         doc["photo_url"] = doc["photos"]["portrait_front"]
 
     doc.update({
@@ -210,7 +210,7 @@ async def update_detainee(det_id: str, body: DetaineeIn, request: Request, user:
         upd["photos"] = commit_detainee_photos(upd["photos"], clean_pid)
     if upd.get("photo_url"):
         upd["photo_url"] = commit_detainee_file(upd["photo_url"], clean_pid)
-    elif upd.get("photos", {}).get("portrait_front"):
+    elif (upd.get("photos") or {}).get("portrait_front"):
         upd["photo_url"] = upd["photos"]["portrait_front"]
 
     upd["updated_at"] = datetime.utcnow()

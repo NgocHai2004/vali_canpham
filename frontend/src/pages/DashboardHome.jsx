@@ -131,7 +131,7 @@ function DashboardHome({ go, fullName = "" }) {
             />
           }
         >
-          <DashLineChart labels={chartLabels} values={chartValues} yMax={40} />
+          <DashLineChart labels={chartLabels} values={chartValues} yMax={20} />
         </DashPanel>
 
         <DashPanel
