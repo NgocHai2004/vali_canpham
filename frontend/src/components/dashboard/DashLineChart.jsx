@@ -22,7 +22,9 @@ export function DashLineChart({
   yMax = 40,
   ticks = [40, 30, 20, 10, 0],
   highlightIndex,
+  formatTooltip,
 }) {
+  const [hover, setHover] = React.useState(null);
   const VB_W = 650;
   const VB_H = 140;
   const X0 = 30;      // mép trái vùng vẽ
@@ -43,6 +45,11 @@ export function DashLineChart({
   const peak = highlightIndex != null
     ? highlightIndex
     : values.reduce((best, v, i) => (v > values[best] ? i : best), 0);
+
+  // Component này không gọi useI18n (nó generic, dùng lại được cho chart khác),
+  // nên chuỗi tooltip do bên gọi truyền vào qua formatTooltip.
+  const tipText = (label, value) =>
+    formatTooltip ? formatTooltip(label, value ?? 0) : `${label ?? ""}: ${value ?? 0}`;
 
   return (
     <div className="dh-chart">
@@ -87,11 +94,62 @@ export function DashLineChart({
           {points.map(([x, y], i) => (
             <span
               key={`pt-${i}`}
-              className={"dh-chart__dot" + (i === peak ? " is-peak" : "")}
+              className={"dh-chart__dot" + (i === peak ? " is-peak" : "") + (i === hover ? " is-hover" : "")}
               style={{ left: `${(x / VB_W) * 100}%`, top: `${(y / VB_H) * 100}%` }}
             />
           ))}
         </div>
+
+        {/* Vùng bắt hover: một cột trong suốt cho MỖI ngày, cao hết vùng vẽ.
+            Không gắn hover lên chính cái chấm vì chấm chỉ 7px — phải trỏ trúng
+            mới hiện, rất khó trên màn cảm ứng. Cột rộng bằng khoảng cách 2 ngày
+            nên trỏ vào đâu trong cột cũng ra đúng ngày đó.
+            Dùng <button> chứ không phải <div>: bàn phím tab tới được, và trên
+            kiosk cảm ứng thì một lần chạm cũng hiện được tooltip. */}
+        <div className="dh-chart__hit">
+          {points.map(([x], i) => {
+            const half = n > 1 ? ((X1 - X0) / (n - 1) / 2 / VB_W) * 100 : 50;
+            const cx = (x / VB_W) * 100;
+            const left = Math.max(0, cx - half);
+            const right = Math.min(100, cx + half);
+            return (
+              <button
+                type="button"
+                key={`hit-${i}`}
+                className={"dh-chart__hitcol" + (i === hover ? " is-on" : "")}
+                style={{ left: `${left}%`, width: `${right - left}%` }}
+                onMouseEnter={() => setHover(i)}
+                onFocus={() => setHover(i)}
+                onMouseLeave={() => setHover((h) => (h === i ? null : h))}
+                onBlur={() => setHover((h) => (h === i ? null : h))}
+                aria-label={tipText(labels[i], values[i])}
+              />
+            );
+          })}
+        </div>
+
+        {hover != null && (
+          <div
+            className={
+              "dh-chart__tip"
+              // Điểm cao thì hộp chú thích lật xuống dưới, nếu không sẽ bị
+              // .dh-chart (overflow:hidden) cắt mất ở mép trên panel.
+              + (points[hover][1] / VB_H < 0.34 ? " is-below" : "")
+              // Hai đầu trục thì neo lệch vào trong, tránh tràn ngang.
+              + (hover <= 1 ? " is-start" : "")
+              + (hover >= n - 2 ? " is-end" : "")
+            }
+            style={{
+              left: `${(points[hover][0] / VB_W) * 100}%`,
+              top: `${(points[hover][1] / VB_H) * 100}%`,
+            }}
+            /* aria-hidden vì nội dung này đã nằm trong aria-label của nút bắt
+               hover ở trên — để cả hai thì trình đọc màn hình đọc lặp 2 lần. */
+            aria-hidden="true"
+          >
+            {tipText(labels[hover], values[hover])}
+          </div>
+        )}
 
         {/* Nhãn trục y đặt bằng HTML, KHÔNG dùng <text> trong SVG: viewBox bị
             kéo giãn phi tuyến (preserveAspectRatio="none", 140 -> 70px) nên chữ

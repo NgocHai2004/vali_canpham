@@ -383,6 +383,22 @@ body:has(.app[data-dash-theme="light"]) {
   color: #64748b !important;
 }
 
+/* Panel menu hồ sơ ở theme sáng. Giá trị gốc (gradient navy) nằm trong styles.css;
+   sheet này nạp sau nên override được mà không cần !important. `backdrop-filter`
+   phải tắt: nền đã đục, để lại chỉ tốn một lớp raster. */
+.app[data-dash-theme="light"] .user-menu {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  backdrop-filter: none;
+}
+
+/* Hover gốc là rgba(53,216,255,.1) — xanh cyan của theme tối, trên nền trắng ra
+   màu lợt nhìn như lỗi. Dùng xám nhạt cùng hệ với `.icon-button` ở trên. */
+.app[data-dash-theme="light"] .user-menu-item:hover {
+  background: #f1f5f9;
+}
+
 .app[data-dash-theme="light"] .icon-button {
   background: #f1f5f9 !important;
   border-color: #cbd5e1 !important;
@@ -1438,6 +1454,75 @@ body:has(.app[data-dash-theme="light"]) {
   box-shadow: 0 0 0 4px rgba(59, 130, 246, .18);
 }
 
+/* Chấm của ngày đang trỏ: to lên + vòng sáng, để biết tooltip đang nói về đâu. */
+.dh-chart__dot.is-hover {
+  width: 0.6875rem;
+  height: 0.6875rem;
+  margin: -0.34375rem 0 0 -0.34375rem;
+  box-shadow: 0 0 0 5px rgba(59, 130, 246, .28);
+}
+
+/* --- Hover trên biểu đồ ---------------------------------------------------
+ * Lớp bắt hover: mỗi ngày MỘT cột trong suốt cao hết vùng vẽ (xem
+ * DashLineChart.jsx). Nằm sau .dh-chart__points trong DOM nên ở trên và nhận
+ * được chuột — .dh-chart__points có pointer-events:none nên không tranh event.
+ */
+.dh-chart__hit {
+  position: absolute;
+  inset: 0;
+}
+
+.dh-chart__hitcol {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.dh-chart__hitcol.is-on { background: rgba(59, 130, 246, .10); }
+
+/* Vành focus phải thấy được (nút này trong suốt nên mất outline là mất dấu),
+   nhưng chỉ khi tới bằng bàn phím — dùng chuột thì đã có cột sáng + tooltip. */
+.dh-chart__hitcol:focus { outline: none; }
+.dh-chart__hitcol:focus-visible {
+  outline: 2px solid var(--dh-blue);
+  outline-offset: -2px;
+}
+
+/* pointer-events:none là BẮT BUỘC: hộp chú thích phủ lên chính cột đang hover,
+   nếu nó ăn chuột thì cột mất hover -> tooltip biến mất -> nhấp nháy liên tục. */
+.dh-chart__tip {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 0.625rem));
+  padding: 0.3125rem 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--dh-tip-bg, rgba(15, 23, 42, .96));
+  border: 1px solid var(--dh-panel-border, rgba(148, 163, 184, .28));
+  color: var(--dh-tip-ink, #f8fafc);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 8px 16px -6px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+
+/* Điểm sát đỉnh: lật xuống dưới chấm, nếu không .dh-chart (overflow:hidden) cắt. */
+.dh-chart__tip.is-below { transform: translate(-50%, 0.625rem); }
+
+/* Hai đầu trục x: neo cạnh thay vì canh giữa, tránh tràn ngang rồi bị cắt. */
+.dh-chart__tip.is-start { transform: translate(0, calc(-100% - 0.625rem)); }
+.dh-chart__tip.is-start.is-below { transform: translate(0, 0.625rem); }
+.dh-chart__tip.is-end { transform: translate(-100%, calc(-100% - 0.625rem)); }
+.dh-chart__tip.is-end.is-below { transform: translate(-100%, 0.625rem); }
+
 /* Lưới ô: nét LIỀN (trước đây là nét đứt) để các ô khép kín thành bảng.
    Hàng ngang theo giá trị đậm hơn cột dọc theo ngày một chút để vẫn phân cấp
    được khi nhìn. */
@@ -1945,11 +2030,23 @@ body:has(.app[data-dash-theme="light"]) {
   text-overflow: ellipsis;
 }
 
+/* KHÔNG đặt font mono ở đây: ô này có chữ tiếng Việt ("hồ sơ"), mà font mono
+   mặc định của máy (ui-monospace → DejaVu Sans Mono trên Linux) thiếu glyph dựng
+   sẵn cho "ồ" (U+1ED3) nên dấu bị tách sang font khác, hiện ra "0 hô`sơ".
+   Mono chỉ áp cho con số ở .dh-table__count-num. */
 .dh-table__count {
-  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   font-size: 0.875rem;
   color: var(--dh-ink-2);
 }
+
+.dh-table__count-num {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--dh-ink);
+}
+
+.dh-table__count-unit { color: var(--dh-ink-3); }
 
 .dh-table__chev { width: 1.75rem; text-align: right; color: var(--dh-ink-4); }
 .dh-table__chev svg { width: 0.875rem; height: 0.875rem; }
@@ -2202,21 +2299,31 @@ body:has(.app[data-dash-theme="light"]) {
   background: var(--dh-blue-line);
 }
 
+/* Hàng chạy NGANG: câu log bên trái, thời gian dồn sang phải.
+   Trước đây là flex column nên thời gian nằm dưới câu log, mỗi item phải chia
+   33px cho 2 dòng => chữ thời gian bị bóp còn 11.5px và sát rạt dòng trên.
+   Panel này hết chỗ theo chiều cao (feed 164px lấp kín 5 item, cả trang chỉ còn
+   12px dư nên không nới panel được), nhưng chiều ngang thì bỏ trống gần 600px —
+   dời thời gian ra đó là mỗi item chỉ còn 1 dòng, thời gian rộng và dễ đọc. */
 .dh-feed__item {
   position: relative;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   flex: 1 1 0;
   min-height: 0;
-  gap: 0.125rem;
+  gap: 1rem;
   padding: 0.15rem 0;
 }
 
+/* Item giờ chỉ còn 1 dòng và canh giữa theo chiều dọc, nên chấm cũng phải canh
+   giữa item thay vì ghim 0.35rem từ đỉnh (vị trí cũ dành cho item 2 dòng). */
 .dh-feed__dot {
   position: absolute;
   left: -1.375rem;
-  top: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
   width: 0.5625rem;
   height: 0.5625rem;
   border-radius: 50%;
@@ -2225,6 +2332,8 @@ body:has(.app[data-dash-theme="light"]) {
 }
 
 .dh-feed__text {
+  flex: 1 1 auto;
+  min-width: 0; /* bắt buộc, nếu không flex item không co được và nowrap sẽ đẩy tràn */
   font-size: 0.8125rem;
   color: var(--dh-ink-2);
   line-height: 1.25;
@@ -2245,10 +2354,17 @@ body:has(.app[data-dash-theme="light"]) {
   font-size: 0.8125rem;
 }
 
+/* Dồn sang phải, không co, không xuống dòng. tabular-nums để các mốc giờ thẳng
+   cột nhau theo chiều dọc. Cỡ chữ nhích lên vì giờ đã có chỗ. */
 .dh-feed__time {
-  font-size: 0.71875rem;
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
   color: var(--dh-ink-3);
-  line-height: 1;
+  line-height: 1.25;
 }
 
 /* --- misc ---------------------------------------------------------------- */

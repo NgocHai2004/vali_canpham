@@ -288,6 +288,7 @@ export default function Dashboard({
             username={username}
             fullName={fullName}
             onOpenSession={openSession}
+            onRegister={registerDetainee}
           />
         )}
         {page === "sessions_detail" && activeSessionId && (

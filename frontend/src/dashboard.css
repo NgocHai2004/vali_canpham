@@ -2279,13 +2279,38 @@
      scrollbar ca hai truc trong hop overflow:auto. Bo han cho form nhap. */
   .small-modal::before { display: none; }
 
+  /* Cung mot benh nhu .small-modal o tren: vien conic-gradient .modal::before dat
+     o inset:-1px tran ra ngoai 1px, gap overflow-y:auto cua .modal la sinh
+     scrollbar CA HAI TRUC du noi dung chua he cao qua khung (do duoc dy=1, dx=1).
+     Modal nay tu quan scroll bang .sync-diff-body ben trong, nen hop ngoai khong
+     bao gio duoc scroll: overflow:hidden. Bo luon ::before vi overflow:hidden se
+     cat cung vien do, de lai vet 1px nham nhu vien bi khuyet. */
+  .sync-diff-modal::before { display: none; }
+
   .sync-diff-modal {
     width: min(45rem, 100%);
     max-height: 88vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   .sync-diff-modal .modal-header { flex-shrink: 0; }
+
+  /* Chi tiet nhat ky hoat dong (DetaineeHistoryPage.jsx:40). Do duoc dy=133, dx=1:
+     - dx=1 la vien ::before cua .modal o inset:-1px tran ra ngoai, gap overflow:auto
+       la thanh mot thanh cuon NGANG chay het day modal. Bo vien.
+     - dy=133 do khoi <pre> JSON dai khong gioi han, keo CA modal cuon theo (.modal co
+       overflow-y:auto), lam tieu de truot mat va nut Dong bi day ra ngoai tam. Chan
+       chieu cao rieng cho khoi JSON de phan con lai luon vua khung.
+     Giu overflow-y:auto lam luoi an toan (man rat thap van xem duoc het), khong dung
+     overflow:hidden vi se cat mat noi dung khong the cuon toi. */
+  .log-detail-modal::before { display: none; }
+  .log-detail-modal { overflow-x: hidden; }
+
+  .log-detail-json {
+    max-height: 30vh;
+    overflow-y: auto;
+  }
   .sync-diff-sub {
     padding: 0.625rem 1.5rem;
     color: var(--muted);
@@ -2344,6 +2369,18 @@
     padding: 0.5rem 0.625rem;
     border-radius: 8px;
     background: var(--bg-panel);
+  }
+  /* Nhom "Them moi" dung chinh <label class="sd-row"> lam hang (SyncDiffModal.jsx:271),
+     khong co lop boc .sd-row-main nhu nhom Cap nhat/Trung. Ma .sd-row la flex COLUMN
+     (dung cho hai nhom kia vi chung con vung diff mo rong ben duoi), nen o day
+     checkbox bi day thanh mot dong RIENG phia tren dong chu. Hang nay khong co vung
+     mo rong => cho chay ngang. Chi nhom Them moi dung the <label>. */
+  label.sd-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.625rem;
+    cursor: pointer;
+    font-size: 0.8125rem;
   }
   .sd-row-main {
     display: flex;

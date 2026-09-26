@@ -27,8 +27,15 @@ function SearchPage() {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
+  // Xem SessionOpenModal.jsx: can co rieng de phan biet "dang tai" voi "tai xong
+  // ma khong co buong nao", hai truong hop nhin y het nhau neu chi xet cells.length.
+  const [cellsLoading, setCellsLoading] = useState(true);
+
   useEffect(() => {
-    api.listCells().then(setCells).catch(() => { });
+    api.listCells()
+      .then(setCells)
+      .catch(() => { })
+      .finally(() => setCellsLoading(false));
   }, []);
 
   const resetResults = () => {
@@ -208,8 +215,9 @@ function SearchPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select className="control" value={cellCode} onChange={(e) => setCellCode(e.target.value)}>
-            <option value="">{t("search.cell.all")}</option>
+          <select className="control" value={cellCode} onChange={(e) => setCellCode(e.target.value)}
+            data-loading={cellsLoading ? "true" : undefined} disabled={cellsLoading}>
+            <option value="">{cellsLoading ? t("common.loading") : t("search.cell.all")}</option>
             {cells.map((cell) => (
               <option key={cell.code} value={cell.code}>
                 {cell.code} - {cell.name}

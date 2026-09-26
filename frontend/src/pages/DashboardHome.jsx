@@ -131,7 +131,12 @@ function DashboardHome({ go, fullName = "" }) {
             />
           }
         >
-          <DashLineChart labels={chartLabels} values={chartValues} yMax={40} />
+          <DashLineChart
+            labels={chartLabels}
+            values={chartValues}
+            yMax={40}
+            formatTooltip={(label, n) => t("dashboard.hoso.for_day", { label, n })}
+          />
         </DashPanel>
 
         <DashPanel

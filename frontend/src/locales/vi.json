@@ -712,6 +712,7 @@
   "dashboard.sessions.col.code": "Mã phiên",
   "dashboard.sessions.col.officer": "Cán bộ",
   "dashboard.sessions.col.records": "Số hồ sơ",
+  "dashboard.sessions.unit.records": "hồ sơ",
   "dashboard.sessions.col.status": "Trạng thái",
   "dashboard.cells.status.full": "Đầy",
   "dashboard.cells.status.normal": "Bình thường",

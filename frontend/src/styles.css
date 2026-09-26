@@ -6642,6 +6642,23 @@ textarea.input {
   flex: 0 0 auto;
 }
 
+/* Hai nút cuối banner phiên đang mở. `margin-left: auto` trước đây là inline style
+   trên nút "Vào phiên"; giờ hai nút đi cùng nhau nên đẩy cả nhóm. */
+.session-list-current-acts {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+/* Banner cao 2rem (padding 0.5rem + chữ 13px). `btn-primary` mặc định cao hơn thế
+   nên phải thu lại, nếu không nút làm banner phình ra cao hơn hẳn. */
+.session-list-current-acts .btn-primary {
+  padding: 0.3125rem 0.75rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .session-list-stats {
     grid-template-columns: repeat(2, 1fr);
@@ -11904,6 +11921,115 @@ textarea.input {
   min-width: 0;
 }
 
+/* --- Nhay den khi mo select ------------------------------------------------
+   Popup cua <select> la widget NATIVE, Chromium ve ngoai compositor cua trang.
+   No khong lay mau tu CSS cua trang ma tu `color-scheme` duoc thua ke, va do
+   duoc: `color-scheme` la `normal` o ca <html>, select va option, lai khong co
+   <meta name="color-scheme">. `normal` nghia la "theo he thong" — may Linux nay
+   dang theme toi, nen Chromium dung nen toi cho popup o frame dau roi moi to lai
+   theo option, thanh ra nhay den.
+
+   Khai bao `color-scheme` tuong minh theo tung theme la het phai doan theo he
+   thong. Thuoc tinh nay duoc thua ke nen dat o `.app` la select ben trong an theo.
+
+   PHAI dat o `:root` nua, khong chi o `.app`: man Login (`.lg-wrap`) nam NGOAI
+   `.app` (App.jsx render Login khi chua co user), va `.app` co luc chua kip co
+   `data-dash-theme`. Thieu `:root` thi dung nhung cho do popup lai nhay den.
+   Luu y: `index.css` co khai `color-scheme: light dark` o `:root` nhung file do
+   KHONG duoc import o dau (chi `styles.css` vao qua main.jsx) nen vo hieu. */
+:root {
+  color-scheme: dark;
+}
+
+.app[data-dash-theme="light"] {
+  color-scheme: light;
+}
+
+.app[data-dash-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Ta mau cho MOI select trong project, khong rieng bang buong giam. Chromium ve
+   popup bang mau cua `option`; de trong thi no tu suy ra tu color-scheme, va o
+   frame dau tien mau do chua chac dung. Ghi thang ra la popup dung mau ngay tu
+   frame dau, het nhay.
+   `select` de trong cung phai co mau: cho `<option value="">` lam placeholder. */
+select,
+select option,
+select optgroup {
+  background-color: #0b1f3f;
+  color: #eaf2ff;
+}
+
+.app[data-dash-theme="light"] select,
+.app[data-dash-theme="light"] select option,
+.app[data-dash-theme="light"] select optgroup,
+.lg-wrap select,
+.lg-wrap select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Option dang o trang thai cho du lieu (xem cac file JSX: `<option disabled>` khi
+   dang fetch). Lam mo + con tro wait de nhin ra la "chua co du lieu", khong phai
+   "khong con buong nao". */
+select option:disabled {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Select dang cho du lieu ve: vien va con tro bao trang thai, thay cho viec de
+   mot o xam tro nhu bi hong. */
+select[data-loading="true"] {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+/* --- Menu hồ sơ trên header ------------------------------------------------
+   Chuyển từ inline style trong Header.jsx ra đây. Đây là giá trị cho theme TỐI;
+   bản sáng override trong dashboardHome.css (sheet đó nạp sau nên thắng). */
+.user-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 12.5rem;
+  z-index: 100;
+  padding: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(10, 26, 54, 0.95) 0%, rgba(6, 20, 42, 0.95) 100%);
+  box-shadow: 0 8px 24px rgba(2, 8, 23, 0.6);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.user-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Hover trước đây làm bằng onMouseEnter/onMouseLeave gán style trực tiếp; CSS
+   :hover làm đúng việc đó mà không cần hai handler. */
+.user-menu-item:hover {
+  background: rgba(53, 216, 255, 0.1);
+}
+
+/* Them nen duc cho option: mac dinh la rgba(0,0,0,0) nen frame dau popup khong co
+   mau nao de ve, phai cho tro ve mau nen mac dinh cua widget. */
+.cells-detainees-table select.control,
+.cells-detainees-table select.control option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
 /* Hang cao ~85px cho MOT dong chu — ha padding xuong de khung cao 732px hien
    duoc ~13 nguoi thay vi 9. Chu dai hon o thi cat bang ellipsis, khong xuong
    dong (xuong dong lai lam hang cao lech nhau). */
@@ -11936,7 +12062,35 @@ textarea.input {
    sheet sau thang, nen `.cells-modal { overflow-x: hidden }` bi shorthand
    `overflow` cua `.modal` ghi de — do computed van ra `auto`. Them `.modal` vao
    day len 2 class la an. */
+/* Hop thoai "Sua co so giam giu": cung benh, cung thuoc nhu hop thoai bang.
+   Do duoc truoc khi sua: noi dung 704.63px trong max-height 748.8px — con du 44px,
+   KHONG he can cuon. Nhung `.modal` (styles.css:2026) la `overflow-y: auto` va
+   clientHeight 703 / scrollHeight 704 lech 1px do lam tron, nen trinh duyet van ve
+   mot thanh cuon 17px. Cong them `scrollbar-gutter: stable` giu cho mot dai nua.
+   Do la toan bo cho "scroll du".
+
+   Chuyen modal sang flex column + overflow: hidden, day vung cuon vao trong form.
+   Noi dung vua khit nen khong con thanh nao; form dai hon max-height sau nay thi
+   chinh form cuon, header va nut dong van dung yen. */
 .modal.cells-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+.modal.cells-modal > .modal-header {
+  flex: 0 0 auto;
+  /* 68px chot cung o dashboard.css:2421, qua cao cho mot dong tieu de */
+  height: 3.25rem;
+  min-height: 3.25rem;
+}
+
+.modal.cells-modal > .cells-form {
+  flex: 1 1 auto;
+  /* min-height: 0 la dieu kien de flex con co lai duoc duoi kich thuoc noi dung */
+  min-height: 0;
+  overflow-y: auto;
   overflow-x: hidden;
 }
 

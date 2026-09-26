@@ -3,6 +3,9 @@ import api from "../api";
 import { useI18n } from "../i18n";
 import { Icon } from "../components/Icons";
 import SyncDiffModal from "../SyncDiffModal";
+// MOCK: backend chua co router sync, xem lib/syncMock.js (co ghi ro SEAM de doi sang
+// API that). Truoc do dong nay goi api.fetchSessionSyncDiff() — mot ham khong ton tai.
+import { fetchSessionSyncDiff, executeSync } from "../lib/syncMock";
 import DashPageHeader from "../components/dashboard/DashPageHeader";
 import DashFilterBar, { DashFilterSelect, DashFilterField } from "../components/dashboard/DashFilterBar";
 import DashDataTable from "../components/dashboard/DashDataTable";
@@ -75,7 +78,7 @@ function SyncPage() {
     setSyncSuccess((prev) => ({ ...prev, [session.id]: false }));
     setSyncingIds((prev) => new Set(prev).add(session.id));
     try {
-      const diff = await api.fetchSessionSyncDiff(session.id);
+      const diff = await fetchSessionSyncDiff(session.id);
       setDiffState({ session, diff, loading: false });
     } catch (e) {
       setSyncErrors((prev) => ({ ...prev, [session.id]: e.message }));
@@ -94,9 +97,18 @@ function SyncPage() {
     personal_id: it?.personal_id || "",
   });
 
-  const doSync = async (addSel, updSel) => {
+  // SyncDiffModal.jsx:225 goi onConfirm(targets) voi MOT mang phang da gop
+  // (toAdd da chon + toUpdate da chon). Truoc day ham nay khai bao (addSel, updSel)
+  // nen tham so thu hai LUON undefined => updSel.map(...) nem "Cannot read
+  // properties of undefined (reading 'map')" va moi lan bam Dong bo deu that bai.
+  // Tach lai thanh 2 nhom theo id cua diff.toAdd.
+  const doSync = async (targets) => {
     if (!diffState) return;
     const { session, diff } = diffState;
+    const list = Array.isArray(targets) ? targets : [];
+    const addIds = new Set((diff?.toAdd || []).map((x) => x.id));
+    const addSel = list.filter((x) => addIds.has(x.id));
+    const updSel = list.filter((x) => !addIds.has(x.id));
     setDiffState((prev) => (prev ? { ...prev, loading: true } : null));
     try {
       const payload = {
@@ -104,15 +116,10 @@ function SyncPage() {
         added_ids: addSel.map((x) => x.id),
         updated_ids: updSel.map((x) => x.id),
       };
-      const token = api.getToken();
-      await fetch("/api/sync/execute", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
+      // MOCK, xem lib/syncMock.js. Truoc day la fetch("/api/sync/execute") — endpoint
+      // khong ton tai (backend/main.py khong include router sync nao), va ma nay lai
+      // KHONG kiem tra res.ok nen 404 van bi tinh la dong bo thanh cong.
+      await executeSync(payload);
       setSyncSuccess((prev) => ({ ...prev, [session.id]: true }));
       notify.add();
       try {
@@ -284,17 +291,24 @@ function SyncPage() {
         />
       </DashFilterBar>
 
+      {/* Ten prop phai khop DashDataTable.jsx:26 — truoc day truyen `data` /
+          `emptyText` / `page,totalRows,pageSize,onPageChange`, khong khop cai nao,
+          nen `rows` roi ve mac dinh [] va bang LUON trong du API tra ve du phien;
+          `empty` cung rong nen hop trang thai khong co chu, nhin nhu bang hong. */}
       <DashDataTable
         columns={columns}
-        data={pagedRows}
+        rows={pagedRows}
         rowKey={(s) => s.id}
         loading={loading}
         error={error}
-        emptyText={t("sync.empty") || "Không có phiên nào cần đồng bộ"}
-        page={page}
-        totalRows={totalRows}
-        pageSize={pageSize}
-        onPageChange={setPage}
+        empty={t("sync.empty") || "Không có phiên nào cần đồng bộ"}
+        pager={{
+          page,
+          totalPages,
+          total: totalRows,
+          onPrev: () => setPage(Math.max(1, page - 1)),
+          onNext: () => setPage(Math.min(totalPages, page + 1)),
+        }}
       />
 
       {diffState && (

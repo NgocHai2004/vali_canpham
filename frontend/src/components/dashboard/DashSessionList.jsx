@@ -38,7 +38,14 @@ export function DashSessionList({ sessions = [], onOpen }) {
                 <td className="dh-table__idx">{i + 1}</td>
                 <td className="dh-table__code">{s.code}</td>
                 <td className="dh-table__name">{s.officer_full_name || s.officer || "—"}</td>
-                <td className="dh-table__count">{s.detainee_count || 0} hồ sơ</td>
+                {/* Chữ "hồ sơ" PHẢI nằm span riêng: .dh-table__count trước đây đặt
+                    font mono cho cả ô, mà ui-monospace không có glyph dựng sẵn cho
+                    "ồ" nên dấu bị tách ra thành glyph rời — trên màn hiện ra
+                    "0 hô`sơ". Số giữ mono (cho thẳng cột), chữ dùng font thường. */}
+                <td className="dh-table__count">
+                  <span className="dh-table__count-num">{s.detainee_count || 0}</span>{" "}
+                  <span className="dh-table__count-unit">{t("dashboard.sessions.unit.records")}</span>
+                </td>
                 <td>
                   <span className={`dh-status ${open ? "is-ok" : "is-muted"}`}>
                     <span className={`dh-status__dot${open ? " dh-pulse" : ""}`} aria-hidden="true" />

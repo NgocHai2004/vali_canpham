@@ -712,6 +712,7 @@
   "dashboard.sessions.col.code": "Session code",
   "dashboard.sessions.col.officer": "Officer",
   "dashboard.sessions.col.records": "Records",
+  "dashboard.sessions.unit.records": "records",
   "dashboard.sessions.col.status": "Status",
   "dashboard.cells.status.full": "Full",
   "dashboard.cells.status.normal": "Normal",

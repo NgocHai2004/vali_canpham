@@ -23,12 +23,17 @@ export default function SessionOpenModal({ officerName, officerFullName, onCreat
   const [facilityCode, setFacilityCode] = useState("");
   const [subCampCode, setSubCampCode] = useState("");
   const [cellCode, setCellCode] = useState("");
+  // Khong co co nay thi luc dang fetch va luc fetch xong ma rong nhin y het nhau:
+  // ca hai deu la select xam tro, can bo tuong man hinh hong. Bat dau bang `true`
+  // vi effect chay ngay sau frame dau.
+  const [cellsLoading, setCellsLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
     api.listCells()
       .then((rows) => { if (alive) setCells(Array.isArray(rows) ? rows : []); })
-      .catch(() => { /* khong tai duoc danh sach => 3 select rong, van mo duoc phien */ });
+      .catch(() => { /* khong tai duoc danh sach => 3 select rong, van mo duoc phien */ })
+      .finally(() => { if (alive) setCellsLoading(false); });
     return () => { alive = false; };
   }, []);
 
@@ -146,8 +151,12 @@ export default function SessionOpenModal({ officerName, officerFullName, onCreat
             <label htmlFor="sm-facility">{t("cells.form.facility_parent")}</label>
             <select id="sm-facility" className="control" value={facilityCode}
               onChange={(e) => onFacilityChange(e.target.value)}
-              disabled={busy || !custodyType}>
-              <option value="">{t("cells.form.select_facility")}</option>
+              data-loading={cellsLoading ? "true" : undefined}
+              disabled={busy || cellsLoading || !custodyType}>
+              {/* Doi nhan cua chinh option placeholder thay vi them mot option
+                  "Dang tai" rieng: select dang disabled chi hien option DANG CHON,
+                  them option moi thi can bo khong thay gi. */}
+              <option value="">{cellsLoading ? t("common.loading") : t("cells.form.select_facility")}</option>
               {facilities.map((f) => (
                 <option key={f.code} value={f.code}>{f.name}</option>
               ))}
@@ -159,8 +168,9 @@ export default function SessionOpenModal({ officerName, officerFullName, onCreat
             <label htmlFor="sm-subcamp">{t("cells.form.sub_camp_parent")}</label>
             <select id="sm-subcamp" className="control" value={subCampCode}
               onChange={(e) => onSubCampChange(e.target.value)}
-              disabled={busy || subCamps.length === 0}>
-              <option value="">{t("cells.form.no_sub_camp")}</option>
+              data-loading={cellsLoading ? "true" : undefined}
+              disabled={busy || cellsLoading || subCamps.length === 0}>
+              <option value="">{cellsLoading ? t("common.loading") : t("cells.form.no_sub_camp")}</option>
               {subCamps.map((s) => (
                 <option key={s.code} value={s.code}>{s.name}</option>
               ))}
@@ -170,8 +180,9 @@ export default function SessionOpenModal({ officerName, officerFullName, onCreat
             <label htmlFor="sm-cell">{t("detainee.field.cell")}</label>
             <select id="sm-cell" className="control" value={cellCode}
               onChange={(e) => setCellCode(e.target.value)}
-              disabled={busy || cellOptions.length === 0}>
-              <option value="">{t("common.optional")}</option>
+              data-loading={cellsLoading ? "true" : undefined}
+              disabled={busy || cellsLoading || cellOptions.length === 0}>
+              <option value="">{cellsLoading ? t("common.loading") : t("common.optional")}</option>
               {cellOptions.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.name}{typeof c.capacity === "number" ? ` (${c.current ?? 0}/${c.capacity})` : ""}

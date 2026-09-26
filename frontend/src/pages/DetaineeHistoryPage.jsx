@@ -37,7 +37,10 @@ function LogDetailModal({ log, onClose, formatDateTime }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: "36rem", width: "95%", background: "var(--dh-panel-bg, #1e293b)", color: "var(--dh-ink, #fff)", border: "1px solid var(--dh-panel-border, rgba(255,255,255,0.1))", borderRadius: "12px", padding: "1.25rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
+      {/* log-detail-modal: xem dashboard.css. Bo vien ::before cua .modal (tran 1px
+          => sinh thanh cuon NGANG chay het day) va chan chieu cao khoi JSON ben duoi,
+          de modal khong con tu cuon lam tieu de truot mat + nut Dong ra ngoai tam. */}
+      <div className="modal log-detail-modal" style={{ maxWidth: "36rem", width: "95%", background: "var(--dh-panel-bg, #1e293b)", color: "var(--dh-ink, #fff)", border: "1px solid var(--dh-panel-border, rgba(255,255,255,0.1))", borderRadius: "12px", padding: "1.25rem", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--dh-inset-border, rgba(255,255,255,0.1))", paddingBottom: "0.75rem", marginBottom: "1rem" }}>
           <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 800, color: "var(--dh-ink)" }}>
             Chi tiết nhật ký hoạt động
@@ -88,7 +91,10 @@ function LogDetailModal({ log, onClose, formatDateTime }) {
         {log.data && Object.keys(log.data).length > 0 && (
           <div style={{ background: "var(--dh-inset-bg, rgba(0,0,0,0.2))", padding: "0.75rem", borderRadius: "8px", border: "1px solid var(--dh-inset-border, rgba(255,255,255,0.05))", marginBottom: "1rem" }}>
             <div style={{ fontSize: "0.75rem", color: "var(--dh-ink-4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "0.5rem" }}>Dữ liệu thao tác</div>
-            <pre style={{ margin: 0, fontSize: "0.8125rem", color: "var(--dh-ink)", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace" }}>
+            {/* Khoi duy nhat dai khong gioi han trong modal (log dong bo co ca danh
+                sach ho so). Chan chieu cao + cho tu cuon o dashboard.css, de 6 the
+                thong tin va nut Dong luon nam trong tam. */}
+            <pre className="log-detail-json" style={{ margin: 0, fontSize: "0.8125rem", color: "var(--dh-ink)", whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace" }}>
               {JSON.stringify(log.data, null, 2)}
             </pre>
           </div>

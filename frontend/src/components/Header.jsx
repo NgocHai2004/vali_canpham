@@ -176,27 +176,16 @@ export function Header({ username, fullName, devices, notif, onLogout, isAdmin, 
             </div>
           </button>
           {userMenuOpen && (
-            <div
-              role="menu"
-              style={{
-                position: "absolute", top: "calc(100% + 8px)", right: 0, minWidth: 200,
-                background: "linear-gradient(180deg, rgba(10,26,54,.95) 0%, rgba(6,20,42,.95) 100%)",
-                border: "1px solid var(--border)", borderRadius: 8,
-                boxShadow: "0 8px 24px rgba(2,8,23,.6)", zIndex: 100, padding: 6,
-                backdropFilter: "blur(18px) saturate(140%)",
-              }}
-            >
+            <div role="menu" className="user-menu">
+              {/* Nền panel trước đây là inline style hardcode gradient navy đậm, còn
+                  chữ lại dùng `var(--text)` — token này ở theme sáng là #0f172a, nên
+                  ra chữ tối trên nền tối, không đọc được. Inline style không có cách
+                  nào bám theo `data-dash-theme`, nên phải chuyển sang class. */}
               <button
                 type="button"
                 role="menuitem"
+                className="user-menu-item"
                 onClick={() => { setUserMenuOpen(false); onEditProfile && onEditProfile(); }}
-                style={{
-                  display: "block", width: "100%", textAlign: "left",
-                  padding: "8px 12px", border: "none", background: "none",
-                  borderRadius: 6, cursor: "pointer", fontSize: 14, color: "var(--text)",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(53,216,255,.1)"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "none"}
               >
                 {t("profile.edit_menu")}
               </button>

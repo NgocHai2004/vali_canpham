@@ -43,7 +43,7 @@ function StatCard({ tone, label, value, note }) {
   );
 }
 
-export default function SessionListPage({ role, username, fullName, onOpenSession }) {
+export default function SessionListPage({ role, username, fullName, onOpenSession, onRegister }) {
   const { t, formatDateTime } = useI18n();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -177,14 +177,27 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
           <span style={{ color: "var(--muted)", fontSize: 13 }}>
             {t("session.banner.current", { officer: current.officer_full_name || current.officer, n: current.detainee_count || 0 })}
           </span>
-          <button
-            type="button"
-            className="btn-link"
-            style={{ marginLeft: "auto" }}
-            onClick={() => onOpenSession && onOpenSession(current.id)}
-          >
-            {t("session.banner.enter")}
-          </button>
+          <div className="session-list-current-acts">
+            {/* Ẩn với admin cho khớp trang chi tiết phiên (SessionDetailPage.jsx:285
+                cũng gate bằng `!isAdmin`). Để hở ở đây thì cùng một quyền lại thấy
+                nút ở trang này mà không thấy ở trang kia. */}
+            {!isAdmin && (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => onRegister && onRegister()}
+              >
+                {t("session.detail.add_new")}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-link"
+              onClick={() => onOpenSession && onOpenSession(current.id)}
+            >
+              {t("session.banner.enter")}
+            </button>
+          </div>
         </div>
       )}
 
