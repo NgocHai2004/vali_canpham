@@ -55,11 +55,15 @@ export function DashDataTable({
           </colgroup>
           <thead>
             <tr>
-              {columns.map((c) => (
-                <th key={c.key} style={c.align ? { textAlign: c.align } : undefined}>
-                  {c.label}
-                </th>
-              ))}
+              {columns.map((c) => {
+                const isAction = c.key === "actions" || c.key === "action" || (typeof c.label === "string" && c.label.toLowerCase().includes("thao tác"));
+                const align = isAction ? "center" : c.align;
+                return (
+                  <th key={c.key} style={align ? { textAlign: align } : undefined}>
+                    {c.label}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           {!state && (
@@ -74,15 +78,19 @@ export function DashDataTable({
                     className={cls || undefined}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
-                    {columns.map((c) => (
-                      <td
-                        key={c.key}
-                        className={c.className}
-                        style={c.align ? { textAlign: c.align } : undefined}
-                      >
-                        {c.render ? c.render(row, i) : row[c.key]}
-                      </td>
-                    ))}
+                    {columns.map((c) => {
+                      const isAction = c.key === "actions" || c.key === "action" || (typeof c.label === "string" && c.label.toLowerCase().includes("thao tác"));
+                      const align = isAction ? "center" : c.align;
+                      return (
+                        <td
+                          key={c.key}
+                          className={c.className}
+                          style={align ? { textAlign: align } : undefined}
+                        >
+                          {c.render ? c.render(row, i) : row[c.key]}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}

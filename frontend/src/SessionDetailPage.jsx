@@ -364,7 +364,11 @@ export default function SessionDetailPage({ sessionId, role, onBack, onAddDetain
                   </td>
                   <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                     {isOpen && (
-                      <button type="button" className="btn-link btn-link-danger" onClick={() => removeDetainee(d)}>{t("common.delete")}</button>
+                      <span className="dh-rowbtns" style={{ justifyContent: "center" }}>
+                        <button type="button" className="dh-rowbtn is-danger" onClick={() => removeDetainee(d)}>
+                          {t("common.delete")}
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>

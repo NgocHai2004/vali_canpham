@@ -314,7 +314,7 @@ function SearchPage() {
                 <th>{t("search.col.dob")}</th>
                 <th>{t("search.col.cccd")}</th>
                 <th>{t("search.col.cell")}</th>
-                <th style={{ textAlign: "center" }}>{t("search.col.actions")}</th>
+                <th style={{ textAlign: "center" }}>{t("detainee.col.actions") || "Thao tác"}</th>
               </tr>
             </thead>
             <tbody>
@@ -332,9 +332,11 @@ function SearchPage() {
                   <td>{item.cccd_number || "-"}</td>
                   <td>{item.cell_code || "-"}</td>
                   <td style={{ textAlign: "center" }}>
-                    <div className="row-actions" style={{ justifyContent: "center" }}>
-                      <button onClick={() => setViewing(item)}>{t("common.view")}</button>
-                    </div>
+                    <span className="dh-rowbtns" style={{ justifyContent: "center" }}>
+                      <button type="button" className="dh-rowbtn" onClick={() => setViewing(item)}>
+                        {t("detainee.action.view") || t("common.view") || "Xem"}
+                      </button>
+                    </span>
                   </td>
                 </tr>
               ))}

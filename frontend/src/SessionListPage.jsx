@@ -299,11 +299,20 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                   <td>{s.location || "—"}</td>
                   <td style={{ textAlign: "right" }}>{s.detainee_count || 0}</td>
                   <td style={{ textAlign: "center" }}>
-                    <div style={{ display: "inline-flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+                    <span className="dh-rowbtns" style={{ justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        className="dh-rowbtn"
+                        disabled={exporting}
+                        onClick={(e) => { e.stopPropagation(); downloadReport(s); }}
+                        title={t("session.export.title")}
+                      >
+                        {exporting ? t("session.exporting") : t("session.export")}
+                      </button>
                       {canDelete && (
                         <button
                           type="button"
-                          className="btn-link btn-link-danger"
+                          className="dh-rowbtn is-danger"
                           disabled={deletingId === s.id}
                           onClick={(e) => { e.stopPropagation(); removeSession(s); }}
                           title={s.detainee_count ? t("session.delete.title", { n: s.detainee_count }) : t("session.delete.title_simple")}
@@ -311,16 +320,7 @@ export default function SessionListPage({ role, username, fullName, onOpenSessio
                           {deletingId === s.id ? t("common.deleting") : t("session.delete.title_simple")}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="btn-link"
-                        disabled={exporting}
-                        onClick={(e) => { e.stopPropagation(); downloadReport(s); }}
-                        title={t("session.export.title")}
-                      >
-                        {exporting ? t("session.exporting") : t("session.export")}
-                      </button>
-                    </div>
+                    </span>
                   </td>
                 </tr>
               );
