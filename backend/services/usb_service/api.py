@@ -2,11 +2,15 @@
 USB Dongle Verification Service — App CCCD.
 
 Chay song song voi backend main.py (:8000), tren may co USB dongle cam vao.
-Cung cap 3 endpoint:
+Cung cap cac endpoint:
 
 - GET  /api/usb/health              - service health + so drive USB dang cam
 - GET  /api/usb/verify              - tim USB co file .key hop le (HMAC verified)
 - POST /api/usb/provision           - tao file .key moi tren USB user chi dinh
+- GET  /api/usb/writable-drives     - liet ke USB ghi duoc (loai dongle)
+- POST /api/usb/save-export         - ghi 1 file tu client ra USB
+- GET  /api/usb/list-files          - liet ke file tren USB (de tim goi dong bo)
+- GET  /api/usb/read-file           - doc 1 file tren USB tra ve client
 
 Chay:
     $env:DONGLE_SECRET = "<mat khau bi mat cua co quan>"
@@ -25,10 +29,12 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 try:
@@ -376,6 +382,20 @@ def writable_drives() -> dict:
     return {"ok": True, "drives": drives, "dongle_drives": dongles}
 
 
+def _require_writable_drive(drive: str) -> None:
+    """Chan drive khong nam trong snapshot USB ghi duoc hien tai.
+
+    Tach ra dung chung cho save-export / list-files / read-file: mot phep kiem an
+    ninh bi chep ra 3 cho la mot phep kiem se lech o mot trong 3 cho.
+    """
+    drives, dongles = _writable_drives_snapshot()
+    if drive in {d["path"] for d in drives}:
+        return
+    if drive in dongles:
+        raise HTTPException(400, "Drive nay la USB dongle. Chon USB khac.")
+    raise HTTPException(400, "Drive khong hop le hoac khong con cam.")
+
+
 @app.post("/api/usb/save-export")
 async def save_export(
     drive: str = Form(...),
@@ -386,12 +406,7 @@ async def save_export(
     Validate: drive phai la 1 trong writable-drives hien tai (khong phai dongle,
     khong phai o cung noi bo). Filename duoc sanitize truoc khi ghi.
     """
-    drives, dongles = _writable_drives_snapshot()
-    writable_paths = {d["path"] for d in drives}
-    if drive not in writable_paths:
-        if drive in dongles:
-            raise HTTPException(400, "Drive nay la USB dongle. Chon USB khac.")
-        raise HTTPException(400, "Drive khong hop le hoac khong con cam.")
+    _require_writable_drive(drive)
 
     filename = _sanitize_filename(file.filename or "")
     if not filename:
@@ -423,3 +438,62 @@ async def save_export(
         "drive": drive,
         "bytes_written": bytes_written,
     }
+
+
+# ---------- Read from USB (nhan goi dong bo) ----------
+@app.get("/api/usb/list-files")
+def list_files(drive: str, ext: str = ".vcpkg") -> dict:
+    """Liet ke file tren USB, mac dinh chi file goi dong bo (.vcpkg).
+
+    Chi quet THU MUC GOC cua USB: goi duoc ghi ra ngay goc (xem save_export), ma
+    quet de quy ca cay USB se rat cham voi mot USB day anh.
+
+    Response: { ok: true, drive, files: [{name, bytes, mtime}] } — moi nhat truoc.
+    """
+    _require_writable_drive(drive)
+
+    suffix = (ext or "").strip().lower()
+    if suffix and not suffix.startswith("."):
+        suffix = "." + suffix
+
+    try:
+        entries = os.listdir(drive)
+    except OSError as e:
+        raise HTTPException(500, f"Khong doc duoc USB: {e}")
+
+    found: list[dict] = []
+    for name in entries:
+        if name.startswith("."):
+            continue
+        if suffix and not name.lower().endswith(suffix):
+            continue
+        try:
+            st = os.stat(os.path.join(drive, name))
+        except OSError:
+            continue  # file vua bi xoa / USB vua bi rut giua chung
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        found.append({"name": name, "bytes": st.st_size, "mtime": int(st.st_mtime)})
+
+    found.sort(key=lambda f: f["mtime"], reverse=True)
+    return {"ok": True, "drive": drive, "files": found}
+
+
+@app.get("/api/usb/read-file")
+def read_file(drive: str, name: str):
+    """Doc 1 file tren USB va tra ve nguyen ven cho backend xu ly.
+
+    Yeu cau `_sanitize_filename(name) == name`: ten file phai dung y nguyen ten da
+    liet ke. Kho doi hon la tu sua ten sai thanh ten khac, vi sua ngam nghia la
+    doc mot file khac voi file nguoi dung chon.
+    """
+    _require_writable_drive(drive)
+
+    safe = _sanitize_filename(name)
+    if not safe or safe != name:
+        raise HTTPException(400, "Ten file khong hop le.")
+
+    path = os.path.join(drive, safe)
+    if not os.path.isfile(path):
+        raise HTTPException(404, "Khong tim thay file tren USB.")
+    return FileResponse(path, media_type="application/octet-stream", filename=safe)

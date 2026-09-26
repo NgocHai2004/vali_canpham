@@ -2588,6 +2588,19 @@ body:has(.app[data-dash-theme="light"]) {
 .dh-filter__submit:hover:not(:disabled) { filter: brightness(1.08); }
 .dh-filter__submit:disabled { opacity: .55; cursor: not-allowed; }
 
+/* Nút phụ đứng cạnh nút chính ở header (Xuất / Thêm dữ liệu ở trang Đồng bộ).
+   Giữ nguyên chiều cao của .dh-filter__submit để các nút trong cùng một hàng
+   không bị so le; chỉ đổi màu nền sang rỗng cho khỏi 3 nút xanh như nhau. */
+.dh-filter__submit.ghost {
+  background: transparent;
+  border-color: var(--dh-blue);
+  color: var(--dh-blue-ink);
+}
+.dh-filter__submit.ghost:hover:not(:disabled) {
+  background: var(--dh-blue-soft);
+  filter: none;
+}
+
 /* Hàng thẻ số liệu ở đầu các màn danh sách: luôn trải đều trên 1 hàng */
 .dh-statline {
   display: grid;

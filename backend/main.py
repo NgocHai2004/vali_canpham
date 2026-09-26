@@ -38,7 +38,7 @@ from seed import (
 from routers import (
     health, auth_routes, cells, detainees, fingerprint, face,
     sessions, upload, scan, import_export, stats, logs, users,
-    proxy, config_routes,
+    proxy, config_routes, sync,
 )
 
 
@@ -90,6 +90,7 @@ app.include_router(logs.router)
 app.include_router(users.router)
 app.include_router(proxy.router)
 app.include_router(config_routes.router)
+app.include_router(sync.router)
 
 
 # Backward-compatibility bridge for tests and external scripts

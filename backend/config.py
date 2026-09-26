@@ -97,6 +97,21 @@ JWT_SECRET = _env_str_from_dotenv("JWT_SECRET") or "change-me-in-production-plea
 JWT_ALGO = "HS256"
 TOKEN_TTL_MINUTES = 60 * 8
 
+# Khoá mã hoá gói dữ liệu đồng bộ mang qua USB (AES-256-GCM, xem
+# services/sync_package.py). Mọi máy trong cùng một đơn vị PHẢI đặt cùng giá trị,
+# nếu không thì gói xuất ở máy này không mở được ở máy kia.
+#
+# Thứ tự ưu tiên có lý do: SYNC_PACKAGE_SECRET riêng trước (đổi được mà không phải
+# provision lại dongle), rồi tới DONGLE_SECRET (đơn vị đã có sẵn, khỏi đặt thêm gì),
+# cuối cùng mới rơi về JWT_SECRET để máy dev không cấu hình gì vẫn chạy được.
+# LƯU Ý: rơi về JWT_SECRET nghĩa là gói chỉ mở được trên máy cùng JWT_SECRET — chấp
+# nhận được cho dev, nhưng máy thật nên đặt SYNC_PACKAGE_SECRET riêng.
+SYNC_PACKAGE_SECRET = (
+    _env_str_from_dotenv("SYNC_PACKAGE_SECRET")
+    or _env_str_from_dotenv("DONGLE_SECRET")
+    or JWT_SECRET
+).encode("utf-8")
+
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"
 

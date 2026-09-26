@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../api";
+import api, { usbApi, syncPackageApi, exportSyncPackageToUsb } from "../api";
 import { useI18n } from "../i18n";
 import { Icon } from "../components/Icons";
 import SyncDiffModal from "../SyncDiffModal";
@@ -9,7 +9,30 @@ import { fetchSessionSyncDiff, executeSync } from "../lib/syncMock";
 import DashPageHeader from "../components/dashboard/DashPageHeader";
 import DashFilterBar, { DashFilterSelect, DashFilterField } from "../components/dashboard/DashFilterBar";
 import DashDataTable from "../components/dashboard/DashDataTable";
+import UsbDrivePickerModal from "../UsbDrivePickerModal";
+import UsbPackagePickerModal from "../components/UsbPackagePickerModal";
+import SyncPackageProgressModal from "../components/SyncPackageProgressModal";
 import { notify } from "../notifications";
+import { toast } from "../Toast";
+
+// Bước hỏng của máy chủ (PackageError.step) -> bước trên giao diện. validate mở
+// gói + giải mã + đọc manifest + kiểm phiên bản trong cùng một request nên 4 mã
+// đó cùng thuộc bước "format"; checksum và schema có bước riêng.
+const FAIL_STEP = {
+  format: "format", decrypt: "format", manifest: "format", version: "format",
+  checksum: "integrity", schema: "schema",
+};
+const PKG_STEP_IDS = ["read", "format", "integrity", "schema", "write"];
+
+function fmtBytes(n) {
+  if (n == null || Number.isNaN(n)) return "";
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB"];
+  let v = n / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 100 ? 0 : 1)} ${units[i]}`;
+}
 
 function SyncPage() {
   const { t, formatDateTime } = useI18n();
@@ -25,6 +48,20 @@ function SyncPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+
+  // --- Xuất / nhận gói dữ liệu qua USB ---
+  // usbPicker giữ nguyên dáng mà ImportExportPage đang dùng: exportToUsb nhận một
+  // hàm pickDrive trả Promise, nên modal chỉ việc resolve đúng drive người dùng chọn.
+  const [usbPicker, setUsbPicker] = useState({ open: false, drives: [], resolve: null });
+  const [exportingPkg, setExportingPkg] = useState(false);
+  const [pkgPickerOpen, setPkgPickerOpen] = useState(false);
+  const [pkgTarget, setPkgTarget] = useState(null);
+  const [pkgSteps, setPkgSteps] = useState([]);
+  // "idle" chu khong phai "running": khoi tao la "running" thi nút Xuất dữ liệu bị
+  // khoá vĩnh viễn ngay từ đầu (điều kiện disabled có `pkgPhase === "running"`).
+  const [pkgPhase, setPkgPhase] = useState("idle");
+  const [pkgSummary, setPkgSummary] = useState(null);
+  const [pkgError, setPkgError] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -157,6 +194,115 @@ function SyncPage() {
 
   const fmtDT = (iso) => (iso ? formatDateTime(iso) : "—");
 
+  // --- Xuất gói dữ liệu ra USB --------------------------------------------
+  // Giữ nguyên dáng ImportExportPage đang dùng: exportToUsb nhận hàm pickDrive
+  // trả Promise, nên modal chỉ cần resolve đúng drive người dùng chọn.
+  const pickDrive = (drives) => new Promise((resolve) => {
+    setUsbPicker({ open: true, drives, resolve });
+  });
+
+  const closeUsbPicker = (picked) => {
+    usbPicker.resolve?.(picked);
+    setUsbPicker({ open: false, drives: [], resolve: null });
+  };
+
+  const exportPackage = async () => {
+    if (selected.size === 0) return;
+    setExportingPkg(true);
+    try {
+      const res = await exportSyncPackageToUsb([...selected], pickDrive);
+      if (res.cancelled) return;
+      const msg = t("usb.export.success", { path: res.path });
+      toast.success(msg);
+      notify.add(msg);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setExportingPkg(false);
+    }
+  };
+
+  // --- Nhận gói dữ liệu từ USB --------------------------------------------
+  const setStep = (id, status, detail = "") =>
+    setPkgSteps((prev) => prev.map((s) => (s.id === id ? { ...s, status, detail } : s)));
+
+  const importPackage = async ({ drive, name }) => {
+    setPkgPickerOpen(false);
+    setPkgTarget({ drive, name });
+    setPkgSummary(null);
+    setPkgError("");
+    setPkgPhase("running");
+    setPkgSteps(PKG_STEP_IDS.map((id) => ({ id, status: "pending", detail: "" })));
+
+    // Các bước chạy tuần tự, nên bước hỏng nghĩa là mọi bước TRƯỚC nó đã xong. Phải
+    // đánh dấu nốt: không thì bước trước còn hiện "đang chạy" trong khi bước sau đã
+    // báo lỗi (ví dụ gói sai sha256 -> "Mở gói và giải mã" quay mãi mà "Kiểm tra
+    // toàn vẹn" đã đỏ).
+    const failAt = (id, message) => {
+      const at = PKG_STEP_IDS.indexOf(id);
+      setPkgSteps((prev) =>
+        prev.map((s, i) => ({
+          ...s,
+          status: i < at ? "done" : s.id === id ? "failed" : "pending",
+          detail: s.id === id ? message : s.detail,
+        }))
+      );
+      setPkgError(message);
+      setPkgPhase("failed");
+      toast.error(message);
+    };
+
+    let blob;
+    try {
+      setStep("read", "running");
+      const r = await usbApi.readFile(drive, name);
+      blob = r.blob;
+      setStep("read", "done", fmtBytes(blob.size));
+    } catch (e) {
+      failAt("read", e.message);
+      return;
+    }
+
+    const file = new File([blob], name, { type: "application/octet-stream" });
+
+    // Bước 1: máy chủ kiểm hợp lệ, KHÔNG ghi gì. Qua được mới sang bước ghi.
+    // Gói phải đọc từ USB chỉ một lần (ở trên) rồi gửi lại 2 lượt — đổi lại là
+    // biết chắc gói hợp lệ TRƯỚC khi động vào DB, đúng yêu cầu.
+    try {
+      setStep("format", "running");
+      await syncPackageApi.validate(file);
+      setStep("format", "done");
+      setStep("integrity", "done");
+      setStep("schema", "done");
+    } catch (e) {
+      failAt(FAIL_STEP[e.step] || "format", e.message);
+      return;
+    }
+
+    // Bước 2: ghi DB. Máy chủ tự hoàn tác nếu hỏng giữa chừng (nhật ký bù trừ),
+    // nên `ok: false` nghĩa là DB vẫn nguyên như trước khi nhận.
+    try {
+      setStep("write", "running");
+      const res = await syncPackageApi.apply(file);
+      if (!res.ok) {
+        failAt("write", res.error || t("sync.pkg.err.apply_failed"));
+        return;
+      }
+      setStep("write", "done");
+      setPkgSummary({ written: res.written || {}, skipped: res.skipped || {} });
+      setPkgPhase("done");
+      const msg = t("sync.pkg.success", {
+        sessions: res.written?.sessions || 0,
+        detainees: res.written?.detainees || 0,
+      });
+      toast.success(msg);
+      notify.add(msg);
+      load();   // gói có thể mang thêm phiên mới
+    } catch (e) {
+      failAt(FAIL_STEP[e.step] || "write", e.message);
+    }
+  };
+
   const columns = [
     {
       key: "check",
@@ -253,23 +399,41 @@ function SyncPage() {
 
   return (
     <div className="page dh-page">
+      {/* DashPageHeader.jsx:14 nhận `children`, KHÔNG có prop `action` — trước đây
+          trang này truyền `action={...}` nên nút Đồng bộ không được render ở đâu cả
+          (bảng vẫn chạy, chỉ là không có nút nào để bấm). Ba nút dưới đây là con. */}
       <DashPageHeader
         title={t("sync.title") || "Đồng bộ dữ liệu"}
         subtitle={t("sync.subtitle") || "Đồng bộ hồ sơ giữa các phiên làm việc và máy chủ trung tâm"}
-        action={
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              className="button primary dh-filter__submit"
-              disabled={selected.size === 0 || syncingIds.size > 0}
-              onClick={syncSelected}
-            >
-              {selected.size > 0
-                ? t("sync.action_count", { n: selected.size }) || `Đồng bộ (${selected.size})`
-                : t("sync.action") || "Đồng bộ"}
-            </button>
-          </div>
-        }
-      />
+      >
+        <button
+          className="dh-filter__submit ghost"
+          disabled={selected.size === 0 || exportingPkg || (!!pkgTarget && pkgPhase === "running")}
+          onClick={exportPackage}
+        >
+          {exportingPkg ? t("common.processing") : t("sync.pkg.export")}
+        </button>
+        <button
+          className="dh-filter__submit ghost"
+          disabled={pkgPhase === "running" && !!pkgTarget}
+          onClick={() => setPkgPickerOpen(true)}
+        >
+          {t("sync.pkg.import")}
+        </button>
+        {/* Bỏ `button primary` (2 class không có định nghĩa toàn cục): chúng kéo
+            chiều cao lên 42px trong khi .dh-filter__submit là 34px, làm 3 nút
+            trong cùng một hàng so le nhau. .dh-filter__submit đã là nền xanh đặc
+            nên vẫn nổi hơn 2 nút viền. */}
+        <button
+          className="dh-filter__submit"
+          disabled={selected.size === 0 || syncingIds.size > 0}
+          onClick={syncSelected}
+        >
+          {selected.size > 0
+            ? t("sync.action_count", { n: selected.size }) || `Đồng bộ (${selected.size})`
+            : t("sync.action") || "Đồng bộ"}
+        </button>
+      </DashPageHeader>
 
       <DashFilterBar
         value={q}
@@ -318,6 +482,33 @@ function SyncPage() {
           loading={diffState.loading}
           onConfirm={doSync}
           onCancel={() => setDiffState(null)}
+        />
+      )}
+
+      {usbPicker.open && (
+        <UsbDrivePickerModal
+          drives={usbPicker.drives}
+          onPick={closeUsbPicker}
+          onCancel={() => closeUsbPicker(null)}
+        />
+      )}
+
+      {pkgPickerOpen && (
+        <UsbPackagePickerModal
+          onPick={importPackage}
+          onCancel={() => setPkgPickerOpen(false)}
+        />
+      )}
+
+      {pkgTarget && (
+        <SyncPackageProgressModal
+          drive={pkgTarget.drive}
+          filename={pkgTarget.name}
+          steps={pkgSteps}
+          phase={pkgPhase}
+          summary={pkgSummary}
+          error={pkgError}
+          onClose={() => { setPkgTarget(null); setPkgSteps([]); }}
         />
       )}
     </div>

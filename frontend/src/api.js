@@ -143,6 +143,127 @@ export const usbApi = {
     }
     return data;
   },
+
+  /**
+   * Liệt kê file trên một USB. Chỉ quét thư mục gốc (xem list_files ở usb_service).
+   * @returns {Promise<{ok:boolean, drive:string, files:Array<{name,bytes,mtime}>}>}
+   */
+  listFiles: async (drive, ext = ".vcpkg") => {
+    const qs = new URLSearchParams({ drive, ext });
+    let res;
+    try {
+      res = await fetch(`/usb/api/usb/list-files?${qs}`);
+    } catch (netErr) {
+      throw new Error(apiT("usb.export.err.service_down"));
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || apiT("usb.list.err.failed"));
+    }
+    return res.json();
+  },
+
+  /** Đọc 1 file trên USB. Trả {blob, filename} giống fetchExportBlob. */
+  readFile: async (drive, name) => {
+    const qs = new URLSearchParams({ drive, name });
+    let res;
+    try {
+      res = await fetch(`/usb/api/usb/read-file?${qs}`);
+    } catch (netErr) {
+      throw new Error(apiT("usb.export.err.service_down"));
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || apiT("usb.read.err.failed"));
+    }
+    return { blob: await res.blob(), filename: name };
+  },
+};
+
+/**
+ * Gửi 1 gói .vcpkg lên backend để kiểm tra hoặc ghi vào DB.
+ *
+ * Không dùng `request()` được: khi gói hỏng, backend trả 400 kèm `{step, message}`
+ * để giao diện tô đúng bước nào chết — `request()` chỉ ném ra chuỗi `detail` nên
+ * thông tin đó mất. Ở đây giữ `step` trên object Error.
+ */
+async function postSyncPackage(path, file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const token = auth.getToken();
+  let res;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      body: fd,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch (netErr) {
+    throw new Error(apiT("api.error.network", { message: netErr.message }));
+  }
+  if (res.status === 401) {
+    auth.clear();
+    if (onAuthExpired) onAuthExpired();
+    throw new Error(apiT("api.error.auth_expired"));
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.message || data.detail || apiT("api.error.server"));
+    err.step = data.step || "";
+    throw err;
+  }
+  return data;
+}
+
+/**
+ * Xuất gói dữ liệu đồng bộ của các phiên được chọn ra USB người dùng chỉ định.
+ * Bản đối xứng của exportToUsb() nhưng nguồn là /api/sync/export-package.
+ * @returns {Promise<{cancelled?:boolean, path?:string, filename?:string}>}
+ */
+export async function exportSyncPackageToUsb(sessionIds, pickDrive) {
+  const ids = (sessionIds || []).filter(Boolean);
+  if (ids.length === 0) throw new Error(apiT("sync.pkg.err.no_session"));
+
+  const info = await usbApi.listWritable();
+  const drives = info.drives || [];
+  const dongles = info.dongle_drives || [];
+  if (drives.length === 0) {
+    if (dongles.length > 0) throw new Error(apiT("usb.export.err.only_dongle"));
+    throw new Error(apiT("usb.export.err.no_drive"));
+  }
+  let chosen = drives[0];
+  if (drives.length > 1) {
+    chosen = await pickDrive(drives);
+    if (!chosen) return { cancelled: true };
+  }
+
+  const path = `/api/sync/export-package?session_ids=${encodeURIComponent(ids.join(","))}`;
+  const { blob, filename } = await fetchPackageBlob(path);
+  return usbApi.saveExport(chosen.path, filename, blob);
+}
+
+/**
+ * Tải gói .vcpkg từ backend. Khác fetchExportBlob ở chỗ đọc `detail` khi lỗi:
+ * export gói trả 404 kèm lý do thật ("không có quyền với phiên đó"), mà
+ * fetchExportBlob chỉ ném ra "tải file thất bại (404)".
+ */
+async function fetchPackageBlob(path) {
+  const token = auth.getToken();
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || apiT("api.error.download_failed", { status: res.status }));
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition") || "";
+  const m = /filename="?([^"]+)"?/.exec(cd);
+  return { blob, filename: m ? m[1] : "sync.vcpkg" };
+}
+
+/** Hai bước nhận gói: `validate` chỉ kiểm, `apply` mới ghi DB. */
+export const syncPackageApi = {
+  validate: (file) => postSyncPackage("/api/sync/import-package/validate", file),
+  apply: (file) => postSyncPackage("/api/sync/import-package/apply", file),
 };
 
 /**
