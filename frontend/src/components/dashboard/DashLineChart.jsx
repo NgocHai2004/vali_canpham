@@ -19,8 +19,8 @@ import React from "react";
 export function DashLineChart({
   labels = [],
   values = [],
-  yMax = 40,
-  ticks = [40, 30, 20, 10, 0],
+  yMax = 20,
+  ticks = [20, 15, 10, 5, 0],
   highlightIndex,
   formatTooltip,
 }) {
